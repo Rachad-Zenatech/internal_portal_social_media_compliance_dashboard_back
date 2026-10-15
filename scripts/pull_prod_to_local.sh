@@ -33,17 +33,17 @@ if [ -z "$PROD_URL" ] || [[ "$PROD_URL" == *"localhost"* ]] || [[ "$PROD_URL" ==
   exit 1
 fi
 
-echo "Target Local : template_db_local (localhost:3005 / template_portal_dev)"
+echo "Target Local : social_media_db_local (localhost:3008 / social_media_compliance_dev)"
 
 echo "[1/3] Ensuring local Docker database is running..."
 "$DOCKER_CMD" compose up -d db > /dev/null 2>&1 || "$DOCKER_CMD" compose up -d db
 
 echo "[2/3] Fetching live data dump from remote database..."
-"$DOCKER_CMD" exec template_db_local sh -c "pg_dump '$PROD_URL' --no-owner --no-acl -Fc -f /tmp/prod.dump"
+"$DOCKER_CMD" exec social_media_db_local sh -c "pg_dump '$PROD_URL' --no-owner --no-acl -Fc -f /tmp/prod.dump"
 
 echo "[3/3] Restoring live data into local database..."
-"$DOCKER_CMD" exec template_db_local sh -c "pg_restore -U postgres -d template_portal_dev --clean --if-exists --no-owner /tmp/prod.dump" > /dev/null 2>&1 || true
-"$DOCKER_CMD" exec template_db_local rm -f /tmp/prod.dump
+"$DOCKER_CMD" exec social_media_db_local sh -c "pg_restore -U postgres -d social_media_compliance_dev --clean --if-exists --no-owner /tmp/prod.dump" > /dev/null 2>&1 || true
+"$DOCKER_CMD" exec social_media_db_local rm -f /tmp/prod.dump
 
 echo ""
 echo "? Local Docker database successfully updated with live data!"

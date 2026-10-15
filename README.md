@@ -9,12 +9,12 @@ Backend service for the ZenaTech Social Media Compliance internal portal. Built 
 ```mermaid
 flowchart TD
     subgraph ClientLayer [Client Consumers]
-        FrontApp[Social Media Compliance Frontend :6000]
+        FrontApp[Social Media Compliance Frontend :5179]
         MCPClient[MCP AI Agents & Inspectors]
         ThirdParty[External REST Integrations]
     end
 
-    subgraph APIGateway [FastAPI HTTP Engine :8900]
+    subgraph APIGateway [FastAPI HTTP Engine :8009]
         CORS[CORS & Security Headers Middleware]
         RateLimit[In-Memory Sliding-Window Rate Limiter]
         AuthRouter[Auth & Microsoft SSO Router]
@@ -57,7 +57,7 @@ flowchart TD
 
 | Category | Technology | Description |
 | :--- | :--- | :--- |
-| **Framework & Engine** | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/) | High-concurrency ASGI web framework running on port `8900` |
+| **Framework & Engine** | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/) | High-concurrency ASGI web framework running on port `8009` |
 | **Language** | Python 3.12+ | Strongly typed with Pydantic v2 schemas and async event loops |
 | **Database & Pooling** | [PostgreSQL](https://www.postgresql.org/), [asyncpg](https://github.com/MagicStack/asyncpg) | Direct binary wire protocol, synchronous pool manager `get_pool()`, atomic `UNNEST` batch queries |
 | **Database Migrations**| [Alembic](https://alembic.sqlalchemy.org/) | Declarative schema revision management |
@@ -139,22 +139,23 @@ pip install -r requirements.txt
 
 ### 3. Environment Variables (.env)
 ```env
-PORT=8900
-FRONTEND_URL=http://localhost:6000
-DATABASE_URL=postgresql://postgres:postgres@localhost:3005/template_portal_dev
+PORT=8009
+FRONTEND_URL=http://localhost:5179
+DATABASE_URL=postgresql://postgres:postgres@localhost:3008/social_media_compliance_dev
 DATABASE_SSL=false
 SESSION_SECRET=your-32-byte-secret-key-goes-here
 MICROSOFT_CLIENT_ID=your-azure-ad-client-id
 MICROSOFT_CLIENT_SECRET=your-azure-ad-client-secret
 MICROSOFT_TENANT_ID=common
 GEMINI_API_KEY=your-gemini-api-key
+MCP_PORT=7006
 ```
 
 ### 4. Run Development Server
 ```bash
-uvicorn server:app --host 0.0.0.0 --port 8900 --reload
+uvicorn server:app --host 0.0.0.0 --port 8009 --reload
 ```
-Open API docs at `http://localhost:8900/docs`.
+Open API docs at `http://localhost:8009/docs`.
 
 
 ## Local Database (Docker), DataGrip & Migrations
@@ -162,11 +163,11 @@ Open API docs at `http://localhost:8900/docs`.
 Each project in the ZenaTech ecosystem runs an isolated local PostgreSQL container mapped to a dedicated 3000-series host port to prevent port collisions.
 
 ### 1. Local Database Configuration
-* **Container Name**: `template_db_local`
-* **Host Port**: `localhost:3005` (mapped to internal PostgreSQL 5432)
-* **Database Name**: `template_portal_dev`
+* **Container Name**: `social_media_db_local`
+* **Host Port**: `localhost:3008` (mapped to internal PostgreSQL 5432)
+* **Database Name**: `social_media_compliance_dev`
 * **User / Password**: `postgres` / `postgres`
-* **Connection String**: `postgresql://postgres:postgres@localhost:3005/template_portal_dev`
+* **Connection String**: `postgresql://postgres:postgres@localhost:3008/social_media_compliance_dev`
 
 ### 2. Managing the Local Database
 ```bash
@@ -180,8 +181,8 @@ docker compose down
 1. Create a new **PostgreSQL** Data Source in DataGrip.
 2. Settings:
    * **Host**: `localhost`
-   * **Port**: `3005`
-   * **Database**: `template_portal_dev`
+   * **Port**: `3008`
+   * **Database**: `social_media_compliance_dev`
    * **User**: `postgres`
    * **Password**: `postgres`
 3. Click **Test Connection** and apply.

@@ -1,4 +1,4 @@
-# Pull Production Data into Local Docker Database (Port 3005)
+# Pull Production Data into Local Docker Database (Port 3008)
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
@@ -28,7 +28,7 @@ if (-not $prodUrl -or ($prodUrl -like "*localhost*") -or ($prodUrl -like "*127.0
 }
 
 Write-Host "Source DB    : $prodUrl" -ForegroundColor Gray
-Write-Host "Target Local : template_db_local (localhost:3005 / template_portal_dev)" -ForegroundColor Green
+Write-Host "Target Local : social_media_db_local (localhost:3008 / social_media_compliance_dev)" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[1/3] Ensuring local Docker database is running..." -ForegroundColor Cyan
@@ -36,20 +36,20 @@ docker compose up -d db | Out-Null
 
 $retries = 15
 while ($retries -gt 0) {
-    docker exec template_db_local pg_isready -U postgres -d template_portal_dev 2>$null | Out-Null
+    docker exec social_media_db_local pg_isready -U postgres -d social_media_compliance_dev 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) { break }
     Start-Sleep -Seconds 1
     $retries--
 }
 
 Write-Host "[2/3] Fetching live data dump from remote database..." -ForegroundColor Cyan
-docker exec template_db_local sh -c "pg_dump '$prodUrl' --no-owner --no-acl -Fc -f /tmp/prod.dump"
+docker exec social_media_db_local sh -c "pg_dump '$prodUrl' --no-owner --no-acl -Fc -f /tmp/prod.dump"
 
 Write-Host "[3/3] Restoring live data into local database..." -ForegroundColor Cyan
-docker exec template_db_local sh -c "pg_restore -U postgres -d template_portal_dev --clean --if-exists --no-owner /tmp/prod.dump" 2>$null
-docker exec template_db_local rm -f /tmp/prod.dump
+docker exec social_media_db_local sh -c "pg_restore -U postgres -d social_media_compliance_dev --clean --if-exists --no-owner /tmp/prod.dump" 2>$null
+docker exec social_media_db_local rm -f /tmp/prod.dump
 
 Write-Host ""
 Write-Host "? Local Docker database successfully updated with live data!" -ForegroundColor Green
-Write-Host "You can now inspect all real rows in DataGrip on localhost:3005." -ForegroundColor Cyan
+Write-Host "You can now inspect all real rows in DataGrip on localhost:3008." -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan

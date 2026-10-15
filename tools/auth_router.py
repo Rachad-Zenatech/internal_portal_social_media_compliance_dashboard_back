@@ -141,7 +141,7 @@ async def microsoft_callback(request: Request):
     # Connect Microsoft Entra identity to local RBAC
     user = await upsertMicrosoftUser(claims, graph_profile)
 
-    frontend_url = (os.getenv("FRONTEND_URL") or "http://localhost:6000").rstrip("/")
+    frontend_url = (os.getenv("FRONTEND_URL") or "http://localhost:5179").rstrip("/")
 
     if not user.get("is_active"):
         await log_login_activity(email, user["id"], False, "Account pending/inactive", ip_address, user_agent)
@@ -291,7 +291,7 @@ async def dev_login(email: str):
     import os
     from postgresql_db.database import get_pool
 
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:6000").rstrip("/")
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5179").rstrip("/")
 
     pool = get_pool()
     async with pool.acquire() as conn:
