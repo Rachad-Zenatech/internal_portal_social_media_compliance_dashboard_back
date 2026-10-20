@@ -55,7 +55,7 @@ echo "?? [Disposable DB] Starting clean local PostgreSQL container..."
 
 echo "? [Disposable DB] Waiting for PostgreSQL to be ready..."
 RETRIES=30
-until "$DOCKER_CMD" exec template_db_local pg_isready -U postgres &> /dev/null || [ $RETRIES -eq 0 ]; do
+until "$DOCKER_CMD" exec social_media_db_local pg_isready -U postgres -d social_media_compliance_dev &> /dev/null || [ $RETRIES -eq 0 ]; do
   sleep 1
   RETRIES=$((RETRIES - 1))
 done
