@@ -318,6 +318,10 @@ async def upsertMicrosoftUser(claims: dict, graph_profile: Optional[dict] = None
     clean_name = (claims.get('name') or (graph_profile.get("display_name") if graph_profile else '') or '').strip()
     oid = claims.get('oid') or (graph_profile.get("object_id") if graph_profile else None)
 
+    admin_emails_env = os.getenv("INITIAL_SUPER_ADMIN_EMAILS", "admin@example.com")
+    admin_emails = [e.strip().lower() for e in admin_emails_env.split(",") if e.strip()]
+    is_initial_admin = clean_email in admin_emails
+
     pool = get_pool()
     async with pool.acquire() as conn:
         # Find existing user by microsoft_object_id OR email
@@ -350,6 +354,7 @@ async def upsertMicrosoftUser(claims: dict, graph_profile: Optional[dict] = None
                         ELSE true
                     END,
                     is_super_admin = CASE
+                        WHEN $11::boolean IS TRUE THEN true
                         WHEN deleted_at IS NOT NULL THEN false
                         ELSE is_super_admin
                     END,
@@ -361,17 +366,17 @@ async def upsertMicrosoftUser(claims: dict, graph_profile: Optional[dict] = None
                     last_logout_at = NULL
                 WHERE id = $10
             """, clean_email, clean_name, oid, claims.get('tid'), claims.get('sub'),
-                 department, job_title, account_enabled, graph_synced_at, user['id'])
+                 department, job_title, account_enabled, graph_synced_at, user['id'], is_initial_admin)
             user = await conn.fetchrow("SELECT * FROM users WHERE id = $1", user['id'])
         else:
-            # Brand-new identity: auto-create as active regular user (is_super_admin = false)
+            # Brand-new identity
             user = await conn.fetchrow("""
                 INSERT INTO users (
                     microsoft_object_id, microsoft_tenant_id, microsoft_subject_id,
                     email, full_name, auth_provider, sso_enabled, is_active, is_super_admin,
                     department, job_title, graph_account_enabled, last_graph_sync,
                     last_login_at, last_sso_login_at, last_activity_at, created_at
-                ) VALUES ($1, $2, $3, $4, $5, 'microsoft', true, true, false, $6, $7, $8, $9, now(), now(), now(), now())
+                ) VALUES ($1, $2, $3, $4, $5, 'microsoft', true, true, $10, $6, $7, $8, $9, now(), now(), now(), now())
                 ON CONFLICT (email) DO UPDATE SET
                     full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name),
                     microsoft_object_id = COALESCE(EXCLUDED.microsoft_object_id, users.microsoft_object_id),
@@ -382,7 +387,7 @@ async def upsertMicrosoftUser(claims: dict, graph_profile: Optional[dict] = None
                     auth_provider = 'microsoft',
                     sso_enabled = true,
                     is_active = true,
-                    is_super_admin = CASE WHEN users.deleted_at IS NOT NULL THEN false ELSE users.is_super_admin END,
+                    is_super_admin = CASE WHEN $10::boolean IS TRUE THEN true WHEN users.deleted_at IS NOT NULL THEN false ELSE users.is_super_admin END,
                     deleted_at = NULL,
                     deleted_by = NULL,
                     last_login_at = now(),
@@ -391,7 +396,7 @@ async def upsertMicrosoftUser(claims: dict, graph_profile: Optional[dict] = None
                     last_logout_at = NULL
                 RETURNING *
             """, oid, claims.get('tid'), claims.get('sub'), clean_email, clean_name,
-                 department, job_title, account_enabled, graph_synced_at)
+                 department, job_title, account_enabled, graph_synced_at, is_initial_admin)
 
         # Ensure USER role is available in roles table
         user_role = await conn.fetchrow("""
@@ -409,6 +414,18 @@ async def upsertMicrosoftUser(claims: dict, graph_profile: Optional[dict] = None
             """)
 
         if user:
+            if is_initial_admin:
+                super_admin_role = await conn.fetchrow("SELECT id FROM roles WHERE code = 'SUPER_ADMIN'")
+                if super_admin_role:
+                    await conn.execute(
+                        """
+                        INSERT INTO user_roles (user_id, role_id, assigned_at, is_active)
+                        VALUES ($1, $2, now(), true)
+                        ON CONFLICT (user_id, role_id)
+                        DO UPDATE SET is_active = true, assigned_at = now()
+                        """,
+                        user["id"], super_admin_role["id"],
+                    )
             if was_deleted:
                 # If previously deleted, revoke all old roles and reset solely to USER
                 await conn.execute("UPDATE user_roles SET is_active = false WHERE user_id = $1", user["id"])

@@ -8,7 +8,6 @@ from postgresql_db.database import create_pool, close_pool, get_pool
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
 
 async def setup():
-    await create_pool()
     pool = get_pool()
     async with pool.acquire() as conn:
         print("Creating core RBAC & Template schema tables...")
@@ -26,6 +25,14 @@ async def setup():
                 job_title VARCHAR(255),
                 auth_provider VARCHAR(50) DEFAULT 'microsoft',
                 entra_oid VARCHAR(255) UNIQUE,
+                microsoft_tenant_id VARCHAR(255),
+                microsoft_object_id VARCHAR(255),
+                microsoft_subject_id VARCHAR(255),
+                sso_enabled BOOLEAN DEFAULT false,
+                graph_account_enabled BOOLEAN,
+                last_graph_sync TIMESTAMP WITH TIME ZONE,
+                last_sso_login_at TIMESTAMP WITH TIME ZONE,
+                force_password_change BOOLEAN DEFAULT false,
                 is_active BOOLEAN DEFAULT TRUE,
                 is_super_admin BOOLEAN DEFAULT FALSE,
                 last_login_at TIMESTAMP WITH TIME ZONE,
@@ -39,6 +46,17 @@ async def setup():
             );
             CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
             CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
+
+            -- Ensure all Microsoft SSO columns exist on pre-existing users tables
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS microsoft_tenant_id VARCHAR(255);
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS microsoft_object_id VARCHAR(255);
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS microsoft_subject_id VARCHAR(255);
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS sso_enabled BOOLEAN DEFAULT false;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS graph_account_enabled BOOLEAN;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS last_graph_sync TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS last_sso_login_at TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS force_password_change BOOLEAN DEFAULT false;
+            CREATE INDEX IF NOT EXISTS idx_users_microsoft_tenant_object ON users(microsoft_tenant_id, microsoft_object_id);
 
             -- Roles
             CREATE TABLE IF NOT EXISTS roles (
@@ -342,6 +360,22 @@ async def setup():
                 ON CONFLICT DO NOTHING
             """, super_admin_role_id)
 
+        admin_role_id = await conn.fetchval("SELECT id FROM roles WHERE code = 'ADMIN'")
+        if admin_role_id:
+            await conn.execute("""
+                INSERT INTO role_permission_groups (role_id, permission_group_id)
+                SELECT $1, id FROM permission_groups
+                ON CONFLICT DO NOTHING
+            """, admin_role_id)
+
+        user_role_id = await conn.fetchval("SELECT id FROM roles WHERE code = 'USER'")
+        if user_role_id:
+            await conn.execute("""
+                INSERT INTO role_permission_groups (role_id, permission_group_id)
+                SELECT $1, id FROM permission_groups WHERE code = 'MAIN_VIEW_DASHBOARD'
+                ON CONFLICT DO NOTHING
+            """, user_role_id)
+
         # Seed Super Admin Users
         admin_emails_env = os.getenv("INITIAL_SUPER_ADMIN_EMAILS", "admin@example.com")
         admin_emails = [e.strip().lower() for e in admin_emails_env.split(",") if e.strip()]
@@ -364,7 +398,14 @@ async def setup():
 
         print("RBAC and template schema initialization complete!")
 
-    await close_pool()
+
+async def _main():
+    await create_pool()
+    try:
+        await setup()
+    finally:
+        await close_pool()
+
 
 if __name__ == "__main__":
-    asyncio.run(setup())
+    asyncio.run(_main())

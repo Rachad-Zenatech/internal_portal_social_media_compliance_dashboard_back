@@ -42,6 +42,8 @@ from tools.notification_router import notification_router
 from tools.observability import router as observability_router
 from tools.log_router import router as log_router
 from tools.graph_router import router as graph_router
+from tools.oauth_router import router as oauth_router
+from tools.compliance_router import router as compliance_router
 
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools, ask_gemini, ask_gemini_stream, sync_mcp_tools_to_vector_db
@@ -70,9 +72,19 @@ async def lifespan(app: FastAPI):
         # Ensure schema tables exist
         try:
             from postgresql_db.setup_pbac_schema import setup as setup_schema
-            # Non-blocking schema initialization check
+            await setup_schema()
         except Exception as schema_err:
             logger.warning(f"Schema verification note: {schema_err}")
+        try:
+            from postgresql_db.setup_social_media_schema import setup as setup_social_media_schema
+            await setup_social_media_schema()
+        except Exception as sm_err:
+            logger.warning(f"Social media schema setup note: {sm_err}")
+        try:
+            from postgresql_db.setup_compliance_schema import setup as setup_compliance_schema
+            await setup_compliance_schema()
+        except Exception as comp_err:
+            logger.warning(f"Compliance schema setup note: {comp_err}")
     except Exception:
         logger.exception("Application startup failed", extra={"event": "application_startup_failed"})
         raise
@@ -271,6 +283,8 @@ app.include_router(notification_router, prefix="/api", tags=["Notifications"], d
 app.include_router(log_router, prefix="/api", tags=["Logs"])
 app.include_router(observability_router, prefix="/api", tags=["Observability"])
 app.include_router(graph_router, prefix="/api", tags=["Microsoft Graph"], dependencies=authenticated)
+app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"])
+app.include_router(compliance_router, prefix="/api", tags=["Compliance Rules & Governance"])
 
 
 # --- Session Middleware ---

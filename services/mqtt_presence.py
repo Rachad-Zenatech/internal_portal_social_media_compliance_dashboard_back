@@ -117,6 +117,7 @@ class MqttServicePresence:
 
         self._client.on_connect = self._handle_connect
         self._client.on_disconnect = self._handle_disconnect
+        self._client.on_message = self._handle_message
 
     def _handle_connect(self, client, userdata, flags, rc, properties=None):
         rc_val = getattr(rc, "value", rc)
@@ -132,6 +133,22 @@ class MqttServicePresence:
                 qos=1,
                 retain=True,
             )
+
+            # Subscribe to social media & marketing account synchronization topics
+            sync_topics = [
+                ("services/marketing/connections", 1),
+                ("services/social-media/connections", 1),
+                ("social-media/accounts/sync", 1),
+                ("social-media/accounts/response", 1),
+                ("services/+/+/status", 1),
+            ]
+            for sub_topic, qos in sync_topics:
+                try:
+                    self._client.subscribe(topic=sub_topic, qos=qos)
+                except Exception as sub_err:
+                    logger.warning(f"[MQTT Presence] Failed to subscribe to {sub_topic}: {sub_err}")
+            logger.info(f"[MQTT Presence] Subscribed to social media account topics: {[t[0] for t in sync_topics]}")
+
             for cb in self._on_connect_callbacks:
                 try:
                     if self._loop and self._loop.is_running():
@@ -146,6 +163,27 @@ class MqttServicePresence:
         else:
             self._connected = False
             logger.warning(f"[MQTT Presence] Connect failed with code {rc_val}")
+
+    def _handle_message(self, client, userdata, message):
+        """Processes incoming MQTT messages from social media / marketing services."""
+        try:
+            topic = message.topic
+            payload_str = message.payload.decode("utf-8")
+            if not payload_str:
+                return
+            data = json.loads(payload_str)
+            logger.info(f"[MQTT Presence] Received MQTT message on topic: {topic}")
+
+            # Check if this message relates to social media connections/accounts
+            if any(k in topic for k in ("marketing/connections", "social-media/connections", "accounts/sync", "accounts/response")):
+                if self._loop and self._loop.is_running():
+                    from services.oauth_connection_service import handle_mqtt_social_accounts_message
+                    asyncio.run_coroutine_threadsafe(
+                        handle_mqtt_social_accounts_message(topic, data),
+                        self._loop,
+                    )
+        except Exception as exc:
+            logger.warning(f"[MQTT Presence] Error processing MQTT message on {message.topic}: {exc}")
 
     def _handle_disconnect(self, client, userdata, flags_or_rc, rc_or_props=None, properties=None):
         self._connected = False
