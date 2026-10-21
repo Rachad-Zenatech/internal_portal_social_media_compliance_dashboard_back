@@ -196,52 +196,6 @@ async def user_can_use_mcp_tool(user_id: UUID, tool_code: str):
 
     return tool_code in perms["mcp_tool_permissions"]
 
-async def resolve_user_department(user_id: UUID) -> str:
-    """
-    Resolves user department matching the frontend logic:
-    1. Direct users.department
-    2. Direct role.department for assigned active roles
-    3. Parent role hierarchy (e.g. User -> Manager -> Executive)
-    4. Super Admin -> Executive
-    5. Fallback -> General
-    """
-    from postgresql_db.database import get_pool
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        u = await conn.fetchrow("SELECT department, is_super_admin FROM users WHERE id = $1", user_id)
-        if not u:
-            return "General"
-        if u["department"] and u["department"].strip():
-            return u["department"].strip()
-        if u["is_super_admin"]:
-            return "Executive"
-
-        roles = await conn.fetch("""
-            SELECT r.id, r.name, r.code, r.department, r.parent_role_id
-            FROM roles r
-            JOIN user_roles ur ON ur.role_id = r.id
-            WHERE ur.user_id = $1 AND ur.is_active = true AND r.is_active = true AND r.deleted_at IS NULL
-        """, user_id)
-
-        all_roles = await conn.fetch("SELECT id, name, code, department, parent_role_id FROM roles WHERE is_active = true AND deleted_at IS NULL")
-        role_map = {r["id"]: dict(r) for r in all_roles}
-
-        for r in roles:
-            if r["department"] and r["department"].strip():
-                return r["department"].strip()
-            curr = dict(r)
-            visited = set()
-            while curr.get("parent_role_id") and curr["parent_role_id"] not in visited:
-                visited.add(curr["parent_role_id"])
-                parent = role_map.get(curr["parent_role_id"])
-                if not parent:
-                    break
-                if parent.get("department") and parent["department"].strip():
-                    return parent["department"].strip()
-                curr = parent
-
-        return "General"
-
 def _is_cookie_secure() -> bool:
     env_val = os.getenv("AUTH_COOKIE_SECURE")
     if env_val is not None:
@@ -582,21 +536,6 @@ async def get_current_user_id_dependency(
     current_user_id_ctx.set(user_id)
     return user_id
 
-def requireNavigationAccess(navigationCode: str, actionCode: str = 'VIEW'):
-    async def dependency(user_id: UUID = Depends(get_current_user_id_dependency)):
-        from postgresql_db.database import fetch_one
-        user = await fetch_one("SELECT is_super_admin FROM users WHERE id = $1", user_id)
-        if user and user['is_super_admin']:
-            return user_id
-
-        has_access = await user_can_access_page(user_id, navigationCode, actionCode)
-        if not has_access:
-            from services.rbac_service import log_audit_action
-            await log_audit_action('PERMISSION_DENIED', user_id, f'Denied {actionCode} on {navigationCode}')
-            raise HTTPException(status_code=403, detail='Permission denied')
-        return user_id
-    return dependency
-
 def require_permission(permission_code: str):
     """
     New API Permission Guard based on PBAC proposal.
@@ -637,21 +576,3 @@ def require_permission(permission_code: str):
             raise HTTPException(status_code=403, detail='Permission denied')
         return user_id
     return dependency
-
-def requireToolAccess(toolCode: str, requiredAccessLevel: str = 'execute'):
-    async def dependency(user_id: UUID = Depends(get_current_user_id_dependency)):
-        from postgresql_db.database import fetch_one
-        user = await fetch_one("SELECT is_super_admin FROM users WHERE id = $1", user_id)
-        if user and user['is_super_admin']:
-            return user_id
-
-        has_access = await user_can_use_mcp_tool(user_id, toolCode)
-        if not has_access:
-            from services.rbac_service import log_audit_action
-            await log_audit_action('PERMISSION_DENIED', user_id, f'Denied tool access on {toolCode}')
-            raise HTTPException(status_code=403, detail='Permission denied')
-        return user_id
-    return dependency
-
-
-

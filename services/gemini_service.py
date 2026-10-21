@@ -117,6 +117,5 @@ async def generate_content_with_fallback(
                 # Non-rotatable fatal error, re-raise immediately
                 raise e
 
-    print("no quota")
-    logger.error("no quota")
-    raise RuntimeError("no quota")
+    logger.error("All Gemini models are unavailable or out of quota")
+    raise RuntimeError("All Gemini models are unavailable or out of quota") from last_exception

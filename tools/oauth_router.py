@@ -3,7 +3,6 @@
 Manages Organization -> Company -> Social Media Channel Connections.
 Synchronizes channels and status directly from the Social Media application via MQTT event bus.
 """
-import uuid
 from typing import Annotated
 from uuid import UUID
 

@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 from uuid import UUID
 from typing import Optional, Dict, Any, List, Tuple
 from postgresql_db.database import get_pool

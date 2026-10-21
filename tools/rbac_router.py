@@ -21,7 +21,6 @@ from services.auth_service import (
     get_current_user_id_dependency,
     get_my_permissions,
     require_permission,
-    user_can_access_page,
 )
 from postgresql_db.database import fetch_all
 

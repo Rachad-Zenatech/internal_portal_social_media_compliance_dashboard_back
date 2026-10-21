@@ -92,89 +92,21 @@ class Role(RoleBase):
     class Config:
         from_attributes = True
 
-class RoleTree(Role):
-    level: int = 0
-    children: List['RoleTree'] = []
-
-    class Config:
-        from_attributes = True
-
 # User Roles
 class UserRoleBase(BaseModel):
     user_id: UUID
     role_id: UUID
     is_active: bool = True
 
-class UserRole(UserRoleBase):
-    id: UUID
-    assigned_at: datetime
-    assigned_by: Optional[UUID] = None
-
-    class Config:
-        from_attributes = True
-
 # Navigation Items (Pages)
-class NavigationItem(BaseModel):
-    id: UUID
-    name: str
-    code: str
-    route_path: Optional[str] = None
-    parent_code: Optional[str] = None
-    display_order: int
-    icon: Optional[str] = None
-    is_menu_item: bool
-    is_active: bool
-
-    class Config:
-        from_attributes = True
-
 # Permission Actions
-class PermissionAction(BaseModel):
-    id: UUID
-    name: str
-    code: str
-    description: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
 # Role Navigation Permissions
 class RoleNavigationPermissionCreate(BaseModel):
     navigation_item_id: UUID
     action_id: UUID
     is_allowed: bool
 
-class RoleNavigationPermissionUpdate(BaseModel):
-    is_allowed: bool
-
-class RoleNavigationPermission(BaseModel):
-    id: UUID
-    role_id: UUID
-    navigation_item_id: UUID
-    action_id: UUID
-    is_allowed: bool
-
-    # Extra fields for ease of use in responses
-    navigation_code: Optional[str] = None
-    action_code: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
 # MCP Tools
-class McpTool(BaseModel):
-    id: UUID
-    name: str
-    code: str
-    server_name: str
-    description: Optional[str] = None
-    is_read_only: bool
-    is_sensitive: bool
-    is_active: bool
-
-    class Config:
-        from_attributes = True
-
 # Role MCP Tool Permissions
 class RoleMcpToolPermissionCreate(BaseModel):
     mcp_tool_id: UUID
@@ -182,32 +114,7 @@ class RoleMcpToolPermissionCreate(BaseModel):
     access_level: str = "ALLOW"
     conditions: Optional[Dict[str, Any]] = None
 
-class RoleMcpToolPermissionUpdate(BaseModel):
-    is_allowed: Optional[bool] = None
-    access_level: Optional[str] = None
-    conditions: Optional[Dict[str, Any]] = None
-
-class RoleMcpToolPermission(BaseModel):
-    id: UUID
-    role_id: UUID
-    mcp_tool_id: UUID
-    is_allowed: bool
-    access_level: str
-    conditions: Optional[Dict[str, Any]] = None
-
-    # Extra field for ease of use
-    tool_code: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
 # My Permissions Response
-class MyPermissionsResponse(BaseModel):
-    user: User
-    roles: List[Role]
-    navigation_permissions: Dict[str, List[str]] # e.g. {"DASHBOARD": ["VIEW", "EDIT"]}
-    mcp_tool_permissions: List[str] # List of allowed tool codes
-
 # PBAC Models
 class PermissionGroupAction(BaseModel):
     api_module_code: str
@@ -236,4 +143,3 @@ class PermissionModule(BaseModel):
 
 class RolePermissionGroupsUpdate(BaseModel):
     permission_group_ids: List[int]
-

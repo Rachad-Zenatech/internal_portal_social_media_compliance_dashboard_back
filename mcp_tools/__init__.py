@@ -4,21 +4,18 @@
 # prompts via `mcp.add_prompt`, deriving the name and description from the
 # function name and docstring.
 import os
-import re
 import inspect
-import asyncio
 import json
 import logging
 
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from google.genai import errors
 from fastmcp.prompts import Prompt
 
 from mcp_tools.prompts import ALL_PROMPTS
 from mcp_tools.permissions import list_my_accessible_tools_tool
-from services.auth_service import current_user_id_ctx, user_can_use_mcp_tool, get_my_permissions
+from services.gemini_service import get_gemini_fallback_models
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -37,62 +34,12 @@ gemini_key = os.getenv("GEMINI_API_KEY")
 gemini_client = genai.Client(api_key=gemini_key) if gemini_key else None
 
 
-def _normalize_ai_model_name(name: str) -> str:
-    return name.strip().lower().replace(" ", "-")
-
-
-def _ai_model_candidates(model: str = None) -> list:
-    if model:
-        return [_normalize_ai_model_name(model)]
-
-    configured = os.getenv("GEMINI_AVAILABLE_MODELS", "gemini-2.5-flash,gemini-3.1-flash-lite,gemini-2.5-flash-lite,gemini-3.1-pro-preview")
-    candidates = [_normalize_ai_model_name(item) for item in configured.split(",") if item.strip()]
-
-    deprecated = {
-        "gemini-2.0-pro", "gemini-2.0-flash", "gemini-2.0-flash-lite",
-        "gemini-2-flash", "gemini-2-flash-lite", "gemini-2",
-        "gemini-1.5-flash", "gemini-1.5-pro",
-    }
-
-    unique_candidates = [c for c in candidates if c not in deprecated]
-    return unique_candidates or ["gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"]
-
-
-async def generate_with_fallback(contents, config):
-    """Call Gemini with retries and progressive model fallback."""
-    if not gemini_client:
-        raise RuntimeError("GEMINI_API_KEY is not configured.")
-
-    models = _ai_model_candidates()
-    last_error = None
-
-    for model in models:
-        for attempt in range(2):
-            try:
-                return await gemini_client.aio.models.generate_content(
-                    model=model,
-                    contents=contents,
-                    config=config,
-                )
-            except errors.ServerError as e:
-                last_error = e
-                await asyncio.sleep(0.5)
-            except errors.APIError as e:
-                last_error = e
-                break
-            except Exception as e:
-                last_error = e
-                break
-
-    raise last_error or RuntimeError("All Gemini model attempts failed.")
-
-
 async def generate_stream_with_fallback(contents, config):
     """Stream Gemini response with fallback handling."""
     if not gemini_client:
         raise RuntimeError("GEMINI_API_KEY is not configured.")
 
-    models = _ai_model_candidates()
+    models = get_gemini_fallback_models()
     last_error = None
 
     for model in models:
@@ -157,14 +104,6 @@ async def ask_gemini_stream(message: str, history: list = None, file_data: str =
         yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-
-async def ask_gemini(message: str, file_path: str = None) -> str:
-    """Convenience synchronous-like wrapper for non-streaming Gemini calls."""
-    if not gemini_client:
-        return "GEMINI_API_KEY is not configured."
-    res = await generate_with_fallback(contents=message, config=None)
-    return res.text if res else "No response generated."
 
 
 async def sync_mcp_tools_to_vector_db():
