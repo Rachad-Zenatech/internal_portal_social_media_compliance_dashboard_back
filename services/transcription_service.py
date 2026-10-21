@@ -205,7 +205,31 @@ async def schedule_missing(file_ids: List[UUID]) -> None:
     """Queue videos that were never transcribed, or whose previous attempt was abandoned."""
     if not file_ids:
         return
+    from services import ai_usage_service  # local import keeps module load order simple
     pool = get_pool()
+    async with pool.acquire() as conn:
+        due = await conn.fetch(
+            f"""
+            SELECT id, submission_id FROM content_submission_files
+            WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL
+              AND (transcript_status IS NULL
+                   OR (transcript_status IN ('PENDING', 'PROCESSING')
+                       AND transcript_updated_at < NOW() - INTERVAL '{STALE_MINUTES} minutes'))
+            """,
+            file_ids,
+        )
+    allowed = []
+    for f in due:
+        try:
+            # System-started, so only the company-wide daily cap applies (no person to charge).
+            await ai_usage_service.reserve("TRANSCRIPTION", None, f["submission_id"])
+        except ai_usage_service.AiLimitExceeded:
+            logger.info("Skipping catch-up transcription of %s: daily AI limit reached", f["id"])
+            break
+        allowed.append(f["id"])
+    if not allowed:
+        return
+    file_ids = allowed
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             f"""

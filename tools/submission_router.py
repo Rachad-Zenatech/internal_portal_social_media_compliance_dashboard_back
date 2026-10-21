@@ -20,7 +20,7 @@ from models.submission_model import (
     SubmissionUpdate,
     SubmitResult,
 )
-from services import sentiment_service
+from services import ai_usage_service, sentiment_service
 from services import submission_service as svc
 from services.auth_service import get_current_user_id_dependency
 
@@ -39,6 +39,13 @@ async def get_options(_user_id: CurrentUser):
 async def review_queue(user_id: CurrentUser):
     """Submitted videos for the Content Screener queue (declared before /{submission_id} so it isn't parsed as an id)."""
     return await svc.review_queue(user_id)
+
+
+@router.get("/ai-usage")
+async def ai_usage(user_id: CurrentUser, submission_id: Optional[UUID] = Query(None)):
+    """How many AI runs (sentiment, transcription) the current user has left in the rolling 24-hour window,
+    and for one submission when given."""
+    return await ai_usage_service.usage_for(user_id, submission_id)
 
 
 @router.get("", response_model=List[SubmissionSummary])

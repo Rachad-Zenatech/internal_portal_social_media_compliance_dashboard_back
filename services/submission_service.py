@@ -41,7 +41,8 @@ from models.submission_model import (
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.audit_service import log_audit_event
-from services import sentiment_service, transcription_service
+from services import ai_usage_service, sentiment_service, transcription_service
+from services.ai_usage_service import AiLimitExceeded
 from services.compliance_service import check_compliance
 
 logger = logging.getLogger(__name__)
@@ -478,6 +479,13 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
 
     mime = upload.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
     needs_transcript = kind == "MAIN" and mime.startswith("video/")
+    # Over the AI limit the upload still works; the transcript is marked failed and can be retried later.
+    transcript_blocked: Optional[str] = None
+    if needs_transcript:
+        try:
+            await ai_usage_service.reserve("TRANSCRIPTION", user_id, submission_id)
+        except AiLimitExceeded as e:
+            transcript_blocked = f"Not transcribed: {e.detail}"
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -502,9 +510,9 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
                 """
                 INSERT INTO content_submission_files
                     (id, submission_id, kind, original_name, mime_type, size_bytes, storage_path, uploaded_by,
-                     transcript_status, transcript_updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CASE WHEN $9::text IS NULL THEN NULL ELSE NOW() END)
-                RETURNING id, kind, original_name, mime_type, size_bytes, created_at, transcript_status
+                     transcript_status, transcript_error, transcript_updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $9::text IS NULL THEN NULL ELSE NOW() END)
+                RETURNING id, kind, original_name, mime_type, size_bytes, created_at, transcript_status, transcript_error
                 """,
                 file_id,
                 submission_id,
@@ -514,13 +522,14 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
                 size,
                 str(path.relative_to(STORAGE_ROOT)),
                 user_id,
-                "PENDING" if needs_transcript else None,
+                ("FAILED" if transcript_blocked else "PENDING") if needs_transcript else None,
+                transcript_blocked,
             )
             await conn.execute("UPDATE content_submissions SET updated_at = NOW(), updated_by = $2 WHERE id = $1",
                                submission_id, user_id)
             await _add_event(conn, submission_id, "FILE_ADDED", f"Added {original_name}", user_id,
                              {"file_id": str(file_id), "kind": kind, "size_bytes": size})
-    if needs_transcript:
+    if needs_transcript and not transcript_blocked:
         transcription_service.schedule([file_id])
     return _file_out(submission_id, dict(saved))
 
@@ -528,6 +537,12 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
 async def retranscribe(submission_id: UUID, file_id: UUID, user_id: UUID) -> SubmissionFile:
     """Generate the speech transcript again, e.g. after a failed attempt."""
     await _get_owned_row(submission_id, user_id)
+    busy = await fetch_one(
+        "SELECT 1 FROM content_submission_files WHERE id = $1 AND submission_id = $2 AND transcript_status = 'PROCESSING'",
+        file_id, submission_id,
+    )
+    if not busy:
+        await ai_usage_service.reserve("TRANSCRIPTION", user_id, submission_id)
     f = await fetch_one(
         """
         UPDATE content_submission_files
