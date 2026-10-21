@@ -1,7 +1,7 @@
 import json
 from typing import Optional, List
 from uuid import UUID
-from postgresql_db.database import get_pool, fetch_all, fetch_one
+from postgresql_db.database import get_pool, fetch_all
 from services.cache_service import config_cache, emit_cache_invalidation
 from models.rbac_model import (
     UserCreate, UserUpdate, RoleCreate, RoleUpdate,
@@ -103,16 +103,6 @@ async def get_all_users(is_active: Optional[bool] = None):
         result.append(d)
     return result
 
-async def get_user_by_id(user_id: UUID):
-    sql = """
-        SELECT id, email, full_name, is_active, is_super_admin,
-               department, job_title,
-               last_login_at, created_at, updated_at
-        FROM users
-        WHERE id = $1 AND deleted_at IS NULL
-    """
-    return await fetch_one(sql, user_id)
-
 async def create_user(user: UserCreate, actor_id: UUID = None):
     clean_email = user.email.strip().lower()
     pool = get_pool()
@@ -208,7 +198,7 @@ async def update_user(user_id: UUID, user: UserUpdate, actor_id: UUID = None):
             if not updates:
                 return _public_user(old)
 
-            updates.append(f"updated_at = now()")
+            updates.append("updated_at = now()")
             updates.append(f"updated_by = ${arg_idx}")
             args.append(actor_id)
             arg_idx += 1
@@ -400,10 +390,6 @@ async def get_role_tree():
     await config_cache.set(cache_key, roots, ttl_seconds=300)
     return roots
 
-async def get_role_by_id(role_id: UUID):
-    sql = "SELECT * FROM roles WHERE id = $1 AND deleted_at IS NULL"
-    return await fetch_one(sql, role_id)
-
 async def create_role(role: RoleCreate, actor_id: UUID = None):
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -479,7 +465,7 @@ async def update_role(role_id: UUID, role: RoleUpdate, actor_id: UUID = None):
             if not updates:
                 return dict(old)
 
-            updates.append(f"updated_at = now()")
+            updates.append("updated_at = now()")
             updates.append(f"updated_by = ${arg_idx}")
             args.append(actor_id)
             arg_idx += 1
@@ -567,8 +553,9 @@ async def update_role_navigation_permissions(role_id: UUID, perms: list[RoleNavi
                 """, role_id, nav_ids, act_ids, is_alloweds, actor_id)
 
             await log_audit(conn, actor_id, "UPDATE", "role_navigation_permissions", role_id, None, None)
-            await emit_cache_invalidation(scope="roles")
-            return await get_role_navigation_permissions(role_id)
+    # Invalidate and re-read only after commit, so listeners and the response see the new rows.
+    await emit_cache_invalidation(scope="roles")
+    return await get_role_navigation_permissions(role_id)
 
 # --- ROLE MCP TOOL PERMISSIONS ---
 async def get_role_mcp_tool_permissions(role_id: UUID):
@@ -584,17 +571,25 @@ async def update_role_mcp_tool_permissions(role_id: UUID, perms: list[RoleMcpToo
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            for p in perms:
-                existing = await conn.fetchrow("SELECT id FROM role_mcp_tool_permissions WHERE role_id = $1 AND mcp_tool_id = $2", role_id, p.mcp_tool_id)
-                conds_json = json.dumps(p.conditions) if p.conditions else "{}"
-                if existing:
-                    await conn.execute("UPDATE role_mcp_tool_permissions SET is_allowed = $1, access_level = $2, conditions = $3::jsonb, updated_at = now(), updated_by = $4 WHERE id = $5", p.is_allowed, p.access_level, conds_json, actor_id, existing["id"])
-                else:
-                    await conn.execute("INSERT INTO role_mcp_tool_permissions (role_id, mcp_tool_id, is_allowed, access_level, conditions, created_at, created_by) VALUES ($1, $2, $3, $4, $5::jsonb, now(), $6)", role_id, p.mcp_tool_id, p.is_allowed, p.access_level, conds_json, actor_id)
+            # One batch upsert; the actor is recorded by the audit log entry below.
+            await conn.execute("""
+                INSERT INTO role_mcp_tool_permissions (role_id, mcp_tool_id, is_allowed, access_level, conditions, created_at, updated_at)
+                SELECT $1, t.mcp_tool_id, t.is_allowed, t.access_level, t.conditions::jsonb, now(), now()
+                FROM unnest($2::uuid[], $3::bool[], $4::text[], $5::text[]) AS t(mcp_tool_id, is_allowed, access_level, conditions)
+                ON CONFLICT (role_id, mcp_tool_id)
+                DO UPDATE SET is_allowed = EXCLUDED.is_allowed, access_level = EXCLUDED.access_level,
+                              conditions = EXCLUDED.conditions, updated_at = now()
+            """,
+                role_id,
+                [p.mcp_tool_id for p in perms],
+                [p.is_allowed for p in perms],
+                [p.access_level for p in perms],
+                [json.dumps(p.conditions) if p.conditions else "{}" for p in perms],
+            )
 
             await log_audit(conn, actor_id, "UPDATE", "role_mcp_tool_permissions", role_id, None, None)
-            await emit_cache_invalidation(scope="roles")
-            return await get_role_mcp_tool_permissions(role_id)
+    await emit_cache_invalidation(scope="roles")
+    return await get_role_mcp_tool_permissions(role_id)
 
 # --- LOGIN ACTIVITY LOGS ---
 async def log_login_activity(email: str, user_id: UUID | None, success: bool, failure_reason: str | None, ip_address: str | None, user_agent: str | None):
@@ -682,5 +677,5 @@ async def update_role_permission_groups(role_id: UUID, group_ids: list[int], act
                 """, role_id, group_ids)
 
             await log_audit(conn, actor_id, "UPDATE", "role_permission_groups", role_id, {"groups": old_ids}, {"groups": group_ids})
-            await emit_cache_invalidation(scope="roles")
-            return await get_role_permission_groups(role_id)
+    await emit_cache_invalidation(scope="roles")
+    return await get_role_permission_groups(role_id)
