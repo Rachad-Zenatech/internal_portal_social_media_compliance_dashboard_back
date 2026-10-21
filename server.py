@@ -21,7 +21,7 @@ from fastmcp import FastMCP
 from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
-from postgresql_db.database import close_pool, create_pool, fetch_one, get_pool
+from postgresql_db.database import close_pool, create_pool, fetch_one
 from services.logging_service import (
     asyncio_exception_handler,
     configure_logging,
@@ -44,9 +44,10 @@ from tools.log_router import router as log_router
 from tools.graph_router import router as graph_router
 from tools.oauth_router import router as oauth_router
 from tools.compliance_router import router as compliance_router
+from tools.submission_router import router as submission_router
 
 # MCP tools & AI functions
-from mcp_tools import register_all as register_mcp_tools, ask_gemini, ask_gemini_stream, sync_mcp_tools_to_vector_db
+from mcp_tools import register_all as register_mcp_tools, ask_gemini_stream, sync_mcp_tools_to_vector_db
 from services.graph_sync_job import graph_sync_loop
 
 configure_logging()
@@ -85,6 +86,11 @@ async def lifespan(app: FastAPI):
             await setup_compliance_schema()
         except Exception as comp_err:
             logger.warning(f"Compliance schema setup note: {comp_err}")
+        try:
+            from postgresql_db.setup_submissions_schema import setup as setup_submissions_schema
+            await setup_submissions_schema()
+        except Exception as sub_err:
+            logger.warning(f"Submission schema setup note: {sub_err}")
     except Exception:
         logger.exception("Application startup failed", extra={"event": "application_startup_failed"})
         raise
@@ -199,7 +205,7 @@ async def ai_chat(req: ChatRequest, user_id: UUID = Depends(get_current_user_id)
             try:
                 async for chunk in ask_gemini_stream(req.message, req.history, req.file_data, req.mime_type):
                     yield chunk
-            except Exception as e:
+            except Exception:
                 import json
                 logger.exception("AI stream request failed", extra={"event": "ai_chat_stream_failed"})
                 yield f"data: {json.dumps({'type': 'error', 'message': 'The AI service is temporarily unavailable.'})}\n\n"
@@ -285,6 +291,7 @@ app.include_router(observability_router, prefix="/api", tags=["Observability"])
 app.include_router(graph_router, prefix="/api", tags=["Microsoft Graph"], dependencies=authenticated)
 app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"])
 app.include_router(compliance_router, prefix="/api", tags=["Compliance Rules & Governance"])
+app.include_router(submission_router, prefix="/api", tags=["Content Submissions"])
 
 
 # --- Session Middleware ---
@@ -305,7 +312,6 @@ _RATE_LIMIT_AUTH = int(os.getenv("RATE_LIMIT_AUTH_PER_WINDOW", "60"))
 _RATE_LIMIT_ENABLED = _env_flag("RATE_LIMIT_ENABLED", "true")
 
 _SENSITIVE_PREFIXES = (
-    "/api/auth/dev-login",
     "/api/auth/microsoft/callback",
     "/api/auth/login",
     "/api/login",
