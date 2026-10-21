@@ -141,6 +141,7 @@ async def usage_for(user_id: UUID, submission_id: Optional[UUID] = None) -> Dict
                 "company_used": everyone.used,
                 "company_limit": global_cap,
                 "resets_at": mine.resets_at,
+                "company_resets_at": everyone.resets_at,
             }
             sub_cap = limit(feature, "PER_SUBMISSION_DAY")
             if submission_id and sub_cap:
