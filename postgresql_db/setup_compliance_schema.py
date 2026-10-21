@@ -6,6 +6,7 @@ Populates base rules from:
 """
 
 import asyncio
+import json
 import logging
 from postgresql_db.database import get_pool, close_pool
 
@@ -47,6 +48,7 @@ BASE_RULES = [
             "bureaucrats failing warfighters",
             "failing warfighters",
             "military incompetence",
+            "procurement is broken",
         ],
         "required_disclaimers": [],
         "allowed_examples": "Defense does not have a sensor problem; it has a decision-speed problem. A million-dollar interceptor against a $2,000 drone is an economic mismatch.",
@@ -157,6 +159,10 @@ BASE_RULES = [
             "unreleased revenue",
             "internal test telemetry",
             "award imminent",
+            "demand from defense customers is accelerating",
+            "strong defense demand",
+            "defense backlog",
+            "defense bookings",
         ],
         "required_disclaimers": [],
         "allowed_examples": "Quoting released SEC filings or press releases with exact figures, dates, and links.",
@@ -179,6 +185,10 @@ BASE_RULES = [
             "gps coordinates of base",
             "tactical frequency",
             "unredacted screen",
+            "export controlled",
+            "flight path",
+            "test schedule",
+            "encryption key",
         ],
         "required_disclaimers": [],
         "allowed_examples": "Abstracted graphic telemetry, blurred installation background, non-identifiable test field.",
@@ -236,6 +246,13 @@ BASE_RULES = [
             "delivers operational capability",
             "proven solution",
             "production system",
+            "deployable solution",
+            "fielded platform",
+            "program of record",
+            "customer adoption",
+            "strategic partner",
+            "broad deployment",
+            "blue uas certified",
         ],
         "required_disclaimers": [],
         "allowed_examples": "Concept, intended use, prototype, undergoing flight testing, demonstrated specific cleared function.",
@@ -310,6 +327,11 @@ BASE_RULES = [
             "competitor proposal",
             "source selection leak",
             "disparage competitor drone",
+            "down to the final two",
+            "evaluation team has been extremely positive",
+            "evaluation team has been very positive",
+            "expect the army decision",
+            "competitor missed a requirement",
         ],
         "required_disclaimers": [],
         "allowed_examples": "Highlighting architectural advantages of modular dual-use autonomy without disparaging competing vendors.",
@@ -329,6 +351,7 @@ BASE_RULES = [
             "attack administration",
             "unpatriotic defense",
             "political corruption in military",
+            "washington ignored",
         ],
         "required_disclaimers": [],
         "allowed_examples": "Constructive economic analysis of attritable autonomous systems in contested logistics.",
@@ -336,10 +359,179 @@ BASE_RULES = [
         "remediation_guidance": "Elevate the discussion to mission capability, defense industrial base resilience, and technical architecture.",
         "sort_order": 150,
     },
+    {
+        "rule_number": "Rule 16",
+        "category": "Product & Prototype Maturity",
+        "title": "Separate Vision from Current Capability",
+        "summary": "Be bold about where defense is heading, but statements about what ZenaDrone can do today must match documented test evidence and current status. Anything the company might, plans to or aspires to do must be qualified as such. Avoid certainty words (will, proves, solves, guarantees, promises) and unsubstantiated superlatives unless evidence supports them.",
+        "severity": "HIGH",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [
+            "guarantees",
+            "solves",
+            "has solved",
+            "eliminates",
+            "military grade",
+            "battlefield ready",
+            "game changing",
+            "trusted by the military",
+            "fielded by",
+            "advantage today",
+        ],
+        "required_disclaimers": [],
+        "allowed_examples": "A $2,000 drone should not require a million-dollar response. We believe lower-cost autonomous interception will be part of the answer; that challenge is informing ZenaDrone's counter-UAS development work.",
+        "prohibited_examples": "ZenaDrone has solved the counter-UAS cost problem for the U.S. military. ZenaDrone swarms give U.S. forces that advantage today.",
+        "remediation_guidance": "Use \"designed to\", \"intended to\", \"we believe\", \"could\" or \"may\" for objectives and predictions. Connect to ZenaDrone as \"a problem driving our development work\", not \"a problem we have solved\". Cite and date any number in a headline.",
+        "sort_order": 160,
+    },
+    {
+        "rule_number": "Rule 17",
+        "category": "Thought Leadership & Tone",
+        "title": "Mission-Oriented and Humane: No Theatrical Lethality",
+        "summary": "Discuss conflict professionally, never celebrating destruction. Ideally do not address lethality directly; emphasize force protection, mission effectiveness, survivability, decision advantage and human consequences.",
+        "severity": "MEDIUM",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [
+            "lethality",
+            "kill count",
+            "confirmed kills",
+            "obliterate",
+            "annihilate",
+            "wipe out the enemy",
+            "destroy the enemy",
+        ],
+        "required_disclaimers": [],
+        "allowed_examples": "The most consequential autonomous aircraft may be the one carrying blood, batteries or critical supplies - not a weapon.",
+        "prohibited_examples": "Watch our drones obliterate the enemy. Maximum lethality at minimum cost.",
+        "remediation_guidance": "Reframe around force protection, survivability, reduced human exposure and mission outcomes. Keep explosions, kills and intercept outcomes out of copy and visuals.",
+        "sort_order": 170,
+    },
+    {
+        "rule_number": "Rule 18",
+        "category": "Governance & Workflow",
+        "title": "Substantiate Every Claim and Keep the Evidence File",
+        "summary": "Every factual statement belongs to a claim class (opinion, industry fact, company fact, product, status, government relationship, procurement/financial) with matching support and reviewer. Keep dated support for specifications, test results, status, customer relationships, certifications, statistics and imagery rights.",
+        "severity": "MEDIUM",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [],
+        "required_disclaimers": [],
+        "allowed_examples": "Industry statistic with its current primary source, date, scope and link; product specification matching the approved status register.",
+        "prohibited_examples": "Statistics or specifications quoted from memory, an informal conversation or an outdated deck.",
+        "remediation_guidance": "For each yellow/red item keep: final copy, creative and caption; platform and publish date; approver names and timestamps; the specification, test record, filing or customer authorization; image licenses and releases; and AI prompts/source files with the concept label.",
+        "sort_order": 180,
+    },
+    {
+        "rule_number": "Rule 19",
+        "category": "Government & Customer Claims",
+        "title": "Real Tests, Demos and Pilots: Release First, Caption Exactly",
+        "summary": "Real test, demonstration and customer-pilot imagery is the highest-risk category because it can imply selection or adoption. Do not publish until the owner confirms the organization may be named, photography and promotional use were authorized, every person, location and background detail is releasable, and the exact objective and result may be disclosed.",
+        "severity": "CRITICAL",
+        "traffic_light": "RED",
+        "prohibited_terms": [
+            "puts zenadrone to the test",
+            "warfighters validate",
+            "validate zenadrone",
+            "customer deploys zenadrone",
+            "government validated",
+            "government approved",
+        ],
+        "required_disclaimers": [],
+        "allowed_examples": "\"ZenaDrone 1000 during a development test conducted on [date], focused on [cleared objective].\" \"Paid customer pilot evaluating [defined use], subject to pilot scope.\"",
+        "prohibited_examples": "\"The U.S. military puts ZenaDrone to the test.\" \"Warfighters validate ZenaDrone.\" \"Customer deploys ZenaDrone.\"",
+        "remediation_guidance": "Check the NDA, contract, test plan, public-affairs instructions, CUI markings and export controls. The caption must not turn observation into validation, evaluation into selection or a pilot into deployment.",
+        "sort_order": 190,
+    },
+    {
+        "rule_number": "Rule 20",
+        "category": "Defense Imagery & Video",
+        "title": "Image Editing: Never Change What Happened",
+        "summary": "Cropping, tonal correction, background cleanup, privacy/security blurring and clearly conceptual, documented compositing are permitted. Edits that change who attended, what equipment was present, what occurred, the apparent test result, the product configuration or the government relationship are prohibited.",
+        "severity": "CRITICAL",
+        "traffic_light": "RED",
+        "prohibited_terms": [],
+        "required_disclaimers": [],
+        "allowed_examples": "Blurring a badge or screen for security, then confirming the remaining image is not misleading.",
+        "prohibited_examples": "Adding a payload that was not fitted, or removing an observer so a test looks like a solo customer operation.",
+        "remediation_guidance": "If an edit removes a marking for compliance, confirm the result is not misleading and keep the original securely.",
+        "sort_order": 200,
+    },
+    {
+        "rule_number": "Rule 21",
+        "category": "Defense Imagery & Video",
+        "title": "Image Sources, Rights and Releases",
+        "summary": "Prefer original company imagery under company releases, then labeled conceptual renders, then licensed stock with releases, and government imagery only when cleared. Never use scraped social media, unlabeled reposts, images of uncertain provenance or AI assets with unclear commercial rights. Publicly available does not mean commercially usable.",
+        "severity": "HIGH",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [],
+        "required_disclaimers": [],
+        "allowed_examples": "Licensed stock with model/property releases, credited and logged with the approval.",
+        "prohibited_examples": "A drone photo pulled from another account's post, or an AI asset generated with a tool whose commercial terms are unknown.",
+        "remediation_guidance": "Document commercial rights, model/property releases, photographer credit and source-specific permissions for every image, person, mark, clip and music track before publishing.",
+        "sort_order": 210,
+    },
+    {
+        "rule_number": "Rule 22",
+        "category": "Governance & Workflow",
+        "title": "Comments, Replies and Amplification Follow the Same Rules",
+        "summary": "Replies, reposts, video descriptions, comments and DMs are governed by the same rules as the original post. Do not confirm rumors, customer names, procurement stages, test results or timelines, and do not improvise specifications. Employee or paid-partner amplification must not add new claims and must disclose employment or payment connections.",
+        "severity": "HIGH",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [],
+        "required_disclaimers": [],
+        "allowed_examples": "\"Good question - the team will follow up through the proper channel,\" with a link to an approved public source.",
+        "prohibited_examples": "Confirming in a reply that a named agency is evaluating ZenaDrone, or arguing with a journalist or service member in the comments.",
+        "remediation_guidance": "Acknowledge a substantive counterpoint and return to the issue. For an important error or sensitive disclosure, preserve a screenshot, stop replying and contact Comms/IR and Legal immediately.",
+        "sort_order": 220,
+    },
 ]
 
 
-async def setup():
+DEFENSE = "ZenaDrone Defense"
+DISCLOSURE = "Public Company Disclosure"
+CEO = "Shaun CEO Thought Leadership"
+
+# Which rule sets each baseline rule belongs to. All of them come from the defense rulebook; the
+# investor-disclosure rules also apply to all public-company content, and the tone rules to Shaun's
+# thought leadership.
+BASE_RULE_SETS = {
+    "Rule 1": [DEFENSE, CEO],
+    "Rule 6": [DEFENSE, DISCLOSURE],
+    "Rule 14": [DEFENSE, DISCLOSURE],
+    "Rule 15": [DEFENSE, CEO],
+    "Rule 16": [DEFENSE, CEO],
+    "Rule 17": [DEFENSE, CEO],
+    "Rule 18": [DEFENSE, DISCLOSURE],
+    "Rule 22": [DEFENSE, CEO, DISCLOSURE],
+}
+
+
+def _base_rules_json() -> str:
+    return json.dumps([{**rule, "rule_sets": BASE_RULE_SETS.get(rule["rule_number"], [DEFENSE])} for rule in BASE_RULES])
+
+
+# Reads BASE_RULES (passed as JSON in $2) as rows, so all baseline rules go in one statement.
+_BASE_RULES_SELECT = """
+    SELECT $1::uuid, r.rule_number, r.category, r.title, r.summary,
+           r.severity, r.traffic_light,
+           ARRAY(SELECT jsonb_array_elements_text(r.prohibited_terms)),
+           ARRAY(SELECT jsonb_array_elements_text(r.required_disclaimers)),
+           r.allowed_examples, r.prohibited_examples, r.remediation_guidance,
+           r.sort_order, ARRAY(SELECT jsonb_array_elements_text(r.rule_sets)), true, false
+    FROM jsonb_to_recordset($2::jsonb) AS r(
+        rule_number text, category text, title text, summary text, severity text, traffic_light text,
+        prohibited_terms jsonb, required_disclaimers jsonb, allowed_examples text, prohibited_examples text,
+        remediation_guidance text, sort_order int, rule_sets jsonb
+    )
+"""
+
+
+async def setup(reset: bool = False):
+    """Create the tables and add any missing baseline rules.
+
+    Startup never overwrites existing rules, so edits made in the rulebook screen survive restarts and
+    removed baseline rules stay removed. reset=True ("Re-sync Rulebook") puts every baseline rule back
+    to the rulebook's wording, scope and active state; custom rules are left alone.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         logger.info("Setting up compliance_rulebooks and compliance_rules schema...")
@@ -388,7 +580,68 @@ async def setup():
             CREATE INDEX IF NOT EXISTS idx_compliance_rules_severity ON compliance_rules(severity);
             CREATE INDEX IF NOT EXISTS idx_compliance_rules_traffic_light ON compliance_rules(traffic_light);
             CREATE INDEX IF NOT EXISTS idx_compliance_rules_is_active ON compliance_rules(is_active);
+
+            -- Soft delete, so removed baseline rules aren't re-seeded and history still resolves
+            ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
         """)
+
+        # Scope columns. They're added without a default so the first run can tell which rows still
+        # need their baseline scope; after the backfill below they're non-null with an empty default.
+        new_scope = await conn.fetchval("""
+            SELECT NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'compliance_rules' AND column_name = 'rule_sets'
+            )
+        """)
+        await conn.execute("""
+            ALTER TABLE compliance_rules
+                ADD COLUMN IF NOT EXISTS rule_sets TEXT[],
+                ADD COLUMN IF NOT EXISTS brands TEXT[],
+                ADD COLUMN IF NOT EXISTS audiences TEXT[],
+                ADD COLUMN IF NOT EXISTS regions TEXT[],
+                ADD COLUMN IF NOT EXISTS platforms TEXT[];
+        """)
+        if new_scope:
+            logger.info("Backfilling rule sets on existing baseline rules...")
+            await conn.execute("""
+                UPDATE compliance_rules c
+                SET rule_sets = ARRAY(SELECT jsonb_array_elements_text(r.rule_sets))
+                FROM jsonb_to_recordset($1::jsonb) AS r(rule_number text, rule_sets jsonb)
+                WHERE c.rule_number = r.rule_number AND NOT c.is_custom
+            """, _base_rules_json())
+        await conn.execute("""
+            UPDATE compliance_rules SET
+                rule_sets = COALESCE(rule_sets, '{}'), brands = COALESCE(brands, '{}'),
+                audiences = COALESCE(audiences, '{}'), regions = COALESCE(regions, '{}'),
+                platforms = COALESCE(platforms, '{}')
+            WHERE rule_sets IS NULL OR brands IS NULL OR audiences IS NULL OR regions IS NULL OR platforms IS NULL;
+
+            ALTER TABLE compliance_rules
+                ALTER COLUMN rule_sets SET DEFAULT '{}', ALTER COLUMN rule_sets SET NOT NULL,
+                ALTER COLUMN brands SET DEFAULT '{}', ALTER COLUMN brands SET NOT NULL,
+                ALTER COLUMN audiences SET DEFAULT '{}', ALTER COLUMN audiences SET NOT NULL,
+                ALTER COLUMN regions SET DEFAULT '{}', ALTER COLUMN regions SET NOT NULL,
+                ALTER COLUMN platforms SET DEFAULT '{}', ALTER COLUMN platforms SET NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_compliance_rules_rule_sets ON compliance_rules USING GIN (rule_sets);
+        """)
+
+        # Earlier versions added a duplicate rulebook row on every startup. Keep the oldest per title,
+        # point rules at it, and make titles unique so it can't happen again.
+        dupes = """
+            SELECT id, first_value(id) OVER (PARTITION BY title ORDER BY created_at, id) AS keep_id
+            FROM compliance_rulebooks
+        """
+        await conn.execute(f"""
+            UPDATE compliance_rules c SET rulebook_id = d.keep_id
+            FROM ({dupes}) d WHERE c.rulebook_id = d.id AND d.id <> d.keep_id;
+        """)
+        await conn.execute(f"""
+            DELETE FROM compliance_rulebooks b USING ({dupes}) d
+            WHERE b.id = d.id AND d.id <> d.keep_id;
+        """)
+        await conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS compliance_rulebooks_title_unique ON compliance_rulebooks(title);"
+        )
 
         # Seed Rulebooks
         logger.info("Seeding base compliance rulebooks...")
@@ -397,7 +650,7 @@ async def setup():
             rb_id = await conn.fetchval("""
                 INSERT INTO compliance_rulebooks (title, version, effective_date, description, source_document)
                 VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT DO NOTHING
+                ON CONFLICT (title) DO NOTHING
                 RETURNING id;
             """, rb["title"], rb["version"], rb["effective_date"], rb["description"], rb["source_document"])
             if not rb_id:
@@ -408,21 +661,20 @@ async def setup():
         logger.info("Seeding baseline compliance rules from Rulebook and Quick Use Guide...")
         primary_rb_id = rulebook_ids.get("ZenaTech & ZenaDrone Defense Thought Leadership & Imagery Rulebook")
 
-        for rule in BASE_RULES:
-            await conn.execute("""
-                INSERT INTO compliance_rules (
-                    rulebook_id, rule_number, category, title, summary,
-                    severity, traffic_light, prohibited_terms, required_disclaimers,
-                    allowed_examples, prohibited_examples, remediation_guidance,
-                    sort_order, is_active, is_custom
-                )
-                VALUES (
-                    $1, $2, $3, $4, $5,
-                    $6, $7, $8, $9,
-                    $10, $11, $12,
-                    $13, true, false
-                )
+        insert = f"""
+            INSERT INTO compliance_rules (
+                rulebook_id, rule_number, category, title, summary,
+                severity, traffic_light, prohibited_terms, required_disclaimers,
+                allowed_examples, prohibited_examples, remediation_guidance,
+                sort_order, rule_sets, is_active, is_custom
+            )
+            {_BASE_RULES_SELECT}
+        """
+        if reset:
+            # A custom rule that took a baseline number is left as it is.
+            await conn.execute(insert + """
                 ON CONFLICT (rule_number) DO UPDATE SET
+                    rulebook_id = EXCLUDED.rulebook_id,
                     category = EXCLUDED.category,
                     title = EXCLUDED.title,
                     summary = EXCLUDED.summary,
@@ -434,22 +686,15 @@ async def setup():
                     prohibited_examples = EXCLUDED.prohibited_examples,
                     remediation_guidance = EXCLUDED.remediation_guidance,
                     sort_order = EXCLUDED.sort_order,
-                    updated_at = NOW();
-            """,
-                primary_rb_id,
-                rule["rule_number"],
-                rule["category"],
-                rule["title"],
-                rule["summary"],
-                rule["severity"],
-                rule["traffic_light"],
-                rule["prohibited_terms"],
-                rule["required_disclaimers"],
-                rule["allowed_examples"],
-                rule["prohibited_examples"],
-                rule["remediation_guidance"],
-                rule["sort_order"],
-            )
+                    rule_sets = EXCLUDED.rule_sets,
+                    brands = '{}', audiences = '{}', regions = '{}', platforms = '{}',
+                    is_active = true,
+                    deleted_at = NULL,
+                    updated_at = NOW()
+                WHERE NOT compliance_rules.is_custom
+            """, primary_rb_id, _base_rules_json())
+        else:
+            await conn.execute(insert + " ON CONFLICT (rule_number) DO NOTHING", primary_rb_id, _base_rules_json())
 
         logger.info("Compliance schema and rules successfully initialized!")
 

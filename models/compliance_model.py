@@ -21,6 +21,12 @@ class ComplianceRuleBase(BaseModel):
     prohibited_examples: Optional[str] = Field(None, description="Examples of non-compliant phrasing or imagery")
     remediation_guidance: Optional[str] = Field(None, description="Instructions on how to fix or review violations")
     applies_to: List[str] = Field(default_factory=lambda: ["video", "imagery", "caption", "ceo_post"], description="Content types this rule governs")
+    # Scope: an empty list means the rule applies to every value of that dimension.
+    rule_sets: List[str] = Field(default_factory=list, description="Rule sets this rule belongs to, e.g. 'ZenaDrone Defense'")
+    brands: List[str] = Field(default_factory=list, description="Brand codes this rule is limited to")
+    audiences: List[str] = Field(default_factory=list, description="Audience codes this rule is limited to")
+    regions: List[str] = Field(default_factory=list, description="Regions this rule is limited to")
+    platforms: List[str] = Field(default_factory=list, description="Platforms this rule is limited to")
     is_active: bool = Field(True, description="Whether this rule is actively enforced")
     sort_order: int = Field(0, description="Display order within category")
 
@@ -42,6 +48,11 @@ class ComplianceRuleUpdate(BaseModel):
     prohibited_examples: Optional[str] = None
     remediation_guidance: Optional[str] = None
     applies_to: Optional[List[str]] = None
+    rule_sets: Optional[List[str]] = None
+    brands: Optional[List[str]] = None
+    audiences: Optional[List[str]] = None
+    regions: Optional[List[str]] = None
+    platforms: Optional[List[str]] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
 
@@ -60,6 +71,13 @@ class ComplianceCheckRequest(BaseModel):
     text: str = Field(..., description="Script, caption, claim, transcript, or video description to evaluate")
     video_title: Optional[str] = None
     content_type: Optional[str] = Field("video_caption", description="Type: video_caption, script, social_post, imagery_concept")
+    # Who and where the content is for. Only rules whose scope matches are run; anything left empty
+    # (e.g. no rule sets chosen) doesn't narrow the check.
+    rule_sets: List[str] = Field(default_factory=list)
+    brand_code: Optional[str] = None
+    audience: Optional[str] = None
+    region: Optional[str] = None
+    platforms: List[str] = Field(default_factory=list)
 
 
 class ComplianceViolation(BaseModel):
@@ -81,15 +99,4 @@ class ComplianceCheckResponse(BaseModel):
     violations_count: int = 0
     violations: List[ComplianceViolation] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
-
-
-class ComplianceRulebook(BaseModel):
-    id: UUID
-    title: str
-    version: str
-    effective_date: str
-    description: Optional[str] = None
-    source_document: Optional[str] = None
-    is_active: bool = True
-    created_at: datetime
-    updated_at: datetime
+    rules_checked: int = 0

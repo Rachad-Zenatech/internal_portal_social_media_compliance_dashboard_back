@@ -15,6 +15,7 @@ from models.compliance_model import (
     ComplianceRuleUpdate,
 )
 from services import compliance_service as comp_svc
+from services.audit_service import log_audit_event
 from services.auth_service import get_current_user_id_dependency, require_permission
 
 router = APIRouter(prefix="/compliance", tags=["Compliance Rules & Governance"])
@@ -31,7 +32,8 @@ async def list_rules(
     severity: Optional[str] = Query(None, description="Filter by severity: CRITICAL, HIGH, MEDIUM, LOW"),
     traffic_light: Optional[str] = Query(None, description="Filter by traffic light: RED, YELLOW, GREEN"),
     is_active: Optional[bool] = Query(None, description="Filter active/inactive rules"),
-    search: Optional[str] = Query(None, description="Search term in rule number, title, or summary"),
+    search: Optional[str] = Query(None, description="Search term in rule number, title, summary or trigger phrases"),
+    rule_set: Optional[str] = Query(None, description="Only rules that apply to this rule set"),
 ):
     """List compliance rules with multi-criteria filtering."""
     return await comp_svc.list_compliance_rules(
@@ -40,6 +42,7 @@ async def list_rules(
         traffic_light=traffic_light,
         is_active=is_active,
         search=search,
+        rule_set=rule_set,
     )
 
 
@@ -78,7 +81,7 @@ async def delete_rule(rule_id: UUID, user_id: ManageUser):
 
 @router.post("/check", response_model=ComplianceCheckResponse)
 async def check_compliance(req: ComplianceCheckRequest, _user_id: CurrentUser):
-    """Screen draft video transcripts, captions, or claims against all active compliance rules."""
+    """Screen draft transcripts, captions or claims against the active rules that apply to the given scope."""
     return await comp_svc.check_compliance(req)
 
 
@@ -90,9 +93,16 @@ async def get_compliance_stats(_user_id: CurrentUser):
 
 @router.post("/rules/reset-defaults")
 async def reset_defaults(user_id: ManageUser):
-    """Re-sync baseline rules from the official Defense Rulebook and Quick Use Guide."""
+    """Restore baseline rules to the official Defense Rulebook wording, scope and active state.
+    Custom rules are not touched."""
     from postgresql_db.setup_compliance_schema import setup as setup_compliance
-    await setup_compliance()
+    await setup_compliance(reset=True)
+    await log_audit_event(
+        entity_type="compliance_rulebook",
+        entity_id="baseline",
+        action="RESET_COMPLIANCE_RULES",
+        user_id=user_id,
+    )
     return {"status": "ok", "message": "Baseline rules successfully re-synced from Rulebook"}
 
 from pydantic import BaseModel
