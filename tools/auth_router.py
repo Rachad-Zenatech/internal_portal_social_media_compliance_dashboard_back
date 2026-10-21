@@ -18,7 +18,6 @@ from services.auth_service import (
     AUTH_COOKIE_NAME,
 )
 from services.graph_service import fetch_me_profile
-from tools.rbac_router import get_current_user_id
 from services.rbac_service import log_login_activity
 from postgresql_db.database import get_pool
 from uuid import UUID
@@ -243,7 +242,7 @@ async def logout(request: Request):
 
     if token:
         import jwt
-        from services.auth_service import JWT_SECRET, JWT_ALGORITHM, JWT_ISSUER
+        from services.auth_service import JWT_SECRET, JWT_ALGORITHM
         from services.cache_service import emit_cache_invalidation
         try:
             payload = jwt.decode(
@@ -279,33 +278,3 @@ async def logout(request: Request):
                 pass
 
     return response
-
-
-
-
-
-@router.get("/auth/dev-login")
-async def dev_login(email: str):
-    if os.getenv("APP_ENV", "development").lower() == "production":
-        raise HTTPException(status_code=404, detail="Endpoint not available in production")
-    import os
-    from postgresql_db.database import get_pool
-
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5179").rstrip("/")
-
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        user = await conn.fetchrow("SELECT id, is_super_admin FROM users WHERE email = $1 AND is_active = true", email)
-        if not user:
-            user = await conn.fetchrow("SELECT id, is_super_admin FROM users WHERE is_active = true ORDER BY is_super_admin DESC LIMIT 1")
-            if not user:
-                url = f"{frontend_url}/login?error=account_not_found"
-                return RedirectResponse(url=url)
-
-        await conn.execute("UPDATE users SET last_activity_at = now(), last_logout_at = NULL WHERE id = $1", user['id'])
-        token = create_access_token(user['id'], bool(user['is_super_admin']))
-
-        url = f"{frontend_url}/login?status=success&token={token}&ms_id_token=dev"
-        response = RedirectResponse(url=url)
-        set_access_token_cookie(response, token)
-        return response
