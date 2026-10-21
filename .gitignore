@@ -214,6 +214,7 @@ tempCodeRunnerFile.py
 
 # Server-side archived uploads
 .data/upload_files/
+.data/submission_files/
 
 # Generated GL import dry-run previews and local mapping input
 .data/gl_dry_run_previews/
