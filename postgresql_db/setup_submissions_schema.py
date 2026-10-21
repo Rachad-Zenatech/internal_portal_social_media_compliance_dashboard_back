@@ -63,6 +63,10 @@ async def setup():
                 deleted_at TIMESTAMP WITH TIME ZONE
             );
             CREATE INDEX IF NOT EXISTS idx_content_submission_files_submission ON content_submission_files(submission_id) WHERE deleted_at IS NULL;
+            -- Drafts withdrawn after a review are hidden rather than erased, so their review history survives.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS deleted_by UUID REFERENCES users(id) ON DELETE SET NULL;
+
             -- Auto-generated speech transcript for video files (see services/transcription_service.py)
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript JSONB;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript_status VARCHAR(20);

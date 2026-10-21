@@ -133,6 +133,10 @@ class SubmissionSummary(BaseModel):
     account: Optional[AccountOption] = None
     caption_text: Optional[str] = None
     cover: Optional[SubmissionFile] = None
+    created_by: Optional[UUID] = None
+    created_by_name: Optional[str] = None
+    # Drafts only: the creator, super admins and Content Managers may delete them.
+    can_delete: bool = False
 
 
 class Submission(BaseModel):
@@ -156,6 +160,10 @@ class Submission(BaseModel):
     latest_check: Optional[Dict[str, Any]] = None
     files: List[SubmissionFile] = Field(default_factory=list)
     can_edit: bool
+    created_by: Optional[UUID] = None
+    created_by_name: Optional[str] = None
+    # For the person viewing it: drafts can be deleted by their creator, super admins and Content Managers.
+    can_delete: bool = False
     submitted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

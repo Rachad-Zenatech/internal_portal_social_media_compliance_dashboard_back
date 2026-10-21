@@ -278,6 +278,8 @@ async def setup():
             ("LOGS", "Logs", "/log", None, 30, "FileText", True),
             ("AUDIT_LOG", "Audit Logs", "/log/audit", "LOGS", 31, "History", True),
             ("SYSTEM_LOGS", "System Logs", "/log/system-logs", "LOGS", 32, "Terminal", True),
+            # Not a menu entry: carries the "everyone's content" permissions for the Content Portal.
+            ("CONTENT_SUBMISSIONS", "Content Portal", "/submissions", None, 15, "LayoutGrid", False),
         ]
         for code, name, path, parent, order, icon, is_menu in nav_items:
             await conn.execute("""
@@ -297,6 +299,7 @@ async def setup():
 
         modules = [
             ("MAIN", "Dashboard & Overview", 10),
+            ("CONTENT", "Content & Submissions", 15),
             ("CONFIGURATIONS", "Configurations & Security", 20),
             ("LOGS", "Audit & System Logs", 30),
         ]
@@ -306,6 +309,11 @@ async def setup():
         groups_data = {
             "MAIN": [
                 ("MAIN_VIEW_DASHBOARD", "View Dashboard", "Access system KPI dashboards and metrics.", 10, [("DASHBOARD", "VIEW")]),
+            ],
+            "CONTENT": [
+                ("CONTENT_MANAGE_DRAFTS", "Manage Team Drafts",
+                 "See everyone's content in the Content Portal and delete other people's drafts.", 10,
+                 [("CONTENT_SUBMISSIONS", "VIEW"), ("CONTENT_SUBMISSIONS", "DELETE")]),
             ],
             "CONFIGURATIONS": [
                 ("CONFIG_VIEW_USERS", "View Users & Roles", "View all users, roles, and permission assignments.", 10, [("CONFIG_USERS", "VIEW"), ("CONFIG_ROLES", "VIEW")]),
@@ -339,6 +347,7 @@ async def setup():
             ("SUPER_ADMIN", "Super Administrator", "Full unrestricted access to all modules and configurations", True),
             ("ADMIN", "Administrator", "Administrative access to user and role configurations", True),
             ("USER", "Standard User", "Standard system user with basic dashboard access", False),
+            ("MANAGER", "Content Manager", "Oversees the team's content: sees everyone's submissions and can delete drafts", False),
         ]
         for r_code, r_name, r_desc, is_sys in roles_data:
             await conn.execute("""
@@ -373,6 +382,14 @@ async def setup():
                 SELECT $1, id FROM permission_groups WHERE code = 'MAIN_VIEW_DASHBOARD'
                 ON CONFLICT DO NOTHING
             """, user_role_id)
+
+        manager_role_id = await conn.fetchval("SELECT id FROM roles WHERE code = 'MANAGER'")
+        if manager_role_id:
+            await conn.execute("""
+                INSERT INTO role_permission_groups (role_id, permission_group_id)
+                SELECT $1, id FROM permission_groups WHERE code IN ('MAIN_VIEW_DASHBOARD', 'CONTENT_MANAGE_DRAFTS')
+                ON CONFLICT DO NOTHING
+            """, manager_role_id)
 
         # Seed Super Admin Users
         admin_emails_env = os.getenv("INITIAL_SUPER_ADMIN_EMAILS", "admin@example.com")

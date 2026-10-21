@@ -49,9 +49,13 @@ async def ai_usage(user_id: CurrentUser, submission_id: Optional[UUID] = Query(N
 
 
 @router.get("", response_model=List[SubmissionSummary])
-async def list_my_submissions(user_id: CurrentUser, status_filter: Optional[str] = Query(None, alias="status")):
-    """The current user's submissions, newest activity first."""
-    return await svc.list_submissions(user_id, status_filter)
+async def list_my_submissions(
+    user_id: CurrentUser,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    scope: Literal["mine", "all"] = Query("mine", description="all = everyone's (super admins and Content Managers)"),
+):
+    """The current user's submissions (or everyone's), needs-action first."""
+    return await svc.list_submissions(user_id, status_filter, scope)
 
 
 @router.post("", response_model=Submission, status_code=status.HTTP_201_CREATED)
@@ -73,6 +77,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
 
 @router.delete("/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_draft(submission_id: UUID, user_id: CurrentUser):
+    """Delete a draft: its creator, super admins and Content Managers can."""
     await svc.delete_draft(submission_id, user_id)
 
 

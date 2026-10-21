@@ -135,8 +135,16 @@ async def _is_super_admin(user_id: UUID) -> bool:
     return bool(row and row["is_super_admin"])
 
 
-async def _get_owned_row(submission_id: UUID, user_id: UUID) -> Dict[str, Any]:
-    """Load a submission the user may access (creator or super admin), with its account joined."""
+async def _can_manage_team_content(user_id: UUID) -> bool:
+    """Super admins and roles with "Manage Team Drafts" (Content Manager, Administrator) see everyone's content
+    and can delete other people's drafts."""
+    from services.auth_service import user_can_access_page
+    return await _is_super_admin(user_id) or await user_can_access_page(user_id, "CONTENT_SUBMISSIONS", "DELETE")
+
+
+async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: bool = False) -> Dict[str, Any]:
+    """Load a submission the user may access (creator or super admin; managers too when manager_can_read),
+    with its account joined. Deleted submissions are never returned."""
     row = await fetch_one(
         """
         SELECT s.*,
@@ -144,14 +152,15 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID) -> Dict[str, Any]:
                c.connection_metadata AS acc_connection_metadata
         FROM content_submissions s
         LEFT JOIN oauth_connections c ON c.id = s.account_id
-        WHERE s.id = $1
+        WHERE s.id = $1 AND s.deleted_at IS NULL
         """,
         submission_id,
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     if row["created_by"] != user_id and not await _is_super_admin(user_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+        if not (manager_can_read and await _can_manage_team_content(user_id)):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     return row
 
 
@@ -281,7 +290,11 @@ async def create_submission(data: SubmissionCreate, user_id: UUID) -> Submission
     return await get_submission(row["id"], user_id)
 
 
-async def list_submissions(user_id: UUID, status_filter: Optional[str] = None) -> List[SubmissionSummary]:
+async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, scope: str = "mine") -> List[SubmissionSummary]:
+    """The user's own submissions, or everyone's (scope="all") for super admins and Content Managers."""
+    is_manager = await _can_manage_team_content(user_id)
+    if scope == "all" and not is_manager:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only see your own content")
     rows = await fetch_all(
         """
         SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.platforms, s.status,
@@ -294,8 +307,10 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None) -
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
                c.connection_metadata AS acc_connection_metadata,
                cov.id AS cov_id, cov.kind AS cov_kind, cov.original_name AS cov_original_name,
-               cov.mime_type AS cov_mime_type, cov.size_bytes AS cov_size_bytes, cov.created_at AS cov_created_at
+               cov.mime_type AS cov_mime_type, cov.size_bytes AS cov_size_bytes, cov.created_at AS cov_created_at,
+               s.created_by, u.full_name AS created_by_name
         FROM content_submissions s
+        LEFT JOIN users u ON u.id = s.created_by
         LEFT JOIN oauth_connections c ON c.id = s.account_id
         -- Thumbnail: the main video/image, otherwise the first attached image.
         LEFT JOIN LATERAL (
@@ -305,7 +320,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None) -
             ORDER BY (cf.kind = 'MAIN') DESC, cf.created_at ASC
             LIMIT 1
         ) cov ON true
-        WHERE s.created_by = $1 AND ($2::text IS NULL OR s.status = $2)
+        WHERE ($3 OR s.created_by = $1) AND s.deleted_at IS NULL AND ($2::text IS NULL OR s.status = $2)
         -- Work on a deadline comes first: changes to fix, then drafts to finish, then content waiting
         -- on reviewers, each by nearest publish date; finished content goes last.
         ORDER BY CASE s.status
@@ -320,6 +335,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None) -
         """,
         user_id,
         status_filter,
+        scope == "all",
     )
     summaries = []
     for r in rows:
@@ -330,12 +346,23 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None) -
             platforms=list(r["platforms"] or []),
             account=_account_option(r, prefix="acc_"),
             cover=_file_out(r["id"], cover) if cover["id"] else None,
+            can_delete=r["status"] == "DRAFT" and (r["created_by"] == user_id or is_manager),
         ))
     return summaries
 
 
 async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
-    return await _to_submission(await _get_owned_row(submission_id, user_id))
+    row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
+    sub = await _to_submission(row)
+    is_creator = row["created_by"] == user_id
+    # Managers can read and delete someone else's draft but not edit it.
+    sub.can_edit = sub.can_edit and (is_creator or await _is_super_admin(user_id))
+    sub.can_delete = row["status"] == "DRAFT" and (is_creator or await _can_manage_team_content(user_id))
+    sub.created_by = row["created_by"]
+    if not is_creator:
+        creator = await fetch_one("SELECT full_name FROM users WHERE id = $1", row["created_by"])
+        sub.created_by_name = creator["full_name"] if creator else None
+    return sub
 
 
 async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id: UUID) -> Submission:
@@ -420,16 +447,55 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
 
 
 async def delete_draft(submission_id: UUID, user_id: UUID) -> None:
-    row = await _get_owned_row(submission_id, user_id)
-    if row["status"] != "DRAFT" or row["current_version"] > 0:
-        raise HTTPException(status_code=409, detail="Only drafts that were never submitted can be deleted")
+    """Delete a draft. Allowed for its creator, super admins and Content Managers.
+    A draft that was never submitted is removed with its files; one withdrawn after review is hidden instead,
+    so its versions, review jobs and activity stay on record."""
+    row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
+    if row["status"] != "DRAFT":
+        raise HTTPException(status_code=409, detail="Only drafts can be deleted. Withdraw it from review first.")
+    is_creator = row["created_by"] == user_id
+    if not is_creator and not await _can_manage_team_content(user_id):
+        raise HTTPException(status_code=403, detail="Only the person who created this draft, a manager or a super admin can delete it")
+
     pool = get_pool()
     async with pool.acquire() as conn:
-        await conn.execute("DELETE FROM content_submissions WHERE id = $1", submission_id)
-    # Never-submitted drafts have no version history that could reference these files.
-    shutil.rmtree(STORAGE_ROOT / str(submission_id), ignore_errors=True)
+        async with conn.transaction():
+            # Lock and re-check, so a draft submitted a moment ago isn't deleted from under its review.
+            current = await conn.fetchval(
+                "SELECT status FROM content_submissions WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", submission_id
+            )
+            if current != "DRAFT":
+                raise HTTPException(status_code=409, detail="This draft was just submitted or deleted")
+            if row["current_version"] == 0:
+                await conn.execute("DELETE FROM content_submissions WHERE id = $1", submission_id)
+            else:
+                await conn.execute(
+                    "UPDATE content_submissions SET deleted_at = NOW(), deleted_by = $2, updated_at = NOW() WHERE id = $1",
+                    submission_id, user_id,
+                )
+                await _add_event(conn, submission_id, "DELETED", "Draft deleted", user_id, None)
+    if row["current_version"] == 0:
+        # Never-submitted drafts have no version history that could reference these files.
+        shutil.rmtree(STORAGE_ROOT / str(submission_id), ignore_errors=True)
     await log_audit_event("content_submission", str(submission_id), "DELETE_SUBMISSION_DRAFT", user_id,
-                          {"reference_code": row["reference_code"]})
+                          {"reference_code": row["reference_code"], "title": row["title"],
+                           "created_by": str(row["created_by"]), "kept_history": row["current_version"] > 0})
+
+    if not is_creator:
+        # Someone else removed their work: tell the creator who and what.
+        try:
+            from services.notification_service import create_notification
+            actor = await fetch_one("SELECT full_name FROM users WHERE id = $1", user_id)
+            await create_notification(NotificationCreate(
+                user_id=str(row["created_by"]),
+                type="SUBMISSION",
+                title=f"{row['reference_code']} draft was deleted",
+                message=f"\"{row['title']}\" was deleted by {actor['full_name'] if actor else 'a manager'}.",
+                entity_type="content_submission",
+                entity_id=str(submission_id),
+            ))
+        except Exception:
+            logger.warning("Could not notify the creator about a deleted draft", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -583,7 +649,7 @@ async def remove_file(submission_id: UUID, file_id: UUID, user_id: UUID) -> None
 
 
 async def get_file_for_download(submission_id: UUID, file_id: UUID, user_id: UUID) -> Tuple[Path, str, str]:
-    await _get_owned_row(submission_id, user_id)
+    await _get_owned_row(submission_id, user_id, manager_can_read=True)
     f = await fetch_one(
         "SELECT original_name, mime_type, storage_path FROM content_submission_files WHERE id = $1 AND submission_id = $2",
         file_id,
@@ -851,7 +917,7 @@ async def review_queue(user_id: UUID) -> List[ReviewQueueItem]:
         ) f ON true
         LEFT JOIN oauth_connections c ON c.id = s.account_id
         LEFT JOIN users u ON u.id = s.created_by
-        WHERE s.status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'REJECTED')
+        WHERE s.status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'REJECTED') AND s.deleted_at IS NULL
           AND ($2 OR s.created_by = $1)
         ORDER BY s.submitted_at DESC NULLS LAST
         LIMIT 100
@@ -889,7 +955,7 @@ async def review_queue(user_id: UUID) -> List[ReviewQueueItem]:
 
 
 async def get_history(submission_id: UUID, user_id: UUID) -> SubmissionHistory:
-    await _get_owned_row(submission_id, user_id)
+    await _get_owned_row(submission_id, user_id, manager_can_read=True)
     versions = await fetch_all(
         """
         SELECT v.version_number, v.snapshot, v.created_at, u.full_name AS created_by_name
