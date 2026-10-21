@@ -3,13 +3,14 @@
 Supports hierarchical multi-entity OAuth:
 Organization -> Companies/Entities -> OAuth connections
 """
-import asyncio
 import json
 import logging
-import uuid
-from datetime import datetime, timedelta, timezone
+import os
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
+
+import httpx
 
 from models.oauth_connection_model import (
     Company,
@@ -18,7 +19,6 @@ from models.oauth_connection_model import (
     OAuthConnection,
     OAuthConnectionCreate,
     OAuthConnectionUpdate,
-    OAuthProvider,
     Organization,
     OrganizationCreate,
 )
@@ -582,9 +582,8 @@ async def sync_with_social_media_app_mqtt() -> dict[str, Any]:
     marketing_api_url = os.getenv("ADMIN_PORTAL_API_URL", "http://127.0.0.1:8002").rstrip("/")
     synced_from_rest = False
     try:
-        def _fetch_remote():
-            return requests.get(f"{marketing_api_url}/api/oauth/connections", timeout=2.0)
-        resp = await asyncio.to_thread(_fetch_remote)
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(f"{marketing_api_url}/api/oauth/connections")
         if resp.status_code == 200:
             remote_connections = resp.json()
             if isinstance(remote_connections, list) and len(remote_connections) > 0:
