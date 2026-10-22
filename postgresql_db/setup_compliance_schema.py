@@ -72,6 +72,9 @@ BASE_RULES = [
             "delivers operational capability",
             "combat ready",
             "adopted by the military",
+            "prototype * shipping",
+            "prototype * available to order",
+            "prototype * in production",
         ],
         "required_disclaimers": [],
         "allowed_examples": "Prototype undergoing flight evaluation; development-stage autonomy platform; intended for contested logistics.",
@@ -117,6 +120,17 @@ BASE_RULES = [
             "warfighters choose zenadrone",
             "preferred by the military",
             "military validated",
+            "endorsed by * department of defense",
+            "endorsed by * pentagon",
+            "endorsed by * army",
+            "endorsed by * navy",
+            "endorsed by * air force",
+            "endorsed by * marine corps",
+            "endorsed by * military",
+            "approved by * department of defense",
+            "backed by * department of defense",
+            "dod endorsed",
+            "pentagon approved",
         ],
         "required_disclaimers": [
             "The appearance of U.S. Department of Defense visual information does not imply or constitute DOD endorsement."
@@ -253,6 +267,12 @@ BASE_RULES = [
             "strategic partner",
             "broad deployment",
             "blue uas certified",
+            "shipping now",
+            "now shipping",
+            "ready to ship",
+            "available to order",
+            "in full production",
+            "mass production",
         ],
         "required_disclaimers": [],
         "allowed_examples": "Concept, intended use, prototype, undergoing flight testing, demonstrated specific cleared function.",
@@ -483,30 +503,217 @@ BASE_RULES = [
         "remediation_guidance": "Acknowledge a substantive counterpoint and return to the issue. For an important error or sensitive disclosure, preserve a screenshot, stop replying and contact Comms/IR and Legal immediately.",
         "sort_order": 220,
     },
+    {
+        "rule_number": "Rule 23",
+        "category": "Investor Disclosure & Procurement",
+        "title": "No Investment Promises or Stock Predictions",
+        "summary": "As a Nasdaq-listed company, no channel may promise returns, predict the share price or urge anyone to buy the stock. Statements like these create securities-law and antifraud exposure for the company and the person posting.",
+        "severity": "CRITICAL",
+        "traffic_light": "RED",
+        "prohibited_terms": [
+            "guaranteed returns",
+            "guaranteed * return",
+            "guaranteed * returns",
+            "guaranteed profit",
+            "guaranteed profits",
+            "guaranteed growth",
+            "risk free investment",
+            "risk free returns",
+            "can t lose",
+            "cannot lose",
+            "stock will * double",
+            "stock will * soar",
+            "stock is going to",
+            "buy * stock now",
+            "buy zena",
+            "price target",
+            "to the moon",
+        ],
+        "required_disclaimers": [],
+        "allowed_examples": "\"ZenaTech will report quarterly results on [date]; details will be in the press release.\"",
+        "prohibited_examples": "\"Invest in ZenaTech today: guaranteed returns as drone demand explodes.\" \"ZENA stock will double this year.\"",
+        "remediation_guidance": "Remove any promise of returns, share-price prediction or call to buy. Investor information goes out through IR and formal disclosure channels; send the post to IR/CFO and Legal/Compliance.",
+        "sort_order": 230,
+    },
+    {
+        "rule_number": "Rule 24",
+        "category": "Claims & Substantiation",
+        "title": "No Absolute or Unprovable Performance Claims",
+        "summary": "Guarantees, superlatives and 'never fails' claims can't be substantiated and invite false-advertising complaints. Describe what the product does, with the conditions, and keep the evidence on file.",
+        "severity": "HIGH",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [
+            "guarantee results",
+            "guaranteed results",
+            "guarantees * results",
+            "we guarantee",
+            "100 accurate",
+            "100 percent accurate",
+            "100 safe",
+            "never fails",
+            "never fail",
+            "zero risk",
+            "risk free",
+            "no risk",
+            "always works",
+            "unbeatable",
+            "best in the world",
+            "world s best",
+            "world s first",
+            "number one",
+            "1 drone",
+            "the only company",
+            "the only drone",
+            "fully autonomous",
+            "completely autonomous",
+        ],
+        "required_disclaimers": [],
+        "allowed_examples": "\"In field trials, ZenaDrone 1000 mapped 200 acres in under an hour.\" \"Designed to reduce inspection time.\"",
+        "prohibited_examples": "\"Our drones guarantee results.\" \"The world's best inspection drone - 100% accurate, zero risk.\"",
+        "remediation_guidance": "Replace guarantees and superlatives with a specific, measured claim and its conditions (test, date, setting). If a 'first' or 'only' claim is true, attach the source to the evidence file and have Legal confirm it.",
+        "sort_order": 240,
+    },
+    {
+        "rule_number": "Rule 25",
+        "category": "Investor Disclosure & Procurement",
+        "title": "Forward-Looking Statements Need Safe-Harbor Language",
+        "summary": "Plans, forecasts and expected milestones from a listed company are forward-looking statements. They are allowed, but the post must carry the short safe-harbor line (or link to it) so readers know they are not guarantees.",
+        "severity": "HIGH",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [],
+        "required_disclaimers": [
+            "This post contains forward-looking statements; actual results may differ materially.",
+            "Forward-looking statements are not guarantees of future performance.",
+        ],
+        "disclaimer_triggers": [
+            "we expect",
+            "we anticipate",
+            "we project",
+            "we plan to",
+            "on track to",
+            "expected to * launch",
+            "expected to * close",
+            "expected to * reach",
+            "will * launch",
+            "revenue will",
+            "revenue is expected",
+            "forecast",
+            "guidance for",
+            "next quarter",
+            "by the end of the year",
+            "by year end",
+            "upcoming acquisition",
+            "expected acquisition",
+        ],
+        "allowed_examples": "\"We plan to open two more DaaS locations this year. This post contains forward-looking statements; actual results may differ materially.\"",
+        "prohibited_examples": "\"Revenue will triple by year end.\" with no safe-harbor line.",
+        "remediation_guidance": "Add the safe-harbor line (or 'Forward-looking statements: see [link]') to the caption, or reword the post to describe what has already happened.",
+        "sort_order": 250,
+    },
+    {
+        "rule_number": "Rule 26",
+        "category": "Claims & Substantiation",
+        "title": "Regulatory Approvals and Certifications Must Be Exact",
+        "summary": "Claims about FAA, Transport Canada, EASA or other approvals, waivers and certifications must match the actual document: who issued it, for which aircraft and operation, and when. 'Approved' and 'certified' are not interchangeable.",
+        "severity": "HIGH",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [
+            "faa approved",
+            "faa certified",
+            "certified by the faa",
+            "approved by * faa",
+            "transport canada approved",
+            "easa approved",
+            "government approved",
+            "fully certified",
+            "fully approved",
+            "certified for * military",
+            "no license needed",
+            "no permit needed",
+            "fly anywhere",
+        ],
+        "required_disclaimers": [],
+        "allowed_examples": "\"ZenaDrone 1000 received an FAA Part 107 waiver for [operation] on [date].\"",
+        "prohibited_examples": "\"FAA-approved and ready to fly anywhere.\"",
+        "remediation_guidance": "Name the exact approval (issuer, type, aircraft, operation, date) and attach it to the evidence file, or remove the claim. Have Legal/Compliance confirm the wording.",
+        "sort_order": 260,
+    },
 ]
 
 
 DEFENSE = "ZenaDrone Defense"
 DISCLOSURE = "Public Company Disclosure"
 CEO = "Shaun CEO Thought Leadership"
+GENERAL = "ZenaTech General"
 
 # Which rule sets each baseline rule belongs to. All of them come from the defense rulebook; the
 # investor-disclosure rules also apply to all public-company content, and the tone rules to Shaun's
 # thought leadership.
 BASE_RULE_SETS = {
     "Rule 1": [DEFENSE, CEO],
+    # Product-maturity wording applies to every product post, not just defense ones.
+    "Rule 2": [DEFENSE, GENERAL, CEO],
+    "Rule 10": [DEFENSE, GENERAL, CEO],
     "Rule 6": [DEFENSE, DISCLOSURE],
     "Rule 14": [DEFENSE, DISCLOSURE],
     "Rule 15": [DEFENSE, CEO],
-    "Rule 16": [DEFENSE, CEO],
+    "Rule 16": [DEFENSE, GENERAL, CEO],
     "Rule 17": [DEFENSE, CEO],
     "Rule 18": [DEFENSE, DISCLOSURE],
     "Rule 22": [DEFENSE, CEO, DISCLOSURE],
+    # Investment promises are off-limits for every brand of a public company, whatever rule sets a post uses.
+    "Rule 23": [],
+    "Rule 24": [],
+    "Rule 25": [DISCLOSURE, CEO],
+    "Rule 26": [],
+}
+
+_DOD_CONTEXT = [
+    "department of defense",
+    "dod",
+    "pentagon",
+    "u s army",
+    "us army",
+    "army",
+    "navy",
+    "air force",
+    "marine corps",
+    "space force",
+    "dvids",
+    "military footage",
+]
+
+# When a baseline rule's required disclaimer is needed (empty = on everything the rule covers).
+BASE_DISCLAIMER_TRIGGERS = {
+    "Rule 4": _DOD_CONTEXT,
+    "Rule 13": _DOD_CONTEXT,
+    "Rule 9": [
+        "ai generated",
+        "ai image",
+        "rendering",
+        "render",
+        "rendered",
+        "concept",
+        "conceptual",
+        "simulation",
+        "simulated",
+        "cgi",
+        "animation",
+        "visualization",
+        "illustration",
+    ],
 }
 
 
 def _base_rules_json() -> str:
-    return json.dumps([{**rule, "rule_sets": BASE_RULE_SETS.get(rule["rule_number"], [DEFENSE])} for rule in BASE_RULES])
+    return json.dumps([
+        {
+            **rule,
+            "rule_sets": BASE_RULE_SETS.get(rule["rule_number"], [DEFENSE]),
+            "disclaimer_triggers": rule.get("disclaimer_triggers") or BASE_DISCLAIMER_TRIGGERS.get(rule["rule_number"], []),
+        }
+        for rule in BASE_RULES
+    ])
 
 
 # Reads BASE_RULES (passed as JSON in $2) as rows, so all baseline rules go in one statement.
@@ -516,11 +723,12 @@ _BASE_RULES_SELECT = """
            ARRAY(SELECT jsonb_array_elements_text(r.prohibited_terms)),
            ARRAY(SELECT jsonb_array_elements_text(r.required_disclaimers)),
            r.allowed_examples, r.prohibited_examples, r.remediation_guidance,
-           r.sort_order, ARRAY(SELECT jsonb_array_elements_text(r.rule_sets)), true, false
+           r.sort_order, ARRAY(SELECT jsonb_array_elements_text(r.rule_sets)), true, false,
+           ARRAY(SELECT jsonb_array_elements_text(r.disclaimer_triggers))
     FROM jsonb_to_recordset($2::jsonb) AS r(
         rule_number text, category text, title text, summary text, severity text, traffic_light text,
         prohibited_terms jsonb, required_disclaimers jsonb, allowed_examples text, prohibited_examples text,
-        remediation_guidance text, sort_order int, rule_sets jsonb
+        remediation_guidance text, sort_order int, rule_sets jsonb, disclaimer_triggers jsonb
     )
 """
 
@@ -583,6 +791,8 @@ async def setup(reset: bool = False):
 
             -- Soft delete, so removed baseline rules aren't re-seeded and history still resolves
             ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+            -- Phrases that make a rule's required disclaimer necessary (empty: always needed)
+            ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS disclaimer_triggers TEXT[] DEFAULT '{}'::text[];
         """)
 
         # Scope columns. They're added without a default so the first run can tell which rows still
@@ -666,7 +876,7 @@ async def setup(reset: bool = False):
                 rulebook_id, rule_number, category, title, summary,
                 severity, traffic_light, prohibited_terms, required_disclaimers,
                 allowed_examples, prohibited_examples, remediation_guidance,
-                sort_order, rule_sets, is_active, is_custom
+                sort_order, rule_sets, is_active, is_custom, disclaimer_triggers
             )
             {_BASE_RULES_SELECT}
         """
@@ -682,6 +892,7 @@ async def setup(reset: bool = False):
                     traffic_light = EXCLUDED.traffic_light,
                     prohibited_terms = EXCLUDED.prohibited_terms,
                     required_disclaimers = EXCLUDED.required_disclaimers,
+                    disclaimer_triggers = EXCLUDED.disclaimer_triggers,
                     allowed_examples = EXCLUDED.allowed_examples,
                     prohibited_examples = EXCLUDED.prohibited_examples,
                     remediation_guidance = EXCLUDED.remediation_guidance,

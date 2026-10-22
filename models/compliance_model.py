@@ -3,7 +3,7 @@ Supports full CRUD ("build on it and remove") and live automated AI compliance s
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
 
@@ -17,6 +17,10 @@ class ComplianceRuleBase(BaseModel):
     traffic_light: str = Field("YELLOW", description="Traffic light risk rating: RED, YELLOW, GREEN")
     prohibited_terms: List[str] = Field(default_factory=list, description="Keywords or phrases that trigger flags in text/captions/transcripts")
     required_disclaimers: List[str] = Field(default_factory=list, description="Mandatory disclaimers or concept labels required by this rule")
+    disclaimer_triggers: List[str] = Field(
+        default_factory=list,
+        description="Phrases that make a required disclaimer necessary. Empty: the disclaimer is needed on all content the rule applies to",
+    )
     allowed_examples: Optional[str] = Field(None, description="Examples of acceptable phrasing or imagery")
     prohibited_examples: Optional[str] = Field(None, description="Examples of non-compliant phrasing or imagery")
     remediation_guidance: Optional[str] = Field(None, description="Instructions on how to fix or review violations")
@@ -44,6 +48,7 @@ class ComplianceRuleUpdate(BaseModel):
     traffic_light: Optional[str] = None
     prohibited_terms: Optional[List[str]] = None
     required_disclaimers: Optional[List[str]] = None
+    disclaimer_triggers: Optional[List[str]] = None
     allowed_examples: Optional[str] = None
     prohibited_examples: Optional[str] = None
     remediation_guidance: Optional[str] = None
@@ -90,6 +95,10 @@ class ComplianceViolation(BaseModel):
     flagged_terms: List[str]
     explanation: str
     remediation_guidance: Optional[str] = None
+    # PROHIBITED_TERM: wording the rule forbids. MISSING_DISCLAIMER: wording that needs a disclaimer, without it.
+    kind: Literal["PROHIBITED_TERM", "MISSING_DISCLAIMER"] = "PROHIBITED_TERM"
+    # Any one of these satisfies the rule.
+    missing_disclaimers: List[str] = Field(default_factory=list)
 
 
 class ComplianceCheckResponse(BaseModel):
