@@ -50,11 +50,12 @@ class SentimentFinding(BaseModel):
     title: str
     quote: str
     why_it_matters: str
-    basis: Literal["OBSERVED_WORDING", "POSSIBLE_INTERPRETATION"]
+    # OBSERVED_VISUAL: about what the attached video shows; quote then describes the moment rather than quoting words.
+    basis: Literal["OBSERVED_WORDING", "POSSIBLE_INTERPRETATION", "OBSERVED_VISUAL"]
     guideline_rule_number: Optional[str] = None
     suggested_revision: Optional[str] = None
-    # Filled in by the service after checking the quote against the submitted text.
-    source: Optional[Literal["title", "caption", "transcript"]] = None
+    # Filled in by the service after checking the quote against the submitted text ("video" for visual findings).
+    source: Optional[Literal["title", "caption", "transcript", "video"]] = None
     start_sec: Optional[float] = None
     end_sec: Optional[float] = None
 

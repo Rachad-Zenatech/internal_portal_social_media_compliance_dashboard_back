@@ -33,14 +33,19 @@ _running: Set[UUID] = set()
 _tasks: Set[asyncio.Task] = set()
 _client: Optional[genai.Client] = None
 
-PROMPT = """Transcribe every word spoken in this video (voiceover, narration and dialogue).
-Split the transcript into segments of one sentence or phrase, each no longer than about 10 seconds.
-For each segment give start_sec and end_sec as the number of seconds from the start of the video
-(decimals allowed) and the exact spoken text. Keep segments in chronological order.
-Do not describe music, sound effects or visuals, and do not transcribe on-screen text that is not spoken.
-Names that are often spoken in these videos (spell them exactly like this when you hear them):
-ZenaTech, ZenaDrone, ZenaDrone 1000, ZooOffice, Zena Studios, DaaS (Drone as a Service), B2i Digital.
-If nobody speaks in the video, return an empty array."""
+PROMPT = """This video is screened for compliance, so we need every word it says and every word it shows.
+1. Transcribe every word spoken (voiceover, narration and dialogue) with source "speech".
+2. Transcribe every piece of readable on-screen text (titles, captions, overlays, lower thirds, slides, signs
+   and labels that are part of the message) with source "on_screen". Give each distinct on-screen text once,
+   timed from when it appears until it disappears. Skip tiny background text that can't be read, watermarks
+   and the platform's own interface.
+Split into segments of one sentence or phrase, each no longer than about 10 seconds. For each segment give
+start_sec and end_sec as the number of seconds from the start of the video (decimals allowed), the exact text
+and its source. Keep segments in chronological order by start_sec.
+Do not describe music, sound effects or visuals in your own words.
+Names that often appear in these videos (spell them exactly like this):
+ZenaTech, ZenaDrone, ZenaDrone 1000, ZooOffice, Zena Studios, DaaS (Drone as a Service), B2i Digital, ZENA (Nasdaq ticker).
+If the video has no speech and no readable text, return an empty array."""
 
 RESPONSE_SCHEMA = {
     "type": "ARRAY",
@@ -50,8 +55,9 @@ RESPONSE_SCHEMA = {
             "start_sec": {"type": "NUMBER"},
             "end_sec": {"type": "NUMBER"},
             "text": {"type": "STRING"},
+            "source": {"type": "STRING", "enum": ["speech", "on_screen"]},
         },
-        "required": ["start_sec", "end_sec", "text"],
+        "required": ["start_sec", "end_sec", "text", "source"],
     },
 }
 
@@ -90,7 +96,8 @@ def _normalize(raw: Any) -> List[dict]:
             continue
         if not text:
             continue
-        segments.append({"start_sec": round(start, 2), "end_sec": round(max(end, start), 2), "text": text})
+        source = "on_screen" if str(item.get("source", "")).lower() == "on_screen" else "speech"
+        segments.append({"start_sec": round(start, 2), "end_sec": round(max(end, start), 2), "text": text, "source": source})
     segments.sort(key=lambda s: s["start_sec"])
     return segments
 
@@ -179,7 +186,8 @@ async def transcribe_file(file_id: UUID) -> None:
                 except Exception:
                     pass
         # Sentiment analyses wait for the transcript; either outcome lets them run.
-        from services import sentiment_service
+        from services import sentiment_service, submission_service
+        await submission_service.recheck_after_transcript(file_id)
         await sentiment_service.on_transcript_finished(file_id)
 
 
