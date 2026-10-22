@@ -89,7 +89,12 @@ async def get_all_users(is_active: Optional[bool] = None):
                     JOIN roles r ON ur.role_id = r.id
                     WHERE ur.user_id = u.id AND ur.is_active = true AND r.deleted_at IS NULL),
                    '[]'::json
-               ) as assigned_roles
+               ) as assigned_roles,
+               -- Brands they work on; empty means every brand.
+               COALESCE(
+                   (SELECT array_agg(ub.brand_code ORDER BY ub.brand_code) FROM user_brands ub WHERE ub.user_id = u.id),
+                   ARRAY[]::varchar[]
+               ) as assigned_brands
         FROM users u
         WHERE {where_sql}
         ORDER BY u.created_at DESC
@@ -524,6 +529,42 @@ async def set_user_roles(user_id: UUID, role_ids: list[UUID], actor_id: UUID = N
             await log_audit(conn, actor_id, "UPDATE", "user_roles", user_id, None, {"roles": [str(r) for r in role_ids]})
             await emit_cache_invalidation(scope="permissions", key=f"perms:{user_id}")
             return await get_user_roles(user_id)
+
+# --- USER BRANDS ---
+async def get_user_brands(user_id: UUID) -> dict:
+    """The brands a user works on, plus every active brand to choose from. No brands means all of them."""
+    assigned = await fetch_all(
+        "SELECT brand_code FROM user_brands WHERE user_id = $1 ORDER BY brand_code", user_id
+    )
+    brands = await fetch_all("SELECT code, name FROM brands WHERE is_active ORDER BY sort_order, name")
+    return {
+        "brand_codes": [r["brand_code"] for r in assigned],
+        "brands": [{"code": b["code"], "name": b["name"]} for b in brands],
+    }
+
+async def set_user_brands(user_id: UUID, brand_codes: list[str], actor_id: UUID = None) -> dict:
+    """Replace the brands a user works on. An empty list gives them every brand again."""
+    codes = sorted(set(brand_codes))
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            if not await conn.fetchval("SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL", user_id):
+                raise ValueError("User not found")
+            known = await conn.fetch("SELECT code FROM brands WHERE is_active AND code = ANY($1::text[])", codes)
+            unknown = set(codes) - {r["code"] for r in known}
+            if unknown:
+                raise ValueError(f"Unknown brand(s): {', '.join(sorted(unknown))}")
+            old = await conn.fetch("SELECT brand_code FROM user_brands WHERE user_id = $1", user_id)
+            await conn.execute("DELETE FROM user_brands WHERE user_id = $1", user_id)
+            if codes:
+                await conn.execute("""
+                    INSERT INTO user_brands (user_id, brand_code, assigned_by)
+                    SELECT $1, unnest($2::text[]), $3
+                """, user_id, codes, actor_id)
+            await log_audit(conn, actor_id, "UPDATE", "user_brands", user_id,
+                            {"brands": sorted(r["brand_code"] for r in old)}, {"brands": codes})
+    await emit_cache_invalidation(scope="permissions", key=f"perms:{user_id}")
+    return await get_user_brands(user_id)
 
 # --- ROLE NAVIGATION PERMISSIONS ---
 async def get_role_navigation_permissions(role_id: UUID):

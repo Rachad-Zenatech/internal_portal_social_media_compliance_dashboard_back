@@ -22,6 +22,8 @@ from models.submission_model import (
     ReviewComment,
     ReviewCommentCreate,
     ReviewDecisionRequest,
+    ReopenRequest,
+    RescheduleRequest,
     AUDIENCES,
     PLATFORMS,
     PROVIDER_PLATFORMS,
@@ -31,6 +33,8 @@ from models.submission_model import (
     AccountOption,
     BrandOption,
     ReviewJob,
+    VersionView,
+    ReviewQueueCounts,
     ReviewQueueItem,
     Submission,
     SubmissionCreate,
@@ -44,7 +48,7 @@ from models.submission_model import (
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.audit_service import log_audit_event
-from services import ai_usage_service, transcription_service
+from services import ai_usage_service, approval_path_service, canva_service, review_deadline_service, transcription_service
 from services.ai_usage_service import AiLimitExceeded
 from services.compliance_service import check_compliance, flag_segments
 
@@ -74,9 +78,10 @@ MAIN_EXT_BY_TYPE = {
     "CAROUSEL": IMAGE_EXT,
     "SOCIAL_POST": IMAGE_EXT | VIDEO_EXT,
     "BLOG": DOC_EXT,
+    "AD": IMAGE_EXT | VIDEO_EXT,
 }
-# Types whose main asset is required to submit; posts and articles can be text-only.
-MAIN_FILE_REQUIRED = {"VIDEO", "IMAGE", "CAROUSEL"}
+# Types whose main asset is required to submit; posts and articles can be text-only. An ad needs its creative.
+MAIN_FILE_REQUIRED = {"VIDEO", "IMAGE", "CAROUSEL", "AD"}
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +161,10 @@ def _file_out(submission_id: UUID, row: Dict[str, Any]) -> SubmissionFile:
         transcript_status=row.get("transcript_status"),
         transcript=transcript,
         transcript_error=row.get("transcript_error"),
+        source=row.get("source") or "UPLOAD",
+        canva_design_id=row.get("canva_design_id"),
+        canva_design_title=row.get("canva_design_title"),
+        canva_revision=row.get("canva_revision"),
     )
 
 
@@ -183,9 +192,27 @@ async def _can_see_team_content(user_id: UUID) -> bool:
     return await _can_manage_team_content(user_id) or await _can_review(user_id)
 
 
+async def _brand_scope(user_id: UUID) -> Optional[List[str]]:
+    """The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
+    hasn't been assigned to specific brands. Other people's content outside these brands is hidden from them."""
+    row = await fetch_one(
+        """
+        SELECT u.is_super_admin,
+               coalesce(array_agg(ub.brand_code) FILTER (WHERE ub.brand_code IS NOT NULL), '{}') AS brands
+        FROM users u LEFT JOIN user_brands ub ON ub.user_id = u.id
+        WHERE u.id = $1
+        GROUP BY u.id
+        """,
+        user_id,
+    )
+    if not row or row["is_super_admin"] or not row["brands"]:
+        return None
+    return list(row["brands"])
+
+
 async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: bool = False) -> Dict[str, Any]:
     """Load a submission the user may access (creator or super admin; managers and reviewers too when
-    manager_can_read), with its account joined. Deleted submissions are never returned."""
+    manager_can_read, for the brands they work on), with its account joined. Deleted submissions are never returned."""
     row = await fetch_one(
         """
         SELECT s.*,
@@ -204,7 +231,27 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
     if row["created_by"] != user_id and not await _is_super_admin(user_id):
         if not (manager_can_read and await _can_see_team_content(user_id)):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+        scope = await _brand_scope(user_id)
+        if scope is not None and row["brand_code"] not in scope:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     return row
+
+
+def _approvers(rules: "approval_path_service.ApprovalRules", row: Dict[str, Any], accounts=None) -> Tuple[List[UUID], List[str]]:
+    """The named final approvers for a submission row (empty: any reviewer on its brand)."""
+    accts = accounts if accounts is not None else [_account_option(row, prefix="acc_")]
+    ceo = approval_path_service.is_ceo_content(row.get("rule_sets") or [], accts)
+    return rules.approvers(row.get("brand_code"), row.get("audience"), ceo)
+
+
+def _may_approve(user_id: UUID, is_super: bool, approver_ids: List[UUID]) -> bool:
+    return is_super or not approver_ids or user_id in approver_ids
+
+
+def _approval_fields(rules, r: Dict[str, Any], user_id: UUID, is_reviewer: bool, is_super: bool, accounts=None) -> Dict[str, Any]:
+    ids, names = _approvers(rules, r, accounts)
+    can_review = r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super)
+    return {"approver_names": names, "can_approve": can_review and _may_approve(user_id, is_super, ids)}
 
 
 def _require_editable(row: Dict[str, Any]) -> None:
@@ -233,13 +280,22 @@ async def _list_files(submission_id: UUID) -> List[Dict[str, Any]]:
     return await fetch_all(
         """
         SELECT id, kind, original_name, mime_type, size_bytes, created_at,
-               transcript, transcript_status, transcript_error
+               transcript, transcript_status, transcript_error,
+               source, canva_design_id, canva_design_title, canva_revision
         FROM content_submission_files
         WHERE submission_id = $1 AND deleted_at IS NULL
         ORDER BY created_at ASC
         """,
         submission_id,
     )
+
+
+def _due(row: Dict[str, Any]) -> Dict[str, Any]:
+    """The open deadline, if the content is still at the step it belongs to."""
+    kind = row.get("due_kind")
+    if row.get("due_at") and review_deadline_service.KIND_STATUS.get(kind) == row["status"]:
+        return {"due_at": row["due_at"], "due_kind": kind}
+    return {"due_at": None, "due_kind": None}
 
 
 async def _to_submission(row: Dict[str, Any]) -> Submission:
@@ -258,6 +314,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         account_ids=_account_ids(row),
         accounts=_accounts(row),
         publish_at=row["publish_at"],
+        **_due(row),
         caption_html=row["caption_html"],
         caption_text=row["caption_text"],
         rule_sets=list(row["rule_sets"] or []),
@@ -293,8 +350,13 @@ async def _connected_accounts(account_ids: List[UUID]) -> List[AccountOption]:
 # Options
 # ---------------------------------------------------------------------------
 
-async def get_options() -> SubmissionOptions:
-    brands = await fetch_all("SELECT code, name FROM brands WHERE is_active ORDER BY sort_order, name")
+async def get_options(user_id: UUID) -> SubmissionOptions:
+    """Choices for the submission form, limited to the brands the user works on (and those brands' accounts)."""
+    scope = await _brand_scope(user_id)
+    brands = await fetch_all(
+        "SELECT code, name FROM brands WHERE is_active AND ($1::text[] IS NULL OR code = ANY($1::text[])) ORDER BY sort_order, name",
+        scope,
+    )
     accounts = await fetch_all(
         """
         SELECT id, provider, account_name, connection_metadata
@@ -308,7 +370,11 @@ async def get_options() -> SubmissionOptions:
     )
     return SubmissionOptions(
         brands=[BrandOption(code=b["code"], name=b["name"]) for b in brands],
-        accounts=[a for a in (_account_option(r) for r in accounts) if a],
+        # Accounts not tied to a brand stay available to everyone.
+        accounts=[
+            a for a in (_account_option(r) for r in accounts)
+            if a and (scope is None or not a.brand_code or a.brand_code in scope)
+        ],
     )
 
 
@@ -347,6 +413,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         """
         SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.platforms, s.status,
                s.current_version, s.publish_at, s.submitted_at, s.created_at, s.updated_at, s.audience,
+               s.due_at, s.due_kind, s.rule_sets,
                left(s.caption_text, 600) AS caption_text,
                s.latest_check->>'traffic_light' AS latest_traffic_light,
                (s.latest_check->>'score')::int AS latest_score,
@@ -372,7 +439,8 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             ORDER BY (cf.kind = 'MAIN') DESC, cf.created_at ASC
             LIMIT 1
         ) cov ON true
-        WHERE ($3 OR s.created_by = $1) AND s.deleted_at IS NULL AND ($2::text IS NULL OR s.status = $2)
+        WHERE (s.created_by = $1 OR ($3 AND ($4::text[] IS NULL OR s.brand_code = ANY($4::text[]))))
+          AND s.deleted_at IS NULL AND ($2::text IS NULL OR s.status = $2)
         -- Work on a deadline comes first: changes to fix, then drafts to finish, then content waiting
         -- on reviewers, each by nearest publish date; finished content goes last.
         ORDER BY CASE s.status
@@ -388,19 +456,27 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         user_id,
         status_filter,
         scope == "all",
+        # Everyone else's content only for the brands the viewer works on.
+        await _brand_scope(user_id),
     )
+    rules = await approval_path_service.load_rules()
     summaries = []
     for r in rows:
-        base = {k: v for k, v in r.items() if not k.startswith(("acc_", "cov_")) and k not in ("platforms", "accounts_json")}
+        base = {k: v for k, v in r.items()
+                if not k.startswith(("acc_", "cov_"))
+                and k not in ("platforms", "accounts_json", "due_at", "due_kind", "rule_sets")}
         cover = {k[4:]: v for k, v in r.items() if k.startswith("cov_")}
         summaries.append(SubmissionSummary(
             **base,
             platforms=list(r["platforms"] or []),
+            **_due(r),
             account=_account_option(r, prefix="acc_"),
             accounts=_accounts(r),
             cover=_file_out(r["id"], cover) if cover["id"] else None,
             can_delete=r["status"] == "DRAFT" and (r["created_by"] == user_id or is_manager),
             can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
+            **_approval_fields(rules, r, user_id, is_reviewer, is_super, _accounts(r)),
+            can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
         ))
     return summaries
 
@@ -412,11 +488,13 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
     # Managers can read and delete someone else's draft but not edit it.
     sub.can_edit = sub.can_edit and (is_creator or await _is_super_admin(user_id))
     sub.can_delete = row["status"] == "DRAFT" and (is_creator or await _can_manage_team_content(user_id))
-    sub.can_review = (
-        row["status"] == "IN_REVIEW"
-        and await _can_review(user_id)
-        and (not is_creator or await _is_super_admin(user_id))
-    )
+    approver_ids, sub.approver_names = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
+    if row["status"] in ("IN_REVIEW", "APPROVED"):
+        is_super = await _is_super_admin(user_id)
+        may_decide = await _can_review(user_id) and (not is_creator or is_super)
+        sub.can_review = row["status"] == "IN_REVIEW" and may_decide
+        sub.can_approve = sub.can_review and _may_approve(user_id, is_super, approver_ids)
+        sub.can_manage_approval = row["status"] == "APPROVED" and may_decide
     sub.created_by = row["created_by"]
     if not is_creator:
         creator = await fetch_one("SELECT full_name FROM users WHERE id = $1", row["created_by"])
@@ -439,6 +517,11 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         brand = await fetch_one("SELECT code FROM brands WHERE code = $1 AND is_active", payload["brand_code"])
         if not brand:
             raise HTTPException(status_code=422, detail="Unknown brand")
+        # Only checked when it changes, so an older draft on a brand someone has since left still saves.
+        if brand["code"] != row["brand_code"]:
+            scope = await _brand_scope(user_id)
+            if scope is not None and brand["code"] not in scope:
+                raise HTTPException(status_code=403, detail="You don't work on that brand")
         fields["brand_code"] = brand["code"]
     if payload.get("audience"):
         if payload["audience"] not in AUDIENCES:
@@ -610,6 +693,24 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
         raise HTTPException(status_code=422, detail="The file is empty")
 
     mime = upload.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
+    return await _record_file(row, kind, file_id, path, original_name, mime, size, user_id)
+
+
+async def _record_file(
+    row: Dict[str, Any],
+    kind: str,
+    file_id: UUID,
+    path: Path,
+    original_name: str,
+    mime: str,
+    size: int,
+    user_id: UUID,
+    canva: Optional[Dict[str, Any]] = None,
+    replaces_file_id: Optional[UUID] = None,
+) -> SubmissionFile:
+    """Save a stored file to the submission (an upload or a Canva export): replace the main file or script it
+    supersedes, log it, and start transcription for a main video. canva: the design id, title and revision."""
+    submission_id = row["id"]
     needs_transcript = kind == "MAIN" and mime.startswith("video/")
     # Over the AI limit the upload still works; the transcript is marked failed and can be retried later.
     transcript_blocked: Optional[str] = None
@@ -621,8 +722,14 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            if replaces_file_id:
+                # A reimport replaces exactly the file it came from (one image of a carousel, say).
+                await conn.execute(
+                    "UPDATE content_submission_files SET deleted_at = NOW() WHERE id = $1 AND submission_id = $2",
+                    replaces_file_id, submission_id,
+                )
             # Single-asset types keep one main file: replacing it soft-deletes the previous one.
-            if kind == "MAIN" and row["content_type"] != "CAROUSEL":
+            elif kind == "MAIN" and row["content_type"] != "CAROUSEL":
                 await conn.execute(
                     """
                     UPDATE content_submission_files SET deleted_at = NOW()
@@ -642,9 +749,12 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
                 """
                 INSERT INTO content_submission_files
                     (id, submission_id, kind, original_name, mime_type, size_bytes, storage_path, uploaded_by,
-                     transcript_status, transcript_error, transcript_updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $9::varchar IS NULL THEN NULL ELSE NOW() END)
-                RETURNING id, kind, original_name, mime_type, size_bytes, created_at, transcript_status, transcript_error
+                     transcript_status, transcript_error, transcript_updated_at,
+                     source, canva_design_id, canva_design_title, canva_revision)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $9::varchar IS NULL THEN NULL ELSE NOW() END,
+                        $11, $12, $13, $14)
+                RETURNING id, kind, original_name, mime_type, size_bytes, created_at, transcript_status, transcript_error,
+                          source, canva_design_id, canva_design_title, canva_revision
                 """,
                 file_id,
                 submission_id,
@@ -656,14 +766,92 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
                 user_id,
                 ("FAILED" if transcript_blocked else "PENDING") if needs_transcript else None,
                 transcript_blocked,
+                "CANVA" if canva else "UPLOAD",
+                canva["design_id"] if canva else None,
+                canva["title"] if canva else None,
+                canva["revision"] if canva else None,
             )
             await conn.execute("UPDATE content_submissions SET updated_at = NOW(), updated_by = $2 WHERE id = $1",
                                submission_id, user_id)
-            await _add_event(conn, submission_id, "FILE_ADDED", f"Added {original_name}", user_id,
-                             {"file_id": str(file_id), "kind": kind, "size_bytes": size})
+            if canva:
+                verb = "Reimported" if replaces_file_id else "Imported"
+                await _add_event(conn, submission_id, "CANVA_IMPORTED",
+                                 f"{verb} \"{canva['title']}\" from Canva (revision {canva['revision']})", user_id,
+                                 {"file_id": str(file_id), **canva, "reimport": bool(replaces_file_id)})
+            else:
+                await _add_event(conn, submission_id, "FILE_ADDED", f"Added {original_name}", user_id,
+                                 {"file_id": str(file_id), "kind": kind, "size_bytes": size})
     if needs_transcript and not transcript_blocked:
         transcription_service.schedule([file_id])
     return _file_out(submission_id, dict(saved))
+
+
+# ---------------------------------------------------------------------------
+# Canva import
+# ---------------------------------------------------------------------------
+
+async def _store_canva_export(row: Dict[str, Any], export: canva_service.DesignExport, user_id: UUID,
+                              replaces_file_id: Optional[UUID] = None) -> SubmissionFile:
+    """Write a Canva export into the submission's storage and record it as the main file."""
+    allowed = MAIN_EXT_BY_TYPE.get(row["content_type"], set())
+    if export.extension not in allowed:
+        kind = "a video" if export.design.kind == "VIDEO" else "an image"
+        raise HTTPException(status_code=415,
+                            detail=f"That design exports as {kind}, which doesn't fit a {row['content_type'].replace('_', ' ').lower()} submission")
+    if len(export.data) > MAX_BYTES["MAIN"]:
+        raise HTTPException(status_code=413, detail="The Canva export is too large")
+    file_id = uuid4()
+    folder = STORAGE_ROOT / str(row["id"])
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{file_id}{export.extension}"
+    async with aiofiles.open(path, "wb") as out:
+        await out.write(export.data)
+    canva = {"design_id": export.design.id, "title": export.design.title, "revision": export.design.revision}
+    try:
+        return await _record_file(row, "MAIN", file_id, path, export.file_name, export.mime_type, len(export.data),
+                                  user_id, canva=canva, replaces_file_id=replaces_file_id)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+
+
+async def import_from_canva(submission_id: UUID, user_id: UUID, design_id: str) -> Submission:
+    """Export a Canva design and add it as the submission's main file, like an upload."""
+    row = await _get_owned_row(submission_id, user_id)
+    _require_editable(row)
+    export = await canva_service.export_design(user_id, design_id)
+    await _store_canva_export(row, export, user_id)
+    if (row["title"] or "").strip() in ("", "Untitled submission"):
+        await fetch_one("UPDATE content_submissions SET title = $2 WHERE id = $1 RETURNING id",
+                        submission_id, export.design.title[:300])
+    return await get_submission(submission_id, user_id)
+
+
+async def reimport_from_canva(submission_id: UUID, user_id: UUID, resubmit: bool = False) -> Submission:
+    """Bring in the latest revision of the Canva design the main file came from, replacing it. With resubmit (for
+    content sent back for changes) it then goes straight back to review as the next version: the rulebook check
+    runs again and the reviewers are notified, with earlier versions, comments and decisions kept in the history."""
+    row = await _get_owned_row(submission_id, user_id)
+    _require_editable(row)
+    linked = await fetch_one(
+        """
+        SELECT id, canva_design_id, canva_revision FROM content_submission_files
+        WHERE submission_id = $1 AND kind = 'MAIN' AND source = 'CANVA' AND deleted_at IS NULL
+        ORDER BY created_at DESC LIMIT 1
+        """,
+        submission_id,
+    )
+    if not linked:
+        raise HTTPException(status_code=409, detail="This submission's content wasn't imported from Canva")
+    export = await canva_service.export_design(user_id, linked["canva_design_id"])
+    if export.design.revision == linked["canva_revision"]:
+        raise HTTPException(status_code=409,
+                            detail=f"No changes in Canva since the last import (revision {export.design.revision})")
+    await _store_canva_export(row, export, user_id, replaces_file_id=linked["id"])
+    if resubmit and row["status"] == "CHANGES_REQUESTED":
+        submission, _job = await submit_for_review(submission_id, user_id)
+        return submission
+    return await get_submission(submission_id, user_id)
 
 
 async def retranscribe(submission_id: UUID, file_id: UUID, user_id: UUID) -> SubmissionFile:
@@ -882,7 +1070,9 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         "reviewer_route": list(row["reviewer_route"] or []),
         "files": [
             {"id": str(f["id"]), "kind": f["kind"], "original_name": f["original_name"],
-             "mime_type": f["mime_type"], "size_bytes": f["size_bytes"]}
+             "mime_type": f["mime_type"], "size_bytes": f["size_bytes"],
+             **({"source": "CANVA", "canva_design_id": f["canva_design_id"], "canva_revision": f["canva_revision"]}
+                if f["source"] == "CANVA" else {})}
             for f in files
         ],
     }
@@ -917,10 +1107,12 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
                 """
                 UPDATE content_submissions
                 SET status = 'IN_REVIEW', current_version = $2, latest_check = $3::jsonb,
-                    submitted_at = NOW(), updated_at = NOW(), updated_by = $4
+                    submitted_at = NOW(), updated_at = NOW(), updated_by = $4,
+                    due_at = $5, due_kind = 'REVIEW', due_reminded_at = NULL, due_overdue_notified_at = NULL
                 WHERE id = $1
                 """,
                 submission_id, version, json.dumps(check), user_id,
+                review_deadline_service.due_date("REVIEW", row["publish_at"]),
             )
             await _add_event(conn, submission_id, "SUBMITTED", f"Version {version} submitted for review", user_id,
                              {"version": version, "review_job_id": str(job["id"])})
@@ -953,13 +1145,20 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
 
 
 async def withdraw(submission_id: UUID, user_id: UUID) -> Submission:
-    """Pull an in-review submission back to draft so the creator can edit and resubmit."""
+    """Pull a submission back to draft so the creator can edit and resubmit: from review, or after approval for a
+    late fix. Withdrawing approved content gives up the approval; the edited version goes through review again."""
     row = await _get_owned_row(submission_id, user_id)
-    if row["status"] != "IN_REVIEW":
-        raise HTTPException(status_code=409, detail="Only submissions that are in review can be withdrawn")
+    if row["status"] not in ("IN_REVIEW", "APPROVED"):
+        raise HTTPException(status_code=409, detail="Only content that's in review or approved can be withdrawn")
+    was_approved = row["status"] == "APPROVED"
+    version = row["current_version"]
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            current = await conn.fetchval("SELECT status FROM content_submissions WHERE id = $1 FOR UPDATE", submission_id)
+            if current != row["status"]:
+                raise HTTPException(status_code=409, detail="Its status just changed; refresh to see it")
+            # An approved version's review job keeps its APPROVED decision as history; the event records the withdrawal.
             await conn.execute(
                 """
                 UPDATE content_review_jobs SET status = 'WITHDRAWN', completed_at = NOW()
@@ -968,26 +1167,112 @@ async def withdraw(submission_id: UUID, user_id: UUID) -> Submission:
                 submission_id,
             )
             await conn.execute(
-                "UPDATE content_submissions SET status = 'DRAFT', updated_at = NOW(), updated_by = $2 WHERE id = $1",
+                """
+                UPDATE content_submissions SET status = 'DRAFT', updated_at = NOW(), updated_by = $2,
+                    due_at = NULL, due_kind = NULL
+                WHERE id = $1
+                """,
                 submission_id, user_id,
             )
-            await _add_event(conn, submission_id, "WITHDRAWN",
-                             f"Version {row['current_version']} withdrawn from review for editing", user_id)
-    await log_audit_event("content_submission", str(submission_id), "WITHDRAW_SUBMISSION", user_id,
-                          {"reference_code": row["reference_code"], "version": row["current_version"]})
+            await _add_event(
+                conn, submission_id, "WITHDRAWN",
+                f"Approved version {version} withdrawn for a late fix; the approval no longer applies"
+                if was_approved else f"Version {version} withdrawn from review for editing",
+                user_id, {"version": version, "was_approved": was_approved},
+            )
+    await log_audit_event("content_submission", str(submission_id),
+                          "WITHDRAW_APPROVED_SUBMISSION" if was_approved else "WITHDRAW_SUBMISSION", user_id,
+                          {"reference_code": row["reference_code"], "version": version})
+    if was_approved:
+        # Tell whoever approved it that it's coming back for another look.
+        approver = await fetch_one(
+            """
+            SELECT decided_by FROM content_review_jobs
+            WHERE submission_id = $1 AND version_number = $2 AND decision = 'APPROVE' AND decided_by IS NOT NULL
+            ORDER BY decided_at DESC LIMIT 1
+            """,
+            submission_id, version,
+        )
+        if approver and approver["decided_by"] != user_id:
+            await _notify(
+                [approver["decided_by"]],
+                f"{row['reference_code']} was withdrawn after approval",
+                f"\"{row['title']}\" was pulled back for a late fix. It's off the calendar until it's resubmitted "
+                "and approved again.",
+                f"/submissions/{submission_id}",
+                submission_id,
+            )
     return await get_submission(submission_id, user_id)
 
 
-async def review_queue(user_id: UUID) -> List[ReviewQueueItem]:
-    """Submitted videos for the Content Screener: everyone's for reviewers, Content Managers and super admins,
-    otherwise the user's own."""
+# The Content Screener's tabs: content waiting on a reviewer, content waiting on its creator, and decided content.
+QUEUE_TAB_STATUSES = {
+    "review": ("IN_REVIEW",),
+    "sent_back": ("CHANGES_REQUESTED",),
+    "done": ("APPROVED", "REJECTED"),
+}
+# Decided content stays in the Screener's Done tab this long; the Content Portal keeps everything.
+DONE_DAYS = 30
+
+# When the latest version was decided (approved or sent back), for the Done tab's window and order.
+_DECIDED_AT = """(SELECT max(j.decided_at) FROM content_review_jobs j
+                  WHERE j.submission_id = s.id AND j.version_number = s.current_version)"""
+
+_QUEUE_ORDER = {
+    # Overdue first, then the soonest due; anything without a deadline after, oldest submission first.
+    "review": "s.due_at ASC NULLS LAST, s.submitted_at ASC",
+    "sent_back": "s.due_at ASC NULLS LAST, s.updated_at DESC",
+    "done": "decided_at DESC NULLS LAST, s.updated_at DESC",
+}
+
+
+def _queue_filter(tab: str) -> str:
+    statuses = ", ".join(f"'{st}'" for st in QUEUE_TAB_STATUSES[tab])
+    cond = f"s.status IN ({statuses})"
+    if tab == "done":
+        cond += f" AND COALESCE({_DECIDED_AT}, s.updated_at) >= NOW() - INTERVAL '{DONE_DAYS} days'"
+    return cond
+
+
+async def review_queue_counts(user_id: UUID) -> ReviewQueueCounts:
+    """How many videos are in each Screener tab, for the tab labels."""
+    see_all = await _can_see_team_content(user_id)
+    row = await fetch_one(
+        f"""
+        SELECT
+            count(*) FILTER (WHERE {_queue_filter("review")}) AS review,
+            count(*) FILTER (WHERE {_queue_filter("sent_back")}) AS sent_back,
+            count(*) FILTER (WHERE {_queue_filter("done")}) AS done
+        FROM content_submissions s
+        WHERE s.deleted_at IS NULL
+          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))))
+          AND EXISTS (SELECT 1 FROM content_submission_files cf
+                      WHERE cf.submission_id = s.id AND cf.kind = 'MAIN' AND cf.deleted_at IS NULL
+                        AND cf.mime_type LIKE 'video/%')
+        """,
+        user_id,
+        see_all,
+        await _brand_scope(user_id),
+    )
+    return ReviewQueueCounts(**dict(row))
+
+
+async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str] = None) -> List[ReviewQueueItem]:
+    """Submitted videos for one Content Screener tab: everyone's for reviewers, Content Managers and super admins,
+    otherwise the user's own. Done covers the last 30 days and can be searched by title or reference."""
+    if tab not in QUEUE_TAB_STATUSES:
+        raise HTTPException(status_code=422, detail="Unknown queue tab")
     see_all = await _can_see_team_content(user_id)
     is_reviewer = await _can_review(user_id)
     is_super = await _is_super_admin(user_id)
+    term = (search or "").strip()
     rows = await fetch_all(
-        """
+        f"""
         SELECT s.id, s.reference_code, s.title, s.status, s.platforms, s.caption_text, s.latest_check,
-               s.current_version, s.submitted_at, s.created_by, s.publish_at, u.full_name AS creator_name,
+               s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
+               s.brand_code, s.audience, s.rule_sets,
+               {_DECIDED_AT} AS decided_at,
+               u.full_name AS creator_name,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
                c.connection_metadata AS acc_connection_metadata,
                f.id AS file_id, f.kind AS file_kind, f.original_name AS file_original_name,
@@ -1004,14 +1289,18 @@ async def review_queue(user_id: UUID) -> List[ReviewQueueItem]:
         ) f ON true
         LEFT JOIN oauth_connections c ON c.id = s.account_id
         LEFT JOIN users u ON u.id = s.created_by
-        WHERE s.status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'REJECTED') AND s.deleted_at IS NULL
-          AND ($2 OR s.created_by = $1)
-        ORDER BY s.submitted_at DESC NULLS LAST
+        WHERE {_queue_filter(tab)} AND s.deleted_at IS NULL
+          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))))
+          AND ($4 = '' OR s.title ILIKE '%' || $4 || '%' OR s.reference_code ILIKE '%' || $4 || '%')
+        ORDER BY {_QUEUE_ORDER[tab]}
         LIMIT 100
         """,
         user_id,
         see_all,
+        await _brand_scope(user_id),
+        term,
     )
+    rules = await approval_path_service.load_rules()
     # Videos uploaded before transcription existed (or whose attempt was abandoned) get transcribed now.
     await transcription_service.schedule_missing(
         [r["file_id"] for r in rows if r["file_transcript_status"] not in ("COMPLETED", "FAILED")]
@@ -1037,10 +1326,64 @@ async def review_queue(user_id: UUID) -> List[ReviewQueueItem]:
                 "transcript_status": r["file_transcript_status"] or "PENDING",
             }),
             can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
+            **_approval_fields(rules, r, user_id, is_reviewer, is_super),
             publish_at=r["publish_at"],
+            **_due(r),
+            created_by=r["created_by"],
+            can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
+            decided_at=r["decided_at"],
         )
         for r in rows
     ]
+
+
+async def get_version(submission_id: UUID, version: int, user_id: UUID) -> VersionView:
+    """A past (or the current) submitted version, for looking back at what it was and how it was decided. Files
+    replaced later are still served, so the old video plays."""
+    row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
+    v = await fetch_one(
+        """
+        SELECT v.version_number, v.snapshot, v.created_at, u.full_name AS created_by_name
+        FROM content_submission_versions v LEFT JOIN users u ON u.id = v.created_by
+        WHERE v.submission_id = $1 AND v.version_number = $2
+        """,
+        submission_id, version,
+    )
+    if not v:
+        raise HTTPException(status_code=404, detail=f"Version {version} doesn't exist")
+    snapshot = _json(v["snapshot"]) or {}
+    main = next((f for f in snapshot.get("files") or [] if f.get("kind") == "MAIN"), None)
+    video = None
+    if main:
+        f = await fetch_one(
+            """
+            SELECT id, kind, original_name, mime_type, size_bytes, created_at,
+                   transcript, transcript_status, transcript_error
+            FROM content_submission_files WHERE id = $1 AND submission_id = $2
+            """,
+            UUID(main["id"]), submission_id,
+        )
+        if f:
+            video = _file_out(submission_id, dict(f))
+    job = await fetch_one(
+        """
+        SELECT j.*, u.full_name AS decided_by_name
+        FROM content_review_jobs j LEFT JOIN users u ON u.id = j.decided_by
+        WHERE j.submission_id = $1 AND j.version_number = $2
+        ORDER BY j.created_at DESC LIMIT 1
+        """,
+        submission_id, version,
+    )
+    return VersionView(
+        version_number=v["version_number"],
+        latest_version=row["current_version"],
+        snapshot=snapshot,
+        created_at=v["created_at"],
+        created_by_name=v["created_by_name"],
+        video=video,
+        check=_json(job["automated_check"]) if job else None,
+        review_job=_review_job(dict(job)) if job else None,
+    )
 
 
 async def get_history(submission_id: UUID, user_id: UUID) -> SubmissionHistory:
@@ -1085,12 +1428,18 @@ async def get_history(submission_id: UUID, user_id: UUID) -> SubmissionHistory:
 REVIEW_GROUP = "CONTENT_REVIEW_PUBLISH"
 
 
-async def _reviewer_ids(exclude: Optional[UUID] = None) -> List[UUID]:
-    """Active users who can review: super admins and roles with "Review & Publish Content"."""
+async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str] = None) -> List[UUID]:
+    """Active users who can review: super admins and roles with "Review & Publish Content". With a brand, only
+    reviewers who work on it (or on every brand)."""
     rows = await fetch_all(
         """
         SELECT u.id FROM users u
         WHERE u.is_active AND u.deleted_at IS NULL AND ($1::uuid IS NULL OR u.id <> $1)
+          AND (
+            $3::text IS NULL OR u.is_super_admin
+            OR NOT EXISTS (SELECT 1 FROM user_brands ub WHERE ub.user_id = u.id)
+            OR EXISTS (SELECT 1 FROM user_brands ub WHERE ub.user_id = u.id AND ub.brand_code = $3)
+          )
           AND (
             u.is_super_admin
             OR EXISTS (
@@ -1103,7 +1452,7 @@ async def _reviewer_ids(exclude: Optional[UUID] = None) -> List[UUID]:
             )
           )
         """,
-        exclude, REVIEW_GROUP,
+        exclude, REVIEW_GROUP, brand_code,
     )
     return [r["id"] for r in rows]
 
@@ -1128,11 +1477,22 @@ async def _notify(user_ids: List[UUID], title: str, message: str, link: str, sub
 async def _notify_reviewers(row: Dict[str, Any], version: int, score: int, submitter: UUID) -> None:
     author = await fetch_one("SELECT full_name FROM users WHERE id = $1", submitter)
     again = " (resubmitted)" if version > 1 else ""
+    who = author["full_name"] if author else "Someone"
+    reviewers = await _reviewer_ids(exclude=submitter, brand_code=row["brand_code"])
+    approver_ids, _ = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
+    approvers = [a for a in approver_ids if a != submitter]
     await _notify(
-        await _reviewer_ids(exclude=submitter),
-        f"{row['reference_code']} is ready for review{again}",
-        f"{author['full_name'] if author else 'Someone'} sent \"{row['title']}\" (version {version}) for review. "
+        approvers,
+        f"{row['reference_code']} needs your approval{again}",
+        f"{who} sent \"{row['title']}\" (version {version}) for review, and you give final approval for it. "
         f"Automated check: {score}/100.",
+        f"/submissions/{row['id']}",
+        row["id"],
+    )
+    await _notify(
+        [r for r in reviewers if r not in approvers],
+        f"{row['reference_code']} is ready for review{again}",
+        f"{who} sent \"{row['title']}\" (version {version}) for review. Automated check: {score}/100.",
         f"/submissions/{row['id']}",
         row["id"],
     )
@@ -1146,8 +1506,17 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
         raise HTTPException(status_code=403, detail="Only reviewers can approve content or request changes")
     if row["status"] != "IN_REVIEW":
         raise HTTPException(status_code=409, detail="Only content that's in review can be approved or sent back")
-    if row["created_by"] == user_id and not await _is_super_admin(user_id):
+    is_super = await _is_super_admin(user_id)
+    if row["created_by"] == user_id and not is_super:
         raise HTTPException(status_code=403, detail="You can't review your own content; another reviewer needs to")
+    if req.decision == "APPROVE":
+        approver_ids, approver_names = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
+        if not _may_approve(user_id, is_super, approver_ids):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Final approval for this content is with {', '.join(approver_names)}. "
+                       "You can still comment or request changes.",
+            )
 
     version = row["current_version"]
     notes = (req.notes or "").strip() or None
@@ -1193,13 +1562,16 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                 """,
                 submission_id, version, new_status, req.decision, notes, user_id,
             )
+            revision_due = review_deadline_service.due_date("REVISION", publish_at) if new_status == "CHANGES_REQUESTED" else None
             await conn.execute(
                 """
                 UPDATE content_submissions
-                SET status = $2, publish_at = $3, updated_at = NOW(), updated_by = $4
+                SET status = $2, publish_at = $3, updated_at = NOW(), updated_by = $4,
+                    due_at = $5, due_kind = CASE WHEN $5::timestamptz IS NULL THEN NULL ELSE 'REVISION' END,
+                    due_reminded_at = NULL, due_overdue_notified_at = NULL
                 WHERE id = $1
                 """,
-                submission_id, new_status, publish_at, user_id,
+                submission_id, new_status, publish_at, user_id, revision_due,
             )
             await _add_event(conn, submission_id, "REVIEW_DECISION", f"Version {version}: {label}", user_id,
                              {"decision": req.decision, "notes": notes, "version": version,
@@ -1214,7 +1586,8 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     who = reviewer["full_name"] if reviewer else "A reviewer"
     if req.decision == "REQUEST_CHANGES":
         title = f"{row['reference_code']} needs changes"
-        message = f"{who} asked for changes to \"{row['title']}\"." + (f" \"{notes}\"" if notes else " See the comments.")
+        message = (f"{who} asked for changes to \"{row['title']}\"." + (f" \"{notes}\"" if notes else " See the comments.")
+                   + f" Please resubmit by {review_deadline_service._when(revision_due)}.")
         link = f"/submissions/{submission_id}"
     else:
         title = f"{row['reference_code']} was approved"
@@ -1222,6 +1595,116 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
         link = "/content-calendar"
     if row["created_by"] != user_id:
         await _notify([row["created_by"]], title, message, link, submission_id)
+    return await get_submission(submission_id, user_id)
+
+
+async def _approved_row_for_reviewer(submission_id: UUID, user_id: UUID) -> Dict[str, Any]:
+    """An approved submission the user may manage as a reviewer (not their own upload, unless super admin)."""
+    row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
+    if not await _can_review(user_id):
+        raise HTTPException(status_code=403, detail="Only reviewers can change approved content")
+    if row["status"] != "APPROVED":
+        raise HTTPException(status_code=409, detail="Only approved content can be rescheduled or reopened")
+    if row["created_by"] == user_id and not await _is_super_admin(user_id):
+        raise HTTPException(status_code=403, detail="You can't manage the approval of your own content")
+    return row
+
+
+async def reopen_approved(submission_id: UUID, user_id: UUID, req: ReopenRequest) -> Submission:
+    """A reviewer takes back an approval (for example a late legal concern) and sends the content to its creator
+    as changes requested. The approved version's decision becomes the request for changes."""
+    row = await _approved_row_for_reviewer(submission_id, user_id)
+    version = row["current_version"]
+    notes = req.notes.strip()
+    if not notes:
+        raise HTTPException(status_code=422, detail="Say what needs to change")
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            current = await conn.fetchval("SELECT status FROM content_submissions WHERE id = $1 FOR UPDATE", submission_id)
+            if current != "APPROVED":
+                raise HTTPException(status_code=409, detail="Its status just changed; refresh to see it")
+            previous = await conn.fetchrow(
+                """
+                SELECT decision_notes, decided_by, decided_at FROM content_review_jobs
+                WHERE submission_id = $1 AND version_number = $2
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                submission_id, version,
+            )
+            await conn.execute(
+                """
+                UPDATE content_review_jobs
+                SET status = 'CHANGES_REQUESTED', decision = 'REQUEST_CHANGES', decision_notes = $3,
+                    decided_by = $4, decided_at = NOW(), completed_at = NOW()
+                WHERE id = (SELECT id FROM content_review_jobs WHERE submission_id = $1 AND version_number = $2
+                            ORDER BY created_at DESC LIMIT 1)
+                """,
+                submission_id, version, notes, user_id,
+            )
+            await conn.execute(
+                """
+                UPDATE content_submissions SET status = 'CHANGES_REQUESTED', updated_at = NOW(), updated_by = $2,
+                    due_at = $3, due_kind = 'REVISION', due_reminded_at = NULL, due_overdue_notified_at = NULL
+                WHERE id = $1
+                """,
+                submission_id, user_id, review_deadline_service.due_date("REVISION", row["publish_at"]),
+            )
+            await _add_event(conn, submission_id, "APPROVAL_REOPENED",
+                             f"Approval of version {version} reopened: changes requested", user_id,
+                             {"version": version, "notes": notes,
+                              # The approval it replaces, so the history still shows who approved it and when.
+                              "previous_approval": {
+                                  "notes": previous["decision_notes"] if previous else None,
+                                  "decided_by": str(previous["decided_by"]) if previous and previous["decided_by"] else None,
+                                  "decided_at": previous["decided_at"].isoformat() if previous and previous["decided_at"] else None,
+                              }})
+    await log_audit_event("content_submission", str(submission_id), "REOPEN_APPROVAL", user_id,
+                          {"reference_code": row["reference_code"], "version": version, "notes": notes})
+    reviewer = await fetch_one("SELECT full_name FROM users WHERE id = $1", user_id)
+    await _notify(
+        [row["created_by"]],
+        f"{row['reference_code']} needs changes after all",
+        f"{reviewer['full_name'] if reviewer else 'A reviewer'} reopened the approval of \"{row['title']}\": \"{notes}\"",
+        f"/submissions/{submission_id}",
+        submission_id,
+    )
+    return await get_submission(submission_id, user_id)
+
+
+async def reschedule_approved(submission_id: UUID, user_id: UUID, req: RescheduleRequest) -> Submission:
+    """A reviewer moves approved content to a new publish time. The approval stands; only the date changes."""
+    row = await _approved_row_for_reviewer(submission_id, user_id)
+    publish_at = req.publish_at if req.publish_at.tzinfo else req.publish_at.replace(tzinfo=timezone.utc)
+    if publish_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=422, detail="Pick a publish time in the future")
+    before = row["publish_at"]
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            updated = await conn.fetchval(
+                """
+                UPDATE content_submissions SET publish_at = $2, updated_at = NOW(), updated_by = $3
+                WHERE id = $1 AND status = 'APPROVED' RETURNING id
+                """,
+                submission_id, publish_at, user_id,
+            )
+            if not updated:
+                raise HTTPException(status_code=409, detail="Its status just changed; refresh to see it")
+            label = f"{publish_at.astimezone(timezone.utc):%b %d, %H:%M} UTC"
+            await _add_event(conn, submission_id, "RESCHEDULED", f"Rescheduled to {label}", user_id,
+                             {"from": before.isoformat() if before else None, "to": publish_at.isoformat()})
+    await log_audit_event("content_submission", str(submission_id), "RESCHEDULE", user_id,
+                          {"reference_code": row["reference_code"],
+                           "from": before.isoformat() if before else None, "to": publish_at.isoformat()})
+    if row["created_by"] != user_id:
+        await _notify(
+            [row["created_by"]],
+            f"{row['reference_code']} was rescheduled",
+            f"\"{row['title']}\" now publishes {label}.",
+            "/content-calendar",
+            submission_id,
+        )
     return await get_submission(submission_id, user_id)
 
 
@@ -1236,7 +1719,8 @@ def _comment_out(r: Dict[str, Any], viewer: UUID, viewer_is_super: bool) -> Revi
         end_sec=float(r["end_sec"]) if r["end_sec"] is not None else None,
         author_id=r["author_id"],
         author_name=r.get("author_name"),
-        from_reviewer=r["author_id"] != r["submission_created_by"],
+        # Stored when written; older comments fall back to "anyone but the creator".
+        from_reviewer=r["from_reviewer"] if r.get("from_reviewer") is not None else r["author_id"] != r["submission_created_by"],
         resolved_at=r["resolved_at"],
         resolved_by_name=r.get("resolved_by_name"),
         created_at=r["created_at"],
@@ -1275,13 +1759,19 @@ async def add_comment(submission_id: UUID, user_id: UUID, data: ReviewCommentCre
     row = await _comment_access(submission_id, user_id)
     if data.start_sec is not None and data.end_sec is not None and data.end_sec < data.start_sec:
         raise HTTPException(status_code=422, detail="The end time is before the start time")
+    # Someone else's comment is a reviewer's. The creator's own counts as a reviewer's only when they review it
+    # themselves (a super admin, while it's in review); otherwise it's a reply.
+    from_reviewer = row["created_by"] != user_id or (row["status"] == "IN_REVIEW" and await _can_review(user_id))
     saved = await fetch_one(
         """
-        INSERT INTO content_review_comments (submission_id, version_number, author_id, category, body, start_sec, end_sec)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO content_review_comments
+            (submission_id, version_number, author_id, category, body, start_sec, end_sec, from_reviewer)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id
         """,
-        submission_id, row["current_version"], user_id, data.category, data.body.strip(), data.start_sec, data.end_sec,
+        # A draft's notes belong to the version it becomes, so the first one is version 1, not 0.
+        submission_id, max(row["current_version"], 1), user_id, data.category, data.body.strip(),
+        data.start_sec, data.end_sec, from_reviewer,
     )
     full = await fetch_one(_COMMENT_SELECT + " WHERE c.id = $1", saved["id"])
     return _comment_out(full, user_id, await _is_super_admin(user_id))

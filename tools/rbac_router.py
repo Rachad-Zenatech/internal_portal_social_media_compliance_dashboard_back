@@ -10,7 +10,7 @@ from models.rbac_model import (
 from services.rbac_service import (
     get_all_users, create_user, update_user, delete_user, bulk_delete_users,
     get_all_roles, get_role_tree, create_role, update_role, delete_role,
-    get_user_roles, set_user_roles,
+    get_user_roles, set_user_roles, get_user_brands, set_user_brands,
     get_role_navigation_permissions, update_role_navigation_permissions,
     get_role_mcp_tool_permissions, update_role_mcp_tool_permissions,
     get_login_activity_logs,
@@ -150,6 +150,23 @@ class SetRolesRequest(BaseModel):
 @router.put("/configuration/users/{id}/roles")
 async def update_user_roles(id: UUID, req: SetRolesRequest, user_id: UUID = Depends(require_permission("CONFIG_USER_ROLE_ASSIGNMENT_UPDATE"))):
     return await set_user_roles(id, req.role_ids, actor_id=user_id)
+
+# --- USER BRAND ACCESS ---
+@router.get("/configuration/users/{id}/brands")
+async def list_user_brands(id: UUID, user_id: UUID = Depends(require_permission("CONFIG_USER_ROLE_ASSIGNMENT_READ"))):
+    """The brands a user works on (empty: all brands) and the brands to choose from."""
+    return await get_user_brands(id)
+
+class SetBrandsRequest(BaseModel):
+    brand_codes: List[str]
+
+@router.put("/configuration/users/{id}/brands")
+async def update_user_brands(id: UUID, req: SetBrandsRequest, user_id: UUID = Depends(require_permission("CONFIG_USER_ROLE_ASSIGNMENT_UPDATE"))):
+    """Set the brands a user works on; they only see other people's content for these. Empty: all brands."""
+    try:
+        return await set_user_brands(id, req.brand_codes, actor_id=user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 # --- ROLE NAVIGATION PERMISSIONS ---
 @router.get("/configuration/navigation-items")

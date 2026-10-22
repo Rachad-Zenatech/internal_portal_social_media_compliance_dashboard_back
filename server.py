@@ -37,6 +37,7 @@ from services.auth_service import (
 # FastAPI routers
 from tools.search import router as search_router
 from tools.rbac_router import router as rbac_router, get_current_user_id
+from tools.approval_path_router import router as approval_path_router
 from tools.auth_router import router as auth_router
 from tools.notification_router import notification_router
 from tools.observability import router as observability_router
@@ -45,6 +46,7 @@ from tools.graph_router import router as graph_router
 from tools.oauth_router import router as oauth_router
 from tools.compliance_router import router as compliance_router
 from tools.submission_router import router as submission_router
+from tools.canva_router import router as canva_router
 
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools, ask_gemini_stream, sync_mcp_tools_to_vector_db
@@ -123,6 +125,14 @@ async def lifespan(app: FastAPI):
             "Graph background sync disabled (set GRAPH_BACKGROUND_SYNC_ENABLED=true to enable)",
             extra={"event": "graph_sync_disabled"},
         )
+
+    # 3b. Review and revision deadline reminders
+    from services.review_deadline_service import deadline_loop
+    deadline_task = asyncio.create_task(deadline_loop(), name="review-deadlines")
+    deadline_task.add_done_callback(
+        partial(log_background_task_result, task_name="review-deadlines")
+    )
+    background_tasks.append(deadline_task)
 
     # 4. Initialize Event-Driven MQTT Service Presence & Bus
     from services import mqtt_presence as mqtt_module
@@ -292,6 +302,8 @@ app.include_router(graph_router, prefix="/api", tags=["Microsoft Graph"], depend
 app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"])
 app.include_router(compliance_router, prefix="/api", tags=["Compliance Rules & Governance"])
 app.include_router(submission_router, prefix="/api", tags=["Content Submissions"])
+app.include_router(approval_path_router, prefix="/api", tags=["Approval Paths"])
+app.include_router(canva_router, prefix="/api", tags=["Canva"])
 
 
 # --- Session Middleware ---

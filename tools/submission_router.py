@@ -8,13 +8,19 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
+from models.canva_model import CanvaImportRequest, CanvaReimportRequest
 from models.sentiment_model import SentimentAnalysis
 from models.submission_model import (
     ReviewComment,
     ReviewCommentCreate,
     ReviewCommentUpdate,
     ReviewDecisionRequest,
+    ReopenRequest,
+    RescheduleRequest,
+    QueueTab,
+    ReviewQueueCounts,
     ReviewQueueItem,
+    VersionView,
     Submission,
     SubmissionCreate,
     SubmissionFile,
@@ -34,15 +40,25 @@ CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 
 
 @router.get("/options", response_model=SubmissionOptions)
-async def get_options(_user_id: CurrentUser):
+async def get_options(user_id: CurrentUser):
     """Brands, connected publishing accounts and the allowed values for each field."""
-    return await svc.get_options()
+    return await svc.get_options(user_id)
 
 
 @router.get("/review-queue", response_model=List[ReviewQueueItem])
-async def review_queue(user_id: CurrentUser):
-    """Submitted videos for the Content Screener queue (declared before /{submission_id} so it isn't parsed as an id)."""
-    return await svc.review_queue(user_id)
+async def review_queue(
+    user_id: CurrentUser,
+    tab: QueueTab = Query("review"),
+    search: Optional[str] = Query(None, max_length=200),
+):
+    """Submitted videos for one Content Screener tab (declared before /{submission_id} so it isn't parsed as an id)."""
+    return await svc.review_queue(user_id, tab, search)
+
+
+@router.get("/review-queue/counts", response_model=ReviewQueueCounts)
+async def review_queue_counts(user_id: CurrentUser):
+    """How many videos are in each Content Screener tab."""
+    return await svc.review_queue_counts(user_id)
 
 
 @router.get("/ai-usage")
@@ -114,6 +130,18 @@ async def remove_file(submission_id: UUID, file_id: UUID, user_id: CurrentUser):
     await svc.remove_file(submission_id, file_id, user_id)
 
 
+@router.post("/{submission_id}/canva/import", response_model=Submission)
+async def import_from_canva(submission_id: UUID, data: CanvaImportRequest, user_id: CurrentUser):
+    """Export a Canva design and add it as the main content file, exactly like an upload."""
+    return await svc.import_from_canva(submission_id, user_id, data.design_id)
+
+
+@router.post("/{submission_id}/canva/reimport", response_model=Submission)
+async def reimport_from_canva(submission_id: UUID, data: CanvaReimportRequest, user_id: CurrentUser):
+    """Replace the Canva-imported main file with the design's latest revision; optionally resubmit for review."""
+    return await svc.reimport_from_canva(submission_id, user_id, data.resubmit)
+
+
 @router.post("/{submission_id}/check", response_model=Submission)
 async def run_initial_check(submission_id: UUID, user_id: CurrentUser):
     """Screen the title and caption against the rulebook without submitting."""
@@ -129,8 +157,15 @@ async def submit_for_review(submission_id: UUID, user_id: CurrentUser):
 
 @router.post("/{submission_id}/withdraw", response_model=Submission)
 async def withdraw(submission_id: UUID, user_id: CurrentUser):
-    """Pull a submission back from review to edit it."""
+    """Pull a submission back to draft to edit it: from review, or after approval for a late fix (the approval
+    no longer applies and it's reviewed again)."""
     return await svc.withdraw(submission_id, user_id)
+
+
+@router.get("/{submission_id}/versions/{version}", response_model=VersionView)
+async def get_version(submission_id: UUID, version: int, user_id: CurrentUser):
+    """One submitted version as it was: snapshot, video, automated check and decision."""
+    return await svc.get_version(submission_id, version, user_id)
 
 
 @router.get("/{submission_id}/history", response_model=SubmissionHistory)
@@ -140,9 +175,12 @@ async def get_history(submission_id: UUID, user_id: CurrentUser):
 
 
 @router.get("/{submission_id}/sentiment", response_model=Optional[SentimentAnalysis])
-async def get_sentiment(submission_id: UUID, user_id: CurrentUser):
-    """Latest sentiment analysis (or null). While it runs, poll this for the status."""
+async def get_sentiment(submission_id: UUID, user_id: CurrentUser, version: Optional[int] = Query(None, ge=0)):
+    """Latest sentiment analysis (or null). While it runs, poll this for the status. With a version, the latest
+    analysis of that version, as it was."""
     await svc.get_submission(submission_id, user_id)  # access check
+    if version is not None:
+        return await sentiment_service.get_for_version(submission_id, version)
     return await sentiment_service.get_latest(submission_id)
 
 
@@ -162,6 +200,18 @@ async def review_submission(submission_id: UUID, data: ReviewDecisionRequest, us
     """Reviewer decision on the version in review: approve (schedule it, or publish now) or request changes.
     Reviewers can't decide on their own uploads; the creator is notified either way."""
     return await svc.decide_review(submission_id, user_id, data)
+
+
+@router.post("/{submission_id}/reopen", response_model=Submission)
+async def reopen_approval(submission_id: UUID, data: ReopenRequest, user_id: CurrentUser):
+    """Reviewer takes back an approval and sends the content to its creator as changes requested."""
+    return await svc.reopen_approved(submission_id, user_id, data)
+
+
+@router.post("/{submission_id}/reschedule", response_model=Submission)
+async def reschedule(submission_id: UUID, data: RescheduleRequest, user_id: CurrentUser):
+    """Reviewer moves approved content to a new publish time; the approval stands."""
+    return await svc.reschedule_approved(submission_id, user_id, data)
 
 
 @router.get("/{submission_id}/comments", response_model=List[ReviewComment])

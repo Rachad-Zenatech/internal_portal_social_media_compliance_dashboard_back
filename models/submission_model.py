@@ -8,7 +8,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-ContentType = Literal["VIDEO", "SOCIAL_POST", "CAROUSEL", "IMAGE", "BLOG"]
+# AD: paid social ads. Only the type and its rule set exist so far; ad-specific fields and rules (claims,
+# targeting, platform ad policies) are still to be defined.
+ContentType = Literal["VIDEO", "SOCIAL_POST", "CAROUSEL", "IMAGE", "BLOG", "AD"]
 FileKind = Literal["MAIN", "SCRIPT", "IMAGE", "SUPPORTING"]
 SubmissionStatus = Literal["DRAFT", "IN_REVIEW", "CHANGES_REQUESTED", "APPROVED", "REJECTED"]
 
@@ -20,7 +22,11 @@ AUDIENCES: Dict[str, str] = {
 }
 REGIONS: List[str] = ["Global", "United States", "Canada", "Europe", "Middle East", "Asia-Pacific"]
 PLATFORMS: List[str] = ["TIKTOK", "YOUTUBE", "YOUTUBE_SHORTS", "LINKEDIN", "INSTAGRAM", "FACEBOOK", "X", "REDDIT", "WEBSITE"]
-RULE_SETS: List[str] = ["Public Company Disclosure", "ZenaTech General", "ZenaDrone Defense", "Shaun CEO Thought Leadership"]
+RULE_SETS: List[str] = [
+    "Public Company Disclosure", "ZenaTech General", "ZenaDrone Defense", "Shaun CEO Thought Leadership",
+    # No rules yet: ad rules get added in the Compliance Rulebook once the requirements are agreed.
+    "Paid Social Ads",
+]
 REVIEWER_ROUTES: List[str] = ["Marketing Review", "Compliance Review", "Legal Review", "Investor Relations Review", "Executive Review"]
 MAX_ACCOUNTS = 20  # publishing accounts on one submission
 
@@ -115,6 +121,11 @@ class SubmissionFile(BaseModel):
     transcript_status: Optional[TranscriptStatus] = None
     transcript: Optional[List[TranscriptSegment]] = None
     transcript_error: Optional[str] = None
+    # Where it came from. CANVA files remember the design and revision, so the creator can reimport the latest.
+    source: Literal["UPLOAD", "CANVA"] = "UPLOAD"
+    canva_design_id: Optional[str] = None
+    canva_design_title: Optional[str] = None
+    canva_revision: Optional[int] = None
 
 
 class SubmissionSummary(BaseModel):
@@ -127,6 +138,9 @@ class SubmissionSummary(BaseModel):
     status: str
     current_version: int
     publish_at: Optional[datetime] = None
+    # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
+    due_at: Optional[datetime] = None
+    due_kind: Optional[Literal["REVIEW", "REVISION"]] = None
     latest_traffic_light: Optional[str] = None
     latest_score: Optional[int] = None
     file_count: int = 0
@@ -148,6 +162,12 @@ class SubmissionSummary(BaseModel):
     can_delete: bool = False
     # In review and the viewer can review it (a reviewer, and not their own upload).
     can_review: bool = False
+    # Final approvers named by an approval path for this brand/audience; empty means any brand reviewer.
+    approver_names: List[str] = Field(default_factory=list)
+    # The viewer may approve it (a reviewer, and one of its named approvers when it has any).
+    can_approve: bool = False
+    # Approved and the viewer is a reviewer who may reschedule it or reopen it for changes.
+    can_manage_approval: bool = False
 
 
 class Submission(BaseModel):
@@ -165,6 +185,9 @@ class Submission(BaseModel):
     account_ids: List[UUID] = Field(default_factory=list)
     accounts: List[AccountOption] = Field(default_factory=list)
     publish_at: Optional[datetime] = None
+    # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
+    due_at: Optional[datetime] = None
+    due_kind: Optional[Literal["REVIEW", "REVISION"]] = None
     caption_html: Optional[str] = None
     caption_text: Optional[str] = None
     rule_sets: List[str] = Field(default_factory=list)
@@ -180,6 +203,12 @@ class Submission(BaseModel):
     can_delete: bool = False
     # For the person viewing it: they're a reviewer and this is in review (and isn't their own upload).
     can_review: bool = False
+    # Final approvers named by an approval path for this brand/audience; empty means any brand reviewer.
+    approver_names: List[str] = Field(default_factory=list)
+    # The viewer may approve it (a reviewer, and one of its named approvers when it has any).
+    can_approve: bool = False
+    # For the person viewing it: it's approved and they're a reviewer who may reschedule it or reopen it.
+    can_manage_approval: bool = False
     submitted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
@@ -190,6 +219,18 @@ class SubmissionVersion(BaseModel):
     snapshot: Dict[str, Any]
     created_by_name: Optional[str] = None
     created_at: datetime
+
+
+class VersionView(BaseModel):
+    """One submitted version as it was: what was sent, its video, its automated check and its decision."""
+    version_number: int
+    latest_version: int
+    snapshot: Dict[str, Any]
+    created_at: datetime
+    created_by_name: Optional[str] = None
+    video: Optional["SubmissionFile"] = None
+    check: Optional[Dict[str, Any]] = None
+    review_job: Optional["ReviewJob"] = None
 
 
 class ReviewJob(BaseModel):
@@ -221,6 +262,16 @@ class ReviewDecisionRequest(BaseModel):
     publish_at: Optional[datetime] = None
     # ...or approve to publish straight away.
     publish_now: bool = False
+
+
+class ReopenRequest(BaseModel):
+    """A reviewer takes back an approval and sends the content to its creator with what to change."""
+    notes: str = Field(..., min_length=1, max_length=5000)
+
+
+class RescheduleRequest(BaseModel):
+    """A reviewer moves approved content to a different publish time."""
+    publish_at: datetime
 
 
 CommentCategory = Literal["LEGAL", "EDITORIAL", "COMPLIANCE", "BRAND", "NOTE"]
@@ -285,7 +336,28 @@ class ReviewQueueItem(BaseModel):
     creator_name: Optional[str] = None
     video: SubmissionFile
     can_review: bool = False
+    # Final approvers named by an approval path for this brand/audience; empty means any brand reviewer.
+    approver_names: List[str] = Field(default_factory=list)
+    # The viewer may approve it (a reviewer, and one of its named approvers when it has any).
+    can_approve: bool = False
     publish_at: Optional[datetime] = None
+    # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
+    due_at: Optional[datetime] = None
+    due_kind: Optional[Literal["REVIEW", "REVISION"]] = None
+    created_by: Optional[UUID] = None
+    # Approved content: the viewer is a reviewer who may reschedule it or reopen it for changes.
+    can_manage_approval: bool = False
+    # When the latest version was approved or sent back.
+    decided_at: Optional[datetime] = None
+
+
+QueueTab = Literal["review", "sent_back", "done"]
+
+
+class ReviewQueueCounts(BaseModel):
+    review: int = 0
+    sent_back: int = 0
+    done: int = 0
 
 
 class SubmitResult(BaseModel):

@@ -65,7 +65,59 @@ async def setup():
             CREATE INDEX IF NOT EXISTS idx_content_submission_files_submission ON content_submission_files(submission_id) WHERE deleted_at IS NULL;
             -- Drafts withdrawn after a review are hidden rather than erased, so their review history survives.
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+            -- Deadlines: when the reviewer (REVIEW) or the creator (REVISION) needs to act, and which notices went out
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS due_at TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS due_kind VARCHAR(20);
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS due_reminded_at TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS due_overdue_notified_at TIMESTAMP WITH TIME ZONE;
+            CREATE INDEX IF NOT EXISTS idx_content_submissions_due ON content_submissions(due_at)
+                WHERE due_at IS NOT NULL AND deleted_at IS NULL;
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS deleted_by UUID REFERENCES users(id) ON DELETE SET NULL;
+
+            -- Brands each user works on. A user with none listed (and every super admin) works on all brands.
+            CREATE TABLE IF NOT EXISTS user_brands (
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                brand_code VARCHAR(50) NOT NULL REFERENCES brands(code) ON DELETE CASCADE,
+                assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                assigned_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                PRIMARY KEY (user_id, brand_code)
+            );
+            CREATE INDEX IF NOT EXISTS idx_content_submissions_brand ON content_submissions(brand_code) WHERE deleted_at IS NULL;
+
+            -- Approval paths: who gives final approval for which brand / audience / Shaun's own posts.
+            -- Empty brand or audience means any. Content no path matches can be approved by any brand reviewer.
+            CREATE TABLE IF NOT EXISTS approval_paths (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                brand_code VARCHAR(50) REFERENCES brands(code) ON DELETE CASCADE,
+                audience VARCHAR(50),
+                ceo_content BOOLEAN NOT NULL DEFAULT false,
+                label VARCHAR(200),
+                approver_ids UUID[] NOT NULL DEFAULT '{}',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                updated_by UUID REFERENCES users(id) ON DELETE SET NULL
+            );
+
+            -- Canva: each user's connected account (mock until the Connect API keys exist), the mock designs'
+            -- revisions, and which design and revision a file was imported from (for "reimport latest").
+            CREATE TABLE IF NOT EXISTS canva_connections (
+                user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                mode VARCHAR(10) NOT NULL DEFAULT 'MOCK',
+                display_name VARCHAR(255),
+                connected_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS canva_mock_revisions (
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                design_id VARCHAR(100) NOT NULL,
+                revision INT NOT NULL DEFAULT 1,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                PRIMARY KEY (user_id, design_id)
+            );
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'UPLOAD';
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS canva_design_id VARCHAR(200);
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS canva_design_title VARCHAR(300);
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS canva_revision INT;
 
             -- A post can go out through several connected accounts. account_id stays as the first (primary) one,
             -- which the calendar, screener and publish page use.
@@ -141,6 +193,8 @@ async def setup():
             );
             CREATE INDEX IF NOT EXISTS idx_content_review_comments_submission
                 ON content_review_comments(submission_id, created_at) WHERE deleted_at IS NULL;
+            -- Whether the author wrote it as the reviewer (a super admin can review their own upload)
+            ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS from_reviewer BOOLEAN;
 
             -- Gemini sentiment analysis (see services/sentiment_service.py). Advisory only.
             -- input is exactly what was analysed; content_hash lets an unchanged draft reuse its result.

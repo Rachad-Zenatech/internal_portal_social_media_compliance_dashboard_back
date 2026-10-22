@@ -785,6 +785,19 @@ async def get_analysis(analysis_id: UUID) -> SentimentAnalysis:
     return _to_model(row, None)
 
 
+async def get_for_version(submission_id: UUID, version: int) -> Optional[SentimentAnalysis]:
+    """The most recent analysis of one version, as it was (looking back, so never flagged stale)."""
+    row = await fetch_one(
+        """
+        SELECT * FROM content_sentiment_analyses
+        WHERE submission_id = $1 AND version_number = $2
+        ORDER BY created_at DESC LIMIT 1
+        """,
+        submission_id, version,
+    )
+    return _to_model(row, None) if row else None
+
+
 async def get_latest(submission_id: UUID) -> Optional[SentimentAnalysis]:
     """The most recent analysis, flagged stale if the content, scope or rules changed since it ran."""
     await resume_unfinished(submission_id)
