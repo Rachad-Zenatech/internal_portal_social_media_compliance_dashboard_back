@@ -32,3 +32,6 @@ motor>=3.7.0
 # Event-Driven Messaging & Presence
 paho-mqtt>=2.1.0
 aio-pika>=9.5.4
+
+# Mock Canva exports: renders demo designs to real PNG/MP4 files (bundles an ffmpeg binary)
+imageio-ffmpeg>=0.5.1
