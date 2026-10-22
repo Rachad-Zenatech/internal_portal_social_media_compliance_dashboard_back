@@ -67,6 +67,12 @@ async def setup():
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS deleted_by UUID REFERENCES users(id) ON DELETE SET NULL;
 
+            -- A post can go out through several connected accounts. account_id stays as the first (primary) one,
+            -- which the calendar, screener and publish page use.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS account_ids UUID[] NOT NULL DEFAULT '{}';
+            UPDATE content_submissions SET account_ids = ARRAY[account_id]
+            WHERE account_id IS NOT NULL AND cardinality(account_ids) = 0;
+
             -- Auto-generated speech transcript for video files (see services/transcription_service.py)
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript JSONB;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript_status VARCHAR(20);
@@ -108,6 +114,33 @@ async def setup():
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_content_submission_events_submission ON content_submission_events(submission_id, created_at DESC);
+
+            -- Reviewer decision on each review job (one job per submitted version).
+            ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS decision VARCHAR(30);
+            ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS decision_notes TEXT;
+            ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS decided_by UUID REFERENCES users(id) ON DELETE SET NULL;
+            ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE content_review_jobs ALTER COLUMN status SET DEFAULT 'AWAITING_REVIEW';
+
+            -- Review comments: what the reviewer wants changed (optionally pinned to a moment in a video), and the
+            -- creator's replies. Tied to the version they were written on, so the history reads correctly.
+            CREATE TABLE IF NOT EXISTS content_review_comments (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                submission_id UUID NOT NULL REFERENCES content_submissions(id) ON DELETE CASCADE,
+                version_number INT NOT NULL DEFAULT 0,
+                author_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                category VARCHAR(20) NOT NULL DEFAULT 'NOTE',
+                body TEXT NOT NULL,
+                start_sec NUMERIC(10, 2),
+                end_sec NUMERIC(10, 2),
+                resolved_at TIMESTAMP WITH TIME ZONE,
+                resolved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                deleted_at TIMESTAMP WITH TIME ZONE
+            );
+            CREATE INDEX IF NOT EXISTS idx_content_review_comments_submission
+                ON content_review_comments(submission_id, created_at) WHERE deleted_at IS NULL;
 
             -- Gemini sentiment analysis (see services/sentiment_service.py). Advisory only.
             -- input is exactly what was analysed; content_hash lets an unchanged draft reuse its result.

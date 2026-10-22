@@ -10,6 +10,10 @@ from fastapi.responses import FileResponse
 
 from models.sentiment_model import SentimentAnalysis
 from models.submission_model import (
+    ReviewComment,
+    ReviewCommentCreate,
+    ReviewCommentUpdate,
+    ReviewDecisionRequest,
     ReviewQueueItem,
     Submission,
     SubmissionCreate,
@@ -52,7 +56,7 @@ async def ai_usage(user_id: CurrentUser, submission_id: Optional[UUID] = Query(N
 async def list_my_submissions(
     user_id: CurrentUser,
     status_filter: Optional[str] = Query(None, alias="status"),
-    scope: Literal["mine", "all"] = Query("mine", description="all = everyone's (super admins and Content Managers)"),
+    scope: Literal["mine", "all"] = Query("mine", description="all = everyone's (super admins, Content Managers and reviewers)"),
 ):
     """The current user's submissions (or everyone's), needs-action first."""
     return await svc.list_submissions(user_id, status_filter, scope)
@@ -151,4 +155,35 @@ async def request_sentiment(submission_id: UUID, user_id: CurrentUser):
         raise HTTPException(status_code=422, detail="Add a title, caption or video before running sentiment analysis")
     analysis_id = await sentiment_service.request_analysis(submission_id, user_id)
     return await sentiment_service.get_analysis(analysis_id)
+
+
+@router.post("/{submission_id}/review", response_model=Submission)
+async def review_submission(submission_id: UUID, data: ReviewDecisionRequest, user_id: CurrentUser):
+    """Reviewer decision on the version in review: approve (schedule it, or publish now) or request changes.
+    Reviewers can't decide on their own uploads; the creator is notified either way."""
+    return await svc.decide_review(submission_id, user_id, data)
+
+
+@router.get("/{submission_id}/comments", response_model=List[ReviewComment])
+async def list_comments(submission_id: UUID, user_id: CurrentUser):
+    """Review comments on every version, oldest first."""
+    return await svc.list_comments(submission_id, user_id)
+
+
+@router.post("/{submission_id}/comments", response_model=ReviewComment, status_code=status.HTTP_201_CREATED)
+async def add_comment(submission_id: UUID, data: ReviewCommentCreate, user_id: CurrentUser):
+    """Add a comment on the current version (reviewers and the creator), optionally pinned to a video time range."""
+    return await svc.add_comment(submission_id, user_id, data)
+
+
+@router.patch("/{submission_id}/comments/{comment_id}", response_model=ReviewComment)
+async def update_comment(submission_id: UUID, comment_id: UUID, data: ReviewCommentUpdate, user_id: CurrentUser):
+    """Mark a comment resolved (or reopen it)."""
+    return await svc.set_comment_resolved(submission_id, comment_id, user_id, data.resolved)
+
+
+@router.delete("/{submission_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_comment(submission_id: UUID, comment_id: UUID, user_id: CurrentUser):
+    """Delete your own comment."""
+    await svc.delete_comment(submission_id, comment_id, user_id)
 

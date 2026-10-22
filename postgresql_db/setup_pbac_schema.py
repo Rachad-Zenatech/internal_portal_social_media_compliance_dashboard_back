@@ -280,6 +280,8 @@ async def setup():
             ("SYSTEM_LOGS", "System Logs", "/log/system-logs", "LOGS", 32, "Terminal", True),
             # Not a menu entry: carries the "everyone's content" permissions for the Content Portal.
             ("CONTENT_SUBMISSIONS", "Content Portal", "/submissions", None, 15, "LayoutGrid", False),
+            # Not a menu entry: reviewing submitted content and publishing or scheduling it.
+            ("CONTENT_REVIEW", "Content Review", "/compliance/scanner", None, 16, "ClipboardCheck", False),
         ]
         for code, name, path, parent, order, icon, is_menu in nav_items:
             await conn.execute("""
@@ -294,8 +296,9 @@ async def setup():
                     is_active = true
             """, code, name, path, parent, order, icon, is_menu)
 
+        # Modules and groups are created or updated in place, never deleted: deleting them (this used to TRUNCATE)
+        # cascaded to role_permission_groups and wiped every grant made in Role Permissions on each restart.
         print("Seeding permission modules and groups...")
-        await conn.execute("TRUNCATE permission_modules CASCADE")
 
         modules = [
             ("MAIN", "Dashboard & Overview", 10),
@@ -304,7 +307,10 @@ async def setup():
             ("LOGS", "Audit & System Logs", 30),
         ]
         for m in modules:
-            await conn.execute("INSERT INTO permission_modules (code, name, sort_order) VALUES ($1, $2, $3)", *m)
+            await conn.execute("""
+                INSERT INTO permission_modules (code, name, sort_order) VALUES ($1, $2, $3)
+                ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, updated_at = NOW()
+            """, *m)
 
         groups_data = {
             "MAIN": [
@@ -314,6 +320,10 @@ async def setup():
                 ("CONTENT_MANAGE_DRAFTS", "Manage Team Drafts",
                  "See everyone's content in the Content Portal and delete other people's drafts.", 10,
                  [("CONTENT_SUBMISSIONS", "VIEW"), ("CONTENT_SUBMISSIONS", "DELETE")]),
+                ("CONTENT_REVIEW_PUBLISH", "Review & Publish Content",
+                 "Review everyone's submitted content, comment on it, request changes, and approve it for the "
+                 "calendar or publish it.", 20,
+                 [("CONTENT_REVIEW", "VIEW"), ("CONTENT_REVIEW", "APPROVE")]),
             ],
             "CONFIGURATIONS": [
                 ("CONFIG_VIEW_USERS", "View Users & Roles", "View all users, roles, and permission assignments.", 10, [("CONFIG_USERS", "VIEW"), ("CONFIG_ROLES", "VIEW")]),
@@ -328,19 +338,29 @@ async def setup():
             ],
         }
 
-        for module_code, groups in groups_data.items():
-            module_id = await conn.fetchval("SELECT id FROM permission_modules WHERE code = $1", module_code)
-            for g_code, g_name, g_desc, g_sort, actions_list in groups:
-                g_id = await conn.fetchval("""
-                    INSERT INTO permission_groups (module_id, code, name, description, sort_order)
-                    VALUES ($1, $2, $3, $4, $5) RETURNING id
-                """, module_id, g_code, g_name, g_desc, g_sort)
+        # Groups created by this run; only these get the default role grants below.
+        new_group_codes = set()
+        async with conn.transaction():
+            for module_code, groups in groups_data.items():
+                module_id = await conn.fetchval("SELECT id FROM permission_modules WHERE code = $1", module_code)
+                for g_code, g_name, g_desc, g_sort, actions_list in groups:
+                    g = await conn.fetchrow("""
+                        INSERT INTO permission_groups (module_id, code, name, description, sort_order)
+                        VALUES ($1, $2, $3, $4, $5)
+                        ON CONFLICT (code) DO UPDATE SET
+                            module_id = EXCLUDED.module_id, name = EXCLUDED.name,
+                            description = EXCLUDED.description, sort_order = EXCLUDED.sort_order, updated_at = NOW()
+                        RETURNING id, (xmax = 0) AS inserted
+                    """, module_id, g_code, g_name, g_desc, g_sort)
+                    if g["inserted"]:
+                        new_group_codes.add(g_code)
 
-                for nav_code, act_code in actions_list:
+                    # What a group grants is defined here in code, so refresh its actions in place.
+                    await conn.execute("DELETE FROM permission_group_actions WHERE permission_group_id = $1", g["id"])
                     await conn.execute("""
                         INSERT INTO permission_group_actions (permission_group_id, api_module_code, action)
-                        VALUES ($1, $2, $3)
-                    """, g_id, nav_code, act_code)
+                        SELECT $1, nav, act FROM unnest($2::text[], $3::text[]) AS a(nav, act)
+                    """, g["id"], [n for n, _ in actions_list], [a for _, a in actions_list])
 
         print("Seeding standard roles...")
         roles_data = [
@@ -348,48 +368,51 @@ async def setup():
             ("ADMIN", "Administrator", "Administrative access to user and role configurations", True),
             ("USER", "Standard User", "Standard system user with basic dashboard access", False),
             ("MANAGER", "Content Manager", "Oversees the team's content: sees everyone's submissions and can delete drafts", False),
+            ("REVIEWER", "Content Reviewer", "Reviews submitted content, requests changes and approves it for publishing", False),
         ]
+        new_roles = set()
         for r_code, r_name, r_desc, is_sys in roles_data:
-            await conn.execute("""
+            inserted = await conn.fetchval("""
                 INSERT INTO roles (code, name, description, is_system_role, is_active)
                 VALUES ($1, $2, $3, $4, true)
                 ON CONFLICT (code) DO UPDATE SET
                     name = EXCLUDED.name,
                     description = EXCLUDED.description,
                     is_active = true
+                RETURNING (xmax = 0)
             """, r_code, r_name, r_desc, is_sys)
+            if inserted:
+                new_roles.add(r_code)
+
+        # Super Administrator always has everything.
+        await conn.execute("""
+            INSERT INTO role_permission_groups (role_id, permission_group_id)
+            SELECT r.id, g.id FROM roles r CROSS JOIN permission_groups g WHERE r.code = 'SUPER_ADMIN'
+            ON CONFLICT DO NOTHING
+        """)
+
+        # Default grants for the other built-in roles ("*" = every group). They're applied only to a role that was
+        # just created, or for a group that was just created, so permissions removed in Role Permissions stay removed.
+        default_grants = {
+            "ADMIN": "*",
+            "USER": {"MAIN_VIEW_DASHBOARD"},
+            "MANAGER": {"MAIN_VIEW_DASHBOARD", "CONTENT_MANAGE_DRAFTS", "CONTENT_REVIEW_PUBLISH"},
+            "REVIEWER": {"MAIN_VIEW_DASHBOARD", "CONTENT_REVIEW_PUBLISH"},
+        }
+        all_codes = [c for groups in groups_data.values() for c, *_ in groups]
+        for r_code, wanted in default_grants.items():
+            codes = all_codes if wanted == "*" else [c for c in all_codes if c in wanted]
+            if r_code not in new_roles:
+                codes = [c for c in codes if c in new_group_codes]
+            if codes:
+                await conn.execute("""
+                    INSERT INTO role_permission_groups (role_id, permission_group_id)
+                    SELECT r.id, g.id FROM roles r JOIN permission_groups g ON g.code = ANY($2::text[])
+                    WHERE r.code = $1
+                    ON CONFLICT DO NOTHING
+                """, r_code, codes)
 
         super_admin_role_id = await conn.fetchval("SELECT id FROM roles WHERE code = 'SUPER_ADMIN'")
-        if super_admin_role_id:
-            await conn.execute("""
-                INSERT INTO role_permission_groups (role_id, permission_group_id)
-                SELECT $1, id FROM permission_groups
-                ON CONFLICT DO NOTHING
-            """, super_admin_role_id)
-
-        admin_role_id = await conn.fetchval("SELECT id FROM roles WHERE code = 'ADMIN'")
-        if admin_role_id:
-            await conn.execute("""
-                INSERT INTO role_permission_groups (role_id, permission_group_id)
-                SELECT $1, id FROM permission_groups
-                ON CONFLICT DO NOTHING
-            """, admin_role_id)
-
-        user_role_id = await conn.fetchval("SELECT id FROM roles WHERE code = 'USER'")
-        if user_role_id:
-            await conn.execute("""
-                INSERT INTO role_permission_groups (role_id, permission_group_id)
-                SELECT $1, id FROM permission_groups WHERE code = 'MAIN_VIEW_DASHBOARD'
-                ON CONFLICT DO NOTHING
-            """, user_role_id)
-
-        manager_role_id = await conn.fetchval("SELECT id FROM roles WHERE code = 'MANAGER'")
-        if manager_role_id:
-            await conn.execute("""
-                INSERT INTO role_permission_groups (role_id, permission_group_id)
-                SELECT $1, id FROM permission_groups WHERE code IN ('MAIN_VIEW_DASHBOARD', 'CONTENT_MANAGE_DRAFTS')
-                ON CONFLICT DO NOTHING
-            """, manager_role_id)
 
         # Seed Super Admin Users
         admin_emails_env = os.getenv("INITIAL_SUPER_ADMIN_EMAILS", "admin@example.com")

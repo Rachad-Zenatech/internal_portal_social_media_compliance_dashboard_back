@@ -19,6 +19,9 @@ from fastapi import HTTPException, UploadFile, status
 from models.compliance_model import ComplianceCheckRequest
 from models.notification_model import NotificationCreate
 from models.submission_model import (
+    ReviewComment,
+    ReviewCommentCreate,
+    ReviewDecisionRequest,
     AUDIENCES,
     PLATFORMS,
     PROVIDER_PLATFORMS,
@@ -41,9 +44,9 @@ from models.submission_model import (
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.audit_service import log_audit_event
-from services import ai_usage_service, sentiment_service, transcription_service
+from services import ai_usage_service, transcription_service
 from services.ai_usage_service import AiLimitExceeded
-from services.compliance_service import check_compliance
+from services.compliance_service import check_compliance, flag_segments
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +115,32 @@ def _account_option(row: Dict[str, Any], prefix: str = "") -> Optional[AccountOp
     )
 
 
+# Every account a submission posts through, primary first, as one JSON column of the same SELECT
+# (needs content_submissions aliased as s).
+_ACCOUNTS_COLUMN = """
+       (SELECT coalesce(jsonb_agg(jsonb_build_object(
+                   'id', ac.id, 'provider', ac.provider, 'account_name', ac.account_name,
+                   'connection_metadata', ac.connection_metadata)
+                 ORDER BY array_position(s.account_ids, ac.id)), '[]'::jsonb)
+          FROM oauth_connections ac WHERE ac.id = ANY(s.account_ids)) AS accounts_json"""
+
+
+def _accounts(row: Dict[str, Any]) -> List[AccountOption]:
+    items = row.get("accounts_json")
+    if isinstance(items, str):
+        items = json.loads(items)
+    return [a for a in (_account_option(item) for item in items or []) if a]
+
+
+def _account_ids(row: Dict[str, Any]) -> List[UUID]:
+    return list(row.get("account_ids") or ([row["account_id"]] if row.get("account_id") else []))
+
+
+def _account_covers(account: AccountOption, platforms: List[str]) -> bool:
+    """Whether an account publishes to one of the platforms. YouTube accounts post both videos and Shorts."""
+    return account.platform in platforms or (account.platform == "YOUTUBE" and "YOUTUBE_SHORTS" in platforms)
+
+
 def _file_out(submission_id: UUID, row: Dict[str, Any]) -> SubmissionFile:
     transcript = row.get("transcript")
     if isinstance(transcript, str):
@@ -142,14 +171,28 @@ async def _can_manage_team_content(user_id: UUID) -> bool:
     return await _is_super_admin(user_id) or await user_can_access_page(user_id, "CONTENT_SUBMISSIONS", "DELETE")
 
 
+async def _can_review(user_id: UUID) -> bool:
+    """Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
+    Administrator) and super admins."""
+    from services.auth_service import user_can_access_page
+    return await _is_super_admin(user_id) or await user_can_access_page(user_id, "CONTENT_REVIEW", "APPROVE")
+
+
+async def _can_see_team_content(user_id: UUID) -> bool:
+    """Content Managers and reviewers can read everyone's submissions."""
+    return await _can_manage_team_content(user_id) or await _can_review(user_id)
+
+
 async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: bool = False) -> Dict[str, Any]:
-    """Load a submission the user may access (creator or super admin; managers too when manager_can_read),
-    with its account joined. Deleted submissions are never returned."""
+    """Load a submission the user may access (creator or super admin; managers and reviewers too when
+    manager_can_read), with its account joined. Deleted submissions are never returned."""
     row = await fetch_one(
         """
         SELECT s.*,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
-               c.connection_metadata AS acc_connection_metadata
+               c.connection_metadata AS acc_connection_metadata,"""
+        + _ACCOUNTS_COLUMN
+        + """
         FROM content_submissions s
         LEFT JOIN oauth_connections c ON c.id = s.account_id
         WHERE s.id = $1 AND s.deleted_at IS NULL
@@ -159,7 +202,7 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     if row["created_by"] != user_id and not await _is_super_admin(user_id):
-        if not (manager_can_read and await _can_manage_team_content(user_id)):
+        if not (manager_can_read and await _can_see_team_content(user_id)):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     return row
 
@@ -212,6 +255,8 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         platforms=list(row["platforms"] or []),
         account_id=row["account_id"],
         account=_account_option(row, prefix="acc_"),
+        account_ids=_account_ids(row),
+        accounts=_accounts(row),
         publish_at=row["publish_at"],
         caption_html=row["caption_html"],
         caption_text=row["caption_text"],
@@ -228,19 +273,20 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
     )
 
 
-async def _connected_account(account_id: UUID) -> Optional[Dict[str, Any]]:
-    """A publishing account that is connected and not expired, or None."""
-    row = await fetch_one(
+async def _connected_accounts(account_ids: List[UUID]) -> List[AccountOption]:
+    """Those of the given publishing accounts that are connected and not expired, in the order given."""
+    if not account_ids:
+        return []
+    rows = await fetch_all(
         """
         SELECT id, provider, account_name, connection_metadata
         FROM oauth_connections
-        WHERE id = $1 AND status = 'CONNECTED' AND (expires_at IS NULL OR expires_at > NOW())
+        WHERE id = ANY($1::uuid[]) AND status = 'CONNECTED' AND (expires_at IS NULL OR expires_at > NOW())
         """,
-        account_id,
+        list(account_ids),
     )
-    if not row or row["provider"].upper() not in PROVIDER_PLATFORMS:
-        return None
-    return row
+    by_id = {r["id"]: r for r in rows if r["provider"].upper() in PROVIDER_PLATFORMS}
+    return [_account_option(by_id[i]) for i in account_ids if i in by_id]
 
 
 # ---------------------------------------------------------------------------
@@ -291,9 +337,11 @@ async def create_submission(data: SubmissionCreate, user_id: UUID) -> Submission
 
 
 async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, scope: str = "mine") -> List[SubmissionSummary]:
-    """The user's own submissions, or everyone's (scope="all") for super admins and Content Managers."""
+    """The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers."""
     is_manager = await _can_manage_team_content(user_id)
-    if scope == "all" and not is_manager:
+    is_reviewer = await _can_review(user_id)
+    is_super = await _is_super_admin(user_id)
+    if scope == "all" and not (is_manager or is_reviewer):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only see your own content")
     rows = await fetch_all(
         """
@@ -304,11 +352,15 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
                (s.latest_check->>'score')::int AS latest_score,
                (SELECT count(*) FROM content_submission_files f
                  WHERE f.submission_id = s.id AND f.deleted_at IS NULL) AS file_count,
+               (SELECT count(*) FROM content_review_comments rc
+                 WHERE rc.submission_id = s.id AND rc.deleted_at IS NULL) AS comment_count,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
                c.connection_metadata AS acc_connection_metadata,
                cov.id AS cov_id, cov.kind AS cov_kind, cov.original_name AS cov_original_name,
                cov.mime_type AS cov_mime_type, cov.size_bytes AS cov_size_bytes, cov.created_at AS cov_created_at,
-               s.created_by, u.full_name AS created_by_name
+               s.created_by, u.full_name AS created_by_name,"""
+        + _ACCOUNTS_COLUMN
+        + """
         FROM content_submissions s
         LEFT JOIN users u ON u.id = s.created_by
         LEFT JOIN oauth_connections c ON c.id = s.account_id
@@ -339,14 +391,16 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
     )
     summaries = []
     for r in rows:
-        base = {k: v for k, v in r.items() if not k.startswith(("acc_", "cov_")) and k != "platforms"}
+        base = {k: v for k, v in r.items() if not k.startswith(("acc_", "cov_")) and k not in ("platforms", "accounts_json")}
         cover = {k[4:]: v for k, v in r.items() if k.startswith("cov_")}
         summaries.append(SubmissionSummary(
             **base,
             platforms=list(r["platforms"] or []),
             account=_account_option(r, prefix="acc_"),
+            accounts=_accounts(r),
             cover=_file_out(r["id"], cover) if cover["id"] else None,
             can_delete=r["status"] == "DRAFT" and (r["created_by"] == user_id or is_manager),
+            can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
         ))
     return summaries
 
@@ -358,6 +412,11 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
     # Managers can read and delete someone else's draft but not edit it.
     sub.can_edit = sub.can_edit and (is_creator or await _is_super_admin(user_id))
     sub.can_delete = row["status"] == "DRAFT" and (is_creator or await _can_manage_team_content(user_id))
+    sub.can_review = (
+        row["status"] == "IN_REVIEW"
+        and await _can_review(user_id)
+        and (not is_creator or await _is_super_admin(user_id))
+    )
     sub.created_by = row["created_by"]
     if not is_creator:
         creator = await fetch_one("SELECT full_name FROM users WHERE id = $1", row["created_by"])
@@ -394,10 +453,15 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         if bad:
             raise HTTPException(status_code=422, detail=f"Unknown platform(s): {', '.join(bad)}")
         fields["platforms"] = list(dict.fromkeys(payload["platforms"]))
-    if payload.get("account_id"):
-        if not await _connected_account(payload["account_id"]):
-            raise HTTPException(status_code=422, detail="That publishing account isn't connected")
-        fields["account_id"] = payload["account_id"]
+    account_ids = payload.get("account_ids")
+    if account_ids is None and payload.get("account_id"):
+        account_ids = [payload["account_id"]]
+    if account_ids is not None:
+        account_ids = list(dict.fromkeys(account_ids))
+        if len(await _connected_accounts(account_ids)) != len(account_ids):
+            raise HTTPException(status_code=422, detail="One of those publishing accounts isn't connected")
+        fields["account_ids"] = account_ids
+        fields["account_id"] = account_ids[0] if account_ids else None
     if payload.get("publish_at"):
         fields["publish_at"] = payload["publish_at"]
     if "caption_html" in payload:
@@ -416,6 +480,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["reviewer_route"] = list(dict.fromkeys(payload["reviewer_route"]))
     for name in data.clear_fields:
         fields[name] = None
+        if name == "account_id":
+            fields["account_ids"] = []
 
     if not fields:
         return await _to_submission(row)
@@ -577,7 +643,7 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
                 INSERT INTO content_submission_files
                     (id, submission_id, kind, original_name, mime_type, size_bytes, storage_path, uploaded_by,
                      transcript_status, transcript_error, transcript_updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $9::text IS NULL THEN NULL ELSE NOW() END)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CASE WHEN $9::varchar IS NULL THEN NULL ELSE NOW() END)
                 RETURNING id, kind, original_name, mime_type, size_bytes, created_at, transcript_status, transcript_error
                 """,
                 file_id,
@@ -671,11 +737,23 @@ def _check_text(row: Dict[str, Any]) -> str:
     return "\n\n".join(p for p in [row["title"], row["caption_text"]] if p and p.strip())
 
 
-async def run_initial_check(submission_id: UUID, user_id: UUID) -> Submission:
-    row = await _get_owned_row(submission_id, user_id)
-    text = _check_text(row)
-    if not text:
-        raise HTTPException(status_code=422, detail="Add a title or caption before running the check")
+async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
+    """The one rulebook check every screen shows: title, caption and (once it exists) the video transcript,
+    against the rules scoped to this submission. Includes per-segment flags for the reviewer's timeline."""
+    video = await fetch_one(
+        """
+        SELECT transcript, transcript_status FROM content_submission_files
+        WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL AND mime_type LIKE 'video/%'
+        ORDER BY created_at DESC LIMIT 1
+        """,
+        row["id"],
+    )
+    segments: List[Dict[str, Any]] = []
+    if video and video["transcript_status"] == "COMPLETED":
+        raw = video["transcript"]
+        segments = (json.loads(raw) if isinstance(raw, str) else raw) or []
+    spoken = " ".join(str(s.get("text", "")) for s in segments).strip()
+    text = "\n\n".join(p for p in [_check_text(row), spoken] if p) or row["title"]
     result = await check_compliance(ComplianceCheckRequest(
         text=text,
         video_title=row["title"],
@@ -686,7 +764,22 @@ async def run_initial_check(submission_id: UUID, user_id: UUID) -> Submission:
         region=row["region"],
         platforms=list(row["platforms"] or []),
     ))
-    check = {**result.model_dump(mode="json"), "checked_at": datetime.now(timezone.utc).isoformat()}
+    check = {
+        **result.model_dump(mode="json"),
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "includes_transcript": bool(segments),
+        # A video whose transcript isn't ready yet is re-checked automatically when it is.
+        "transcript_pending": bool(video) and video["transcript_status"] not in ("COMPLETED", "FAILED"),
+        "segment_flags": flag_segments(segments, result.violations),
+    }
+    return result, check
+
+
+async def run_initial_check(submission_id: UUID, user_id: UUID) -> Submission:
+    row = await _get_owned_row(submission_id, user_id)
+    if not _check_text(row):
+        raise HTTPException(status_code=422, detail="Add a title or caption before running the check")
+    result, check = await _run_check(row)
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -707,12 +800,10 @@ async def _missing_for_submit(row: Dict[str, Any]) -> List[str]:
             missing.append(field)
     if not row["platforms"]:
         missing.append("platforms")
-    if not row["account_id"]:
+    if not _account_ids(row):
         missing.append("account_id")
     if not row["rule_sets"]:
         missing.append("rule_sets")
-    if not row["reviewer_route"]:
-        missing.append("reviewer_route")
     has_main = await fetch_one(
         "SELECT 1 AS ok FROM content_submission_files WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL LIMIT 1",
         row["id"],
@@ -736,6 +827,10 @@ def _review_job(r: Dict[str, Any]) -> ReviewJob:
         automated_check=_json(r["automated_check"]),
         created_at=r["created_at"],
         completed_at=r["completed_at"],
+        decision=r.get("decision"),
+        decision_notes=r.get("decision_notes"),
+        decided_by_name=r.get("decided_by_name"),
+        decided_at=r.get("decided_at"),
     )
 
 
@@ -746,12 +841,16 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
     _require_editable(row)
 
     missing = await _missing_for_submit(row)
-    if row["account_id"] and not await _connected_account(row["account_id"]):
+    account_ids = _account_ids(row)
+    accounts = await _connected_accounts(account_ids)
+    if len(accounts) != len(account_ids):
         missing.append("account_id")
-    account = _account_option(row, prefix="acc_")
-    if account and row["platforms"] and account.platform not in row["platforms"]:
+    account = accounts[0] if accounts else None
+    stray = [a for a in accounts if row["platforms"] and not _account_covers(a, list(row["platforms"]))]
+    if stray:
         raise HTTPException(status_code=422, detail={
-            "message": f"The publishing account posts to {account.platform}, which isn't in the selected platforms.",
+            "message": "Some publishing accounts post to platforms that aren't selected: "
+                       + ", ".join(a.label for a in stray) + ".",
             "missing": ["platforms"],
         })
     if row["publish_at"] and row["publish_at"] < datetime.now(timezone.utc):
@@ -763,17 +862,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         })
 
     # Automated rulebook screening is the first step of the review job.
-    result = await check_compliance(ComplianceCheckRequest(
-        text=_check_text(row) or row["title"],
-        video_title=row["title"],
-        content_type=f"{row['content_type']}_{row['platforms'][0]}",
-        rule_sets=list(row["rule_sets"] or []),
-        brand_code=row["brand_code"],
-        audience=row["audience"],
-        region=row["region"],
-        platforms=list(row["platforms"] or []),
-    ))
-    check = {**result.model_dump(mode="json"), "checked_at": datetime.now(timezone.utc).isoformat()}
+    result, check = await _run_check(row)
 
     files = await _list_files(submission_id)
     version = row["current_version"] + 1
@@ -785,6 +874,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         "region": row["region"],
         "platforms": list(row["platforms"] or []),
         "account": account.model_dump(mode="json") if account else None,
+        "accounts": [a.model_dump(mode="json") for a in accounts],
         "publish_at": row["publish_at"].isoformat() if row["publish_at"] else None,
         "caption_html": row["caption_html"],
         "caption_text": row["caption_text"],
@@ -820,7 +910,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
                 VALUES ($1, $2, 'AWAITING_REVIEW', $3, $4::jsonb, $5, $6, $7)
                 RETURNING *
                 """,
-                submission_id, version, list(row["reviewer_route"]), json.dumps(check),
+                submission_id, version, list(row["reviewer_route"] or []), json.dumps(check),
                 result.traffic_light, result.score, user_id,
             )
             await conn.execute(
@@ -837,9 +927,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
             await _add_event(conn, submission_id, "CHECK_COMPLETED",
                              f"Automated rulebook check: {result.violations_count} issue(s), score {result.score}/100",
                              user_id, {"traffic_light": result.traffic_light, "score": result.score})
-            await _add_event(conn, submission_id, "REVIEW_REQUESTED",
-                             f"Sent to {', '.join(row['reviewer_route'])}", user_id,
-                             {"reviewer_route": list(row["reviewer_route"])})
+            await _add_event(conn, submission_id, "REVIEW_REQUESTED", "Sent to the review queue", user_id)
 
     await log_audit_event("content_submission", str(submission_id), "SUBMIT_FOR_REVIEW", user_id,
                           {"reference_code": row["reference_code"], "version": version,
@@ -850,7 +938,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
             user_id=str(user_id),
             type="SUBMISSION",
             title=f"{row['reference_code']} submitted for review",
-            message=f"\"{row['title']}\" (version {version}) is with {', '.join(row['reviewer_route'])}. "
+            message=f"\"{row['title']}\" (version {version}) is in the review queue. "
                     f"Automated check: {result.score}/100.",
             link_url=f"/submissions/{submission_id}",
             entity_type="content_submission",
@@ -858,12 +946,8 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         ))
     except Exception:
         logger.warning("Could not create submission notification", exc_info=True)
-
-    # Reviewers get a sentiment read of the submitted version. Advisory, so it must never fail the submit.
-    try:
-        await sentiment_service.request_analysis(submission_id, user_id, trigger="SUBMIT")
-    except Exception:
-        logger.warning("Could not start sentiment analysis for %s", submission_id, exc_info=True)
+    await _notify_reviewers(row, version, result.score, user_id)
+    # Sentiment analysis isn't started here: the reviewer runs it from the review screen when they want it.
 
     return await get_submission(submission_id, user_id), _review_job(dict(job))
 
@@ -895,12 +979,15 @@ async def withdraw(submission_id: UUID, user_id: UUID) -> Submission:
 
 
 async def review_queue(user_id: UUID) -> List[ReviewQueueItem]:
-    """Submitted videos for the Content Screener: everyone's for super admins, otherwise the user's own."""
-    see_all = await _is_super_admin(user_id)
+    """Submitted videos for the Content Screener: everyone's for reviewers, Content Managers and super admins,
+    otherwise the user's own."""
+    see_all = await _can_see_team_content(user_id)
+    is_reviewer = await _can_review(user_id)
+    is_super = await _is_super_admin(user_id)
     rows = await fetch_all(
         """
         SELECT s.id, s.reference_code, s.title, s.status, s.platforms, s.caption_text, s.latest_check,
-               s.current_version, s.submitted_at, u.full_name AS creator_name,
+               s.current_version, s.submitted_at, s.created_by, s.publish_at, u.full_name AS creator_name,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
                c.connection_metadata AS acc_connection_metadata,
                f.id AS file_id, f.kind AS file_kind, f.original_name AS file_original_name,
@@ -949,6 +1036,8 @@ async def review_queue(user_id: UUID) -> List[ReviewQueueItem]:
                 # schedule_missing may have just queued it; report that rather than "never transcribed".
                 "transcript_status": r["file_transcript_status"] or "PENDING",
             }),
+            can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
+            publish_at=r["publish_at"],
         )
         for r in rows
     ]
@@ -965,7 +1054,11 @@ async def get_history(submission_id: UUID, user_id: UUID) -> SubmissionHistory:
         submission_id,
     )
     jobs = await fetch_all(
-        "SELECT * FROM content_review_jobs WHERE submission_id = $1 ORDER BY created_at DESC",
+        """
+        SELECT j.*, u.full_name AS decided_by_name
+        FROM content_review_jobs j LEFT JOIN users u ON u.id = j.decided_by
+        WHERE j.submission_id = $1 ORDER BY j.created_at DESC
+        """,
         submission_id,
     )
     events = await fetch_all(
@@ -983,3 +1076,284 @@ async def get_history(submission_id: UUID, user_id: UUID) -> SubmissionHistory:
         events=[SubmissionEvent(id=e["id"], event_type=e["event_type"], message=e["message"], data=_json(e["data"]),
                                 actor_name=e["actor_name"], created_at=e["created_at"]) for e in events],
     )
+
+
+# ---------------------------------------------------------------------------
+# Review: reviewer notifications, decisions, comments, re-checks
+# ---------------------------------------------------------------------------
+
+REVIEW_GROUP = "CONTENT_REVIEW_PUBLISH"
+
+
+async def _reviewer_ids(exclude: Optional[UUID] = None) -> List[UUID]:
+    """Active users who can review: super admins and roles with "Review & Publish Content"."""
+    rows = await fetch_all(
+        """
+        SELECT u.id FROM users u
+        WHERE u.is_active AND u.deleted_at IS NULL AND ($1::uuid IS NULL OR u.id <> $1)
+          AND (
+            u.is_super_admin
+            OR EXISTS (
+                SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+                WHERE ur.user_id = u.id AND ur.is_active AND r.is_active AND r.deleted_at IS NULL
+                  AND (r.code = 'SUPER_ADMIN' OR EXISTS (
+                        SELECT 1 FROM role_permission_groups rpg
+                        JOIN permission_groups g ON g.id = rpg.permission_group_id
+                        WHERE rpg.role_id = r.id AND g.code = $2))
+            )
+          )
+        """,
+        exclude, REVIEW_GROUP,
+    )
+    return [r["id"] for r in rows]
+
+
+async def _notify(user_ids: List[UUID], title: str, message: str, link: str, submission_id: UUID) -> None:
+    if not user_ids:
+        return
+    try:
+        import asyncio
+        from services.notification_service import create_notification
+        await asyncio.gather(*(
+            create_notification(NotificationCreate(
+                user_id=str(uid), type="SUBMISSION", title=title, message=message, link_url=link,
+                entity_type="content_submission", entity_id=str(submission_id),
+            ))
+            for uid in user_ids
+        ))
+    except Exception:
+        logger.warning("Could not send review notifications for %s", submission_id, exc_info=True)
+
+
+async def _notify_reviewers(row: Dict[str, Any], version: int, score: int, submitter: UUID) -> None:
+    author = await fetch_one("SELECT full_name FROM users WHERE id = $1", submitter)
+    again = " (resubmitted)" if version > 1 else ""
+    await _notify(
+        await _reviewer_ids(exclude=submitter),
+        f"{row['reference_code']} is ready for review{again}",
+        f"{author['full_name'] if author else 'Someone'} sent \"{row['title']}\" (version {version}) for review. "
+        f"Automated check: {score}/100.",
+        f"/submissions/{row['id']}",
+        row["id"],
+    )
+
+
+async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionRequest) -> Submission:
+    """A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
+    back to the creator with what to change."""
+    row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
+    if not await _can_review(user_id):
+        raise HTTPException(status_code=403, detail="Only reviewers can approve content or request changes")
+    if row["status"] != "IN_REVIEW":
+        raise HTTPException(status_code=409, detail="Only content that's in review can be approved or sent back")
+    if row["created_by"] == user_id and not await _is_super_admin(user_id):
+        raise HTTPException(status_code=403, detail="You can't review your own content; another reviewer needs to")
+
+    version = row["current_version"]
+    notes = (req.notes or "").strip() or None
+    now = datetime.now(timezone.utc)
+    publish_at = row["publish_at"]
+    if req.decision == "REQUEST_CHANGES":
+        open_comments = await fetch_one(
+            """
+            SELECT count(*) AS n FROM content_review_comments
+            WHERE submission_id = $1 AND version_number = $2 AND deleted_at IS NULL AND resolved_at IS NULL
+            """,
+            submission_id, version,
+        )
+        if not notes and not open_comments["n"]:
+            raise HTTPException(status_code=422, detail="Add a note or comments saying what needs to change")
+        new_status, label = "CHANGES_REQUESTED", "Changes requested"
+    else:
+        if req.publish_now:
+            publish_at, label = now, "Approved to publish now"
+        else:
+            publish_at = req.publish_at or row["publish_at"]
+            if not publish_at:
+                raise HTTPException(status_code=422, detail="Pick a date and time to schedule it")
+            if publish_at < now:
+                raise HTTPException(status_code=422, detail="Pick a publish time in the future, or publish it now")
+            label = f"Approved and scheduled for {publish_at.astimezone(timezone.utc):%b %d, %H:%M} UTC"
+        new_status = "APPROVED"
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            current = await conn.fetchval(
+                "SELECT status FROM content_submissions WHERE id = $1 FOR UPDATE", submission_id
+            )
+            if current != "IN_REVIEW":
+                raise HTTPException(status_code=409, detail="Someone else just decided on this; refresh to see it")
+            await conn.execute(
+                """
+                UPDATE content_review_jobs
+                SET status = $3, decision = $4, decision_notes = $5, decided_by = $6, decided_at = NOW(),
+                    completed_at = NOW()
+                WHERE submission_id = $1 AND version_number = $2 AND status = 'AWAITING_REVIEW'
+                """,
+                submission_id, version, new_status, req.decision, notes, user_id,
+            )
+            await conn.execute(
+                """
+                UPDATE content_submissions
+                SET status = $2, publish_at = $3, updated_at = NOW(), updated_by = $4
+                WHERE id = $1
+                """,
+                submission_id, new_status, publish_at, user_id,
+            )
+            await _add_event(conn, submission_id, "REVIEW_DECISION", f"Version {version}: {label}", user_id,
+                             {"decision": req.decision, "notes": notes, "version": version,
+                              "publish_at": publish_at.isoformat() if publish_at else None,
+                              "publish_now": req.publish_now})
+
+    await log_audit_event("content_submission", str(submission_id), f"REVIEW_{req.decision}", user_id,
+                          {"reference_code": row["reference_code"], "version": version, "notes": notes,
+                           "publish_at": publish_at.isoformat() if publish_at else None})
+
+    reviewer = await fetch_one("SELECT full_name FROM users WHERE id = $1", user_id)
+    who = reviewer["full_name"] if reviewer else "A reviewer"
+    if req.decision == "REQUEST_CHANGES":
+        title = f"{row['reference_code']} needs changes"
+        message = f"{who} asked for changes to \"{row['title']}\"." + (f" \"{notes}\"" if notes else " See the comments.")
+        link = f"/submissions/{submission_id}"
+    else:
+        title = f"{row['reference_code']} was approved"
+        message = f"{who} approved \"{row['title']}\". {label}."
+        link = "/content-calendar"
+    if row["created_by"] != user_id:
+        await _notify([row["created_by"]], title, message, link, submission_id)
+    return await get_submission(submission_id, user_id)
+
+
+def _comment_out(r: Dict[str, Any], viewer: UUID, viewer_is_super: bool) -> ReviewComment:
+    return ReviewComment(
+        id=r["id"],
+        submission_id=r["submission_id"],
+        version_number=r["version_number"],
+        category=r["category"],
+        body=r["body"],
+        start_sec=float(r["start_sec"]) if r["start_sec"] is not None else None,
+        end_sec=float(r["end_sec"]) if r["end_sec"] is not None else None,
+        author_id=r["author_id"],
+        author_name=r.get("author_name"),
+        from_reviewer=r["author_id"] != r["submission_created_by"],
+        resolved_at=r["resolved_at"],
+        resolved_by_name=r.get("resolved_by_name"),
+        created_at=r["created_at"],
+        can_delete=r["author_id"] == viewer or viewer_is_super,
+    )
+
+
+_COMMENT_SELECT = """
+    SELECT c.*, s.created_by AS submission_created_by, a.full_name AS author_name, rb.full_name AS resolved_by_name
+    FROM content_review_comments c
+    JOIN content_submissions s ON s.id = c.submission_id
+    LEFT JOIN users a ON a.id = c.author_id
+    LEFT JOIN users rb ON rb.id = c.resolved_by
+"""
+
+
+async def list_comments(submission_id: UUID, user_id: UUID) -> List[ReviewComment]:
+    await _get_owned_row(submission_id, user_id, manager_can_read=True)
+    rows = await fetch_all(
+        _COMMENT_SELECT + " WHERE c.submission_id = $1 AND c.deleted_at IS NULL ORDER BY c.created_at",
+        submission_id,
+    )
+    is_super = await _is_super_admin(user_id)
+    return [_comment_out(r, user_id, is_super) for r in rows]
+
+
+async def _comment_access(submission_id: UUID, user_id: UUID) -> Dict[str, Any]:
+    """Reviewers and the creator can comment and resolve comments."""
+    row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
+    if row["created_by"] != user_id and not await _can_review(user_id):
+        raise HTTPException(status_code=403, detail="Only reviewers and the person who uploaded it can comment")
+    return row
+
+
+async def add_comment(submission_id: UUID, user_id: UUID, data: ReviewCommentCreate) -> ReviewComment:
+    row = await _comment_access(submission_id, user_id)
+    if data.start_sec is not None and data.end_sec is not None and data.end_sec < data.start_sec:
+        raise HTTPException(status_code=422, detail="The end time is before the start time")
+    saved = await fetch_one(
+        """
+        INSERT INTO content_review_comments (submission_id, version_number, author_id, category, body, start_sec, end_sec)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
+        """,
+        submission_id, row["current_version"], user_id, data.category, data.body.strip(), data.start_sec, data.end_sec,
+    )
+    full = await fetch_one(_COMMENT_SELECT + " WHERE c.id = $1", saved["id"])
+    return _comment_out(full, user_id, await _is_super_admin(user_id))
+
+
+async def set_comment_resolved(submission_id: UUID, comment_id: UUID, user_id: UUID, resolved: bool) -> ReviewComment:
+    await _comment_access(submission_id, user_id)
+    updated = await fetch_one(
+        """
+        UPDATE content_review_comments
+        SET resolved_at = CASE WHEN $3 THEN NOW() ELSE NULL END,
+            resolved_by = CASE WHEN $3 THEN $4::uuid ELSE NULL END, updated_at = NOW()
+        WHERE id = $1 AND submission_id = $2 AND deleted_at IS NULL
+        RETURNING id
+        """,
+        comment_id, submission_id, resolved, user_id,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    full = await fetch_one(_COMMENT_SELECT + " WHERE c.id = $1", comment_id)
+    return _comment_out(full, user_id, await _is_super_admin(user_id))
+
+
+async def delete_comment(submission_id: UUID, comment_id: UUID, user_id: UUID) -> None:
+    await _get_owned_row(submission_id, user_id, manager_can_read=True)
+    is_super = await _is_super_admin(user_id)
+    deleted = await fetch_one(
+        """
+        UPDATE content_review_comments SET deleted_at = NOW(), updated_at = NOW()
+        WHERE id = $1 AND submission_id = $2 AND deleted_at IS NULL AND (author_id = $3 OR $4)
+        RETURNING id
+        """,
+        comment_id, submission_id, user_id, is_super,
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Comment not found, or it isn't yours to delete")
+
+
+async def recheck_after_transcript(file_id: UUID) -> None:
+    """When a video's transcript is ready, re-run the check so the score includes what's said and shown.
+    Approved and withdrawn items keep the check they were decided on."""
+    try:
+        sub = await fetch_one(
+            """
+            SELECT s.* FROM content_submissions s
+            JOIN content_submission_files f ON f.submission_id = s.id
+            WHERE f.id = $1 AND f.kind = 'MAIN' AND f.deleted_at IS NULL
+              AND s.status IN ('DRAFT', 'IN_REVIEW', 'CHANGES_REQUESTED') AND s.deleted_at IS NULL
+            """,
+            file_id,
+        )
+        if not sub:
+            return
+        result, check = await _run_check(sub)
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1",
+                    sub["id"], json.dumps(check),
+                )
+                await conn.execute(
+                    """
+                    UPDATE content_review_jobs
+                    SET automated_check = $3::jsonb, score = $4, traffic_light = $5
+                    WHERE submission_id = $1 AND version_number = $2 AND status = 'AWAITING_REVIEW'
+                    """,
+                    sub["id"], sub["current_version"], json.dumps(check), result.score, result.traffic_light,
+                )
+                await _add_event(conn, sub["id"], "CHECK_COMPLETED",
+                                 f"Re-checked with the video transcript: {result.violations_count} issue(s), "
+                                 f"score {result.score}/100", None,
+                                 {"traffic_light": result.traffic_light, "score": result.score})
+    except Exception:
+        logger.exception("Couldn't re-check submission after transcription of %s", file_id)
