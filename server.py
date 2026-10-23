@@ -38,6 +38,7 @@ from services.auth_service import (
 from tools.search import router as search_router
 from tools.rbac_router import router as rbac_router, get_current_user_id
 from tools.approval_path_router import router as approval_path_router
+from tools.context_router import router as context_router
 from tools.auth_router import router as auth_router
 from tools.notification_router import notification_router
 from tools.observability import router as observability_router
@@ -47,6 +48,8 @@ from tools.oauth_router import router as oauth_router
 from tools.compliance_router import router as compliance_router
 from tools.submission_router import router as submission_router
 from tools.canva_router import router as canva_router
+from tools.vector_store_router import router as vector_store_router
+from tools.sentiment_router import router as sentiment_router
 
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools, ask_gemini_stream, sync_mcp_tools_to_vector_db
@@ -93,6 +96,16 @@ async def lifespan(app: FastAPI):
             await setup_submissions_schema()
         except Exception as sub_err:
             logger.warning(f"Submission schema setup note: {sub_err}")
+        try:
+            from postgresql_db.setup_context_schema import setup as setup_context_schema
+            await setup_context_schema()
+        except Exception as ctx_err:
+            logger.warning(f"Messaging context schema setup note: {ctx_err}")
+        try:
+            from postgresql_db.setup_listening_schema import setup as setup_listening_schema
+            await setup_listening_schema()
+        except Exception as listen_err:
+            logger.warning(f"Listening schema setup note: {listen_err}")
     except Exception:
         logger.exception("Application startup failed", extra={"event": "application_startup_failed"})
         raise
@@ -133,6 +146,20 @@ async def lifespan(app: FastAPI):
         partial(log_background_task_result, task_name="review-deadlines")
     )
     background_tasks.append(deadline_task)
+
+    # 3c. Sentiment analyses scheduled to run once Gemini's daily limit resets
+    from services.sentiment_service import scheduled_runs_loop
+    sentiment_task = asyncio.create_task(scheduled_runs_loop(), name="sentiment-scheduled-runs")
+    sentiment_task.add_done_callback(
+        partial(log_background_task_result, task_name="sentiment-scheduled-runs")
+    )
+    background_tasks.append(sentiment_task)
+
+    # 3d. Review memory: past review decisions as precedent for sentiment analysis (catches up on anything new)
+    from services.review_memory_service import remember_all_in_background
+    memory_task = asyncio.create_task(remember_all_in_background(), name="review-memory-sync")
+    memory_task.add_done_callback(partial(log_background_task_result, task_name="review-memory-sync"))
+    background_tasks.append(memory_task)
 
     # 4. Initialize Event-Driven MQTT Service Presence & Bus
     from services import mqtt_presence as mqtt_module
@@ -303,7 +330,10 @@ app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"])
 app.include_router(compliance_router, prefix="/api", tags=["Compliance Rules & Governance"])
 app.include_router(submission_router, prefix="/api", tags=["Content Submissions"])
 app.include_router(approval_path_router, prefix="/api", tags=["Approval Paths"])
+app.include_router(context_router, prefix="/api", tags=["Messaging Context"])
 app.include_router(canva_router, prefix="/api", tags=["Canva"])
+app.include_router(vector_store_router, prefix="/api", tags=["Vector Store"])
+app.include_router(sentiment_router, prefix="/api", tags=["Sentiment Quality"])
 
 
 # --- Session Middleware ---

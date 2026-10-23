@@ -81,15 +81,13 @@ async def setup():
             CREATE INDEX IF NOT EXISTS idx_oauth_connections_status ON oauth_connections(status);
         """)
 
-        # Seed Default Brands
+        # Seed Default Brands (the full list of five, and retiring the old product brands, is in setup_submissions_schema)
         logger.info("Seeding default brands...")
         await conn.execute("""
             INSERT INTO brands (code, name, sort_order)
-            VALUES 
-                ('ZENATECH', 'ZenaTech Group', 10),
-                ('DESKFLEX', 'DeskFlex', 20),
-                ('OTHERSHIP', 'Othership', 30),
-                ('ZENADRONE', 'ZenaDrone', 40)
+            VALUES
+                ('ZENATECH', 'ZenaTech', 10),
+                ('ZENADRONE', 'ZenaDrone', 20)
             ON CONFLICT (code) DO NOTHING;
         """)
 

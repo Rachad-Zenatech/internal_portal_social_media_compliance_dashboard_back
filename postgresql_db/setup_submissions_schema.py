@@ -174,6 +174,23 @@ async def setup():
             ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP WITH TIME ZONE;
             ALTER TABLE content_review_jobs ALTER COLUMN status SET DEFAULT 'AWAITING_REVIEW';
 
+            -- Reviewers' calls on automated compliance flags, per version: a dismissal with its reason.
+            CREATE TABLE IF NOT EXISTS flag_reviews (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                submission_id UUID NOT NULL REFERENCES content_submissions(id) ON DELETE CASCADE,
+                version_number INT NOT NULL,
+                rule_id UUID NOT NULL,
+                rule_number VARCHAR(50) NOT NULL,
+                flagged_terms TEXT[] NOT NULL DEFAULT '{}',
+                traffic_light VARCHAR(20) NOT NULL,
+                reason VARCHAR(40) NOT NULL,
+                note TEXT,
+                decided_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                decided_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                UNIQUE (submission_id, version_number, rule_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_flag_reviews_rule ON flag_reviews(rule_number);
+
             -- Review comments: what the reviewer wants changed (optionally pinned to a moment in a video), and the
             -- creator's replies. Tied to the version they were written on, so the history reads correctly.
             CREATE TABLE IF NOT EXISTS content_review_comments (
@@ -219,6 +236,42 @@ async def setup():
             CREATE INDEX IF NOT EXISTS idx_content_sentiment_submission ON content_sentiment_analyses(submission_id, created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_content_sentiment_status ON content_sentiment_analyses(status)
                 WHERE status IN ('WAITING_TRANSCRIPT', 'PENDING', 'PROCESSING');
+            -- When Gemini's daily limit resets (FAILED on quota), or when a SCHEDULED run is due.
+            ALTER TABLE content_sentiment_analyses ADD COLUMN IF NOT EXISTS retry_at TIMESTAMP WITH TIME ZONE;
+            CREATE INDEX IF NOT EXISTS idx_content_sentiment_scheduled ON content_sentiment_analyses(retry_at)
+                WHERE status = 'SCHEDULED';
+
+            -- Reviewers' verdict on each finding ("useful" / "not an issue"). category and basis are copied in so
+            -- the noise report can group by kind of finding without reading every result.
+            CREATE TABLE IF NOT EXISTS content_sentiment_feedback (
+                analysis_id UUID NOT NULL REFERENCES content_sentiment_analyses(id) ON DELETE CASCADE,
+                finding_id VARCHAR(32) NOT NULL,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                verdict VARCHAR(20) NOT NULL,
+                note TEXT,
+                category VARCHAR(30),
+                basis VARCHAR(30),
+                quote TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                PRIMARY KEY (analysis_id, finding_id, user_id)
+            );
+
+            -- Test set: an analysis input frozen as it was, with the verdict a reviewer agrees is right. The eval
+            -- script (scripts/sentiment_eval.py) re-runs these after prompt or model changes.
+            CREATE TABLE IF NOT EXISTS sentiment_eval_cases (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                analysis_id UUID REFERENCES content_sentiment_analyses(id) ON DELETE SET NULL,
+                submission_id UUID REFERENCES content_submissions(id) ON DELETE SET NULL,
+                input JSONB NOT NULL,
+                expected_assessment VARCHAR(40) NOT NULL,
+                expected_concern VARCHAR(20),
+                must_flag TEXT[] NOT NULL DEFAULT '{}',
+                must_not_flag TEXT[] NOT NULL DEFAULT '{}',
+                notes TEXT,
+                created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+            );
 
             -- One row per Gemini call actually made, for usage limits (see services/ai_usage_service.py).
             CREATE TABLE IF NOT EXISTS ai_usage_events (
@@ -233,20 +286,89 @@ async def setup():
             CREATE INDEX IF NOT EXISTS idx_ai_usage_submission_time ON ai_usage_events(submission_id, created_at DESC);
         """)
 
-        # Brands named in the brand guide (ZooOffice groups DeskFlex, Othership and others).
+        # The five brands content is filed under. The software products (ZooOffice, DeskFlex, Othership,
+        # Zena Studios) roll up into "Software Brands"; Shaun's own posts are their own brand.
         await conn.execute("""
-            INSERT INTO brands (code, name, sort_order)
+            INSERT INTO brands (code, name, sort_order, is_active)
             VALUES
-                ('DAAS', 'DaaS (Drone as a Service)', 45),
-                ('ZOOOFFICE', 'ZooOffice', 50),
-                ('ZENASTUDIOS', 'Zena Studios', 60)
-            ON CONFLICT (code) DO NOTHING;
+                ('ZENATECH', 'ZenaTech', 10, true),
+                ('ZENADRONE', 'ZenaDrone', 20, true),
+                ('DAAS', 'Drone as a Service', 30, true),
+                ('SOFTWARE', 'Software Brands', 40, true),
+                ('CEO_THOUGHT_LEADERSHIP', 'Shaun''s CEO Thought Leadership', 50, true)
+            ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, is_active = true;
         """)
+        await _retire_product_brands(conn)
 
         if os.getenv("APP_ENV", "development").lower() != "production":
             await _seed_demo_social_accounts(conn)
 
         logger.info("Content submission schema setup successfully completed!")
+
+
+# Individual software products that used to be separate brands; they're filed under "Software Brands" now.
+RETIRED_PRODUCT_BRANDS = ["DESKFLEX", "OTHERSHIP", "ZOOOFFICE", "ZENASTUDIOS"]
+
+
+async def _retire_product_brands(conn):
+    """Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
+    to CEO_THOUGHT_LEADERSHIP. Safe to run on every start: once moved there's nothing left to change. The retired
+    brands stay in the table (inactive) so nothing that pointed at them breaks."""
+    retired = RETIRED_PRODUCT_BRANDS
+    await conn.execute("UPDATE brands SET is_active = false WHERE code = ANY($1::text[]) AND is_active", retired)
+    await conn.execute(
+        "UPDATE content_submissions SET brand_code = 'SOFTWARE' WHERE brand_code = ANY($1::text[])", retired
+    )
+    # Brand access: anyone on a retired brand works on Software Brands instead.
+    await conn.execute(
+        """
+        INSERT INTO user_brands (user_id, brand_code, assigned_by)
+        SELECT DISTINCT user_id, 'SOFTWARE', NULL::uuid FROM user_brands WHERE brand_code = ANY($1::text[])
+        ON CONFLICT (user_id, brand_code) DO NOTHING
+        """,
+        retired,
+    )
+    await conn.execute("DELETE FROM user_brands WHERE brand_code = ANY($1::text[])", retired)
+    await conn.execute(
+        """
+        UPDATE compliance_rules
+        SET brands = ARRAY(SELECT DISTINCT CASE WHEN b = ANY($1::text[]) THEN 'SOFTWARE' ELSE b END FROM unnest(brands) b)
+        WHERE brands && $1::text[]
+        """,
+        retired,
+    )
+    # Connected accounts carry their brand in metadata: product accounts move to SOFTWARE, Shaun's to his brand.
+    await conn.execute(
+        """
+        UPDATE oauth_connections
+        SET connection_metadata = jsonb_set(connection_metadata, '{brand_code}', to_jsonb(
+            CASE WHEN (connection_metadata->>'is_ceo')::boolean THEN 'CEO_THOUGHT_LEADERSHIP' ELSE 'SOFTWARE' END))
+        WHERE (connection_metadata->>'brand_code' = ANY($1::text[]))
+           OR ((connection_metadata->>'is_ceo')::boolean AND connection_metadata->>'brand_code' IS DISTINCT FROM 'CEO_THOUGHT_LEADERSHIP')
+        """,
+        retired,
+    )
+    # Posts going out through Shaun's accounts are his thought leadership.
+    await conn.execute(
+        """
+        UPDATE content_submissions s SET brand_code = 'CEO_THOUGHT_LEADERSHIP'
+        FROM oauth_connections c
+        WHERE c.id = s.account_id AND (c.connection_metadata->>'is_ceo')::boolean
+          AND s.brand_code IS DISTINCT FROM 'CEO_THOUGHT_LEADERSHIP'
+        """
+    )
+    # Tables created by later setup steps; on a fresh database they don't exist yet (and hold nothing to move).
+    if await conn.fetchval("SELECT to_regclass('public.messaging_context') IS NOT NULL"):
+        await conn.execute(
+            """
+            UPDATE messaging_context
+            SET brands = ARRAY(SELECT DISTINCT CASE WHEN b = ANY($1::text[]) THEN 'SOFTWARE' ELSE b END FROM unnest(brands) b)
+            WHERE brands && $1::text[]
+            """,
+            retired,
+        )
+    if await conn.fetchval("SELECT to_regclass('public.approval_paths') IS NOT NULL"):
+        await conn.execute("UPDATE approval_paths SET brand_code = 'SOFTWARE' WHERE brand_code = ANY($1::text[])", retired)
 
 
 async def _seed_demo_social_accounts(conn):
@@ -271,8 +393,8 @@ async def _seed_demo_social_accounts(conn):
         ("YOUTUBE", "ZenaDrone", "@ZenaDrone", "ZENADRONE", "ZDR", False),
         ("INSTAGRAM", "ZenaDrone", "@zenadrone", "ZENADRONE", "ZDR", False),
         ("FACEBOOK_PAGE", "ZenaDrone", "ZenaDroneOfficial", "ZENADRONE", "ZDR", False),
-        ("LINKEDIN_PROFILE", "Shaun – CEO", "shaun-ceo", "ZENATECH", "ZTG", True),
-        ("X_TWITTER", "Shaun – CEO", "@ShaunCEO", "ZENATECH", "ZTG", True),
+        ("LINKEDIN_PROFILE", "Shaun – CEO", "shaun-ceo", "CEO_THOUGHT_LEADERSHIP", "ZTG", True),
+        ("X_TWITTER", "Shaun – CEO", "@ShaunCEO", "CEO_THOUGHT_LEADERSHIP", "ZTG", True),
     ]
     await conn.execute(
         """

@@ -2,14 +2,15 @@
 Create, save and resume drafts, attach files, submit for compliance review and view history.
 """
 
-from typing import Annotated, List, Literal, Optional
+from typing import Annotated, Dict, List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
 from models.canva_model import CanvaImportRequest, CanvaReimportRequest
-from models.sentiment_model import SentimentAnalysis
+from models.public_mood_model import PublicMood
+from models.sentiment_model import FindingFeedback, FindingFeedbackIn, SentimentAnalysis
 from models.submission_model import (
     ReviewComment,
     ReviewCommentCreate,
@@ -30,8 +31,10 @@ from models.submission_model import (
     SubmissionUpdate,
     SubmitResult,
 )
-from services import ai_usage_service, sentiment_service
+from services import ai_usage_service, public_mood_service, sentiment_service
+from services import flag_review_service
 from services import submission_service as svc
+from models.flag_review_model import FlagDismissRequest, FlagReview
 from services.auth_service import get_current_user_id_dependency
 
 router = APIRouter(prefix="/submissions", tags=["Content Submissions"])
@@ -180,8 +183,8 @@ async def get_sentiment(submission_id: UUID, user_id: CurrentUser, version: Opti
     analysis of that version, as it was."""
     await svc.get_submission(submission_id, user_id)  # access check
     if version is not None:
-        return await sentiment_service.get_for_version(submission_id, version)
-    return await sentiment_service.get_latest(submission_id)
+        return await sentiment_service.get_for_version(submission_id, version, viewer=user_id)
+    return await sentiment_service.get_latest(submission_id, viewer=user_id)
 
 
 @router.post("/{submission_id}/sentiment", response_model=SentimentAnalysis, status_code=status.HTTP_202_ACCEPTED)
@@ -192,7 +195,67 @@ async def request_sentiment(submission_id: UUID, user_id: CurrentUser):
     if not (sub.title or "").strip() and not (sub.caption_text or "").strip() and not sub.files:
         raise HTTPException(status_code=422, detail="Add a title, caption or video before running sentiment analysis")
     analysis_id = await sentiment_service.request_analysis(submission_id, user_id)
-    return await sentiment_service.get_analysis(analysis_id)
+    return await sentiment_service.get_analysis(analysis_id, viewer=user_id)
+
+
+@router.get("/{submission_id}/public-mood", response_model=PublicMood)
+async def get_public_mood(submission_id: UUID, user_id: CurrentUser):
+    """How people online currently feel about the topics this post touches (social listening), with the saved
+    summary if there is one. Topic data is shared and refreshed only when it goes stale. Advisory only."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.get_public_mood(submission_id)
+
+
+@router.post("/{submission_id}/public-mood/summary", response_model=PublicMood)
+async def summarise_public_mood(submission_id: UUID, user_id: CurrentUser):
+    """An AI reading of how this post is likely to land given the current mood. Reused while neither the post nor
+    the topics' moods have changed; otherwise counts toward the AI limits."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.summarise(submission_id, user_id)
+
+
+@router.post("/{submission_id}/sentiment/{analysis_id}/schedule", response_model=SentimentAnalysis)
+async def schedule_sentiment(submission_id: UUID, analysis_id: UUID, user_id: CurrentUser):
+    """Run an analysis stopped by Gemini's daily limit again automatically once the limit resets."""
+    await svc.get_submission(submission_id, user_id)
+    return await sentiment_service.schedule_after_reset(submission_id, analysis_id)
+
+
+@router.get("/{submission_id}/sentiment/{analysis_id}/frame")
+async def sentiment_frame(submission_id: UUID, analysis_id: UUID, user_id: CurrentUser, t: float = Query(..., ge=0, le=36000)):
+    """The analysed video's frame at t seconds, shown beside findings tied to that moment."""
+    await svc.get_submission(submission_id, user_id)
+    path = await sentiment_service.video_frame(submission_id, analysis_id, t)
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.get("/{submission_id}/sentiment/{analysis_id}/images/{index}")
+async def sentiment_image(submission_id: UUID, analysis_id: UUID, index: int, user_id: CurrentUser):
+    """One of the images the analysis looked at (1 = the first), shown beside findings about it."""
+    await svc.get_submission(submission_id, user_id)
+    path, mime = await sentiment_service.analysed_image(submission_id, analysis_id, index)
+    return FileResponse(path, media_type=mime, headers={"Cache-Control": "private, max-age=86400"})
+
+
+async def _require_reviewer(user_id: UUID) -> None:
+    if not await svc._can_review(user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only reviewers can rate findings")
+
+
+@router.put("/{submission_id}/sentiment/{analysis_id}/findings/{finding_id}/feedback", response_model=Dict[str, FindingFeedback])
+async def rate_finding(submission_id: UUID, analysis_id: UUID, finding_id: str, data: FindingFeedbackIn, user_id: CurrentUser):
+    """A reviewer marks a finding useful or not an issue (their own vote; changing it replaces it)."""
+    await svc.get_submission(submission_id, user_id)
+    await _require_reviewer(user_id)
+    return await sentiment_service.set_feedback(submission_id, analysis_id, finding_id, user_id, data)
+
+
+@router.delete("/{submission_id}/sentiment/{analysis_id}/findings/{finding_id}/feedback", response_model=Dict[str, FindingFeedback])
+async def clear_finding_rating(submission_id: UUID, analysis_id: UUID, finding_id: str, user_id: CurrentUser):
+    """Take back the reviewer's own vote on a finding."""
+    await svc.get_submission(submission_id, user_id)
+    await _require_reviewer(user_id)
+    return await sentiment_service.clear_feedback(submission_id, analysis_id, finding_id, user_id)
 
 
 @router.post("/{submission_id}/review", response_model=Submission)
@@ -212,6 +275,24 @@ async def reopen_approval(submission_id: UUID, data: ReopenRequest, user_id: Cur
 async def reschedule(submission_id: UUID, data: RescheduleRequest, user_id: CurrentUser):
     """Reviewer moves approved content to a new publish time; the approval stands."""
     return await svc.reschedule_approved(submission_id, user_id, data)
+
+
+@router.get("/{submission_id}/flags", response_model=List[FlagReview])
+async def list_flag_reviews(submission_id: UUID, user_id: CurrentUser):
+    """Reviewers' dismissals of automated compliance flags, on every version."""
+    return await flag_review_service.list_for(submission_id, user_id)
+
+
+@router.put("/{submission_id}/flags/{rule_id}", response_model=FlagReview)
+async def dismiss_flag(submission_id: UUID, rule_id: UUID, data: FlagDismissRequest, user_id: CurrentUser):
+    """Dismiss a flag on the version in review as a false alarm, with a reason. The score itself isn't changed."""
+    return await flag_review_service.dismiss(submission_id, rule_id, user_id, data)
+
+
+@router.delete("/{submission_id}/flags/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def restore_flag(submission_id: UUID, rule_id: UUID, user_id: CurrentUser):
+    """Undo a dismissal on the version in review."""
+    await flag_review_service.undo(submission_id, rule_id, user_id)
 
 
 @router.get("/{submission_id}/comments", response_model=List[ReviewComment])

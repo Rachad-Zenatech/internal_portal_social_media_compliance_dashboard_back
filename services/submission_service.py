@@ -48,9 +48,11 @@ from models.submission_model import (
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.audit_service import log_audit_event
-from services import ai_usage_service, approval_path_service, canva_service, review_deadline_service, transcription_service
+from services import ai_usage_service, approval_path_service, canva_service, flag_review_service, review_deadline_service, transcription_service
+from services import review_memory_service
 from services.ai_usage_service import AiLimitExceeded
 from services.compliance_service import check_compliance, flag_segments
+from services.compliance_service import rulebook_version as compliance_rulebook_version
 
 logger = logging.getLogger(__name__)
 
@@ -495,6 +497,11 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
         sub.can_review = row["status"] == "IN_REVIEW" and may_decide
         sub.can_approve = sub.can_review and _may_approve(user_id, is_super, approver_ids)
         sub.can_manage_approval = row["status"] == "APPROVED" and may_decide
+    sub.open_critical_flags = (await flag_review_service.open_critical_counts([row])).get(row["id"], 0)
+    saved = _json(row["latest_check"]) or {}
+    if saved:
+        current = await compliance_rulebook_version()
+        sub.check_outdated = bool(current) and saved.get("rulebook_version") != current
     sub.created_by = row["created_by"]
     if not is_creator:
         creator = await fetch_one("SELECT full_name FROM users WHERE id = $1", row["created_by"])
@@ -1235,7 +1242,7 @@ def _queue_filter(tab: str) -> str:
 
 
 async def review_queue_counts(user_id: UUID) -> ReviewQueueCounts:
-    """How many videos are in each Screener tab, for the tab labels."""
+    """How many posts are in each Screener tab, for the tab labels."""
     see_all = await _can_see_team_content(user_id)
     row = await fetch_one(
         f"""
@@ -1246,9 +1253,6 @@ async def review_queue_counts(user_id: UUID) -> ReviewQueueCounts:
         FROM content_submissions s
         WHERE s.deleted_at IS NULL
           AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))))
-          AND EXISTS (SELECT 1 FROM content_submission_files cf
-                      WHERE cf.submission_id = s.id AND cf.kind = 'MAIN' AND cf.deleted_at IS NULL
-                        AND cf.mime_type LIKE 'video/%')
         """,
         user_id,
         see_all,
@@ -1258,8 +1262,9 @@ async def review_queue_counts(user_id: UUID) -> ReviewQueueCounts:
 
 
 async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str] = None) -> List[ReviewQueueItem]:
-    """Submitted videos for one Content Screener tab: everyone's for reviewers, Content Managers and super admins,
-    otherwise the user's own. Done covers the last 30 days and can be searched by title or reference."""
+    """Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
+    super admins, otherwise the user's own. Done covers the last 30 days and can be searched by title or reference.
+    Each comes with its video (if any) and its images in order."""
     if tab not in QUEUE_TAB_STATUSES:
         raise HTTPException(status_code=422, detail="Unknown queue tab")
     see_all = await _can_see_team_content(user_id)
@@ -1268,7 +1273,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
     term = (search or "").strip()
     rows = await fetch_all(
         f"""
-        SELECT s.id, s.reference_code, s.title, s.status, s.platforms, s.caption_text, s.latest_check,
+        SELECT s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
                s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
                s.brand_code, s.audience, s.rule_sets,
                {_DECIDED_AT} AS decided_at,
@@ -1280,7 +1285,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
                f.transcript AS file_transcript, f.transcript_status AS file_transcript_status,
                f.transcript_error AS file_transcript_error
         FROM content_submissions s
-        JOIN LATERAL (
+        LEFT JOIN LATERAL (
             SELECT * FROM content_submission_files cf
             WHERE cf.submission_id = s.id AND cf.kind = 'MAIN' AND cf.deleted_at IS NULL
               AND cf.mime_type LIKE 'video/%'
@@ -1301,15 +1306,30 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         term,
     )
     rules = await approval_path_service.load_rules()
+    open_critical = await flag_review_service.open_critical_counts([dict(r) for r in rows])
     # Videos uploaded before transcription existed (or whose attempt was abandoned) get transcribed now.
     await transcription_service.schedule_missing(
-        [r["file_id"] for r in rows if r["file_transcript_status"] not in ("COMPLETED", "FAILED")]
+        [r["file_id"] for r in rows if r["file_id"] and r["file_transcript_status"] not in ("COMPLETED", "FAILED")]
     )
+    # Every listed post's images in one query, in the order the post shows them.
+    image_rows = await fetch_all(
+        """
+        SELECT * FROM content_submission_files
+        WHERE submission_id = ANY($1::uuid[]) AND kind IN ('MAIN', 'IMAGE') AND deleted_at IS NULL
+          AND mime_type LIKE 'image/%'
+        ORDER BY submission_id, (kind <> 'MAIN'), created_at
+        """,
+        [r["id"] for r in rows],
+    ) if rows else []
+    images: Dict[UUID, List[SubmissionFile]] = {}
+    for img in image_rows:
+        images.setdefault(img["submission_id"], []).append(_file_out(img["submission_id"], dict(img)))
     return [
         ReviewQueueItem(
             id=r["id"],
             reference_code=r["reference_code"],
             title=r["title"],
+            content_type=r["content_type"],
             status=r["status"],
             platforms=list(r["platforms"] or []),
             account=_account_option(r, prefix="acc_"),
@@ -1324,9 +1344,11 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
                 "transcript": r["file_transcript"], "transcript_error": r["file_transcript_error"],
                 # schedule_missing may have just queued it; report that rather than "never transcribed".
                 "transcript_status": r["file_transcript_status"] or "PENDING",
-            }),
+            }) if r["file_id"] else None,
+            images=images.get(r["id"], []),
             can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
             **_approval_fields(rules, r, user_id, is_reviewer, is_super),
+            open_critical_flags=open_critical.get(r["id"], 0),
             publish_at=r["publish_at"],
             **_due(r),
             created_by=r["created_by"],
@@ -1510,6 +1532,13 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     if row["created_by"] == user_id and not is_super:
         raise HTTPException(status_code=403, detail="You can't review your own content; another reviewer needs to")
     if req.decision == "APPROVE":
+        open_critical = (await flag_review_service.open_critical_counts([row])).get(row["id"], 0)
+        if open_critical:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{open_critical} critical compliance flag{'s are' if open_critical > 1 else ' is'} still open. "
+                       "Request changes to fix it, or dismiss the flag with a reason if it's a false alarm.",
+            )
         approver_ids, approver_names = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
         if not _may_approve(user_id, is_super, approver_ids):
             raise HTTPException(
@@ -1595,6 +1624,8 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
         link = "/content-calendar"
     if row["created_by"] != user_id:
         await _notify([row["created_by"]], title, message, link, submission_id)
+    # The decision becomes precedent for analysing similar content.
+    review_memory_service.remember_soon(submission_id, version)
     return await get_submission(submission_id, user_id)
 
 
@@ -1669,6 +1700,7 @@ async def reopen_approved(submission_id: UUID, user_id: UUID, req: ReopenRequest
         f"/submissions/{submission_id}",
         submission_id,
     )
+    review_memory_service.remember_soon(submission_id, version)
     return await get_submission(submission_id, user_id)
 
 
@@ -1808,6 +1840,73 @@ async def delete_comment(submission_id: UUID, comment_id: UUID, user_id: UUID) -
     )
     if not deleted:
         raise HTTPException(status_code=404, detail="Comment not found, or it isn't yours to delete")
+
+
+# ---------------------------------------------------------------------------
+# Re-checking open content when the rulebook changes
+# ---------------------------------------------------------------------------
+
+_rulebook_recheck: Optional["asyncio.Task[None]"] = None
+RULEBOOK_RECHECK_DELAY_SEC = 3
+
+
+async def recheck_open_submissions(reason: str) -> int:
+    """Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
+    Approved and draft content keep their check (drafts are checked again when they're sent). Only real changes
+    are logged on the item."""
+    rows = await fetch_all(
+        "SELECT * FROM content_submissions WHERE status IN ('IN_REVIEW', 'CHANGES_REQUESTED') AND deleted_at IS NULL"
+    )
+    changed = 0
+    for row in rows:
+        row = dict(row)
+        before = _json(row["latest_check"]) or {}
+        result, check = await _run_check(row)
+        moved = before.get("score") != result.score or sorted(
+            v.get("rule_number", "") for v in before.get("violations") or []
+        ) != sorted(v.rule_number for v in result.violations)
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1", row["id"], json.dumps(check)
+                )
+                await conn.execute(
+                    """
+                    UPDATE content_review_jobs SET automated_check = $3::jsonb, score = $4, traffic_light = $5
+                    WHERE submission_id = $1 AND version_number = $2 AND status = 'AWAITING_REVIEW'
+                    """,
+                    row["id"], row["current_version"], json.dumps(check), result.score, result.traffic_light,
+                )
+                if moved:
+                    changed += 1
+                    await _add_event(
+                        conn, row["id"], "CHECK_COMPLETED",
+                        f"Re-checked after a rulebook change ({reason}): score {before.get('score', '?')} -> {result.score}"
+                        + (" (blocked: critical rule)" if result.blocked else ""),
+                        None, {"traffic_light": result.traffic_light, "score": result.score, "reason": "rulebook_change"},
+                    )
+    if rows:
+        logger.info("Re-checked %d open submission(s) after a rulebook change; %d changed", len(rows), changed)
+    return changed
+
+
+def schedule_rulebook_recheck(reason: str) -> None:
+    """Re-check open content shortly after a rule changes; a burst of edits leads to one pass."""
+    import asyncio
+
+    global _rulebook_recheck
+
+    async def run() -> None:
+        await asyncio.sleep(RULEBOOK_RECHECK_DELAY_SEC)
+        try:
+            await recheck_open_submissions(reason)
+        except Exception:
+            logger.exception("Couldn't re-check open submissions after a rulebook change")
+
+    if _rulebook_recheck and not _rulebook_recheck.done():
+        _rulebook_recheck.cancel()
+    _rulebook_recheck = asyncio.create_task(run())
 
 
 async def recheck_after_transcript(file_id: UUID) -> None:

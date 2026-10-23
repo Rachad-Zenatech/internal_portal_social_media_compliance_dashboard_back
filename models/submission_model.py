@@ -207,6 +207,10 @@ class Submission(BaseModel):
     approver_names: List[str] = Field(default_factory=list)
     # The viewer may approve it (a reviewer, and one of its named approvers when it has any).
     can_approve: bool = False
+    # Critical (red) flags on the current version that a reviewer hasn't dismissed; approval waits on these.
+    open_critical_flags: int = 0
+    # The saved check was made before the rulebook last changed (new, edited or removed rules).
+    check_outdated: bool = False
     # For the person viewing it: it's approved and they're a reviewer who may reschedule it or reopen it.
     can_manage_approval: bool = False
     submitted_at: Optional[datetime] = None
@@ -322,10 +326,11 @@ class SubmissionHistory(BaseModel):
 
 
 class ReviewQueueItem(BaseModel):
-    """A submitted video, as the Content Screener lists it."""
+    """A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it."""
     id: UUID
     reference_code: str
     title: str
+    content_type: Optional[str] = None
     status: str
     platforms: List[str] = Field(default_factory=list)
     account: Optional[AccountOption] = None
@@ -334,12 +339,17 @@ class ReviewQueueItem(BaseModel):
     current_version: int
     submitted_at: Optional[datetime] = None
     creator_name: Optional[str] = None
-    video: SubmissionFile
+    # The post's video, when it has one.
+    video: Optional[SubmissionFile] = None
+    # Its images in order (main ones such as carousel slides first, then extras such as a cover).
+    images: List[SubmissionFile] = Field(default_factory=list)
     can_review: bool = False
     # Final approvers named by an approval path for this brand/audience; empty means any brand reviewer.
     approver_names: List[str] = Field(default_factory=list)
     # The viewer may approve it (a reviewer, and one of its named approvers when it has any).
     can_approve: bool = False
+    # Critical (red) flags on the current version that a reviewer hasn't dismissed; approval waits on these.
+    open_critical_flags: int = 0
     publish_at: Optional[datetime] = None
     # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
     due_at: Optional[datetime] = None
