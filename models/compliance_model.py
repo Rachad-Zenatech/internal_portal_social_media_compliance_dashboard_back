@@ -17,6 +17,11 @@ class ComplianceRuleBase(BaseModel):
     traffic_light: str = Field("YELLOW", description="Traffic light risk rating: RED, YELLOW, GREEN")
     prohibited_terms: List[str] = Field(default_factory=list, description="Keywords or phrases that trigger flags in text/captions/transcripts")
     required_disclaimers: List[str] = Field(default_factory=list, description="Mandatory disclaimers or concept labels required by this rule")
+    exception_terms: List[str] = Field(
+        default_factory=list,
+        description="Phrases that cancel a match inside them, e.g. 'not combat proven' for 'combat proven', or "
+                    "'army of volunteers' for the trigger 'army'",
+    )
     disclaimer_triggers: List[str] = Field(
         default_factory=list,
         description="Phrases that make a required disclaimer necessary. Empty: the disclaimer is needed on all content the rule applies to",
@@ -49,6 +54,7 @@ class ComplianceRuleUpdate(BaseModel):
     prohibited_terms: Optional[List[str]] = None
     required_disclaimers: Optional[List[str]] = None
     disclaimer_triggers: Optional[List[str]] = None
+    exception_terms: Optional[List[str]] = None
     allowed_examples: Optional[str] = None
     prohibited_examples: Optional[str] = None
     remediation_guidance: Optional[str] = None
@@ -70,6 +76,27 @@ class ComplianceRule(ComplianceRuleBase):
     updated_at: datetime
     created_by: Optional[UUID] = None
     updated_by: Optional[UUID] = None
+
+
+class RuleExampleResult(BaseModel):
+    example: str
+    # FLAG: a "not acceptable" example the rule should catch. CLEAR: an "acceptable" one it should leave alone.
+    expected: Literal["FLAG", "CLEAR"]
+    flagged: bool
+    matched_terms: List[str] = Field(default_factory=list)
+    ok: bool
+    # Unquoted example text may describe imagery rather than give wording, so a miss may not be a real gap.
+    quoted: bool = True
+
+
+class RuleSelfTest(BaseModel):
+    rule_id: UUID
+    rule_number: str
+    title: str
+    # False when the rule has no phrases or triggers to test (e.g. imagery-only rules).
+    testable: bool
+    passed: bool
+    results: List[RuleExampleResult] = Field(default_factory=list)
 
 
 class ComplianceCheckRequest(BaseModel):
@@ -99,12 +126,25 @@ class ComplianceViolation(BaseModel):
     kind: Literal["PROHIBITED_TERM", "MISSING_DISCLAIMER"] = "PROHIBITED_TERM"
     # Any one of these satisfies the rule.
     missing_disclaimers: List[str] = Field(default_factory=list)
+    # Points this finding took off the score.
+    penalty: int = 0
+    # Set when every word it flagged was already counted for a stricter rule (the same words, counted once).
+    counted_with: Optional[str] = None
+    # The rule's exceptions, so the per-moment video flags skip the same excused wording.
+    exception_terms: List[str] = Field(default_factory=list)
 
 
 class ComplianceCheckResponse(BaseModel):
     is_compliant: bool
     traffic_light: str = "GREEN"  # GREEN, YELLOW, RED
     score: int = 100  # 0 to 100
+    # A critical (red) finding blocks publication; the score is then capped so it can't look like a pass.
+    blocked: bool = False
+    score_cap: Optional[int] = None
+    # The score before the cap: 100 minus every finding's penalty.
+    raw_score: int = 100
+    # The rulebook as of this check (when any rule last changed), to tell whether a saved check is out of date.
+    rulebook_version: Optional[str] = None
     violations_count: int = 0
     violations: List[ComplianceViolation] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)

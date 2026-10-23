@@ -5,7 +5,7 @@ Rule CRUD and rulebook screening of captions, scripts and transcripts.
 import logging
 import re
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 import asyncpg
@@ -18,6 +18,8 @@ from models.compliance_model import (
     ComplianceRuleCreate,
     ComplianceRuleUpdate,
     ComplianceViolation,
+    RuleExampleResult,
+    RuleSelfTest,
 )
 from models.submission_model import AUDIENCES, PLATFORMS, REGIONS, RULE_SETS
 from postgresql_db.database import fetch_all, fetch_one, get_pool
@@ -44,6 +46,7 @@ def _row_to_rule(row: dict) -> ComplianceRule:
         prohibited_terms=list(row.get("prohibited_terms") or []),
         required_disclaimers=list(row.get("required_disclaimers") or []),
         disclaimer_triggers=list(row.get("disclaimer_triggers") or []),
+        exception_terms=list(row.get("exception_terms") or []),
         allowed_examples=row.get("allowed_examples"),
         prohibited_examples=row.get("prohibited_examples"),
         remediation_guidance=row.get("remediation_guidance"),
@@ -166,14 +169,14 @@ async def create_compliance_rule(data: ComplianceRuleCreate, user_id: Optional[U
                     severity, traffic_light, prohibited_terms, required_disclaimers,
                     allowed_examples, prohibited_examples, remediation_guidance,
                     applies_to, is_active, is_custom, sort_order, created_by, updated_by,
-                    rule_sets, brands, audiences, regions, platforms, disclaimer_triggers
+                    rule_sets, brands, audiences, regions, platforms, disclaimer_triggers, exception_terms
                 )
                 VALUES (
                     $1, $2, $3, $4, $5,
                     $6, $7, $8, $9,
                     $10, $11, $12,
                     $13, $14, true, $15, $16, $16,
-                    $17, $18, $19, $20, $21, $22
+                    $17, $18, $19, $20, $21, $22, $23
                 )
                 RETURNING *;
             """,
@@ -199,6 +202,7 @@ async def create_compliance_rule(data: ComplianceRuleCreate, user_id: Optional[U
                 scope["regions"],
                 scope["platforms"],
                 data.disclaimer_triggers,
+                data.exception_terms,
             )
     except asyncpg.UniqueViolationError:
         raise _duplicate_number(data.rule_number)
@@ -230,6 +234,7 @@ async def update_compliance_rule(rule_id: UUID, data: ComplianceRuleUpdate, user
         "prohibited_terms": data.prohibited_terms,
         "required_disclaimers": data.required_disclaimers,
         "disclaimer_triggers": data.disclaimer_triggers,
+        "exception_terms": data.exception_terms,
         "allowed_examples": data.allowed_examples,
         "prohibited_examples": data.prohibited_examples,
         "remediation_guidance": data.remediation_guidance,
@@ -339,6 +344,31 @@ def _matches(term: str, padded_text: str) -> bool:
     return bool(pattern and pattern.search(padded_text))
 
 
+def _spans(term: str, padded_text: str) -> List[Tuple[int, int]]:
+    """Where a phrase occurs in normalized, space-padded text."""
+    if "*" not in term:
+        t = _normalize(term)
+        if not t:
+            return []
+        needle, spans, i = f" {t} ", [], padded_text.find(f" {_normalize(term)} ")
+        while i != -1:
+            spans.append((i + 1, i + 1 + len(t)))
+            i = padded_text.find(needle, i + 1)
+        return spans
+    pattern = _term_pattern(term)
+    return [m.span() for m in pattern.finditer(padded_text)] if pattern else []
+
+
+def _hit(term: str, padded_text: str, exceptions: List[str]) -> bool:
+    """A phrase counts unless every place it occurs sits inside one of the rule's exceptions, so "not combat
+    proven" doesn't trip "combat proven" but "not just talk: combat proven" still does."""
+    spans = _spans(term, padded_text)
+    if not spans or not exceptions:
+        return bool(spans)
+    excused = [e for x in exceptions for e in _spans(x, padded_text)]
+    return any(not any(es <= a and b <= ee for es, ee in excused) for a, b in spans)
+
+
 _SMALL_WORDS = {"the", "and", "for", "not", "or", "of", "a", "an", "to", "in", "on", "by", "is", "it"}
 
 
@@ -363,7 +393,7 @@ def flag_segments(segments: List[Dict[str, Any]], violations: List[ComplianceVio
     flags: List[Dict[str, Any]] = []
     for seg in segments:
         padded = f" {_normalize(str(seg.get('text', '')))} "
-        hits = [v for v in violations if any(_matches(t, padded) for t in v.flagged_terms)]
+        hits = [v for v in violations if any(_hit(t, padded, v.exception_terms) for t in v.flagged_terms)]
         light = "GREEN"
         if hits:
             red = any(v.traffic_light == "RED" or v.severity.upper() == "CRITICAL" for v in hits)
@@ -399,92 +429,103 @@ async def applicable_rules(req: ComplianceCheckRequest) -> List[ComplianceRule]:
     return [r for r in await list_compliance_rules(is_active=True) if _rule_applies(r, req)]
 
 
+# Points off per finding, and the most a post with a critical finding can score.
+PENALTY_CRITICAL = 35
+PENALTY_HIGH = 20
+PENALTY_OTHER = 10
+PENALTY_MISSING_DISCLAIMER = 20
+CRITICAL_SCORE_CAP = 40
+
+
+def _evaluate_rule(rule: ComplianceRule, padded_text: str) -> Optional[ComplianceViolation]:
+    """One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
+    disclaimer. Used by the check and by the rule self-tests, so both always agree."""
+    exceptions = list(rule.exception_terms or [])
+    flagged = [t for t in rule.prohibited_terms if _hit(t, padded_text, exceptions)]
+
+    # Required disclaimers: needed when one of the rule's trigger phrases appears (or always, if it has
+    # none). Any one of the listed disclaimers satisfies the rule.
+    missing: List[str] = []
+    triggered_by: List[str] = []
+    if rule.required_disclaimers:
+        triggered_by = [t for t in rule.disclaimer_triggers if _hit(t, padded_text, exceptions)]
+        needed = not rule.disclaimer_triggers or bool(triggered_by) or bool(flagged)
+        if needed and not any(_disclaimer_present(d, padded_text) for d in rule.required_disclaimers):
+            missing = list(rule.required_disclaimers)
+
+    if flagged:
+        severity = rule.severity.upper()
+        if severity == "CRITICAL" or rule.traffic_light == "RED":
+            penalty, light = PENALTY_CRITICAL, "RED"
+        elif severity == "HIGH" or rule.traffic_light == "YELLOW":
+            penalty, light = PENALTY_HIGH, "YELLOW"
+        else:
+            penalty, light = PENALTY_OTHER, rule.traffic_light
+        return ComplianceViolation(
+            rule_id=rule.id,
+            rule_number=rule.rule_number,
+            title=rule.title,
+            category=rule.category,
+            severity=rule.severity,
+            traffic_light=light,
+            flagged_terms=flagged,
+            explanation=f"Text triggered prohibited phrase(s): {', '.join(f'\"{f}\"' for f in flagged)}. {rule.summary}"
+            + (f" It also needs the disclaimer: \"{missing[0]}\"." if missing else ""),
+            remediation_guidance=rule.remediation_guidance,
+            missing_disclaimers=missing,
+            penalty=penalty,
+            exception_terms=exceptions,
+        )
+    if missing:
+        # Adding the disclaimer fixes it, so it needs review rather than stopping publication.
+        what = f'mentions {", ".join(f"\"{t}\"" for t in triggered_by)}' if triggered_by else "is covered by this rule"
+        return ComplianceViolation(
+            rule_id=rule.id,
+            rule_number=rule.rule_number,
+            title=rule.title,
+            category=rule.category,
+            severity="HIGH",
+            traffic_light="YELLOW",
+            flagged_terms=triggered_by,
+            explanation=f"Required disclaimer missing: the content {what}, so it must carry: \"{missing[0]}\""
+            + (f" (or one of {len(missing) - 1} other approved wordings)." if len(missing) > 1 else "."),
+            remediation_guidance=rule.remediation_guidance,
+            kind="MISSING_DISCLAIMER",
+            missing_disclaimers=missing,
+            penalty=PENALTY_MISSING_DISCLAIMER,
+            exception_terms=exceptions,
+        )
+    return None
+
+
 async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckResponse:
     """Screen text against the active rules that apply to this content's rule sets, brand,
-    audience, region and platforms."""
+    audience, region and platforms. Each finding takes its penalty off 100; any critical finding blocks
+    publication and caps the score, so a post that can't go out never looks like a pass."""
     rules = await applicable_rules(req)
     padded_text = f" {_normalize(req.text)} "
     violations: List[ComplianceViolation] = []
-    overall_traffic_light = "GREEN"
-    score = 100
-
     # Two rules can ask for the same disclaimer (e.g. Rules 4 and 13); a missing one is reported once.
     reported_disclaimers: set = set()
     for rule in rules:
-        flagged: List[str] = []
-        for term in rule.prohibited_terms:
-            if _matches(term, padded_text):
-                flagged.append(term)
-
-        # Required disclaimers: needed when one of the rule's trigger phrases appears (or always, if it has
-        # none). Any one of the listed disclaimers satisfies the rule.
-        missing: List[str] = []
-        triggered_by: List[str] = []
-        if rule.required_disclaimers:
-            triggered_by = [t for t in rule.disclaimer_triggers if _matches(t, padded_text)]
-            needed = not rule.disclaimer_triggers or bool(triggered_by) or bool(flagged)
-            if needed and not any(_disclaimer_present(d, padded_text) for d in rule.required_disclaimers):
-                missing = list(rule.required_disclaimers)
-
-        if missing and not flagged and _normalize(missing[0]) in reported_disclaimers:
+        v = _evaluate_rule(rule, padded_text)
+        if not v:
             continue
-        if missing:
-            reported_disclaimers.add(_normalize(missing[0]))
-        if missing and not flagged:
-            # Adding the disclaimer fixes it, so it needs review rather than stopping publication.
-            if overall_traffic_light != "RED":
-                overall_traffic_light = "YELLOW"
-            score = max(0, score - 20)
-            what = f'mentions {", ".join(f"\"{t}\"" for t in triggered_by)}' if triggered_by else "is covered by this rule"
-            violations.append(
-                ComplianceViolation(
-                    rule_id=rule.id,
-                    rule_number=rule.rule_number,
-                    title=rule.title,
-                    category=rule.category,
-                    severity="HIGH",
-                    traffic_light="YELLOW",
-                    flagged_terms=triggered_by,
-                    explanation=f"Required disclaimer missing: the content {what}, so it must carry: \"{missing[0]}\""
-                    + (f" (or one of {len(missing) - 1} other approved wordings)." if len(missing) > 1 else "."),
-                    remediation_guidance=rule.remediation_guidance,
-                    kind="MISSING_DISCLAIMER",
-                    missing_disclaimers=missing,
-                )
-            )
-            continue
+        if v.missing_disclaimers:
+            key = _normalize(v.missing_disclaimers[0])
+            if v.kind == "MISSING_DISCLAIMER" and key in reported_disclaimers:
+                continue
+            reported_disclaimers.add(key)
+        violations.append(v)
 
-        if flagged:
-            severity = rule.severity.upper()
-            if severity == "CRITICAL" or rule.traffic_light == "RED":
-                overall_traffic_light = "RED"
-                penalty = 35
-            elif severity == "HIGH" or rule.traffic_light == "YELLOW":
-                if overall_traffic_light != "RED":
-                    overall_traffic_light = "YELLOW"
-                penalty = 20
-            else:
-                penalty = 10
-            score = max(0, score - penalty)
-
-            violations.append(
-                ComplianceViolation(
-                    rule_id=rule.id,
-                    rule_number=rule.rule_number,
-                    title=rule.title,
-                    category=rule.category,
-                    severity=rule.severity,
-                    traffic_light=rule.traffic_light,
-                    flagged_terms=flagged,
-                    explanation=f"Text triggered prohibited phrase(s): {', '.join(f'\"{f}\"' for f in flagged)}. {rule.summary}"
-                    + (f" It also needs the disclaimer: \"{missing[0]}\"." if missing else ""),
-                    remediation_guidance=rule.remediation_guidance,
-                    missing_disclaimers=missing,
-                )
-            )
+    _count_overlaps_once(violations, padded_text)
+    blocked = any(v.traffic_light == "RED" for v in violations)
+    overall_traffic_light = "RED" if blocked else "YELLOW" if any(v.traffic_light == "YELLOW" for v in violations) else "GREEN"
+    raw_score = max(0, 100 - sum(v.penalty for v in violations))
+    score = min(raw_score, CRITICAL_SCORE_CAP) if blocked else raw_score
 
     recommendations: List[str] = []
-    if overall_traffic_light == "RED":
+    if blocked:
         recommendations.append("STOP PUBLICATION: Critical red-line compliance violation detected. Legal/Compliance clearance required.")
     elif overall_traffic_light == "YELLOW":
         recommendations.append("REVIEW REQUIRED: High-risk or developmental maturity claims detected. Second-party Comms/IR review required.")
@@ -497,11 +538,96 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         is_compliant=(len(violations) == 0),
         traffic_light=overall_traffic_light,
         score=score,
+        raw_score=raw_score,
+        blocked=blocked,
+        score_cap=CRITICAL_SCORE_CAP if blocked and raw_score > CRITICAL_SCORE_CAP else None,
         violations_count=len(violations),
         violations=violations,
         recommendations=recommendations,
         rules_checked=len(rules),
+        rulebook_version=await rulebook_version(),
     )
+
+
+def _count_overlaps_once(violations: List[ComplianceViolation], padded_text: str) -> None:
+    """When two rules flag the very same words (e.g. one phrase in both a maturity rule and a vocabulary rule),
+    the words cost points once, at the stricter rule's penalty. The other finding stays listed, at 0 points."""
+    def spans(v: ComplianceViolation) -> List[Tuple[int, int]]:
+        return [sp for t in v.flagged_terms for sp in _spans(t, padded_text)]
+
+    counted: List[Tuple[Tuple[int, int], str]] = []
+    for v in sorted((v for v in violations if v.kind == "PROHIBITED_TERM"), key=lambda v: -v.penalty):
+        mine = spans(v)
+        if not mine:
+            continue
+        cover = [rule for (a, b), rule in counted if any(x < b and a < y for x, y in mine)]
+        if cover and all(any(x < b and a < y for (a, b), _ in counted) for x, y in mine):
+            v.counted_with = cover[0]
+            v.penalty = 0
+            continue
+        counted.extend((sp, v.rule_number) for sp in mine)
+
+
+async def rulebook_version() -> Optional[str]:
+    """When any rule last changed (added, edited or removed)."""
+    row = await fetch_one("SELECT max(greatest(updated_at, coalesce(deleted_at, updated_at))) AS v FROM compliance_rules")
+    return row["v"].isoformat() if row and row["v"] else None
+
+
+# ---------------------------------------------------------------------------
+# Rule self-tests: every rule checked against its own examples
+# ---------------------------------------------------------------------------
+
+_QUOTED = re.compile(r'"([^"]{4,})"|\u201c([^\u201d]{4,})\u201d')
+
+
+def _examples(text: Optional[str], unquoted: bool) -> List[Tuple[str, bool]]:
+    """(example, quoted) pairs from a rule's example text. Quoted examples are actual wording. Unquoted text is
+    used too when `unquoted` (split at semicolons), since "not acceptable" examples are usually wording; it may
+    describe imagery instead, which the result says."""
+    if not text or not text.strip():
+        return []
+    quoted = [q.strip() for a, b in _QUOTED.findall(text) for q in [a or b] if q.strip()]
+    if quoted:
+        return [(q, True) for q in quoted]
+    if not unquoted:
+        return []
+    return [(p.strip(), False) for p in text.split(";") if len(p.strip()) >= 4]
+
+
+def self_test(rule: ComplianceRule) -> RuleSelfTest:
+    """Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable"
+    ones (it shouldn't). Rules with no phrases, or no quoted wording to test, are marked untestable."""
+    has_checks = bool(rule.prohibited_terms or rule.disclaimer_triggers or rule.required_disclaimers)
+    # "Acceptable" text is usually a description of what to do, so only its quoted wording is tested.
+    cases = [("FLAG", ex) for ex in _examples(rule.prohibited_examples, unquoted=True)]
+    cases += [("CLEAR", ex) for ex in _examples(rule.allowed_examples, unquoted=False)]
+    testable = has_checks and bool(cases)
+    results: List[RuleExampleResult] = []
+    if testable:
+        for expected, (example, quoted) in cases:
+            v = _evaluate_rule(rule, f" {_normalize(example)} ")
+            flagged = v is not None
+            results.append(RuleExampleResult(
+                example=example[:300],
+                expected=expected,
+                flagged=flagged,
+                matched_terms=list(v.flagged_terms) if v else [],
+                ok=flagged == (expected == "FLAG"),
+                quoted=quoted,
+            ))
+    return RuleSelfTest(
+        rule_id=rule.id,
+        rule_number=rule.rule_number,
+        title=rule.title,
+        testable=testable,
+        passed=all(r.ok for r in results),
+        results=results,
+    )
+
+
+async def self_test_all() -> List[RuleSelfTest]:
+    return [self_test(r) for r in await list_compliance_rules()]
 
 
 async def get_compliance_stats() -> Dict[str, Any]:

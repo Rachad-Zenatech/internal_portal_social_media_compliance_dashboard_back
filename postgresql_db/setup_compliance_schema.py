@@ -683,6 +683,18 @@ _DOD_CONTEXT = [
     "military footage",
 ]
 
+# Wording that contains a flagged phrase but says the opposite, or uses a trigger word in another sense.
+BASE_EXCEPTIONS = {
+    "Rule 2": [
+        "not combat proven", "not yet combat proven", "not operationally deployed", "not yet operationally deployed",
+        "not production ready", "not yet production ready", "not combat ready", "not a fielded system",
+    ],
+    "Rule 4": ["army of", "salvation army", "swiss army", "navy blue"],
+    "Rule 13": ["army of", "salvation army", "swiss army", "navy blue"],
+    "Rule 24": ["not risk free", "no guarantee", "not guaranteed", "never fails to", "not the only"],
+    "Rule 26": ["not faa approved", "not yet faa approved", "not faa certified", "not fully certified", "not fully approved"],
+}
+
 # When a baseline rule's required disclaimer is needed (empty = on everything the rule covers).
 BASE_DISCLAIMER_TRIGGERS = {
     "Rule 4": _DOD_CONTEXT,
@@ -711,6 +723,7 @@ def _base_rules_json() -> str:
             **rule,
             "rule_sets": BASE_RULE_SETS.get(rule["rule_number"], [DEFENSE]),
             "disclaimer_triggers": rule.get("disclaimer_triggers") or BASE_DISCLAIMER_TRIGGERS.get(rule["rule_number"], []),
+            "exception_terms": rule.get("exception_terms") or BASE_EXCEPTIONS.get(rule["rule_number"], []),
         }
         for rule in BASE_RULES
     ])
@@ -724,11 +737,12 @@ _BASE_RULES_SELECT = """
            ARRAY(SELECT jsonb_array_elements_text(r.required_disclaimers)),
            r.allowed_examples, r.prohibited_examples, r.remediation_guidance,
            r.sort_order, ARRAY(SELECT jsonb_array_elements_text(r.rule_sets)), true, false,
-           ARRAY(SELECT jsonb_array_elements_text(r.disclaimer_triggers))
+           ARRAY(SELECT jsonb_array_elements_text(r.disclaimer_triggers)),
+           ARRAY(SELECT jsonb_array_elements_text(coalesce(r.exception_terms, '[]')))
     FROM jsonb_to_recordset($2::jsonb) AS r(
         rule_number text, category text, title text, summary text, severity text, traffic_light text,
         prohibited_terms jsonb, required_disclaimers jsonb, allowed_examples text, prohibited_examples text,
-        remediation_guidance text, sort_order int, rule_sets jsonb, disclaimer_triggers jsonb
+        remediation_guidance text, sort_order int, rule_sets jsonb, disclaimer_triggers jsonb, exception_terms jsonb
     )
 """
 
@@ -793,6 +807,8 @@ async def setup(reset: bool = False):
             ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
             -- Phrases that make a rule's required disclaimer necessary (empty: always needed)
             ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS disclaimer_triggers TEXT[] DEFAULT '{}'::text[];
+            -- Phrases that cancel a match inside them (e.g. "not combat proven")
+            ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS exception_terms TEXT[] DEFAULT '{}'::text[];
         """)
 
         # Scope columns. They're added without a default so the first run can tell which rows still
@@ -876,7 +892,7 @@ async def setup(reset: bool = False):
                 rulebook_id, rule_number, category, title, summary,
                 severity, traffic_light, prohibited_terms, required_disclaimers,
                 allowed_examples, prohibited_examples, remediation_guidance,
-                sort_order, rule_sets, is_active, is_custom, disclaimer_triggers
+                sort_order, rule_sets, is_active, is_custom, disclaimer_triggers, exception_terms
             )
             {_BASE_RULES_SELECT}
         """
@@ -893,6 +909,7 @@ async def setup(reset: bool = False):
                     prohibited_terms = EXCLUDED.prohibited_terms,
                     required_disclaimers = EXCLUDED.required_disclaimers,
                     disclaimer_triggers = EXCLUDED.disclaimer_triggers,
+                    exception_terms = EXCLUDED.exception_terms,
                     allowed_examples = EXCLUDED.allowed_examples,
                     prohibited_examples = EXCLUDED.prohibited_examples,
                     remediation_guidance = EXCLUDED.remediation_guidance,

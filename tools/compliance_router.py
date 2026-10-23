@@ -13,8 +13,12 @@ from models.compliance_model import (
     ComplianceRule,
     ComplianceRuleCreate,
     ComplianceRuleUpdate,
+    RuleSelfTest,
 )
 from services import compliance_service as comp_svc
+from services import submission_service
+from services import flag_review_service
+from models.flag_review_model import RuleFlagStats
 from services.audit_service import log_audit_event
 from services.auth_service import get_current_user_id_dependency, require_permission
 
@@ -46,6 +50,19 @@ async def list_rules(
     )
 
 
+@router.get("/rules/flag-stats", response_model=List[RuleFlagStats])
+async def rules_flag_stats(_user_id: CurrentUser):
+    """Per rule: how many submitted versions it flagged and how many of those flags reviewers dismissed."""
+    return await flag_review_service.rule_stats()
+
+
+@router.get("/rules/self-test", response_model=List[RuleSelfTest])
+async def rules_self_test(_user_id: CurrentUser):
+    """Every rule run against its own examples: "not acceptable" ones should be flagged, "acceptable" ones not.
+    Declared before /rules/{rule_id} so "self-test" isn't read as an id."""
+    return await comp_svc.self_test_all()
+
+
 @router.get("/rules/{rule_id}", response_model=ComplianceRule)
 async def get_rule(rule_id: UUID, _user_id: CurrentUser):
     """Retrieve details for a single compliance rule."""
@@ -58,7 +75,9 @@ async def get_rule(rule_id: UUID, _user_id: CurrentUser):
 @router.post("/rules", response_model=ComplianceRule, status_code=status.HTTP_201_CREATED)
 async def create_rule(data: ComplianceRuleCreate, user_id: ManageUser):
     """Build on compliance rules: Add a new custom or refined compliance rule."""
-    return await comp_svc.create_compliance_rule(data, user_id=user_id)
+    rule = await comp_svc.create_compliance_rule(data, user_id=user_id)
+    submission_service.schedule_rulebook_recheck(f"{rule.rule_number} added")
+    return rule
 
 
 @router.put("/rules/{rule_id}", response_model=ComplianceRule)
@@ -67,6 +86,7 @@ async def update_rule(rule_id: UUID, data: ComplianceRuleUpdate, user_id: Manage
     rule = await comp_svc.update_compliance_rule(rule_id, data, user_id=user_id)
     if not rule:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Compliance rule not found")
+    submission_service.schedule_rulebook_recheck(f"{rule.rule_number} edited")
     return rule
 
 
@@ -76,6 +96,7 @@ async def delete_rule(rule_id: UUID, user_id: ManageUser):
     success = await comp_svc.delete_compliance_rule(rule_id, user_id=user_id)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Compliance rule not found")
+    submission_service.schedule_rulebook_recheck("a rule was removed")
     return None
 
 
@@ -97,6 +118,7 @@ async def reset_defaults(user_id: ManageUser):
     Custom rules are not touched."""
     from postgresql_db.setup_compliance_schema import setup as setup_compliance
     await setup_compliance(reset=True)
+    submission_service.schedule_rulebook_recheck("baseline rules restored")
     await log_audit_event(
         entity_type="compliance_rulebook",
         entity_id="baseline",
