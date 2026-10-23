@@ -35,3 +35,5 @@ aio-pika>=9.5.4
 
 # Mock Canva exports: renders demo designs to real PNG/MP4 files (bundles an ffmpeg binary)
 imageio-ffmpeg>=0.5.1
+# Time zone data for zoneinfo (Windows has none built in); sentiment uses it for Gemini's Pacific-time quota reset
+tzdata>=2024.1
