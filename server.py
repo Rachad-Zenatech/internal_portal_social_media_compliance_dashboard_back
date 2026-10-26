@@ -14,7 +14,7 @@ from uuid import UUID, uuid4
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastmcp import FastMCP
@@ -109,6 +109,11 @@ async def lifespan(app: FastAPI):
         except Exception as listen_err:
             logger.warning(f"Listening schema setup note: {listen_err}")
         try:
+            from postgresql_db.setup_login_codes_schema import setup as setup_login_codes_schema
+            await setup_login_codes_schema()
+        except Exception as login_err:
+            logger.warning(f"Login codes schema setup note: {login_err}")
+        try:
             from postgresql_db.setup_performance_schema import setup as setup_performance_schema
             await setup_performance_schema()
         except Exception as perf_err:
@@ -167,6 +172,12 @@ async def lifespan(app: FastAPI):
     memory_task = asyncio.create_task(remember_all_in_background(), name="review-memory-sync")
     memory_task.add_done_callback(partial(log_background_task_result, task_name="review-memory-sync"))
     background_tasks.append(memory_task)
+
+    # 3e. Open content checked against an older rulebook or older built-in claim checks is re-checked
+    from services.submission_service import recheck_outdated_on_start
+    recheck_task = asyncio.create_task(recheck_outdated_on_start(), name="outdated-check-recheck")
+    recheck_task.add_done_callback(partial(log_background_task_result, task_name="outdated-check-recheck"))
+    background_tasks.append(recheck_task)
 
     # 4. Initialize Event-Driven MQTT Service Presence & Bus
     from services import mqtt_presence as mqtt_module
@@ -238,16 +249,22 @@ class MessageItem(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=20_000)
     history: List[MessageItem] = Field(default_factory=list, max_length=50)
-    file_data: Optional[str] = Field(default=None, max_length=20_000_000)
-    mime_type: Optional[str] = Field(default=None, max_length=255)
+
+# The whole conversation sent to Gemini in one request, so one request can't use a huge share of the quota.
+CHAT_MAX_TOTAL_CHARS = 60_000
 
 @app.post("/ai/chat")
 async def ai_chat(req: ChatRequest, user_id: UUID = Depends(get_current_user_id)):
+    if len(req.message) + sum(len(h.content) for h in req.history) > CHAT_MAX_TOTAL_CHARS:
+        raise HTTPException(status_code=413, detail="The conversation is too long. Start a new one.")
+    # Counts toward the same daily AI limits as the other Gemini features (429 with when it frees up).
+    from services import ai_usage_service
+    await ai_usage_service.reserve("CHAT", user_id)
     try:
         current_user_id_ctx.set(user_id)
         async def stream_generator():
             try:
-                async for chunk in ask_gemini_stream(req.message, req.history, req.file_data, req.mime_type):
+                async for chunk in ask_gemini_stream(req.message, req.history):
                     yield chunk
             except Exception:
                 import json

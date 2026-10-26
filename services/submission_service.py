@@ -57,6 +57,7 @@ from services import image_text_service, review_memory_service
 from services.ai_usage_service import AiLimitExceeded
 from services.compliance_service import check_compliance, flag_segments
 from services.compliance_service import rulebook_version as compliance_rulebook_version
+from services.html_sanitizer import sanitize_caption_html
 
 logger = logging.getLogger(__name__)
 
@@ -422,7 +423,8 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
                s.due_at, s.due_kind, s.rule_sets,
                left(s.caption_text, 600) AS caption_text,
                s.latest_check->>'traffic_light' AS latest_traffic_light,
-               (s.latest_check->>'score')::int AS latest_score,
+               CASE WHEN """ + _pending_sql("s.latest_check") + """ THEN NULL ELSE (s.latest_check->>'score')::int END AS latest_score,
+               """ + _pending_sql("s.latest_check") + """ AS analysis_pending,
                (SELECT count(*) FROM content_submission_files f
                  WHERE f.submission_id = s.id AND f.deleted_at IS NULL) AS file_count,
                (SELECT count(*) FROM content_review_comments rc
@@ -559,7 +561,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
     if payload.get("publish_at"):
         fields["publish_at"] = payload["publish_at"]
     if "caption_html" in payload:
-        fields["caption_html"] = payload["caption_html"]
+        # Shown back to other people in the editor, so only safe formatting is kept.
+        fields["caption_html"] = sanitize_caption_html(payload["caption_html"])
     if "caption_text" in payload:
         fields["caption_text"] = payload["caption_text"]
     if payload.get("rule_sets") is not None:
@@ -934,6 +937,24 @@ async def get_file_for_download(submission_id: UUID, file_id: UUID, user_id: UUI
 # Checks, submission and history
 # ---------------------------------------------------------------------------
 
+def analysis_pending(check: Optional[Dict[str, Any]]) -> bool:
+    """Whether the post is still being analysed: its video transcript or the text in its images isn't read yet.
+    Until it is, the check has no score to show; it's re-checked automatically when the reading finishes."""
+    if not check:
+        return False
+    if "analysis_pending" in check:
+        return bool(check["analysis_pending"])
+    return bool(check.get("transcript_pending")) or (check.get("images_pending") or 0) > 0
+
+
+def _pending_sql(column: str) -> str:
+    """SQL for analysis_pending() on a stored check (older checks only have the two parts)."""
+    return (
+        f"coalesce(({column}->>'analysis_pending')::boolean, "
+        f"coalesce(({column}->>'transcript_pending')::boolean, false) OR coalesce(({column}->>'images_pending')::int, 0) > 0)"
+    )
+
+
 def _check_text(row: Dict[str, Any]) -> str:
     return "\n\n".join(p for p in [row["title"], row["caption_text"]] if p and p.strip())
 
@@ -995,6 +1016,8 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         "images_failed": sum(1 for i in images if i["image_text_status"] == "FAILED"),
         "segment_flags": flag_segments(segments, result.violations),
     }
+    # No score until the whole post has been read; screens show "Under review" until then.
+    check["analysis_pending"] = analysis_pending(check)
     return result, check
 
 
@@ -1048,7 +1071,8 @@ def _review_job(r: Dict[str, Any]) -> ReviewJob:
         status=r["status"],
         reviewer_route=list(r["reviewer_route"] or []),
         traffic_light=r["traffic_light"],
-        score=r["score"],
+        # No score while the post is still being read (see analysis_pending).
+        score=None if analysis_pending(_json(r["automated_check"])) else r["score"],
         automated_check=_json(r["automated_check"]),
         created_at=r["created_at"],
         completed_at=r["completed_at"],
@@ -1155,8 +1179,8 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
             await _add_event(conn, submission_id, "SUBMITTED", f"Version {version} submitted for review", user_id,
                              {"version": version, "review_job_id": str(job["id"])})
             await _add_event(conn, submission_id, "CHECK_COMPLETED",
-                             f"Automated rulebook check: {result.violations_count} issue(s), score {result.score}/100",
-                             user_id, {"traffic_light": result.traffic_light, "score": result.score})
+                             _check_summary(result, check), user_id,
+                             {"traffic_light": result.traffic_light, "score": result.score})
             await _add_event(conn, submission_id, "REVIEW_REQUESTED", "Sent to the review queue", user_id)
 
     await log_audit_event("content_submission", str(submission_id), "SUBMIT_FOR_REVIEW", user_id,
@@ -1168,15 +1192,14 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
             user_id=str(user_id),
             type="SUBMISSION",
             title=f"{row['reference_code']} submitted for review",
-            message=f"\"{row['title']}\" (version {version}) is in the review queue. "
-                    f"Automated check: {result.score}/100.",
+            message=f"\"{row['title']}\" (version {version}) is in the review queue. {_score_line(result, check)}",
             link_url=f"/submissions/{submission_id}",
             entity_type="content_submission",
             entity_id=str(submission_id),
         ))
     except Exception:
         logger.warning("Could not create submission notification", exc_info=True)
-    await _notify_reviewers(row, version, result.score, user_id)
+    await _notify_reviewers(row, version, _score_line(result, check), user_id)
     # Sentiment analysis isn't started here: the reviewer runs it from the review screen when they want it.
 
     return await get_submission(submission_id, user_id), _review_job(dict(job))
@@ -1333,7 +1356,7 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             f"""
             SELECT round(avg(j.score))::int AS average
             FROM content_review_jobs j JOIN content_submissions s ON s.id = j.submission_id
-            WHERE {visible} AND j.score IS NOT NULL AND j.created_at >= {since}
+            WHERE {visible} AND j.score IS NOT NULL AND NOT {_pending_sql("j.automated_check")} AND j.created_at >= {since}
             """,
             *args,
         ),
@@ -1626,7 +1649,20 @@ async def _notify(user_ids: List[UUID], title: str, message: str, link: str, sub
         logger.warning("Could not send review notifications for %s", submission_id, exc_info=True)
 
 
-async def _notify_reviewers(row: Dict[str, Any], version: int, score: int, submitter: UUID) -> None:
+def _score_line(result: Any, check: Dict[str, Any]) -> str:
+    """The check's score for a message, or that it's still being analysed."""
+    if analysis_pending(check):
+        return "Automated check: under review (still reading the video or images)."
+    return f"Automated check: {result.score}/100."
+
+
+def _check_summary(result: Any, check: Dict[str, Any]) -> str:
+    if analysis_pending(check):
+        return "Automated rulebook check started; the score comes once the video and images have been read"
+    return f"Automated rulebook check: {result.violations_count} issue(s), score {result.score}/100"
+
+
+async def _notify_reviewers(row: Dict[str, Any], version: int, score_line: str, submitter: UUID) -> None:
     author = await fetch_one("SELECT full_name FROM users WHERE id = $1", submitter)
     again = " (resubmitted)" if version > 1 else ""
     who = author["full_name"] if author else "Someone"
@@ -1637,14 +1673,14 @@ async def _notify_reviewers(row: Dict[str, Any], version: int, score: int, submi
         approvers,
         f"{row['reference_code']} needs your approval{again}",
         f"{who} sent \"{row['title']}\" (version {version}) for review, and you give final approval for it. "
-        f"Automated check: {score}/100.",
+        f"{score_line}",
         f"/submissions/{row['id']}",
         row["id"],
     )
     await _notify(
         [r for r in reviewers if r not in approvers],
         f"{row['reference_code']} is ready for review{again}",
-        f"{who} sent \"{row['title']}\" (version {version}) for review. Automated check: {score}/100.",
+        f"{who} sent \"{row['title']}\" (version {version}) for review. {score_line}",
         f"/submissions/{row['id']}",
         row["id"],
     )
@@ -2044,6 +2080,22 @@ async def recheck_open_submissions(reason: str) -> int:
     return changed
 
 
+async def recheck_outdated_on_start() -> None:
+    """On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
+    (e.g. after a deploy that changed the checks), so its score follows them."""
+    current = await compliance_rulebook_version()
+    stale = await fetch_one(
+        """
+        SELECT count(*) AS n FROM content_submissions
+        WHERE status IN ('IN_REVIEW', 'CHANGES_REQUESTED') AND deleted_at IS NULL
+          AND latest_check->>'rulebook_version' IS DISTINCT FROM $1
+        """,
+        current,
+    )
+    if stale and stale["n"]:
+        await recheck_open_submissions("the automated checks were updated")
+
+
 def schedule_rulebook_recheck(reason: str) -> None:
     """Re-check open content shortly after a rule changes; a burst of edits leads to one pass."""
     import asyncio
@@ -2103,9 +2155,12 @@ async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
                     """,
                     sub["id"], sub["current_version"], json.dumps(check), result.score, result.traffic_light,
                 )
-                await _add_event(conn, sub["id"], "CHECK_COMPLETED",
-                                 f"Re-checked with {what}: {result.violations_count} issue(s), "
-                                 f"score {result.score}/100", None,
+                summary = (
+                    f"Read {what}; still reading the rest of the post before scoring"
+                    if analysis_pending(check)
+                    else f"Re-checked with {what}: {result.violations_count} issue(s), score {result.score}/100"
+                )
+                await _add_event(conn, sub["id"], "CHECK_COMPLETED", summary, None,
                                  {"traffic_light": result.traffic_light, "score": result.score})
     except Exception:
         logger.exception("Couldn't re-check submission after reading %s of %s", what, file_id)
