@@ -12,6 +12,7 @@ from fastapi import HTTPException
 from models.context_model import ContextEntry, ContextEntryIn
 from models.submission_model import AUDIENCES, PLATFORMS
 from postgresql_db.database import fetch_all, fetch_one
+from services import reference_index_service
 from services.audit_service import log_audit_event
 
 # The order sections appear in the analysis prompt and on the page.
@@ -69,6 +70,7 @@ async def create_entry(data: ContextEntryIn, user_id: UUID) -> ContextEntry:
         data.platforms, data.source, data.as_of, data.is_active, user_id,
     )
     await log_audit_event("messaging_context", str(row["id"]), "CREATE_CONTEXT", user_id, data.model_dump(mode="json"))
+    reference_index_service.sync_soon()
     return _out(await fetch_one(_SELECT + " WHERE m.id = $1", row["id"]))
 
 
@@ -89,6 +91,7 @@ async def update_entry(entry_id: UUID, data: ContextEntryIn, user_id: UUID) -> C
     )
     await log_audit_event("messaging_context", str(entry_id), "UPDATE_CONTEXT", user_id,
                           {"before": _out(before).model_dump(mode="json"), "after": data.model_dump(mode="json")})
+    reference_index_service.sync_soon()
     return _out(await fetch_one(_SELECT + " WHERE m.id = $1", entry_id))
 
 
@@ -102,6 +105,7 @@ async def delete_entry(entry_id: UUID, user_id: UUID) -> None:
         entry_id, user_id,
     )
     await log_audit_event("messaging_context", str(entry_id), "DELETE_CONTEXT", user_id, _out(before).model_dump(mode="json"))
+    reference_index_service.sync_soon()
 
 
 # ---------------------------------------------------------------------------

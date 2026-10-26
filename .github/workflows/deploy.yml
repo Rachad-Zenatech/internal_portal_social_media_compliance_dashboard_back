@@ -58,6 +58,11 @@ jobs:
         run: |
           pytest -q
 
+      # Input screening, PII redaction, model routing and cache checks against labelled cases (offline, no Gemini).
+      - name: AI safety eval
+        run: |
+          python scripts/ai_safety_eval.py
+
   docker-build:
     name: Build Docker Image
     runs-on: ubuntu-latest

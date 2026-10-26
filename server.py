@@ -54,7 +54,8 @@ from tools.vector_store_router import router as vector_store_router
 from tools.sentiment_router import router as sentiment_router
 
 # MCP tools & AI functions
-from mcp_tools import register_all as register_mcp_tools, ask_gemini_stream, sync_mcp_tools_to_vector_db
+from mcp_tools import register_all as register_mcp_tools, sync_mcp_tools_to_vector_db
+from services import ai_observability, assistant_chat_service
 from services.graph_sync_job import graph_sync_loop
 
 configure_logging()
@@ -118,6 +119,11 @@ async def lifespan(app: FastAPI):
             await setup_performance_schema()
         except Exception as perf_err:
             logger.warning(f"Post performance schema setup note: {perf_err}")
+        try:
+            from postgresql_db.setup_ai_observability_schema import setup as setup_ai_observability_schema
+            await setup_ai_observability_schema()
+        except Exception as ai_err:
+            logger.warning(f"AI observability schema setup note: {ai_err}")
     except Exception:
         logger.exception("Application startup failed", extra={"event": "application_startup_failed"})
         raise
@@ -179,6 +185,15 @@ async def lifespan(app: FastAPI):
     recheck_task.add_done_callback(partial(log_background_task_result, task_name="outdated-check-recheck"))
     background_tasks.append(recheck_task)
 
+    # 3f. AI traces and prompt logs: written in batches as they arrive (waits on a queue, no polling)
+    trace_task = asyncio.create_task(ai_observability.writer_loop(), name="ai-trace-writer")
+    trace_task.add_done_callback(partial(log_background_task_result, task_name="ai-trace-writer"))
+    background_tasks.append(trace_task)
+
+    # 3g. Reference index: rulebook and Messaging Context in the vector store for the assistant's search
+    from services.reference_index_service import sync_soon as sync_reference_index
+    sync_reference_index()
+
     # 4. Initialize Event-Driven MQTT Service Presence & Bus
     from services import mqtt_presence as mqtt_module
     from services.mqtt_presence import MqttServicePresence
@@ -195,7 +210,9 @@ async def lifespan(app: FastAPI):
 
     logger.info("Application startup complete", extra={"event": "application_started"})
     try:
-        yield
+        # The MCP endpoint (/mcp) runs its session manager inside the app's lifespan.
+        async with mcp_http_app.lifespan(app):
+            yield
     finally:
         logger.info("Application shutdown beginning", extra={"event": "application_stopping"})
         try:
@@ -209,6 +226,7 @@ async def lifespan(app: FastAPI):
         for task in background_tasks:
             task.cancel()
         await asyncio.gather(*background_tasks, return_exceptions=True)
+        await ai_observability.flush()
         await close_pool()
         loop.set_exception_handler(previous_exception_handler)
         logger.info("Application shutdown complete", extra={"event": "application_stopped"})
@@ -239,6 +257,10 @@ app = FastAPI(
 # MCP server setup
 mcp = FastMCP("Social Media Compliance MCP Server")
 register_mcp_tools(mcp)
+# Streamable HTTP endpoint at /mcp/: clients send the portal's access token (Bearer); tools are filtered and checked
+# per role, traced and redacted by mcp_tools.middleware.
+mcp_http_app = mcp.http_app(path="/")
+app.mount("/mcp", mcp_http_app)
 
 
 # --- AI Chat / Agent Endpoint ---
@@ -257,14 +279,24 @@ CHAT_MAX_TOTAL_CHARS = 60_000
 async def ai_chat(req: ChatRequest, user_id: UUID = Depends(get_current_user_id)):
     if len(req.message) + sum(len(h.content) for h in req.history) > CHAT_MAX_TOTAL_CHARS:
         raise HTTPException(status_code=413, detail="The conversation is too long. Start a new one.")
-    # Counts toward the same daily AI limits as the other Gemini features (429 with when it frees up).
-    from services import ai_usage_service
-    await ai_usage_service.reserve("CHAT", user_id)
     try:
         current_user_id_ctx.set(user_id)
+        # Input screening and the semantic cache first: a blocked message or a cached answer uses no AI quota.
+        prepared = await assistant_chat_service.prepare(req.message, req.history, user_id)
+    except Exception:
+        logger.exception("AI chat request failed", extra={"event": "ai_chat_failed"})
+        return JSONResponse(
+            content={"reply": "The AI service is temporarily unavailable. Please try again."},
+            status_code=500
+        )
+    if not prepared.blocked and prepared.cached_answer is None:
+        # Counts toward the same daily AI limits as the other Gemini features (429 with when it frees up).
+        from services import ai_usage_service
+        await ai_usage_service.reserve("CHAT", user_id)
+    try:
         async def stream_generator():
             try:
-                async for chunk in ask_gemini_stream(req.message, req.history):
+                async for chunk in assistant_chat_service.stream(prepared):
                     yield chunk
             except Exception:
                 import json

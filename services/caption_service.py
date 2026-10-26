@@ -187,7 +187,7 @@ async def suggest(submission_id: UUID, user_id: UUID, req: CaptionSuggestRequest
         temperature=0.7,
     )
     try:
-        response = await generate_content_with_fallback(client, contents, config)
+        response = await generate_content_with_fallback(client, contents, config, feature="CAPTION", submission_id=submission_id)
         data = json.loads(response.text or "{}")
         raw = data.get("suggestions") or []
     except (ValueError, ValidationError) as e:

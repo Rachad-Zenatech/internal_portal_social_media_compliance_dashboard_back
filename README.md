@@ -1,6 +1,6 @@
 # Social Media Compliance Dashboard Backend
 
-Backend service for the ZenaTech Social Media Compliance internal portal. Built on **FastAPI**, **PostgreSQL** (`asyncpg`), **FastMCP**, **Microsoft Entra ID OAuth 2.0**, **PBAC (Permission-Based Access Control)**, and zero-CPU **Server-Sent Events (SSE)**.
+Backend service for the ZenaTech Social Media Compliance internal portal. Built on **FastAPI**, **PostgreSQL** (`asyncpg`), **FastMCP**, **Microsoft Entra ID OAuth 2.0**, **PBAC (Permission-Based Access Control)**, and zero-CPU **Server-Sent Events (SSE)**, with a guarded **Gemini AI pipeline** (RAG, input screening, PII redaction, semantic cache, model routing, tracing, prompt logs and evaluation). See [AI Pipeline](#ai-pipeline).
 
 ---
 
@@ -61,11 +61,14 @@ flowchart TD
 | **Language** | Python 3.12+ | Strongly typed with Pydantic v2 schemas and async event loops |
 | **Database & Pooling** | [PostgreSQL](https://www.postgresql.org/), [asyncpg](https://github.com/MagicStack/asyncpg) | Direct binary wire protocol, synchronous pool manager `get_pool()`, atomic `UNNEST` batch queries |
 | **Database Migrations**| [Alembic](https://alembic.sqlalchemy.org/) | Declarative schema revision management |
-| **Model Context Protocol**| [FastMCP](https://github.com/jlowin/fastmcp), `mcp` SDK | Streamable HTTP endpoint (`/mcp`) exposing tools to Claude and Gemini AI agents |
+| **Model Context Protocol**| [FastMCP](https://github.com/jlowin/fastmcp), `mcp` SDK | Streamable HTTP endpoint (`/mcp/`) exposing role-checked tools to MCP clients and to the assistant chat |
 | **Real-Time Streaming**| [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) | Event-driven async queues with 30s lightweight keepalive pings and automatic reconnect |
 | **Authentication & SSO**| `Authlib`, `PyJWT`, `passlib`, `bcrypt` | Microsoft Entra ID (Azure AD) OAuth 2.0 PKCE and secure HttpOnly cookie sessions |
 | **Authorization (PBAC)**| Custom PBAC Matrix | User -> Roles -> Group Actions (`VIEW`, `CREATE`, `EDIT`, `DELETE`) & Route Method Policies |
-| **AI Integration** | [Google GenAI SDK](https://github.com/google/generative-ai-python) (`google-genai`) | Automated summaries, query expansion, and document insights |
+| **AI Integration** | [Google GenAI SDK](https://github.com/googleapis/python-genai) (`google-genai`) | Sentiment and claim analysis, caption suggestions, transcription, public mood summaries, assistant chat with tool calling |
+| **Vector Store (RAG)** | MongoDB Atlas Vector Search (`motor`), Gemini embeddings | Rulebook, Messaging Context, past review decisions and listening topics, retrieved by meaning at query time |
+| **AI Guardrails** | `services/ai_guardrails.py` | Jailbreak / prompt-injection input classifier and PII redaction of AI output |
+| **AI Observability** | `services/ai_observability.py` | A trace span for every model call, embedding, retrieval, tool call, guard check and cache lookup, plus prompt logs |
 | **Rate Limiting & Security**| Sliding Window Counter | Per-IP and per-user window throttling protecting sensitive auth routes |
 
 ---
@@ -75,27 +78,43 @@ flowchart TD
 ```text
 internal_portal_social_media_compliance_dashboard_back/
 +-- alembic/                    # Database migrations and environment configs
++-- mcp_tools/                  # MCP tools, shared by /mcp and the assistant chat
+|   +-- __init__.py             # Tool registry, permission codes, run_tool(), tool sync
+|   +-- middleware.py           # /mcp sign-in, per-role tool filtering, tracing, output redaction
+|   +-- reference.py            # search_reference_material_tool (RAG), list_compliance_rules_tool
+|   +-- permissions.py          # list_my_accessible_tools_tool
 +-- models/                     # Pydantic v2 domain schemas
-�   +-- rbac_model.py           # User, role, permission models
-�   +-- notification_model.py   # Notification models
+|   +-- rbac_model.py           # User, role, permission models
+|   +-- notification_model.py   # Notification models
 +-- postgresql_db/              # Database pool & DDL scripts
-�   +-- database.py             # asyncpg get_pool() manager
-�   +-- setup_pbac_schema.py    # PBAC permission tables
-�   +-- seed_database.py        # Seed script for initial admin user & roles
+|   +-- database.py             # asyncpg get_pool() manager
+|   +-- setup_pbac_schema.py    # PBAC permission tables
+|   +-- setup_ai_observability_schema.py # AI trace spans, prompt logs, semantic cache
++-- scripts/
+|   +-- ai_safety_eval.py       # Offline eval: input screening, PII redaction, routing, cache (runs in CI)
+|   +-- sentiment_eval.py       # Sentiment analysis eval against the rulebook (calls Gemini)
 +-- services/                   # Core business logic
-�   +-- auth_service.py         # SSO login and session management
-�   +-- rbac_service.py         # PBAC permission resolution & checks
-�   +-- cache_service.py        # Memory cache & PostgreSQL NOTIFY invalidation
-�   +-- audit_service.py        # Action logging and request audit trails
-�   +-- notification_service.py # SSE broadcast queues
-�   +-- gemini_service.py       # AI assistant integration
-�   +-- service_security_policy.py # require_permission() FastAPI dependencies
+|   +-- auth_service.py         # SSO login and session management
+|   +-- rbac_service.py         # PBAC permission resolution & checks
+|   +-- cache_service.py        # Memory cache & PostgreSQL NOTIFY invalidation
+|   +-- audit_service.py        # Action logging and request audit trails
+|   +-- notification_service.py # SSE broadcast queues
+|   +-- gemini_service.py       # Gemini model list and fallback across models
+|   +-- model_router.py         # Picks models per feature and request size
+|   +-- ai_guardrails.py        # Input screening (jailbreak / injection) and PII redaction
+|   +-- ai_observability.py     # Trace spans, prompt logs, batched writer
+|   +-- semantic_cache.py       # Reuses answers to questions that mean the same thing
+|   +-- assistant_chat_service.py # Assistant chat: guard, cache, routing, tool calls, redaction
+|   +-- vector_store_service.py # MongoDB Atlas vector search and Gemini embeddings
+|   +-- reference_index_service.py # Keeps the rulebook and Messaging Context in the vector store
+|   +-- review_memory_service.py # Past review decisions as precedent for sentiment analysis
+|   +-- service_security_policy.py # require_permission() FastAPI dependencies
 +-- tools/                      # FastAPI endpoint routers
-�   +-- auth_router.py          # /api/auth endpoints
-�   +-- rbac_router.py          # /api/configuration endpoints
-�   +-- notification_router.py  # /api/notifications endpoints
-�   +-- log_router.py           # /api/logs endpoints
-�   +-- observability.py        # /health/live and telemetry
+|   +-- auth_router.py          # /api/auth endpoints
+|   +-- rbac_router.py          # /api/configuration endpoints
+|   +-- notification_router.py  # /api/notifications endpoints
+|   +-- log_router.py           # /api/logs endpoints
+|   +-- observability.py        # Client telemetry and /api/observability/ai/* (traces, prompt logs, usage)
 +-- server.py                   # Root FastAPI app & router registry
 +-- requirements.txt
 +-- run_server.sh
@@ -117,7 +136,13 @@ internal_portal_social_media_compliance_dashboard_back/
 | `PUT` | `/api/configuration/roles/{id}` | Update role permissions | `ROLES:EDIT` |
 | `GET` | `/api/notifications/stream` | Real-time SSE event stream | Yes |
 | `GET` | `/api/logs` | Query audit log trail and system events | `LOGS:VIEW` |
-| `POST` | `/mcp` | FastMCP tool execution endpoint | Authenticated |
+| `POST` | `/ai/chat` | Assistant chat (SSE stream) | Yes |
+| `POST` | `/mcp/` | FastMCP tool endpoint (Streamable HTTP); tools listed and checked per role | Bearer access token |
+| `GET` | `/api/observability/ai/summary` | Calls, errors, p50/p95 latency, tokens per feature and model; cache hits; guard verdicts | `SYSTEM_LOGS:VIEW` |
+| `GET` | `/api/observability/ai/traces` | Recent AI traces (filter by `kind`, `status`) | `SYSTEM_LOGS:VIEW` |
+| `GET` | `/api/observability/ai/traces/{trace_id}` | Every span and prompt log of one trace | `SYSTEM_LOGS:VIEW` |
+| `GET` | `/api/observability/ai/prompt-logs` | Prompts and responses, PII-redacted (filter by `feature`, `status`, `guard_verdict`) | `SYSTEM_LOGS:VIEW` |
+| `GET` | `/api/observability/usage/tokens` | Token totals per feature and model | `SYSTEM_LOGS:VIEW` |
 
 ---
 
@@ -149,7 +174,10 @@ MICROSOFT_CLIENT_SECRET=your-azure-ad-client-secret
 MICROSOFT_TENANT_ID=common
 GEMINI_API_KEY=your-gemini-api-key
 MCP_PORT=7006
+# Optional: the vector store for RAG (off when unset)
+MONGODB_URI=mongodb+srv://...
 ```
+The AI pipeline's settings (all optional, with defaults) are listed under [AI Pipeline > Configuration](#configuration).
 
 ### 4. Run Development Server
 ```bash
@@ -165,6 +193,130 @@ pytest -q
 - Tests follow the finance backend's (`internal_portal`) format: `unittest` test classes in `tests/test_*.py`, with the database, Gemini and MongoDB replaced by `unittest.mock` (`patch`, `AsyncMock`). Nothing needs to be running, and no real data or AI quota is touched.
 - Async code is tested with `unittest.IsolatedAsyncioTestCase`; small builder helpers (e.g. `submission_row()`, `rule()`) sit at the top of each file.
 - CI runs the suite on every pull request to `main`; a failing test blocks the build.
+
+The AI safety eval runs in CI too, and needs nothing running:
+```bash
+python scripts/ai_safety_eval.py            # failures only; exits 1 if a target is missed
+python scripts/ai_safety_eval.py --verbose  # every case
+```
+
+
+## AI Pipeline
+
+Every Gemini call is traced and prompt-logged. The assistant chat uses every layer below. Of the content
+analyses, captions, public mood and transcription are also model-routed. Sentiment and image text reading keep
+their own model chains, and sentiment also records input screening of the post's text.
+
+```mermaid
+flowchart LR
+    Q[Chat message] --> G{Input screening}
+    G -->|BLOCK| R[Refused, logged]
+    G -->|ALLOW / FLAG| C{Semantic cache}
+    C -->|hit| A[Answer]
+    C -->|miss| U[AI quota reserved] --> M[Model router] --> L[Gemini]
+    L -->|tool call| T[MCP tool: RBAC check] --> V[(Vector store / rulebook)]
+    T --> L
+    L --> P[PII redaction] --> A
+    L -.-> O[(Trace spans + prompt logs)]
+    T -.-> O
+```
+
+### RAG (retrieval at query time)
+- `vector_store_service` embeds text with Gemini (`gemini-embedding-2`) into MongoDB Atlas Vector Search. It is off until `MONGODB_URI` is set, and every caller carries on without it.
+- What's indexed:
+  - the compliance rulebook and Messaging Context (brand voice, facts, platform norms, audience profiles), via `reference_index_service`, re-synced after every change and on start;
+  - past review decisions (`review_memory_service`);
+  - listening topics (`public_mood_service`).
+- At query time:
+  - the assistant calls `search_reference_material_tool` to fetch the passages that answer a question;
+  - sentiment analysis pulls the most similar past reviews as precedent.
+
+### MCP server and RBAC
+- The tools in `mcp_tools/` are served at `/mcp/` and are also offered to the assistant chat through Gemini function calling. Both paths use the same RBAC check, tracing and redaction.
+- Identity is the portal's own access token, issued after Microsoft Entra ID sign-in. MCP clients send it as `Authorization: Bearer <token>`, and it goes through the same checks as the API (expiry, logout, inactivity).
+- Each tool has a permission code. A role only sees and can call the tools it has been granted (`role_mcp_tool_permissions`); super admins get every tool.
+
+  | Tool | Permission code |
+  | :--- | :--- |
+  | `search_reference_material_tool` | `REFERENCE_SEARCH` |
+  | `list_compliance_rules_tool` | `COMPLIANCE_RULES_VIEW` |
+  | `list_my_accessible_tools_tool` | `PERMISSIONS_VIEW` |
+
+  New tools are added to the `mcp_tools` table on start. Grant them to roles in the RBAC configuration.
+
+### Input screening (jailbreak / prompt-injection classifier)
+- `ai_guardrails.screen_input` scores text against weighted pattern categories:
+  - instruction override and system prompt extraction;
+  - role hijack and safety bypass;
+  - forced verdicts (e.g. "return NO_CONCERNS");
+  - fake role or delimiter markers;
+  - privilege escalation;
+  - hidden or encoded payloads.
+- Verdicts are `ALLOW`, `FLAG` (≥ 0.4) and `BLOCK` (≥ 0.7).
+- The chat refuses `BLOCK` before calling Gemini or using quota. Both the message and the person's earlier turns are screened.
+- Sentiment analysis records the verdict for the post's own text but always runs: a post that tries to steer the review is itself something reviewers should see.
+- It is a pattern classifier: fast and free, but it only catches phrasings it knows. When one gets through, add it to `scripts/ai_safety_eval.py` and to the patterns.
+
+### PII redaction on output
+- `ai_guardrails.redact_pii` replaces these with `[REDACTED_<KIND>]`:
+  - emails, phone numbers and US SSNs;
+  - payment card numbers (Luhn-checked) and IBANs;
+  - IP addresses;
+  - API keys, JWTs and private keys.
+- Where it applies:
+  - the streamed chat answer, through `StreamRedactor`, so a match split across chunks is still caught;
+  - every tool result;
+  - every stored prompt log.
+- `PII_ALLOWED_EMAIL_DOMAINS` (e.g. `zenatech.com`) keeps company addresses readable.
+
+### Semantic cache
+- Chat questions asked without earlier turns are cached in `ai_semantic_cache`. A repeated question is answered without calling Gemini and doesn't count against AI quota.
+- A hit needs one of these, plus exactly the same numbers in both questions, so "30%" never reuses an answer about "300%":
+  - an exact match on the normalised question, or
+  - cosine similarity ≥ 0.95 between Gemini embeddings (256 dimensions), compared in SQL.
+- Scope: answers are shared only between people with the same tool permissions and the same rulebook version.
+- Expiry: 24 hours, and the chat's entries are cleared when reference material changes.
+- Content analyses are never cached by meaning: two posts that read alike can still differ in a figure or a claim.
+
+### Model routing
+- `model_router` sorts models into tiers: `LIGHT` (flash-lite first), `STANDARD` (flash) and `HEAVY` (a stronger model when configured).
+- Each feature has a base tier (chat `LIGHT`; captions, public mood and transcription `STANDARD`). A request moves up for attachments, a long prompt or high stakes.
+- The rest of the model list follows as fallback for quota, overload or retired models.
+- Sentiment analysis and image text reading keep their own chains (`SENTIMENT_MODELS`, `SENTIMENT_MODEL_HIGH_STAKES`), because their cached results are keyed by model.
+
+### Tracing and prompt logs
+- `ai_observability.span()` records a span for every model call, embedding, vector search, tool call (from `/mcp` or the chat), guard check and cache lookup.
+- Each span has its duration, status (`OK`, `ERROR`, `DENIED`, `CANCELLED`) and attributes: model, tokens, route tier, guard verdict, result counts.
+- Spans nest under one `trace_id`, which is the request's `X-Request-ID`, so a whole chat turn can be read back with `/api/observability/ai/traces/{trace_id}`.
+- Every model call is also written to `ai_prompt_logs`: prompt, response, model, latency, tokens, guard verdict, cache hit.
+- Prompt and response text is PII-redacted and cut to 20,000 characters; `AI_PROMPT_LOG_CONTENT=false` keeps metadata only.
+- Writes are batched off the request path: an in-memory queue feeds a background writer that waits on it and inserts each burst with one `UNNEST` statement.
+- Retention: 30 days.
+
+### Evaluation suite
+- `scripts/ai_safety_eval.py` (offline, runs in CI) checks the following against labelled cases, with recall and precision targets for the classifier:
+  - input screening;
+  - PII redaction, whole and streamed;
+  - model routing;
+  - the cache's number guard.
+- `scripts/sentiment_eval.py` runs the rulebook's own examples and reviewers' saved cases through the real sentiment analysis (calls Gemini).
+
+### Configuration
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `AI_GUARD_FLAG_THRESHOLD` / `AI_GUARD_BLOCK_THRESHOLD` | `0.4` / `0.7` | Input screening score cut-offs |
+| `PII_ALLOWED_EMAIL_DOMAINS` | (none) | Email domains left unredacted, comma-separated |
+| `AI_SEMANTIC_CACHE_ENABLED` | `true` | Turn the semantic cache off |
+| `AI_SEMANTIC_CACHE_THRESHOLD` | `0.95` | Minimum cosine similarity for a hit |
+| `AI_SEMANTIC_CACHE_TTL_HOURS` | `24` | How long an answer is reused |
+| `AI_SEMANTIC_CACHE_DIMENSIONS` | `256` | Embedding size for cache entries |
+| `AI_ROUTING_ENABLED` | `true` | `false` uses the plain fallback order for everything |
+| `AI_ROUTE_TIER_LIGHT` / `_STANDARD` / `_HEAVY` | see `model_router.py` | Models per tier, comma-separated, in order |
+| `AI_ROUTE_<FEATURE>` | per feature | Base tier for a feature (`CHAT`, `CAPTION`, `PUBLIC_MOOD`, `TRANSCRIPTION`) |
+| `AI_PROMPT_LOG_CONTENT` | `true` | `false` stores prompt metadata only |
+| `AI_PROMPT_LOG_MAX_CHARS` | `20000` | Characters kept per prompt and response |
+| `AI_TRACE_RETENTION_DAYS` / `AI_PROMPT_LOG_RETENTION_DAYS` | `30` / `30` | Retention |
+| `AI_LIMIT_<FEATURE>_PER_USER_DAY` etc. | see `ai_usage_service.py` | Daily AI quota per person, submission and company |
 
 
 ## Local Database (Docker), DataGrip & Migrations

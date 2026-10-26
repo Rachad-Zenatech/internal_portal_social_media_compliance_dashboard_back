@@ -2,10 +2,11 @@ import logging
 from typing import Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from pydantic import BaseModel, Field
 
-from services.auth_service import get_current_user_id_dependency
+from services import ai_observability_service
+from services.auth_service import get_current_user_id_dependency, require_permission
 
 
 router = APIRouter()
@@ -67,8 +68,49 @@ async def report_client_performance(
     )
     return {"accepted": True}
 
-@router.get('/observability/usage/tokens', status_code=status.HTTP_200_OK)
-async def get_token_usage():
-    from services.usage_service import get_token_usage_stats
-    return get_token_usage_stats()
+# --- AI observability: traces, prompt logs and usage (people who can view System Logs) ---
+_ai_logs_viewer = [Depends(require_permission("SYSTEM_LOGS_VIEW"))]
+
+
+@router.get('/observability/usage/tokens', status_code=status.HTTP_200_OK, dependencies=_ai_logs_viewer)
+async def get_token_usage(hours: int = Query(24, ge=1, le=24 * 30)):
+    """Tokens, calls, errors and latency per feature and model over the last `hours`."""
+    return await ai_observability_service.usage_summary(hours)
+
+
+@router.get('/observability/ai/summary', dependencies=_ai_logs_viewer)
+async def get_ai_summary(hours: int = Query(24, ge=1, le=24 * 30)):
+    """Per feature and model: calls, errors, p50/p95 latency, tokens; plus cache hits, guard verdicts, tool calls."""
+    return await ai_observability_service.summary(hours)
+
+
+@router.get('/observability/ai/traces', dependencies=_ai_logs_viewer)
+async def list_ai_traces(
+    limit: int = Query(50, ge=1, le=200),
+    kind: Optional[str] = Query(None, max_length=30),
+    status_filter: Optional[str] = Query(None, alias="status", max_length=20),
+):
+    """Recent traces, newest first, each with its span count, total time and any errors."""
+    return await ai_observability_service.list_traces(limit, kind, status_filter)
+
+
+@router.get('/observability/ai/traces/{trace_id}', dependencies=_ai_logs_viewer)
+async def get_ai_trace(trace_id: str = Path(max_length=128)):
+    """Every span of one trace (model calls, embeddings, retrieval, tool calls, guard, cache) and its prompt logs."""
+    trace = await ai_observability_service.get_trace(trace_id)
+    if not trace["spans"] and not trace["prompts"]:
+        raise HTTPException(status_code=404, detail="Trace not found")
+    return trace
+
+
+@router.get('/observability/ai/prompt-logs', dependencies=_ai_logs_viewer)
+async def list_ai_prompt_logs(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    feature: Optional[str] = Query(None, max_length=40),
+    status_filter: Optional[str] = Query(None, alias="status", max_length=20),
+    guard_verdict: Optional[str] = Query(None, max_length=10),
+):
+    """Prompt and response of each model call (PII-redacted), newest first."""
+    return await ai_observability_service.list_prompt_logs(limit, offset, feature, status_filter, guard_verdict)
 

@@ -49,7 +49,8 @@ from models.sentiment_model import (
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services import ai_usage_service
 from services.ai_usage_service import AiLimitExceeded
-from services import context_service, review_memory_service
+from services import ai_observability, context_service, review_memory_service
+from services.ai_guardrails import screen_input
 from services.compliance_service import applicable_rules
 from services.gemini_service import is_rotatable_model_error
 
@@ -927,10 +928,18 @@ async def _generate_with(client: genai.Client, model: str, inp: Dict[str, Any], 
         # Without a limit, a request queued behind "high demand" can hang indefinitely.
         http_options=types.HttpOptions(timeout=GENERATE_TIMEOUT_SEC * 1000),
     )
+    # The post's own words are untrusted input: an injection attempt is recorded with the call (and the analysis
+    # still runs, since a post that tries to steer the review is itself a concern for reviewers).
+    transcript = inp.get("transcript")
+    guard = screen_input("\n".join([
+        inp.get("title") or "", inp.get("caption") or "",
+        *(seg.get("text") or "" for seg in transcript if isinstance(seg, dict)),
+    ] if isinstance(transcript, list) else [inp.get("title") or "", inp.get("caption") or ""]))
     last_error: Optional[Exception] = None
     for attempt in range(API_RETRIES):
         try:
-            response = await asyncio.to_thread(client.models.generate_content, model=model, contents=contents, config=config)
+            response = await ai_observability.generate(client, model=model, contents=contents, config=config,
+                                                        feature="SENTIMENT", guard=guard, attempt=attempt + 1)
             result = SentimentResult.model_validate(json.loads(response.text or "{}"))
             if inp.get("video_file_id") and not video:
                 result.information_gaps.append("The video couldn't be attached, so only its text and transcript were assessed.")

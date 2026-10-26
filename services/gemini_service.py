@@ -1,5 +1,4 @@
 import os
-import asyncio
 import logging
 from typing import Any, Optional, List
 from google import genai
@@ -82,13 +81,22 @@ async def generate_content_with_fallback(
     client: genai.Client,
     contents: Any,
     config: Optional[Any] = None,
+    feature: str = "GENERAL",
+    submission_id: Optional[Any] = None,
 ) -> Any:
     """
     A robust wrapper around client.models.generate_content that automatically
     rotates through configured Gemini models upon encountering quota limits (429),
     server spikes (503), or deprecated/unavailable models (404).
+
+    The model order comes from model_router (by feature and request size), and every
+    attempt is traced and prompt-logged (ai_observability).
     """
-    models = get_gemini_fallback_models()
+    from services import ai_observability, model_router
+
+    prompt, attachments = ai_observability.describe_contents(contents)
+    route = model_router.route(feature, prompt_chars=len(prompt), attachments=attachments)
+    models = route.models
 
     last_exception = None
 
@@ -96,11 +104,16 @@ async def generate_content_with_fallback(
         logger.info(f"Attempting Gemini model: {model_name}")
 
         try:
-            response = await asyncio.to_thread(
-                client.models.generate_content,
+            response = await ai_observability.generate(
+                client,
                 model=model_name,
                 contents=contents,
                 config=config,
+                feature=feature,
+                submission_id=submission_id,
+                route_tier=route.tier,
+                route_reason=route.reason,
+                attempt=i + 1,
             )
 
             if i > 0:

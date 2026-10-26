@@ -705,7 +705,8 @@ async def summarise(submission_id: UUID, user_id: UUID) -> PublicMood:
         temperature=0,
     )
     try:
-        response = await generate_content_with_fallback(_get_client(), _prompt(row, mood), config)
+        response = await generate_content_with_fallback(_get_client(), _prompt(row, mood), config, feature="PUBLIC_MOOD",
+                                                         submission_id=submission_id)
         result = PublicMoodResult.model_validate(json.loads(response.text or "{}"))
     except (ValueError, ValidationError) as e:
         logger.warning("Public mood summary was malformed: %s", e)

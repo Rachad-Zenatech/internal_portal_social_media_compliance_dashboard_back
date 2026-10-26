@@ -20,6 +20,7 @@ from google import genai
 from google.genai import types
 
 from postgresql_db.database import fetch_all, fetch_one, get_pool
+from services import ai_observability
 from services.gemini_service import is_rotatable_model_error
 
 logger = logging.getLogger(__name__)
@@ -104,7 +105,7 @@ async def _generate(contents) -> object:
     last_error: Optional[Exception] = None
     for model in MODELS:
         try:
-            return await asyncio.to_thread(client.models.generate_content, model=model, contents=contents, config=config)
+            return await ai_observability.generate(client, model=model, contents=contents, config=config, feature="IMAGE_TEXT")
         except Exception as e:
             timed_out = isinstance(e, (httpx.TimeoutException, TimeoutError)) or "timed out" in str(e).lower()
             if not timed_out and not is_rotatable_model_error(e):

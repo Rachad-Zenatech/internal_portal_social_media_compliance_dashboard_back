@@ -172,6 +172,7 @@ async def transcribe_file(file_id: UUID) -> None:
                     response_schema=RESPONSE_SCHEMA,
                     temperature=0,
                 ),
+                feature="TRANSCRIPTION",
             )
             segments = _normalize(json.loads(response.text or "[]"))
             await _save(file_id, "COMPLETED", transcript=segments)

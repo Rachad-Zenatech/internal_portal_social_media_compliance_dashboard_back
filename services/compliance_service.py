@@ -24,7 +24,7 @@ from models.compliance_model import (
 )
 from models.submission_model import AUDIENCES, PLATFORMS, REGIONS, RULE_SETS
 from postgresql_db.database import fetch_all, fetch_one, get_pool
-from services import claim_checks
+from services import claim_checks, reference_index_service
 from services.audit_service import log_audit_event
 from services.cache_service import emit_cache_invalidation
 
@@ -210,6 +210,7 @@ async def create_compliance_rule(data: ComplianceRuleCreate, user_id: Optional[U
         raise _duplicate_number(data.rule_number)
 
     await emit_cache_invalidation(scope="compliance_rules", key=str(row["id"]))
+    reference_index_service.sync_soon()
     await log_audit_event(
         entity_type="compliance_rule",
         entity_id=str(row["id"]),
@@ -276,6 +277,7 @@ async def update_compliance_rule(rule_id: UUID, data: ComplianceRuleUpdate, user
         return None
 
     await emit_cache_invalidation(scope="compliance_rules", key=str(rule_id))
+    reference_index_service.sync_soon()
     await log_audit_event(
         entity_type="compliance_rule",
         entity_id=str(rule_id),
@@ -310,6 +312,7 @@ async def delete_compliance_rule(rule_id: UUID, user_id: Optional[UUID] = None) 
         )
 
     await emit_cache_invalidation(scope="compliance_rules", key=str(rule_id))
+    reference_index_service.sync_soon()
     await log_audit_event(
         entity_type="compliance_rule",
         entity_id=str(rule_id),

@@ -30,6 +30,8 @@ from typing import Any, Dict, Iterable, List, Optional
 from google import genai
 from google.genai import types
 
+from services.ai_observability import span
+
 logger = logging.getLogger(__name__)
 
 ALL = "*"
@@ -96,7 +98,9 @@ async def embed(texts: List[str]) -> List[List[float]]:
         # One Content per text: gemini-embedding-2 is multimodal and would merge a plain list of strings into a
         # single input with one embedding.
         contents = [types.Content(parts=[types.Part(text=t)]) for t in batch]
-        res = await client.aio.models.embed_content(model=embedding_model(), contents=contents)
+        async with span("embedding", "gemini.embed_content", model=embedding_model(), texts=len(batch),
+                        chars=sum(len(t) for t in batch)):
+            res = await client.aio.models.embed_content(model=embedding_model(), contents=contents)
         vectors += [list(e.values or []) for e in res.embeddings or []]
     if len(vectors) != len(texts):
         raise RuntimeError(f"Expected {len(texts)} embeddings, got {len(vectors)}")
@@ -159,6 +163,8 @@ async def upsert(docs: List[VectorDoc]) -> Dict[str, int]:
             fields.update(content_hash=hashes[d.doc_id], embedding=vectors[d.doc_id], embedding_model=embedding_model())
         ops.append(UpdateOne({"_id": d.doc_id}, {"$set": fields}, upsert=True))
     await collection.bulk_write(ops, ordered=False)
+    if any(d.kind != "REVIEW_DECISION" for d in changed):
+        await _reference_changed()
     return {"embedded": len(changed), "unchanged": len(docs) - len(changed)}
 
 
@@ -167,7 +173,19 @@ async def delete(doc_ids: List[str]) -> int:
     if collection is None or not doc_ids:
         return 0
     res = await collection.delete_many({"_id": {"$in": doc_ids}})
+    if res.deleted_count and any(not i.startswith("REVIEW_DECISION:") for i in doc_ids):
+        await _reference_changed()
     return res.deleted_count
+
+
+async def _reference_changed() -> None:
+    """Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
+    decisions aren't shown to the assistant, so those don't count)."""
+    from services import semantic_cache
+    try:
+        await semantic_cache.clear("CHAT")
+    except Exception as e:
+        logger.warning("Couldn't clear cached assistant answers after a reference material change: %s", e)
 
 
 async def search(
@@ -195,20 +213,23 @@ async def search(
     if platforms:
         filters.append({"platforms": {"$in": [*platforms, ALL]}})
     try:
-        query_vector = (await embed([query]))[0]
-        stage: Dict[str, Any] = {
-            "index": index_name(), "path": "embedding", "queryVector": query_vector,
-            "numCandidates": max(50, limit * 10), "limit": limit,
-        }
-        if filters:
-            stage["filter"] = {"$and": filters} if len(filters) > 1 else filters[0]
-        pipeline = [
-            {"$vectorSearch": stage},
-            {"$project": {"kind": 1, "title": 1, "text": 1, "source_id": 1, "meta": 1, "brands": 1,
-                          "score": {"$meta": "vectorSearchScore"}}},
-        ]
-        rows = await collection.aggregate(pipeline).to_list(length=limit)
-        return [r for r in rows if r.get("score", 0) >= min_score]
+        async with span("retrieval", "vector_store.search", kinds=kinds, limit=limit, min_score=min_score) as s:
+            query_vector = (await embed([query]))[0]
+            stage: Dict[str, Any] = {
+                "index": index_name(), "path": "embedding", "queryVector": query_vector,
+                "numCandidates": max(50, limit * 10), "limit": limit,
+            }
+            if filters:
+                stage["filter"] = {"$and": filters} if len(filters) > 1 else filters[0]
+            pipeline = [
+                {"$vectorSearch": stage},
+                {"$project": {"kind": 1, "title": 1, "text": 1, "source_id": 1, "meta": 1, "brands": 1,
+                              "score": {"$meta": "vectorSearchScore"}}},
+            ]
+            rows = await collection.aggregate(pipeline).to_list(length=limit)
+            found = [r for r in rows if r.get("score", 0) >= min_score]
+            s.attributes.update(results=len(found), top_score=round(found[0]["score"], 4) if found else None)
+            return found
     except Exception as e:
         logger.warning("Vector search failed (continuing without it): %s", e)
         return []
