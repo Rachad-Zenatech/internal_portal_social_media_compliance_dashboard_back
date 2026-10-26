@@ -9,9 +9,11 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import FileResponse
 
 from models.canva_model import CanvaImportRequest, CanvaReimportRequest
-from models.public_mood_model import PublicMood
+from models.caption_model import CaptionSuggestions, CaptionSuggestRequest
+from models.public_mood_model import MoodFeedbackIn, PublicMood
 from models.sentiment_model import FindingFeedback, FindingFeedbackIn, SentimentAnalysis
 from models.submission_model import (
+    DashboardSummary,
     ReviewComment,
     ReviewCommentCreate,
     ReviewCommentUpdate,
@@ -31,7 +33,7 @@ from models.submission_model import (
     SubmissionUpdate,
     SubmitResult,
 )
-from services import ai_usage_service, public_mood_service, sentiment_service
+from services import ai_usage_service, caption_service, public_mood_service, sentiment_service
 from services import flag_review_service
 from services import submission_service as svc
 from models.flag_review_model import FlagDismissRequest, FlagReview
@@ -48,20 +50,33 @@ async def get_options(user_id: CurrentUser):
     return await svc.get_options(user_id)
 
 
+# scope=mine: only the user's own content, seen as its creator (a super admin viewing the app as a creator). It only
+# ever narrows what's returned; it never grants access.
+ViewScope = Literal["all", "mine"]
+
+
 @router.get("/review-queue", response_model=List[ReviewQueueItem])
 async def review_queue(
     user_id: CurrentUser,
     tab: QueueTab = Query("review"),
     search: Optional[str] = Query(None, max_length=200),
+    scope: ViewScope = Query("all"),
 ):
-    """Submitted videos for one Content Screener tab (declared before /{submission_id} so it isn't parsed as an id)."""
-    return await svc.review_queue(user_id, tab, search)
+    """Submitted posts for one Content Screener tab (declared before /{submission_id} so it isn't parsed as an id)."""
+    return await svc.review_queue(user_id, tab, search, mine=scope == "mine")
 
 
 @router.get("/review-queue/counts", response_model=ReviewQueueCounts)
-async def review_queue_counts(user_id: CurrentUser):
-    """How many videos are in each Content Screener tab."""
-    return await svc.review_queue_counts(user_id)
+async def review_queue_counts(user_id: CurrentUser, scope: ViewScope = Query("all")):
+    """How many posts are in each Content Screener tab."""
+    return await svc.review_queue_counts(user_id, mine=scope == "mine")
+
+
+@router.get("/dashboard", response_model=DashboardSummary)
+async def dashboard(user_id: CurrentUser, scope: ViewScope = Query("all")):
+    """Recent activity and last-30-days compliance insights for the dashboard, over the content the user can see
+    (declared before /{submission_id} so it isn't parsed as an id)."""
+    return await svc.dashboard_summary(user_id, mine=scope == "mine")
 
 
 @router.get("/ai-usage")
@@ -198,12 +213,20 @@ async def request_sentiment(submission_id: UUID, user_id: CurrentUser):
     return await sentiment_service.get_analysis(analysis_id, viewer=user_id)
 
 
+@router.post("/{submission_id}/caption-suggestions", response_model=CaptionSuggestions)
+async def suggest_captions(submission_id: UUID, data: CaptionSuggestRequest, user_id: CurrentUser):
+    """Three captions drafted from the post's images, video transcript and title, in the brand's voice, each
+    already run through the compliance check. Nothing is saved; counts toward the AI limits."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await caption_service.suggest(submission_id, user_id, data)
+
+
 @router.get("/{submission_id}/public-mood", response_model=PublicMood)
 async def get_public_mood(submission_id: UUID, user_id: CurrentUser):
     """How people online currently feel about the topics this post touches (social listening), with the saved
     summary if there is one. Topic data is shared and refreshed only when it goes stale. Advisory only."""
     await svc.get_submission(submission_id, user_id)  # access check
-    return await public_mood_service.get_public_mood(submission_id)
+    return await public_mood_service.get_public_mood(submission_id, user_id)
 
 
 @router.post("/{submission_id}/public-mood/summary", response_model=PublicMood)
@@ -212,6 +235,32 @@ async def summarise_public_mood(submission_id: UUID, user_id: CurrentUser):
     the topics' moods have changed; otherwise counts toward the AI limits."""
     await svc.get_submission(submission_id, user_id)  # access check
     return await public_mood_service.summarise(submission_id, user_id)
+
+
+@router.put("/{submission_id}/public-mood/topics/{topic_id}/dismissal", response_model=PublicMood)
+async def dismiss_public_mood_topic(submission_id: UUID, topic_id: UUID, user_id: CurrentUser):
+    """"This post isn't about that topic": leave it out here, and count it against the topic's keywords."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.dismiss_topic(submission_id, topic_id, user_id)
+
+
+@router.delete("/{submission_id}/public-mood/topics/{topic_id}/dismissal", response_model=PublicMood)
+async def restore_public_mood_topic(submission_id: UUID, topic_id: UUID, user_id: CurrentUser):
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.restore_topic(submission_id, topic_id, user_id)
+
+
+@router.put("/{submission_id}/public-mood/summary/{summary_id}/feedback", response_model=PublicMood)
+async def rate_public_mood(submission_id: UUID, summary_id: UUID, data: MoodFeedbackIn, user_id: CurrentUser):
+    """Whether the summary helped; one vote per person, changeable."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.rate_summary(submission_id, summary_id, user_id, data)
+
+
+@router.delete("/{submission_id}/public-mood/summary/{summary_id}/feedback", response_model=PublicMood)
+async def unrate_public_mood(submission_id: UUID, summary_id: UUID, user_id: CurrentUser):
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.rate_summary(submission_id, summary_id, user_id, None)
 
 
 @router.post("/{submission_id}/sentiment/{analysis_id}/schedule", response_model=SentimentAnalysis)

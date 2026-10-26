@@ -252,6 +252,8 @@ class ReviewJob(BaseModel):
     decision_notes: Optional[str] = None
     decided_by_name: Optional[str] = None
     decided_at: Optional[datetime] = None
+    # Approved: the rules the reviewer confirmed by hand ({rule_number, title}).
+    manual_checks: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 ReviewDecisionType = Literal["APPROVE", "REQUEST_CHANGES"]
@@ -266,11 +268,19 @@ class ReviewDecisionRequest(BaseModel):
     publish_at: Optional[datetime] = None
     # ...or approve to publish straight away.
     publish_now: bool = False
+    # Approve: the rule numbers the reviewer confirmed by hand. Must cover every rule the automated check lists
+    # as needing a person (image editing, image rights, ...), since nothing else checks those.
+    confirmed_rules: List[str] = Field(default_factory=list, max_length=100)
+    # Request changes: working days the creator has to resubmit (1, 2, 3 or 5); the default window when left out.
+    # Pulled in if the planned publish time is closer.
+    revision_days: Optional[Literal[1, 2, 3, 5]] = None
 
 
 class ReopenRequest(BaseModel):
     """A reviewer takes back an approval and sends the content to its creator with what to change."""
     notes: str = Field(..., min_length=1, max_length=5000)
+    # Working days the creator has to resubmit; the default window when left out.
+    revision_days: Optional[Literal[1, 2, 3, 5]] = None
 
 
 class RescheduleRequest(BaseModel):
@@ -368,6 +378,39 @@ class ReviewQueueCounts(BaseModel):
     review: int = 0
     sent_back: int = 0
     done: int = 0
+
+
+class DashboardActivity(BaseModel):
+    """One recent thing that happened to content the viewer can see."""
+    at: datetime
+    actor_id: Optional[UUID] = None
+    actor_name: Optional[str] = None
+    # e.g. "approved", "requested changes on", "commented on"
+    action: str
+    submission_id: UUID
+    reference_code: str
+    title: str
+
+
+class DashboardFinding(BaseModel):
+    """A rulebook rule and how often it was flagged on content sent for review."""
+    rule_number: str
+    title: str
+    count: int
+
+
+class DashboardSummary(BaseModel):
+    """The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see."""
+    activity: List[DashboardActivity] = Field(default_factory=list)
+    reviews_completed: int = 0
+    approved: int = 0
+    changes_requested: int = 0
+    # Waiting on a reviewer past its review deadline (now, not over 30 days).
+    overdue_reviews: int = 0
+    # Average rulebook score of content sent for review in the period; None when nothing was sent.
+    average_score: Optional[int] = None
+    common_findings: List[DashboardFinding] = Field(default_factory=list)
+    days: int = 30
 
 
 class SubmitResult(BaseModel):

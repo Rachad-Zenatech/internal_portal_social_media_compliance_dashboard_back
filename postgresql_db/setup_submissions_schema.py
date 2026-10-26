@@ -130,6 +130,12 @@ async def setup():
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript_status VARCHAR(20);
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript_error TEXT;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript_updated_at TIMESTAMP WITH TIME ZONE;
+            -- Text shown in an image (a headline on a graphic, figures, fine print), read once so the rulebook
+            -- check can screen it like the caption (see services/image_text_service.py).
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text TEXT;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_status VARCHAR(20);
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_error TEXT;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_updated_at TIMESTAMP WITH TIME ZONE;
 
             CREATE TABLE IF NOT EXISTS content_submission_versions (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -173,6 +179,8 @@ async def setup():
             ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS decided_by UUID REFERENCES users(id) ON DELETE SET NULL;
             ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS decided_at TIMESTAMP WITH TIME ZONE;
             ALTER TABLE content_review_jobs ALTER COLUMN status SET DEFAULT 'AWAITING_REVIEW';
+            -- Rules the automated check can't test from text, which the approving reviewer confirmed by hand.
+            ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS manual_checks JSONB;
 
             -- Reviewers' calls on automated compliance flags, per version: a dismissal with its reason.
             CREATE TABLE IF NOT EXISTS flag_reviews (
@@ -295,7 +303,7 @@ async def setup():
                 ('ZENADRONE', 'ZenaDrone', 20, true),
                 ('DAAS', 'Drone as a Service', 30, true),
                 ('SOFTWARE', 'Software Brands', 40, true),
-                ('CEO_THOUGHT_LEADERSHIP', 'Shaun''s CEO Thought Leadership', 50, true)
+                ('CEO_THOUGHT_LEADERSHIP', 'Thought Leadership', 50, true)
             ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, is_active = true;
         """)
         await _retire_product_brands(conn)
@@ -372,13 +380,8 @@ async def _retire_product_brands(conn):
 
 
 async def _seed_demo_social_accounts(conn):
-    """Insert demo organic social accounts once, flagged demo_seed in their metadata."""
-    already = await conn.fetchval(
-        "SELECT EXISTS (SELECT 1 FROM oauth_connections WHERE connection_metadata->>'demo_seed' = 'true')"
-    )
-    if already:
-        return
-
+    """Insert the demo organic social accounts that aren't there yet, flagged demo_seed in their metadata. Each is
+    matched by its provider account id, so accounts added to this list later reach databases seeded earlier."""
     org_id = await conn.fetchval("SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1")
     if not org_id:
         return
@@ -389,14 +392,19 @@ async def _seed_demo_social_accounts(conn):
         ("X_TWITTER", "ZenaTech", "@ZenaTechInc", "ZENATECH", "ZTG", False),
         ("YOUTUBE", "ZenaTech", "@ZenaTech", "ZENATECH", "ZTG", False),
         ("TIKTOK", "ZenaTech", "@zenatech", "ZENATECH", "ZTG", False),
+        ("FACEBOOK_PAGE", "ZenaTech", "ZenaTechInc", "ZENATECH", "ZTG", False),
+        ("INSTAGRAM", "ZenaTech", "@zenatechinc", "ZENATECH", "ZTG", False),
         ("LINKEDIN_PAGE", "ZenaDrone", "zenadrone", "ZENADRONE", "ZDR", False),
         ("YOUTUBE", "ZenaDrone", "@ZenaDrone", "ZENADRONE", "ZDR", False),
         ("INSTAGRAM", "ZenaDrone", "@zenadrone", "ZENADRONE", "ZDR", False),
         ("FACEBOOK_PAGE", "ZenaDrone", "ZenaDroneOfficial", "ZENADRONE", "ZDR", False),
+        ("FACEBOOK_PAGE", "Drone as a Service", "dronesasaservice", "DAAS", "ZDR", False),
+        ("LINKEDIN_PAGE", "Drone as a Service", "drone-as-a-service", "DAAS", "ZDR", False),
+        ("LINKEDIN_PAGE", "ZenaTech Software", "zenatech-software", "SOFTWARE", "ZTG", False),
         ("LINKEDIN_PROFILE", "Shaun – CEO", "shaun-ceo", "CEO_THOUGHT_LEADERSHIP", "ZTG", True),
         ("X_TWITTER", "Shaun – CEO", "@ShaunCEO", "CEO_THOUGHT_LEADERSHIP", "ZTG", True),
     ]
-    await conn.execute(
+    result = await conn.execute(
         """
         INSERT INTO oauth_connections (
             organization_id, company_id, provider, provider_account_id, account_name,
@@ -414,6 +422,9 @@ async def _seed_demo_social_accounts(conn):
             jsonb_build_object('demo_seed', true, 'handle', a.handle, 'brand_code', a.brand_code, 'is_ceo', a.is_ceo)
         FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::bool[])
             AS a(provider, account_name, handle, brand_code, company_code, is_ceo)
+        WHERE NOT EXISTS (
+            SELECT 1 FROM oauth_connections c WHERE c.provider_account_id = 'demo-' || lower(a.provider) || '-' || a.handle
+        )
         """,
         org_id,
         [a[0] for a in accounts],
@@ -423,7 +434,9 @@ async def _seed_demo_social_accounts(conn):
         [a[4] for a in accounts],
         [a[5] for a in accounts],
     )
-    logger.info("Seeded %d demo social accounts for development.", len(accounts))
+    added = int(result.split()[-1])
+    if added:
+        logger.info("Seeded %d demo social accounts for development.", added)
 
 
 async def _main():

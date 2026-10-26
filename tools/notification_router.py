@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 import asyncio
+import os
 from typing import List, Dict
 from models.notification_model import NotificationResponse
 from services.notification_service import get_recent_notifications, get_unread_count, mark_notification_as_read, mark_all_notifications_as_read, clear_read_notifications, clear_all_notifications, broadcaster
@@ -47,6 +48,10 @@ async def api_clear_all(user_id: str = Depends(get_current_user_id)):
 
 from fastapi import Request
 
+# Each stream ends after this long and the browser's EventSource reconnects on its own (retry: 5000). Without an end,
+# a server reload or shutdown waits for every open tab to disconnect, which can be never.
+STREAM_MAX_SECONDS = float(os.getenv("NOTIFICATION_STREAM_MAX_SECONDS", "120"))
+
 @notification_router.get("/notifications/stream")
 async def api_notification_stream(request: Request, user_id: str = Depends(get_current_user_id)):
     async def event_generator():
@@ -54,7 +59,8 @@ async def api_notification_stream(request: Request, user_id: str = Depends(get_c
         broadcaster.add_listener(q)
         try:
             yield "retry: 5000\n\n: connected\n\n"
-            while True:
+            ends_at = asyncio.get_running_loop().time() + STREAM_MAX_SECONDS
+            while asyncio.get_running_loop().time() < ends_at:
                 try:
                     msg = await asyncio.wait_for(q.get(), timeout=30.0)
                     if msg.user_id == "*" or str(msg.user_id).lower() == str(user_id).lower():

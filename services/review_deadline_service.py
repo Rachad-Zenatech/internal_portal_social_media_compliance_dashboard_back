@@ -11,6 +11,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from postgresql_db.database import execute, fetch_all
 
@@ -35,24 +36,43 @@ REMIND_BEFORE_HOURS = _hours("DUE_REMINDER_HOURS", 4)
 CHECK_EVERY_SEC = max(30.0, _hours("DUE_CHECK_MINUTES", 10) * 60)
 # Never give someone less than this, even when the publish time is very close.
 MIN_HOURS = 1
+# Timelines a reviewer can give when sending content back, in working days (weekends don't count).
+REVISION_DAY_CHOICES = (1, 2, 3, 5)
+# Where "working day" is counted, so a Friday send-back with 1 day is due Monday, not Saturday.
+WORK_TZ = ZoneInfo(os.getenv("REVIEW_TIMEZONE", "America/Toronto"))
 
 KIND_STATUS = {"REVIEW": "IN_REVIEW", "REVISION": "CHANGES_REQUESTED"}
 
 
-def due_date(kind: str, publish_at: Optional[datetime], now: Optional[datetime] = None) -> datetime:
-    """When the next step is due: the normal window, pulled in if the publish time is close."""
+def add_working_days(start: datetime, days: int) -> datetime:
+    """The same time of day, this many working days later (Saturdays and Sundays are skipped)."""
+    local = start.astimezone(WORK_TZ)
+    added = 0
+    while added < days:
+        local += timedelta(days=1)
+        if local.weekday() < 5:
+            added += 1
+    return local.astimezone(timezone.utc)
+
+
+def due_date(kind: str, publish_at: Optional[datetime], now: Optional[datetime] = None,
+             days: Optional[int] = None) -> datetime:
+    """When the next step is due: the normal window (or the working days a reviewer chose), pulled in if the
+    publish time is close."""
     now = now or datetime.now(timezone.utc)
     window, before_publish = (
         (REVIEW_HOURS, REVIEW_BEFORE_PUBLISH_HOURS) if kind == "REVIEW" else (REVISION_HOURS, REVISION_BEFORE_PUBLISH_HOURS)
     )
-    due = now + timedelta(hours=window)
+    due = add_working_days(now, days) if days else now + timedelta(hours=window)
     if publish_at:
         due = min(due, publish_at - timedelta(hours=before_publish))
     return max(due, now + timedelta(hours=MIN_HOURS))
 
 
 def _when(dt: datetime) -> str:
-    return f"{dt.astimezone(timezone.utc):%b %d, %H:%M} UTC"
+    """e.g. "Tue Oct 27, 3:00 PM EDT", in the team's time zone."""
+    local = dt.astimezone(WORK_TZ)
+    return f"{local:%a %b} {local.day}, {local:%I:%M %p %Z}".replace(", 0", ", ")
 
 
 async def _recipients(row: Dict[str, Any]) -> List[UUID]:
