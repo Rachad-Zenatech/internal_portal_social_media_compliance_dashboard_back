@@ -39,6 +39,8 @@ from tools.search import router as search_router
 from tools.rbac_router import router as rbac_router, get_current_user_id
 from tools.approval_path_router import router as approval_path_router
 from tools.context_router import router as context_router
+from tools.listening_router import router as listening_router
+from tools.performance_router import router as performance_router
 from tools.auth_router import router as auth_router
 from tools.notification_router import notification_router
 from tools.observability import router as observability_router
@@ -106,6 +108,11 @@ async def lifespan(app: FastAPI):
             await setup_listening_schema()
         except Exception as listen_err:
             logger.warning(f"Listening schema setup note: {listen_err}")
+        try:
+            from postgresql_db.setup_performance_schema import setup as setup_performance_schema
+            await setup_performance_schema()
+        except Exception as perf_err:
+            logger.warning(f"Post performance schema setup note: {perf_err}")
     except Exception:
         logger.exception("Application startup failed", extra={"event": "application_startup_failed"})
         raise
@@ -331,6 +338,8 @@ app.include_router(compliance_router, prefix="/api", tags=["Compliance Rules & G
 app.include_router(submission_router, prefix="/api", tags=["Content Submissions"])
 app.include_router(approval_path_router, prefix="/api", tags=["Approval Paths"])
 app.include_router(context_router, prefix="/api", tags=["Messaging Context"])
+app.include_router(listening_router, prefix="/api", tags=["Listening Topics"])
+app.include_router(performance_router, prefix="/api", tags=["Post Performance"])
 app.include_router(canva_router, prefix="/api", tags=["Canva"])
 app.include_router(vector_store_router, prefix="/api", tags=["Vector Store"])
 app.include_router(sentiment_router, prefix="/api", tags=["Sentiment Quality"])
