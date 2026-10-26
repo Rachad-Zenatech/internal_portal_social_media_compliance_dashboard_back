@@ -24,6 +24,7 @@ from models.compliance_model import (
 )
 from models.submission_model import AUDIENCES, PLATFORMS, REGIONS, RULE_SETS
 from postgresql_db.database import fetch_all, fetch_one, get_pool
+from services import claim_checks
 from services.audit_service import log_audit_event
 from services.cache_service import emit_cache_invalidation
 
@@ -519,6 +520,17 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
             reported_disclaimers.add(key)
         violations.append(v)
 
+    # Built-in claim checks catch what exact phrases miss (money figures, forward-looking results, unnamed
+    # customers...). A forward-looking claim the rulebook already reported as missing its safe harbor counts once.
+    safe_harbor_reported = any(
+        v.kind == "MISSING_DISCLAIMER" and any("forward looking" in _normalize(d) for d in v.missing_disclaimers)
+        for v in violations
+    )
+    violations.extend(
+        c for c in claim_checks.find_claims(req.text)
+        if not (safe_harbor_reported and c.rule_id == claim_checks.FORWARD_LOOKING_ID)
+    )
+
     _count_overlaps_once(violations, padded_text)
     blocked = any(v.traffic_light == "RED" for v in violations)
     overall_traffic_light = "RED" if blocked else "YELLOW" if any(v.traffic_light == "YELLOW" for v in violations) else "GREEN"
@@ -578,9 +590,11 @@ def _count_overlaps_once(violations: List[ComplianceViolation], padded_text: str
 
 
 async def rulebook_version() -> Optional[str]:
-    """When any rule last changed (added, edited or removed)."""
+    """When any rule last changed (added, edited or removed), plus the built-in claim checks' version, so a check
+    made before either changed counts as outdated."""
     row = await fetch_one("SELECT max(greatest(updated_at, coalesce(deleted_at, updated_at))) AS v FROM compliance_rules")
-    return row["v"].isoformat() if row and row["v"] else None
+    rules = row["v"].isoformat() if row and row["v"] else "none"
+    return f"{rules}|{claim_checks.VERSION}"
 
 
 # ---------------------------------------------------------------------------
