@@ -43,7 +43,7 @@ async def list_entries(kind: Optional[str] = None) -> List[ContextEntry]:
 
 
 async def _clean(data: ContextEntryIn) -> ContextEntryIn:
-    brands = [b["code"] for b in await fetch_all("SELECT code FROM brands")]
+    brands = [b["code"] for b in await fetch_all("SELECT code FROM brands WHERE is_active")]
     for field, allowed in (("brands", brands), ("audiences", list(AUDIENCES)), ("platforms", PLATFORMS)):
         values = list(dict.fromkeys(v.strip() for v in getattr(data, field) if v and v.strip()))
         bad = [v for v in values if v not in allowed]

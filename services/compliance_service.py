@@ -18,6 +18,7 @@ from models.compliance_model import (
     ComplianceRuleCreate,
     ComplianceRuleUpdate,
     ComplianceViolation,
+    ManualReviewRule,
     RuleExampleResult,
     RuleSelfTest,
 )
@@ -71,7 +72,7 @@ async def _clean_scope(values: Dict[str, Optional[List[str]]]) -> Dict[str, List
         "platforms": PLATFORMS,
     }
     if values.get("brands"):
-        allowed["brands"] = [r["code"] for r in await fetch_all("SELECT code FROM brands")]
+        allowed["brands"] = [r["code"] for r in await fetch_all("SELECT code FROM brands WHERE is_active")]
 
     cleaned: Dict[str, List[str]] = {}
     for field, vals in values.items():
@@ -534,7 +535,15 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     else:
         recommendations.append(f"No issues found against the {len(rules)} rule(s) that apply to this content.")
 
+    # Rules with nothing to look for in text (no phrases, no disclaimers) still apply; say so instead of letting a
+    # clean score suggest they passed.
+    manual = [
+        ManualReviewRule(rule_id=r.id, rule_number=r.rule_number, title=r.title, severity=r.severity)
+        for r in rules
+        if not r.prohibited_terms and not r.required_disclaimers
+    ]
     return ComplianceCheckResponse(
+        manual_review_rules=manual,
         is_compliant=(len(violations) == 0),
         traffic_light=overall_traffic_light,
         score=score,

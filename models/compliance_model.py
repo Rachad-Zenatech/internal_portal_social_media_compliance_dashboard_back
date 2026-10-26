@@ -134,6 +134,15 @@ class ComplianceViolation(BaseModel):
     exception_terms: List[str] = Field(default_factory=list)
 
 
+class ManualReviewRule(BaseModel):
+    """An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
+    for, e.g. image editing or image rights), so a reviewer has to confirm it."""
+    rule_id: UUID
+    rule_number: str
+    title: str
+    severity: str
+
+
 class ComplianceCheckResponse(BaseModel):
     is_compliant: bool
     traffic_light: str = "GREEN"  # GREEN, YELLOW, RED
@@ -149,3 +158,5 @@ class ComplianceCheckResponse(BaseModel):
     violations: List[ComplianceViolation] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
     rules_checked: int = 0
+    # Of rules_checked, the ones the text check can't actually test: a reviewer confirms these when approving.
+    manual_review_rules: List[ManualReviewRule] = Field(default_factory=list)
