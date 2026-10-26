@@ -20,12 +20,13 @@ from fastapi import HTTPException
 
 from postgresql_db.database import get_pool
 
-Feature = Literal["SENTIMENT", "TRANSCRIPTION", "PUBLIC_MOOD", "CAPTION"]
+Feature = Literal["SENTIMENT", "TRANSCRIPTION", "PUBLIC_MOOD", "CAPTION", "CHAT"]
 FEATURE_NAMES: Dict[str, str] = {
     "SENTIMENT": "sentiment analyses",
     "TRANSCRIPTION": "video transcriptions",
     "PUBLIC_MOOD": "public mood summaries",
     "CAPTION": "caption suggestions",
+    "CHAT": "assistant chat replies",
 }
 
 # Defaults sized for the free Gemini tier (20 requests per model per day); raise them with a paid key.
@@ -34,6 +35,8 @@ _DEFAULTS = {
     "TRANSCRIPTION": {"PER_USER_DAY": 10, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 30},
     "PUBLIC_MOOD": {"PER_USER_DAY": 10, "PER_SUBMISSION_DAY": 5, "GLOBAL_DAY": 15},
     "CAPTION": {"PER_USER_DAY": 15, "PER_SUBMISSION_DAY": 6, "GLOBAL_DAY": 30},
+    # The assistant chat shares the same Gemini quota, so it gets a small share of it.
+    "CHAT": {"PER_USER_DAY": 10, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 20},
 }
 DAY = timedelta(hours=24)
 MINUTE = timedelta(minutes=1)

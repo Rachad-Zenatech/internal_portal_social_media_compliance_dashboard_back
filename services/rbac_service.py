@@ -58,6 +58,26 @@ _PUBLIC_USER_FIELDS = (
 )
 
 
+async def _actor_is_super_admin(conn, actor_id: UUID | None) -> bool:
+    return bool(actor_id and await conn.fetchval(
+        "SELECT is_super_admin FROM users WHERE id = $1 AND deleted_at IS NULL AND is_active", actor_id
+    ))
+
+
+async def _guard_account_change(conn, actor_id: UUID | None, target_ids: list[UUID], *, what: str,
+                                self_allowed: bool = True) -> None:
+    """Only a super admin may change a super admin's account (anyone else could take it over, e.g. by changing
+    its sign-in email), and, unless self_allowed, a non-super-admin may not change their own access."""
+    if await _actor_is_super_admin(conn, actor_id):
+        return
+    if not self_allowed and actor_id in target_ids:
+        raise PermissionError(f"You can't change your own {what}. Ask another administrator.")
+    if await conn.fetchval(
+        "SELECT 1 FROM users WHERE id = ANY($1::uuid[]) AND is_super_admin AND deleted_at IS NULL LIMIT 1", target_ids
+    ):
+        raise PermissionError("Only a super admin can change a super admin's account.")
+
+
 def _public_user(row) -> dict:
     values = dict(row)
     return {field: values.get(field) for field in _PUBLIC_USER_FIELDS}
@@ -113,6 +133,8 @@ async def create_user(user: UserCreate, actor_id: UUID = None):
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            if user.is_super_admin and not await _actor_is_super_admin(conn, actor_id):
+                raise PermissionError("Only a super admin can create a super admin.")
             existing = await conn.fetchrow(
                 "SELECT * FROM users WHERE LOWER(TRIM(email)) = $1",
                 clean_email,
@@ -173,6 +195,10 @@ async def update_user(user_id: UUID, user: UserUpdate, actor_id: UUID = None):
             old = await conn.fetchrow("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL", user_id)
             if not old:
                 return None
+            await _guard_account_change(conn, actor_id, [user_id], what="account")
+            if (user.is_super_admin is not None and user.is_super_admin != old["is_super_admin"]
+                    and not await _actor_is_super_admin(conn, actor_id)):
+                raise PermissionError("Only a super admin can grant or remove super admin.")
 
             updates = []
             args = []
@@ -238,6 +264,7 @@ async def delete_user(user_id: UUID, actor_id: UUID = None):
             old = await conn.fetchrow("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL", user_id)
             if not old:
                 return False
+            await _guard_account_change(conn, actor_id, [user_id], what="account")
 
             if old["is_super_admin"]:
                 # Check if last active super admin
@@ -274,6 +301,7 @@ async def bulk_delete_users(user_ids: List[UUID], actor_id: UUID = None):
             )
             if not rows:
                 return {"deleted_count": 0, "deleted_ids": []}
+            await _guard_account_change(conn, actor_id, [r["id"] for r in rows], what="account")
 
             # Check super admin protection
             active_super_admins_to_delete = sum(1 for r in rows if r["is_super_admin"] and r["is_active"])
@@ -515,6 +543,11 @@ async def set_user_roles(user_id: UUID, role_ids: list[UUID], actor_id: UUID = N
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            await _guard_account_change(conn, actor_id, [user_id], what="roles", self_allowed=False)
+            if role_ids and not await _actor_is_super_admin(conn, actor_id) and await conn.fetchval(
+                "SELECT 1 FROM roles WHERE id = ANY($1::uuid[]) AND code = 'SUPER_ADMIN' LIMIT 1", role_ids
+            ):
+                raise PermissionError("Only a super admin can assign the Super Admin role.")
             # Deactivate all current
             await conn.execute("UPDATE user_roles SET is_active = false WHERE user_id = $1", user_id)
             if role_ids:
@@ -550,6 +583,7 @@ async def set_user_brands(user_id: UUID, brand_codes: list[str], actor_id: UUID 
         async with conn.transaction():
             if not await conn.fetchval("SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL", user_id):
                 raise ValueError("User not found")
+            await _guard_account_change(conn, actor_id, [user_id], what="brands", self_allowed=False)
             known = await conn.fetch("SELECT code FROM brands WHERE is_active AND code = ANY($1::text[])", codes)
             unknown = set(codes) - {r["code"] for r in known}
             if unknown:

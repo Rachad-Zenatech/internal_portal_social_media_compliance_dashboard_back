@@ -100,8 +100,10 @@ async def ask_gemini_stream(message: str, history: list = None, file_data: str =
                 for p in (chunk.candidates[0].content.parts or []):
                     if getattr(p, "text", None):
                         yield f"data: {json.dumps({'type': 'text', 'content': p.text})}\n\n"
-    except Exception as e:
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+    except Exception:
+        # The provider's error text can carry internals (model names, quotas, request details): log it, don't send it.
+        logger.exception("AI chat generation failed")
+        yield f"data: {json.dumps({'type': 'error', 'message': 'The AI service is temporarily unavailable.'})}\n\n"
 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 

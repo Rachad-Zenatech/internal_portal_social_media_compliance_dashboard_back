@@ -7,8 +7,9 @@ import contextvars
 import datetime
 import logging
 import os
+import re
 import secrets
-from fastapi import Cookie, Depends, Header, HTTPException, Response, Query
+from fastapi import Cookie, Depends, Header, HTTPException, Request, Response, Query
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,26 @@ def create_access_token(user_id: UUID, is_super_admin: bool):
         "exp": now + datetime.timedelta(seconds=AUTH_COOKIE_MAX_AGE),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+# Link tokens: for the few GET URLs a browser loads without our headers (<img>, <video>, EventSource). They're
+# short-lived, can only read those URLs, and are the only tokens accepted in a URL, so a leaked link (logs, copied
+# image address, browser history) can't be used to call the API.
+LINK_TOKEN_TTL = datetime.timedelta(hours=4)
+LINK_TOKEN_PATHS = re.compile(
+    r"^/api/(submissions/[^/]+/files/[^/]+"
+    r"|submissions/[^/]+/sentiment/[^/]+/(frame|images/\d+)"
+    r"|canva/designs/[^/]+/thumbnail"
+    r"|notifications/stream)$"
+)
+
+
+def create_link_token(user_id: UUID) -> tuple[str, datetime.datetime]:
+    now = datetime.datetime.now(datetime.timezone.utc)
+    expires = now + LINK_TOKEN_TTL
+    payload = {"sub": str(user_id), "scope": "link", "iss": JWT_ISSUER, "iat": now, "exp": expires,
+               "jti": secrets.token_urlsafe(12)}
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM), expires
+
 
 # Helper to verify token and extract user_id
 def verify_token(token: str):
@@ -316,8 +337,7 @@ async def upsertMicrosoftUser(claims: dict, graph_profile: Optional[dict] = None
                     deleted_by = NULL,
                     last_login_at = now(),
                     last_sso_login_at = now(),
-                    last_activity_at = now(),
-                    last_logout_at = NULL
+                    last_activity_at = now()
                 WHERE id = $10
             """, clean_email, clean_name, oid, claims.get('tid'), claims.get('sub'),
                  department, job_title, account_enabled, graph_synced_at, user['id'], is_initial_admin)
@@ -346,8 +366,7 @@ async def upsertMicrosoftUser(claims: dict, graph_profile: Optional[dict] = None
                     deleted_by = NULL,
                     last_login_at = now(),
                     last_sso_login_at = now(),
-                    last_activity_at = now(),
-                    last_logout_at = NULL
+                    last_activity_at = now()
                 RETURNING *
             """, oid, claims.get('tid'), claims.get('sub'), clean_email, clean_name,
                  department, job_title, account_enabled, graph_synced_at, is_initial_admin)
@@ -460,6 +479,8 @@ async def get_current_user_id_dependency(
     access_token: Optional[str] = Cookie(None, alias=AUTH_COOKIE_NAME),
     zenatech_token: Optional[str] = Cookie(None, alias="zenatech_access_token"),
     query_token: Optional[str] = Query(None, alias='token'),
+    # Last and optional: some callers pass the tokens positionally (e.g. tools/rbac_router.get_current_user_id).
+    request: Request = None,  # type: ignore[assignment]  # FastAPI injects it; direct callers may leave it out
 ) -> UUID:
     bearer_token = None
     if authorization and authorization.startswith("Bearer "):
@@ -470,6 +491,13 @@ async def get_current_user_id_dependency(
     payload = verify_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail='Invalid token')
+    from_url = token is query_token and not (bearer_token or access_token or zenatech_token)
+    if payload.get("scope") == "link":
+        # Only for loading media and the notification stream, and only from a URL.
+        if not (from_url and request and request.method == "GET" and LINK_TOKEN_PATHS.match(request.url.path)):
+            raise HTTPException(status_code=401, detail="This link can't be used here")
+    elif from_url:
+        raise HTTPException(status_code=401, detail="Sign-in tokens can't be sent in a URL")
     user_id = None
     sub_raw = payload.get('sub')
     if sub_raw:
@@ -515,21 +543,24 @@ async def get_current_user_id_dependency(
     now_dt = datetime.datetime.now(datetime.timezone.utc)
 
     if user.get("last_logout_at"):
+        # Tokens issued before the last logout are dead, even after signing in again (iat is whole seconds).
         token_iat = datetime.datetime.fromtimestamp(payload['iat'], tz=datetime.timezone.utc)
-        if token_iat < user["last_logout_at"]:
+        if token_iat + datetime.timedelta(seconds=1) <= user["last_logout_at"]:
             raise HTTPException(status_code=401, detail="Session expired")
 
     if user.get("last_activity_at"):
         if now_dt - user["last_activity_at"] > datetime.timedelta(minutes=30):
             from postgresql_db.database import execute
             if payload.get("is_super_admin") or payload.get("is_service_token"):
-                await execute("UPDATE users SET last_activity_at = now(), last_logout_at = NULL WHERE id = $1", user_id)
+                await execute("UPDATE users SET last_activity_at = now() WHERE id = $1", user_id)
             else:
                 await execute("UPDATE users SET last_logout_at = now() WHERE id = $1", user_id)
                 raise HTTPException(status_code=401, detail="Logged out due to inactivity")
 
+    # Only changes count as activity (the app also sends a heartbeat while someone is using the page): background
+    # reads such as polling and the notification stream must not keep an idle tab signed in forever.
     last_upd = _last_activity_update.get(user_id, 0.0)
-    if now_ts - last_upd > 60.0:
+    if request is not None and request.method != "GET" and now_ts - last_upd > 60.0:
         _last_activity_update[user_id] = now_ts
         asyncio.create_task(_update_last_activity_async(user_id))
 

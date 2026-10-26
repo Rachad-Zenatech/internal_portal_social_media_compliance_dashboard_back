@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Header
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Header, Request
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
@@ -28,10 +28,13 @@ router = APIRouter()
 
 # --- AUTHENTICATION DEPENDENCY ---
 async def get_current_user_id(
+    request: Request,
     authorization: Optional[str] = Header(None),
     access_token: Optional[str] = Cookie(None, alias=AUTH_COOKIE_NAME),
 ) -> UUID:
-    return await get_current_user_id_dependency(authorization, access_token)
+    return await get_current_user_id_dependency(
+        authorization=authorization, access_token=access_token, zenatech_token=None, query_token=None, request=request
+    )
 
 @router.get("/me/permissions")
 async def read_my_permissions(user_id: UUID = Depends(get_current_user_id)):
@@ -78,6 +81,8 @@ async def list_users(is_active: Optional[bool] = None, user_id: UUID = Depends(g
 async def add_user(user: UserCreate, user_id: UUID = Depends(require_permission("CONFIG_USERS_CREATE"))):
     try:
         return await create_user(user, actor_id=user_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -88,6 +93,8 @@ async def edit_user(id: UUID, user: UserUpdate, user_id: UUID = Depends(require_
         if not result:
             raise HTTPException(status_code=404, detail="User not found")
         return result
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -98,6 +105,8 @@ async def remove_user(id: UUID, user_id: UUID = Depends(require_permission("CONF
         if not success:
             raise HTTPException(status_code=404, detail="User not found")
         return {"success": True}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -106,6 +115,8 @@ async def remove_users_bulk(payload: UserBulkDelete, user_id: UUID = Depends(req
     try:
         result = await bulk_delete_users(payload.user_ids, actor_id=user_id)
         return {"success": True, **result}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -149,7 +160,10 @@ class SetRolesRequest(BaseModel):
 
 @router.put("/configuration/users/{id}/roles")
 async def update_user_roles(id: UUID, req: SetRolesRequest, user_id: UUID = Depends(require_permission("CONFIG_USER_ROLE_ASSIGNMENT_UPDATE"))):
-    return await set_user_roles(id, req.role_ids, actor_id=user_id)
+    try:
+        return await set_user_roles(id, req.role_ids, actor_id=user_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 # --- USER BRAND ACCESS ---
 @router.get("/configuration/users/{id}/brands")
@@ -165,6 +179,8 @@ async def update_user_brands(id: UUID, req: SetBrandsRequest, user_id: UUID = De
     """Set the brands a user works on; they only see other people's content for these. Empty: all brands."""
     try:
         return await set_user_brands(id, req.brand_codes, actor_id=user_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 

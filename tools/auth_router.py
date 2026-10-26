@@ -1,5 +1,8 @@
+import hashlib
 import logging
 import os
+import re
+import secrets
 from fastapi import APIRouter, Request, HTTPException, Depends, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 
@@ -21,9 +24,18 @@ from services.graph_service import fetch_me_profile
 from services.rbac_service import log_login_activity
 from postgresql_db.database import get_pool
 from uuid import UUID
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# One-time sign-in codes (see postgresql_db/setup_login_codes_schema.py).
+LOGIN_CODE_TTL_SECONDS = 120
+_NONCE_RE = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
+
+
+def _sha256(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 # Try to load from environment
 MICROSOFT_CLIENT_ID = os.getenv("MICROSOFT_CLIENT_ID", "")
@@ -54,7 +66,12 @@ except Exception:
     )
 
 @router.get("/auth/microsoft/login")
-async def microsoft_login(request: Request):
+async def microsoft_login(request: Request, nonce: str = ""):
+    # Random value the sign-in page keeps in the browser; the code issued after sign-in only works with it, so a
+    # sign-in link made in someone else's browser can't sign you into their account.
+    if not _NONCE_RE.match(nonce):
+        raise HTTPException(status_code=400, detail="Start signing in from the sign-in page")
+    request.session["login_nonce_hash"] = _sha256(nonce)
     redirect_uri = os.getenv("MICROSOFT_REDIRECT_URI")
     if not redirect_uri:
         logger.error(
@@ -92,10 +109,7 @@ async def microsoft_callback(request: Request):
                 "error_type": type(exc).__name__,
             },
         )
-        import traceback
-        with open("ms_error.log", "w") as f:
-            f.write(traceback.format_exc())
-        raise HTTPException(status_code=400, detail=f"Microsoft sign-in failed: {str(exc)}") from exc
+        raise HTTPException(status_code=400, detail="Microsoft sign-in failed. Please try again.") from exc
 
     # Reuse the access token to fetch the employee's Graph profile
     graph_profile = None
@@ -148,11 +162,52 @@ async def microsoft_callback(request: Request):
 
     await log_login_activity(email, user["id"], True, None, ip_address, user_agent)
 
+    nonce_hash = request.session.pop("login_nonce_hash", None)
+    if not nonce_hash:
+        return RedirectResponse(f"{frontend_url}/login?error=login_expired")
+    # The redirect carries a one-time code, never the session token: URLs end up in history and logs.
+    code = secrets.token_urlsafe(32)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM login_codes WHERE expires_at < now() - interval '1 day'")
+        await conn.execute(
+            """
+            INSERT INTO login_codes (code_hash, nonce_hash, user_id, expires_at)
+            VALUES ($1, $2, $3, now() + make_interval(secs => $4))
+            """,
+            _sha256(code), nonce_hash, user["id"], LOGIN_CODE_TTL_SECONDS,
+        )
     access_token = create_access_token(user["id"], user["is_super_admin"])
-    redirect_url = f"{frontend_url}/login?status=success&token={access_token}"
-    response = RedirectResponse(redirect_url)
+    response = RedirectResponse(f"{frontend_url}/login?status=success&code={code}")
     set_access_token_cookie(response, access_token)
     return response
+
+
+class LoginCodeExchange(BaseModel):
+    code: str = Field(min_length=16, max_length=128)
+    nonce: str = Field(min_length=32, max_length=128)
+
+
+@router.post("/auth/exchange")
+async def exchange_login_code(data: LoginCodeExchange):
+    """Swap the one-time code from the sign-in redirect, with the nonce this browser made when it started signing
+    in, for a session token. Each code works once, for two minutes."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE login_codes c SET used_at = now()
+            FROM users u
+            WHERE c.code_hash = $1 AND c.nonce_hash = $2 AND c.used_at IS NULL AND c.expires_at > now()
+              AND u.id = c.user_id AND u.is_active AND u.deleted_at IS NULL
+            RETURNING u.id, u.is_super_admin
+            """,
+            _sha256(data.code), _sha256(data.nonce),
+        )
+    if not row:
+        # 400, not 401: this isn't an expired session, just a sign-in link that can't be used.
+        raise HTTPException(status_code=400, detail="This sign-in link has expired or was already used. Sign in again.")
+    return {"token": create_access_token(row["id"], bool(row["is_super_admin"]))}
 
 @router.get("/auth/bootstrap")
 async def get_auth_bootstrap(user_id: UUID = Depends(get_current_user_id_dependency)):
@@ -220,6 +275,14 @@ async def heartbeat(
     set_access_token_cookie(response, refreshed_token)
     return {"status": "ok"}
 
+@router.post("/auth/link-token")
+async def link_token(user_id: UUID = Depends(get_current_user_id_dependency)):
+    """A short-lived token for loading media and the notification stream by URL (<img>, <video>, EventSource
+    can't send headers). It only works for those GET URLs."""
+    from services.auth_service import create_link_token
+    token, expires = create_link_token(user_id)
+    return {"token": token, "expires_at": expires.isoformat()}
+
 @router.post("/auth/logout")
 async def logout(request: Request):
     auth_header = request.headers.get("Authorization")
@@ -263,6 +326,10 @@ async def logout(request: Request):
                     # Get user's last_login_at
                     user = await conn.fetchrow("SELECT id FROM users WHERE id = $1", user_id)
                     if user:
+                        # Every token issued before now stops working (see get_current_user_id_dependency).
+                        await conn.execute("UPDATE users SET last_logout_at = now() WHERE id = $1", user_id)
+                        from services.auth_service import _user_auth_cache
+                        _user_auth_cache.pop(user_id, None)
                         # Update the corresponding login activity log to set logout_at
                         await conn.execute("""
                             UPDATE login_activity_logs
