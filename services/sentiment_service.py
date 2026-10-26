@@ -56,7 +56,7 @@ from services.gemini_service import is_rotatable_model_error
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSION = "sentiment-v8"
+PROMPT_VERSION = "sentiment-v9"
 # Gemini processes an uploaded video before it can be used in a prompt.
 VIDEO_READY_TIMEOUT_SEC = 300
 # Models to analyse with, in order of preference. Gemini's free tier gives each model its own small daily allowance
@@ -97,6 +97,27 @@ MAX_TEXT_CHARS = 30_000
 
 CEO_RULE_SET = "Shaun CEO Thought Leadership"
 DEFENSE_RULE_SET = "ZenaDrone Defense"
+# Audiences whose posts are held to the strict standard; everything else (general, commercial) is everyday social media.
+STRICT_AUDIENCES = {"DEFENSE", "INVESTORS"}
+
+# How strict to be, by who the post is for. Everyday social posts use trends, humour and seasonal props; flagging
+# those as risky is noise. Defense, investor and CEO content keeps the full standard.
+RELAXED_GUIDE = """HOW STRICT TO BE: this is an everyday social media post for a general or commercial audience.
+- Trends, memes, humour, pop-culture references, trending audio and seasonal or costume props (for example a skeleton,
+  pumpkins or a costume for Halloween, or a skeleton in a "waiting for..." meme) are normal on these platforms and
+  usually help the post. Read them as the trend they are, not literally: a skeleton prop is not imagery of death, and
+  a playful tone is not unprofessional.
+- Don't make findings about style alone (playful, casual, trendy, ironic, slang, emoji). Only flag tone or imagery when
+  a reasonable viewer could be offended or misled: it mocks or demeans people or groups, makes light of real harm,
+  tragedy or violence, ties the company's products or drones to death, injury or weapons, or is sexual, political or
+  discriminatory.
+- When a creative choice might divide opinion but isn't one of those, say so at most as a LOW finding, framed as a
+  judgment call, and don't let it raise reputational_concern or the overall assessment on its own.
+- Claims, figures, disclosure and the rulebook guidelines still apply in full: being relaxed about style is never
+  being relaxed about what the post claims."""
+
+STRICT_GUIDE = """HOW STRICT TO BE: this content is held to the full standard (defense buyers, investors or the CEO's
+channel). Assess tone, imagery and sound carefully, as set out above."""
 AUDIENCE_NAMES = {
     "GENERAL": "general audiences",
     "INVESTORS": "investors",
@@ -453,6 +474,16 @@ def _past_reviews(precedents: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _held_to_full_standard(inp: Dict[str, Any]) -> bool:
+    """Defense, investor and CEO content is assessed strictly; everyday general and commercial posts are not."""
+    return (
+        (inp.get("audience") or "") in STRICT_AUDIENCES
+        or bool(inp.get("controversy_dial"))
+        or bool(inp.get("is_ceo_channel"))
+        or DEFENSE_RULE_SET in (inp.get("rule_sets") or [])
+    )
+
+
 def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: int = 0,
             precedents: Optional[List[Dict[str, Any]]] = None) -> str:
     guidelines = "\n".join(
@@ -477,6 +508,7 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
         if inp["controversy_dial"]
         else "The controversy dial does not apply to this content: set controversy.applies to false and leave its other fields null."
     )
+    strictness = STRICT_GUIDE if _held_to_full_standard(inp) else RELAXED_GUIDE
     transcript = inp["transcript"]
     transcript_text = ""
     if isinstance(transcript, list) and transcript:
@@ -513,7 +545,7 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
     return (
         f"{INSTRUCTIONS}\n\nCONTEXT\n" + "\n".join(context)
         + f"\n\n{_reference_context(inp.get('context') or [])}"
-        + f"\n\nAPPLICABLE RULEBOOK GUIDELINES\n{guidelines}\n\n{controversy}\n\n"
+        + f"\n\nAPPLICABLE RULEBOOK GUIDELINES\n{guidelines}\n\n{controversy}\n\n{strictness}\n\n"
         f"{_past_reviews(precedents or [])}\n\n"
         f"<content>\n{content}{transcript_text}\n</content>"
     )
