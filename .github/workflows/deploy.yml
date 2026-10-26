@@ -35,26 +35,34 @@ jobs:
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest ruff
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install ruff
 
       - name: Check Python Syntax
         run: |
           python -m py_compile server.py
 
-      - name: Run Ruff Lint
+      # Real errors fail the build: syntax errors and undefined names.
+      - name: Ruff (errors)
         run: |
-          ruff check . --ignore E501 || true
+          ruff check . --select E9,F63,F7,F82
 
+      # Style issues are reported but don't block yet (there's a backlog of them to clear first).
+      - name: Ruff (style report)
+        run: |
+          ruff check . --ignore E501 --statistics || true
+
+      # Unit tests (unittest style, as in the finance backend): the database and Gemini are mocked, so no services
+      # are needed. A failing test fails the build.
       - name: Run Pytest
         run: |
-          if [ -d "tests" ]; then
-            pytest tests/ || true
-          fi
+          pytest -q
 
   docker-build:
     name: Build Docker Image
     runs-on: ubuntu-latest
+    # Only build the image once lint and tests pass.
+    needs: lint-and-test
 
     steps:
       - name: Checkout repository

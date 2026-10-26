@@ -1,0 +1,2 @@
+# Test tools (not needed in the production image): pip install -r requirements.txt -r requirements-dev.txt
+pytest>=8.3

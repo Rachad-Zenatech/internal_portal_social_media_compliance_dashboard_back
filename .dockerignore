@@ -23,6 +23,8 @@ dist
 build
 
 data
+# Local uploads (submission files, sentiment frames): never baked into the image
+.data
 uploads
 outputs
 

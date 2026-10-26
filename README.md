@@ -157,6 +157,15 @@ uvicorn server:app --host 0.0.0.0 --port 8009 --reload
 ```
 Open API docs at `http://localhost:8009/docs`.
 
+### 5. Run the Tests
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+- Tests follow the finance backend's (`internal_portal`) format: `unittest` test classes in `tests/test_*.py`, with the database, Gemini and MongoDB replaced by `unittest.mock` (`patch`, `AsyncMock`). Nothing needs to be running, and no real data or AI quota is touched.
+- Async code is tested with `unittest.IsolatedAsyncioTestCase`; small builder helpers (e.g. `submission_row()`, `rule()`) sit at the top of each file.
+- CI runs the suite on every pull request to `main`; a failing test blocks the build.
+
 
 ## Local Database (Docker), DataGrip & Migrations
 

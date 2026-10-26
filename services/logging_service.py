@@ -76,6 +76,10 @@ def configure_logging() -> None:
 
     # Request access logs are emitted by our middleware with correlation fields.
     logging.getLogger("uvicorn.access").disabled = True
+    # Libraries that log routine internals at DEBUG/INFO (e.g. the MongoDB driver logs a heartbeat to every Atlas
+    # node every 10 seconds) only show warnings and errors, so the app's own debug logs stay readable.
+    for name in ("pymongo", "motor", "aiormq", "aio_pika", "httpx", "httpcore", "google_genai", "urllib3"):
+        logging.getLogger(name).setLevel(max(level, logging.WARNING))
     for name in ("uvicorn", "uvicorn.error", "fastapi"):
         child = logging.getLogger(name)
         child.handlers.clear()
