@@ -1,6 +1,7 @@
 """Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs."""
 
 import datetime
+import os
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -8,8 +9,12 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from services import auth_service, rbac_service
-from services.html_sanitizer import sanitize_caption_html
+# auth_service refuses to load without a signing secret (CI has no .env). A throwaway one for the tests; a real
+# secret from the environment wins.
+os.environ.setdefault("JWT_SECRET", "test-only-secret-for-unit-tests-0123456789")
+
+from services import auth_service, rbac_service  # noqa: E402
+from services.html_sanitizer import sanitize_caption_html  # noqa: E402
 
 
 class CaptionSanitizerTests(unittest.TestCase):
