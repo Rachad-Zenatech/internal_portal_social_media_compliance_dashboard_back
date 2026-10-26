@@ -58,11 +58,19 @@ logger = logging.getLogger(__name__)
 PROMPT_VERSION = "sentiment-v8"
 # Gemini processes an uploaded video before it can be used in a prompt.
 VIDEO_READY_TIMEOUT_SEC = 300
-# Pinned models so results are comparable between runs; never rotate to whichever model is free.
-MODEL = os.getenv("SENTIMENT_MODEL", "gemini-2.5-flash")
-# Shaun's posts and investor-facing posts get the stronger model. Set it to the same value as SENTIMENT_MODEL to
-# turn this off (e.g. if the Pro quota runs out often).
-HIGH_STAKES_MODEL = os.getenv("SENTIMENT_MODEL_HIGH_STAKES", "gemini-2.5-pro")
+# Models to analyse with, in order of preference. Gemini's free tier gives each model its own small daily allowance
+# (and Pro models none), so when one's allowance is used up, or a model has been retired, the next one does the
+# analysis instead of the run failing; the result records which model it was. SENTIMENT_MODEL, if set, goes first.
+_PREFERRED = os.getenv("SENTIMENT_MODEL", "").strip()
+MODEL_CHAIN: List[str] = list(dict.fromkeys(
+    ([_PREFERRED] if _PREFERRED else [])
+    + [m.strip() for m in os.getenv("SENTIMENT_MODELS", "gemini-2.5-flash,gemini-3.8-flash,gemini-3.5-flash").split(",")
+       if m.strip()]
+))
+MODEL = MODEL_CHAIN[0]
+# Shaun's posts and investor-facing posts can start with a stronger model (e.g. a Pro model on a paid tier). Unset,
+# they use the same chain as everything else.
+HIGH_STAKES_MODEL = os.getenv("SENTIMENT_MODEL_HIGH_STAKES", "").strip() or MODEL
 CEO_BRAND = "CEO_THOUGHT_LEADERSHIP"
 # Gemini's daily quotas reset at midnight Pacific time.
 QUOTA_TZ = ZoneInfo("America/Los_Angeles")
@@ -81,6 +89,9 @@ MAX_CONCURRENT = int(os.getenv("SENTIMENT_MAX_CONCURRENT", "2"))
 STALE_MINUTES = 10
 MAX_ATTEMPTS = 3
 API_RETRIES = 3
+# The most one Gemini analysis call may take (a normal one takes about 20 seconds); after that the model counts as
+# too busy and the next one in the chain takes over.
+GENERATE_TIMEOUT_SEC = int(os.getenv("SENTIMENT_TIMEOUT_SEC", "120"))
 MAX_TEXT_CHARS = 30_000
 
 CEO_RULE_SET = "Shaun CEO Thought Leadership"
@@ -567,8 +578,12 @@ def _locate(quote: str, inp: Dict[str, Any]) -> Optional[Tuple[str, Optional[flo
             joined += _norm(seg["text"]) + " "
         positions = [joined.find(f" {p} ") for p in parts]
         if all(pos >= 0 for pos in positions):
-            first, last = min(positions), max(positions) + len(parts[-1])
-            covering = [seg for start, seg in offsets if start <= last and start + len(_norm(seg["text"])) + 1 >= first]
+            # Each position is the space before a part, so the quote's own characters run from first to last
+            # (exclusive). A segment covers it only if their characters overlap; the space between two segments
+            # doesn't count, or a quote starting a segment would also take the previous one's start time.
+            first = min(positions) + 1
+            last = max(pos + 1 + len(p) for pos, p in zip(positions, parts))
+            covering = [seg for start, seg in offsets if start < last and start + len(_norm(seg["text"])) > first]
             if covering:
                 return "transcript", covering[0]["start_sec"], covering[-1]["end_sec"]
             return "transcript", None, None
@@ -770,10 +785,11 @@ async def _image_parts(images: List[Dict[str, Any]]) -> List[types.Part]:
 
 
 async def analyse(inp: Dict[str, Any], submission_id: Optional[UUID] = None,
-                  exclude_own_reviews: bool = False) -> SentimentResult:
+                  exclude_own_reviews: bool = False, fallback: bool = True) -> SentimentResult:
     """Run the analysis for an input built by _build_input, with the video and images attached when there are any,
-    and the most similar past reviews as precedent (see review_memory_service). Retries the same model on rate
-    limits/outages and once on a malformed response; never switches to a different model."""
+    and the most similar past reviews as precedent (see review_memory_service). Retries a model on brief rate
+    limits/outages and once on a malformed response; moves down the model chain when a model's daily limit is used
+    up or it's unavailable (fallback=False tests exactly the input's model)."""
     client = _get_client()
     images = await _image_parts(inp.get("images") or [])
     try:
@@ -783,7 +799,7 @@ async def analyse(inp: Dict[str, Any], submission_id: Optional[UUID] = None,
         precedents = []
     video = await _upload_video(client, inp["video_file_id"]) if inp.get("video_file_id") else None
     try:
-        result = await _generate(client, inp, video, images, precedents)
+        result = await _generate(client, inp, video, images, precedents, fallback=fallback)
     finally:
         if video:
             await _delete_upload(client, video)
@@ -824,6 +840,38 @@ class QuotaExhausted(RuntimeError):
         super().__init__(f"Gemini's daily limit for {model} is used up.")
 
 
+class ModelUnavailable(RuntimeError):
+    """The model can't be used right now: it doesn't exist for this key (e.g. retired), or it stayed overloaded
+    through every retry. Either way the next model in the chain should take over."""
+
+    def __init__(self, model: str, reason: str):
+        self.model = model
+        self.reason = reason
+        super().__init__(f"{model} {reason}")
+
+
+def _is_daily_quota(e: Exception) -> bool:
+    text = str(e)
+    return "PerDay" in text or "free_tier" in text
+
+
+def _is_timeout(e: Exception) -> bool:
+    import httpx
+
+    return isinstance(e, (httpx.TimeoutException, asyncio.TimeoutError, TimeoutError)) or "timed out" in str(e).lower()
+
+
+def _is_unavailable(e: Exception) -> bool:
+    text = str(e).lower()
+    return "404" in text or "not_found" in text or "no longer available" in text or "is not found" in text
+
+
+def _models_to_try(inp: Dict[str, Any], fallback: bool = True) -> List[str]:
+    """The input's own model first, then the rest of the chain (unless fallback is off, e.g. to test one model)."""
+    first = _model_for(inp)
+    return [first] + ([m for m in MODEL_CHAIN if m != first] if fallback else [])
+
+
 def next_quota_reset(now: Optional[datetime] = None) -> datetime:
     """The next midnight Pacific time, when Gemini's daily quotas reset (in UTC)."""
     local = (now or datetime.now(timezone.utc)).astimezone(QUOTA_TZ)
@@ -833,8 +881,37 @@ def next_quota_reset(now: Optional[datetime] = None) -> datetime:
 
 async def _generate(client: genai.Client, inp: Dict[str, Any], video: Optional[types.File],
                     images: Optional[List[types.Part]] = None,
-                    precedents: Optional[List[Dict[str, Any]]] = None) -> SentimentResult:
-    model = _model_for(inp)
+                    precedents: Optional[List[Dict[str, Any]]] = None, fallback: bool = True) -> SentimentResult:
+    """Analyse with the first model in the chain that has allowance left and still exists. Only when every model's
+    daily limit is used up does it raise QuotaExhausted (so the run can be scheduled for after the reset)."""
+    models = _models_to_try(inp, fallback)
+    skipped: List[str] = []
+    out_of_quota: List[str] = []
+    for model in models:
+        try:
+            result = await _generate_with(client, model, inp, video, images, precedents)
+        except QuotaExhausted:
+            out_of_quota.append(model)
+            skipped.append(f"{model}'s daily limit was used up")
+            logger.info("Sentiment: daily limit for %s used up, trying the next model", model)
+            continue
+        except ModelUnavailable as e:
+            skipped.append(str(e))
+            logger.warning("Sentiment: %s, trying the next model", e)
+            continue
+        result.model_used = model
+        if skipped:
+            result.model_note = f"Analysed with {model} because " + "; ".join(skipped) + "."
+        return result
+    if out_of_quota:
+        raise QuotaExhausted(", ".join(out_of_quota))
+    raise RuntimeError("None of the sentiment models are available: " + ", ".join(models))
+
+
+async def _generate_with(client: genai.Client, model: str, inp: Dict[str, Any], video: Optional[types.File],
+                         images: Optional[List[types.Part]] = None,
+                         precedents: Optional[List[Dict[str, Any]]] = None) -> SentimentResult:
+    """One model: retries brief rate limits and outages, and once on malformed output."""
     images = images or []
     prompt = _prompt(inp, video_attached=video is not None, images_attached=len(images), precedents=precedents)
     contents: Any = prompt
@@ -847,6 +924,8 @@ async def _generate(client: genai.Client, inp: Dict[str, Any], video: Optional[t
         response_mime_type="application/json",
         response_schema=RESPONSE_SCHEMA,
         temperature=0,
+        # Without a limit, a request queued behind "high demand" can hang indefinitely.
+        http_options=types.HttpOptions(timeout=GENERATE_TIMEOUT_SEC * 1000),
     )
     last_error: Optional[Exception] = None
     for attempt in range(API_RETRIES):
@@ -872,12 +951,21 @@ async def _generate(client: genai.Client, inp: Dict[str, Any], video: Optional[t
                 break
         except Exception as e:
             last_error = e
+            if _is_timeout(e):
+                # It already waited the full limit; retrying the same busy model would only wait again.
+                raise ModelUnavailable(model, "timed out") from e
             if not is_rotatable_model_error(e):
                 raise
-            if "PerDay" in str(e) or "free_tier" in str(e):
-                # A daily quota won't recover within a retry; record when it resets so it can run then.
+            if _is_daily_quota(e):
+                # A daily quota won't recover within a retry: move on to the next model.
                 raise QuotaExhausted(model) from e
+            if _is_unavailable(e):
+                # A retired or unknown model won't come back either.
+                raise ModelUnavailable(model, "isn't available") from e
             await asyncio.sleep(2 ** (attempt + 1))
+    if last_error is not None and is_rotatable_model_error(last_error):
+        # Still overloaded or rate-limited after every retry: let the next model take over.
+        raise ModelUnavailable(model, "was too busy") from last_error
     raise RuntimeError(f"Gemini didn't return a valid assessment: {last_error}")
 
 
@@ -944,7 +1032,7 @@ async def run_analysis(analysis_id: UUID) -> None:
         model = _model_for(inp)
         try:
             result = await analyse(inp, submission_id)
-            await _finish(analysis_id, submission_id, claimed["requested_by"], result, None, model)
+            await _finish(analysis_id, submission_id, claimed["requested_by"], result, None, result.model_used or model)
             logger.info("Sentiment analysis %s: %s", analysis_id, result.overall_assessment)
         except QuotaExhausted as e:
             logger.warning("Sentiment analysis %s: daily quota for %s used up until %s", analysis_id, e.model, e.reset_at)

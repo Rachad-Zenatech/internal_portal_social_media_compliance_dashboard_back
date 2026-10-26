@@ -110,6 +110,10 @@ class SentimentResult(BaseModel):
     precedents: List[Precedent] = Field(default_factory=list)
     guidelines_used: List[str] = Field(default_factory=list)
     unverified_findings_removed: int = 0
+    # The model that actually did the analysis, and why, when it wasn't the first choice (e.g. its daily limit was
+    # used up), so reviewers know a different model produced it.
+    model_used: Optional[str] = None
+    model_note: Optional[str] = None
 
 
 class FindingFeedback(BaseModel):

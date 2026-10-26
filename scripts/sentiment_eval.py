@@ -73,8 +73,11 @@ def _row(caption: str, rule_sets, is_ceo: bool, brand: str, audience: str) -> di
 async def _analyse(inp: dict, submission_id=None):
     if MODEL_OVERRIDE:
         inp = {**inp, "model": MODEL_OVERRIDE}
-    # A saved case never sees its own post's reviews as precedent, or it would be reading its own answer.
-    return await sentiment_service.analyse(inp, submission_id, exclude_own_reviews=submission_id is not None)
+    # A saved case never sees its own post's reviews as precedent, or it would be reading its own answer. Comparing
+    # a model (--model) tests exactly that model, without falling back to another.
+    return await sentiment_service.analyse(
+        inp, submission_id, exclude_own_reviews=submission_id is not None, fallback=MODEL_OVERRIDE is None
+    )
 
 
 async def run_case(name, row, expected, level_range, must_flag):
@@ -171,7 +174,9 @@ async def main():
         width = max(len(n) for n, _, _ in results)
         for name, ok, detail in results:
             print(f"{'PASS' if ok else 'FAIL'}  {name:<{width}}  {detail}")
-        models = MODEL_OVERRIDE or f"{sentiment_service.MODEL}, high-stakes {sentiment_service.HIGH_STAKES_MODEL}"
+        models = MODEL_OVERRIDE or (
+            f"chain {', '.join(sentiment_service.MODEL_CHAIN)}; high-stakes starts with {sentiment_service.HIGH_STAKES_MODEL}"
+        )
         print(f"\n{passed}/{len(results)} passed (models: {models}; {sentiment_service.PROMPT_VERSION})")
     finally:
         await close_pool()
