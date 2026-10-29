@@ -94,8 +94,9 @@ async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: O
     )
 
 
-async def _generate(contents) -> object:
-    """Ask the first model in MODELS that answers; quota, rate-limit and unavailable-model errors move on to the next."""
+async def _generate(contents, feature: str = "IMAGE_TEXT") -> object:
+    """Ask the first model in MODELS that answers; quota, rate-limit and unavailable-model errors move on to the next.
+    Also used to read PDF scripts (see document_text_service), with its own feature label."""
     config = types.GenerateContentConfig(
         response_mime_type="application/json", response_schema=RESPONSE_SCHEMA, temperature=0,
         # A request stuck behind "high demand" moves on to the next model instead of hanging.
@@ -105,7 +106,7 @@ async def _generate(contents) -> object:
     last_error: Optional[Exception] = None
     for model in MODELS:
         try:
-            return await ai_observability.generate(client, model=model, contents=contents, config=config, feature="IMAGE_TEXT")
+            return await ai_observability.generate(client, model=model, contents=contents, config=config, feature=feature)
         except Exception as e:
             timed_out = isinstance(e, (httpx.TimeoutException, TimeoutError)) or "timed out" in str(e).lower()
             if not timed_out and not is_rotatable_model_error(e):

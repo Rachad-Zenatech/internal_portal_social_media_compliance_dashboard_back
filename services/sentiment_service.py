@@ -51,7 +51,8 @@ from services import ai_usage_service
 from services.ai_usage_service import AiLimitExceeded
 from services import ai_observability, context_service, review_memory_service
 from services.ai_guardrails import screen_input
-from services.compliance_service import applicable_rules
+from services import post_signals
+from services.compliance_service import applicable_rules, implied_audiences, parts_for
 from services.gemini_service import is_rotatable_model_error
 
 logger = logging.getLogger(__name__)
@@ -371,15 +372,25 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
     is_ceo = bool(meta.get("is_ceo"))
     rule_sets = list(row["rule_sets"] or [])
     platforms = list(row["platforms"] or [])
-    # Shaun's own posts and anything aimed at investors carry the most risk, so they get the stronger model.
-    high_stakes = is_ceo or row["brand_code"] == CEO_BRAND or CEO_RULE_SET in rule_sets or row["audience"] == "INVESTORS"
+    # A cashtag ($ZENA) in the post means investors read it, whatever audience it targets (see the rulebook check).
+    post_text = "\n".join(p for p in (row["title"], row["caption_text"]) if p)
+    signals = post_signals.extract(post_text)
+    implied = implied_audiences(row["audience"], signals)
+    # Shaun's own posts and anything investors read carry the most risk, so they get the stronger model.
+    high_stakes = (is_ceo or row["brand_code"] == CEO_BRAND or CEO_RULE_SET in rule_sets
+                   or row["audience"] == "INVESTORS" or "INVESTORS" in implied)
+    images = await _load_images(row["id"]) if row.get("id") else []
     rules = await applicable_rules(ComplianceCheckRequest(
-        text="-",
+        text=post_text or "-",
         rule_sets=rule_sets,
         brand_code=row["brand_code"],
         audience=row["audience"],
         region=row["region"],
         platforms=platforms,
+        content_parts=parts_for(
+            row["content_type"], has_video=bool(row["video_id"]), has_images=bool(images),
+            is_ceo=is_ceo or row["brand_code"] == CEO_BRAND or CEO_RULE_SET in rule_sets,
+        ),
     ))
     transcript = None
     if row["video_id"]:
@@ -390,8 +401,7 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
             ]
         else:
             transcript = "UNAVAILABLE"
-    images = await _load_images(row["id"]) if row.get("id") else []
-    return {
+    inp: Dict[str, Any] = {
         "title": row["title"],
         "caption": (row["caption_text"] or "").strip()[:MAX_TEXT_CHARS],
         # Messaging Context that applies to this brand, audience and these platforms.
@@ -425,6 +435,11 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
             for r in rules
         ],
     }
+    # Only set when it applies, so saved analyses of every other post keep matching their input's hash.
+    if implied:
+        inp["implied_audiences"] = implied
+        inp["cashtags"] = signals.cashtags
+    return inp
 
 
 def _hash(inp: Dict[str, Any]) -> str:
@@ -478,6 +493,7 @@ def _held_to_full_standard(inp: Dict[str, Any]) -> bool:
     """Defense, investor and CEO content is assessed strictly; everyday general and commercial posts are not."""
     return (
         (inp.get("audience") or "") in STRICT_AUDIENCES
+        or any(a in STRICT_AUDIENCES for a in inp.get("implied_audiences") or [])
         or bool(inp.get("controversy_dial"))
         or bool(inp.get("is_ceo_channel"))
         or DEFENSE_RULE_SET in (inp.get("rule_sets") or [])
@@ -493,6 +509,10 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
         for g in inp["guidelines"]
     ) or "(No rulebook rules apply to this content's rule sets.)"
     audience = AUDIENCE_NAMES.get(inp["audience"] or "", inp["audience"] or "not specified")
+    if inp.get("implied_audiences"):
+        also = ", ".join(AUDIENCE_NAMES.get(a, a) for a in inp["implied_audiences"])
+        audience += (f" (it also reaches {also}: it mentions {', '.join(inp.get('cashtags') or [])}, "
+                     "so assess how they would read it too)")
     context = [
         f"Brand: {inp['brand'] or 'not specified'}",
         f"Target audience: {audience}",

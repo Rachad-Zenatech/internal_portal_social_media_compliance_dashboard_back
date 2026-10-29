@@ -4,14 +4,16 @@ Rule CRUD and rulebook screening of captions, scripts and transcripts.
 
 import logging
 import re
+from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
 import asyncpg
 from fastapi import HTTPException
 
 from models.compliance_model import (
+    CheckSignals,
     ComplianceCheckRequest,
     ComplianceCheckResponse,
     ComplianceRule,
@@ -24,7 +26,7 @@ from models.compliance_model import (
 )
 from models.submission_model import AUDIENCES, PLATFORMS, REGIONS, RULE_SETS
 from postgresql_db.database import fetch_all, fetch_one, get_pool
-from services import claim_checks, reference_index_service
+from services import claim_checks, post_signals, reference_index_service
 from services.audit_service import log_audit_event
 from services.cache_service import emit_cache_invalidation
 
@@ -33,6 +35,13 @@ logger = logging.getLogger(__name__)
 SCOPE_FIELDS = ("rule_sets", "brands", "audiences", "regions", "platforms")
 # Region a submission uses for "posted everywhere"; it matches every region-scoped rule.
 GLOBAL_REGION = "Global"
+INVESTOR_AUDIENCE = "INVESTORS"
+CEO_BRAND = "CEO_THOUGHT_LEADERSHIP"
+CEO_RULE_SET = "Shaun CEO Thought Leadership"
+# What a rule's "applies to" can name. "caption" is the post's text, which every check reads.
+CONTENT_PARTS = ("video", "imagery", "caption", "ceo_post")
+# Bump when how rules are picked for content changes, so open content is re-checked on the next start.
+SCOPE_VERSION = "scope-2"
 
 
 def _row_to_rule(row: dict) -> ComplianceRule:
@@ -88,6 +97,20 @@ async def _clean_scope(values: Dict[str, Optional[List[str]]]) -> Dict[str, List
             raise HTTPException(status_code=422, detail=f"Unknown {field.replace('_', ' ')}: {', '.join(bad)}")
         cleaned[field] = vals
     return cleaned
+
+
+def _clean_applies_to(values: Optional[List[str]]) -> Optional[List[str]]:
+    """Lowercase and de-duplicate a rule's "applies to", rejecting anything the check can't match."""
+    if values is None:
+        return None
+    vals = list(dict.fromkeys(v.strip().lower() for v in values if v and v.strip()))
+    bad = [v for v in vals if v not in CONTENT_PARTS]
+    if bad:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown applies to: {', '.join(bad)}. Use any of: {', '.join(CONTENT_PARTS)}",
+        )
+    return vals
 
 
 def _duplicate_number(rule_number: str) -> HTTPException:
@@ -194,7 +217,7 @@ async def create_compliance_rule(data: ComplianceRuleCreate, user_id: Optional[U
                 data.allowed_examples,
                 data.prohibited_examples,
                 data.remediation_guidance,
-                data.applies_to,
+                _clean_applies_to(data.applies_to),
                 data.is_active,
                 data.sort_order,
                 user_id,
@@ -241,7 +264,7 @@ async def update_compliance_rule(rule_id: UUID, data: ComplianceRuleUpdate, user
         "allowed_examples": data.allowed_examples,
         "prohibited_examples": data.prohibited_examples,
         "remediation_guidance": data.remediation_guidance,
-        "applies_to": data.applies_to,
+        "applies_to": _clean_applies_to(data.applies_to),
         "is_active": data.is_active,
         "sort_order": data.sort_order,
         **await _clean_scope({f: getattr(data, f) for f in SCOPE_FIELDS}),
@@ -374,6 +397,21 @@ def _hit(term: str, padded_text: str, exceptions: List[str]) -> bool:
     return any(not any(es <= a and b <= ee for es, ee in excused) for a, b in spans)
 
 
+def _hashtag_hit(term: str, hashtag_keys: Sequence[str], exceptions: List[str]) -> bool:
+    """A multi-word phrase run together in a hashtag ("#combatproven" for "combat proven"), unless one of the rule's
+    exceptions is run together around it too ("#notcombatproven"). One-word phrases need no help: a hashtag that is
+    just that word is already matched in the text. CamelCase hashtags ("#CombatProven") are split into words before
+    matching (see post_signals.hashtag_phrases), so this is for tags written in one case."""
+    if "*" in term or not hashtag_keys:
+        return False
+    norm = _normalize(term)
+    if " " not in norm:
+        return False
+    key = norm.replace(" ", "")
+    excused = [k for k in (_normalize(e).replace(" ", "") for e in exceptions) if key in k]
+    return any(key in tag and not any(e in tag for e in excused) for tag in hashtag_keys)
+
+
 _SMALL_WORDS = {"the", "and", "for", "not", "or", "of", "a", "an", "to", "in", "on", "by", "is", "it"}
 
 
@@ -412,26 +450,87 @@ def flag_segments(segments: List[Dict[str, Any]], violations: List[ComplianceVio
     return flags
 
 
-def _rule_applies(rule: ComplianceRule, req: ComplianceCheckRequest) -> bool:
+_VIDEO_WORDS = {"video"}
+_IMAGE_WORDS = {"image", "imagery", "carousel"}
+
+
+def parts_for(content_type: Optional[str], *, has_video: bool = False, has_images: bool = False,
+              is_ceo: bool = False) -> List[str]:
+    """What content is made of, as the parts a rule's "applies to" names. content_type is a submission type
+    ("VIDEO", "CAROUSEL"...) or a screener type ("video_caption", "imagery_concept"), optionally with a platform
+    ("VIDEO_FACEBOOK"). Its text ("caption") is always part of it. An ad is video or imagery by what's attached, and
+    could be either when nothing is. Nothing known at all returns [], so no rule is left out by "applies to"."""
+    words = set(re.split(r"[^a-z]+", (content_type or "").lower())) - {""}
+    if not (words or has_video or has_images or is_ceo):
+        return []
+    parts = {"caption"}
+    if has_video or words & _VIDEO_WORDS:
+        parts.add("video")
+    if has_images or words & _IMAGE_WORDS:
+        parts.add("imagery")
+    if "ad" in words and not (has_video or has_images):
+        parts |= {"video", "imagery"}
+    if is_ceo or "ceo" in words:
+        parts.add("ceo_post")
+    return sorted(parts)
+
+
+def implied_audiences(audience: Optional[str], signals: post_signals.PostSignals) -> List[str]:
+    """Audiences a post reaches whatever it targets: a cashtag ($ZENA) talks about the stock, so investors read it."""
+    if signals.cashtags and audience != INVESTOR_AUDIENCE:
+        return [INVESTOR_AUDIENCE]
+    return []
+
+
+@dataclass(frozen=True)
+class CheckScope:
+    # The target audience plus any the post reaches anyway. Empty when no audience is set: every audience's rules run.
+    audiences: List[str]
+    # Added because of what the post says (see implied_audiences).
+    implied_audiences: List[str]
+    # What the content is made of (see parts_for). Empty when not known: every rule's "applies to" matches.
+    content_parts: List[str]
+
+
+def check_scope(req: ComplianceCheckRequest, signals: Optional[post_signals.PostSignals] = None) -> CheckScope:
+    """Who the content reaches and what it's made of, for picking the rules that apply to it."""
+    signals = signals or post_signals.extract(req.text)
+    implied = implied_audiences(req.audience, signals)
+    # With no audience set every audience-limited rule already runs; adding one would narrow that.
+    audiences = [req.audience, *implied] if req.audience else []
+    if req.content_parts:
+        parts = sorted({p.strip().lower() for p in req.content_parts if p and p.strip()})
+    else:
+        parts = parts_for(req.content_type, is_ceo=req.brand_code == CEO_BRAND or CEO_RULE_SET in req.rule_sets)
+    return CheckScope(audiences=audiences, implied_audiences=implied, content_parts=parts)
+
+
+def _rule_applies(rule: ComplianceRule, req: ComplianceCheckRequest, scope: Optional[CheckScope] = None) -> bool:
     """A rule applies unless it's limited to values the content doesn't have. Content that doesn't
     say (e.g. no audience set yet) is checked against every rule for that dimension."""
+    scope = scope or check_scope(req)
 
     def overlaps(rule_values: List[str], content_values: List[str]) -> bool:
         return not rule_values or not content_values or bool(set(rule_values) & set(content_values))
 
     region = [] if not req.region or req.region == GLOBAL_REGION else [req.region]
+    # Values the check can't match (from before "applies to" was validated) don't limit the rule.
+    rule_parts = [p for p in (v.strip().lower() for v in rule.applies_to or []) if p in CONTENT_PARTS]
     return (
         overlaps(rule.rule_sets, req.rule_sets)
         and overlaps(rule.brands, [req.brand_code] if req.brand_code else [])
-        and overlaps(rule.audiences, [req.audience] if req.audience else [])
+        and overlaps(rule.audiences, scope.audiences)
         and overlaps(rule.regions, region)
         and overlaps(rule.platforms, req.platforms)
+        and overlaps(rule_parts, scope.content_parts)
     )
 
 
 async def applicable_rules(req: ComplianceCheckRequest) -> List[ComplianceRule]:
-    """Active rules whose scope matches the content (also used to pick sentiment-analysis guidelines)."""
-    return [r for r in await list_compliance_rules(is_active=True) if _rule_applies(r, req)]
+    """Active rules whose scope matches the content (also used to pick sentiment-analysis guidelines). Pass the
+    post's text to have a cashtag in it bring in the investor rules (see implied_audiences)."""
+    scope = check_scope(req)
+    return [r for r in await list_compliance_rules(is_active=True) if _rule_applies(r, req, scope)]
 
 
 # Points off per finding, and the most a post with a critical finding can score.
@@ -442,18 +541,24 @@ PENALTY_MISSING_DISCLAIMER = 20
 CRITICAL_SCORE_CAP = 40
 
 
-def _evaluate_rule(rule: ComplianceRule, padded_text: str) -> Optional[ComplianceViolation]:
+def _evaluate_rule(rule: ComplianceRule, padded_text: str,
+                   hashtag_keys: Sequence[str] = ()) -> Optional[ComplianceViolation]:
     """One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
-    disclaimer. Used by the check and by the rule self-tests, so both always agree."""
+    disclaimer. Used by the check and by the rule self-tests, so both always agree. hashtag_keys are the post's
+    hashtags as one lowercase word each, so a phrase run together in a hashtag still counts."""
     exceptions = list(rule.exception_terms or [])
-    flagged = [t for t in rule.prohibited_terms if _hit(t, padded_text, exceptions)]
+
+    def found(term: str) -> bool:
+        return _hit(term, padded_text, exceptions) or _hashtag_hit(term, hashtag_keys, exceptions)
+
+    flagged = [t for t in rule.prohibited_terms if found(t)]
 
     # Required disclaimers: needed when one of the rule's trigger phrases appears (or always, if it has
     # none). Any one of the listed disclaimers satisfies the rule.
     missing: List[str] = []
     triggered_by: List[str] = []
     if rule.required_disclaimers:
-        triggered_by = [t for t in rule.disclaimer_triggers if _hit(t, padded_text, exceptions)]
+        triggered_by = [t for t in rule.disclaimer_triggers if found(t)]
         needed = not rule.disclaimer_triggers or bool(triggered_by) or bool(flagged)
         if needed and not any(_disclaimer_present(d, padded_text) for d in rule.required_disclaimers):
             missing = list(rule.required_disclaimers)
@@ -507,13 +612,19 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     """Screen text against the active rules that apply to this content's rule sets, brand,
     audience, region and platforms. Each finding takes its penalty off 100; any critical finding blocks
     publication and caps the score, so a post that can't go out never looks like a pass."""
+    # Cashtags, hashtags, mentions and links, read before normalizing strips their symbols, and before the rules are
+    # picked: a cashtag brings in the investor rules. CamelCase hashtags are added as words ("#CombatProven" ->
+    # "combat proven") so phrase rules see them.
+    signals = post_signals.extract(req.text)
+    scope = check_scope(req, signals)
     rules = await applicable_rules(req)
-    padded_text = f" {_normalize(req.text)} "
+    padded_text = f" {_normalize(chr(10).join([req.text, *signals.hashtag_phrases]))} "
+    hashtag_keys = signals.hashtag_keys
     violations: List[ComplianceViolation] = []
     # Two rules can ask for the same disclaimer (e.g. Rules 4 and 13); a missing one is reported once.
     reported_disclaimers: set = set()
     for rule in rules:
-        v = _evaluate_rule(rule, padded_text)
+        v = _evaluate_rule(rule, padded_text, hashtag_keys)
         if not v:
             continue
         if v.missing_disclaimers:
@@ -532,6 +643,28 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     violations.extend(
         c for c in claim_checks.find_claims(req.text)
         if not (safe_harbor_reported and c.rule_id == claim_checks.FORWARD_LOOKING_ID)
+    )
+    # Tagged government or military accounts and linked .gov / .mil sites (see post_signals). When the rulebook
+    # already reported the missing "no endorsement" disclaimer (Rules 4 and 13), the fix is the same, so it counts once.
+    endorsement_reported = any(
+        v.kind == "MISSING_DISCLAIMER" and any("dod endorsement" in _normalize(d) for d in v.missing_disclaimers)
+        for v in violations
+    )
+    violations.extend(
+        ComplianceViolation(
+            rule_id=f.rule_id,
+            rule_number=f.rule_number,
+            title=f.title,
+            category=f.category,
+            severity=f.severity,
+            traffic_light=f.traffic_light,
+            flagged_terms=f.flagged_terms,
+            explanation=f.explanation,
+            remediation_guidance=f.remediation,
+            penalty=f.penalty,
+        )
+        for f in post_signals.findings(signals)
+        if not (endorsement_reported and f.rule_id == post_signals.GOVERNMENT_REFERENCE_ID)
     )
 
     _count_overlaps_once(violations, padded_text)
@@ -557,7 +690,19 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         for r in rules
         if not r.prohibited_terms and not r.required_disclaimers
     ]
+    notes = signals.notes()
+    if scope.implied_audiences:
+        tags = ", ".join(signals.cashtags[:3])
+        notes.insert(0, (
+            f"{tags} is about the stock, so investors will read this post: the investor rules were checked as well as "
+            "the target audience's, and the sentiment check holds it to the investor standard."
+            if req.audience else
+            f"{tags} is about the stock, so investors will read this post. No target audience is set, so every "
+            "audience's rules were checked; the sentiment check holds it to the investor standard."
+        ))
     return ComplianceCheckResponse(
+        audiences_checked=scope.audiences,
+        content_parts=scope.content_parts,
         manual_review_rules=manual,
         is_compliant=(len(violations) == 0),
         traffic_light=overall_traffic_light,
@@ -570,7 +715,32 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         recommendations=recommendations,
         rules_checked=len(rules),
         rulebook_version=await rulebook_version(),
+        signals=CheckSignals(
+            cashtags=signals.cashtags,
+            hashtags=signals.hashtags,
+            mentions=signals.mentions,
+            links=signals.links,
+            government_references=signals.government_references,
+            implied_audiences=scope.implied_audiences,
+            notes=notes,
+        ),
     )
+
+
+def flagged_tags(tags: Sequence[str], rules: List[ComplianceRule]) -> Dict[str, str]:
+    """Which of these hashtags the rules would flag on their own, as {tag: rule number}. Used to keep the hashtag
+    library and caption suggestions from offering a tag the check would then flag."""
+    out: Dict[str, str] = {}
+    for tag in tags:
+        signals = post_signals.extract(tag)
+        padded = f" {_normalize(chr(10).join([tag, *signals.hashtag_phrases]))} "
+        for rule in rules:
+            v = _evaluate_rule(rule, padded, signals.hashtag_keys)
+            # A tag only "needs a disclaimer" because the rule wants one on everything; that's the post's job.
+            if v and v.kind == "PROHIBITED_TERM":
+                out[tag] = rule.rule_number
+                break
+    return out
 
 
 def _count_overlaps_once(violations: List[ComplianceViolation], padded_text: str) -> None:
@@ -593,11 +763,11 @@ def _count_overlaps_once(violations: List[ComplianceViolation], padded_text: str
 
 
 async def rulebook_version() -> Optional[str]:
-    """When any rule last changed (added, edited or removed), plus the built-in claim checks' version, so a check
-    made before either changed counts as outdated."""
+    """When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
+    a check made before any of them changed counts as outdated."""
     row = await fetch_one("SELECT max(greatest(updated_at, coalesce(deleted_at, updated_at))) AS v FROM compliance_rules")
     rules = row["v"].isoformat() if row and row["v"] else "none"
-    return f"{rules}|{claim_checks.VERSION}"
+    return f"{rules}|{claim_checks.VERSION}|{post_signals.VERSION}|{SCOPE_VERSION}"
 
 
 # ---------------------------------------------------------------------------

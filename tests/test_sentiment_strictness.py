@@ -43,6 +43,13 @@ class StrictnessTests(unittest.TestCase):
                 self.assertTrue(s._held_to_full_standard(case))
                 self.assertIn(s.STRICT_GUIDE, s._prompt(case))
 
+    def test_a_cashtag_holds_a_general_post_to_the_investor_standard(self):
+        case = {**inp(audience="GENERAL"), "implied_audiences": ["INVESTORS"], "cashtags": ["$ZENA"]}
+        self.assertTrue(s._held_to_full_standard(case))
+        prompt = s._prompt(case)
+        self.assertIn(s.STRICT_GUIDE, prompt)
+        self.assertIn("it also reaches investors: it mentions $ZENA", prompt)
+
     def test_relaxed_style_never_relaxes_claims(self):
         self.assertIn("Claims, figures, disclosure and the rulebook guidelines still apply in full", s.RELAXED_GUIDE)
 

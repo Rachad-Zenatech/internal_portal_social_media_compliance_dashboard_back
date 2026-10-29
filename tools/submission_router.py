@@ -38,6 +38,7 @@ from services import flag_review_service
 from services import submission_service as svc
 from models.flag_review_model import FlagDismissRequest, FlagReview
 from services.auth_service import get_current_user_id_dependency
+from services.hashtag_library import HashtagLibrary
 
 router = APIRouter(prefix="/submissions", tags=["Content Submissions"])
 
@@ -48,6 +49,20 @@ CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 async def get_options(user_id: CurrentUser):
     """Brands, connected publishing accounts and the allowed values for each field."""
     return await svc.get_options(user_id)
+
+
+@router.get("/hashtags", response_model=HashtagLibrary)
+async def get_hashtag_library(
+    user_id: CurrentUser,
+    brand_code: Optional[str] = Query(None, max_length=50),
+    audience: Optional[str] = Query(None, max_length=50),
+    region: Optional[str] = Query(None, max_length=50),
+    platforms: Annotated[List[str], Query()] = [],
+    rule_sets: Annotated[List[str], Query()] = [],
+):
+    """Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
+    rules that apply would flag, and how many the strictest platform suits. Drafts can call it before they're saved."""
+    return await caption_service.get_hashtag_library(brand_code, audience, region, platforms[:20], rule_sets[:10])
 
 
 # scope=mine: only the user's own content, seen as its creator (a super admin viewing the app as a creator). It only

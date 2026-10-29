@@ -29,7 +29,11 @@ class ComplianceRuleBase(BaseModel):
     allowed_examples: Optional[str] = Field(None, description="Examples of acceptable phrasing or imagery")
     prohibited_examples: Optional[str] = Field(None, description="Examples of non-compliant phrasing or imagery")
     remediation_guidance: Optional[str] = Field(None, description="Instructions on how to fix or review violations")
-    applies_to: List[str] = Field(default_factory=lambda: ["video", "imagery", "caption", "ceo_post"], description="Content types this rule governs")
+    applies_to: List[str] = Field(
+        default_factory=lambda: ["video", "imagery", "caption", "ceo_post"],
+        description="Parts of content this rule governs: video, imagery, caption (the post's text, always checked) and "
+                    "ceo_post (Shaun's own posts). A rule runs when the content has at least one of them",
+    )
     # Scope: an empty list means the rule applies to every value of that dimension.
     rule_sets: List[str] = Field(default_factory=list, description="Rule sets this rule belongs to, e.g. 'ZenaDrone Defense'")
     brands: List[str] = Field(default_factory=list, description="Brand codes this rule is limited to")
@@ -110,6 +114,9 @@ class ComplianceCheckRequest(BaseModel):
     audience: Optional[str] = None
     region: Optional[str] = None
     platforms: List[str] = Field(default_factory=list)
+    # What the content is made of, matched against each rule's applies_to (video, imagery, caption, ceo_post).
+    # Empty: worked out from content_type; when that says nothing either, every rule's applies_to matches.
+    content_parts: List[str] = Field(default_factory=list)
 
 
 class ComplianceViolation(BaseModel):
@@ -143,6 +150,22 @@ class ManualReviewRule(BaseModel):
     severity: str
 
 
+class CheckSignals(BaseModel):
+    """What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals)."""
+    cashtags: List[str] = Field(default_factory=list)
+    hashtags: List[str] = Field(default_factory=list)
+    mentions: List[str] = Field(default_factory=list)
+    # Domains linked to, e.g. "army.mil".
+    links: List[str] = Field(default_factory=list)
+    # The mentions and domains above that belong to a government or military.
+    government_references: List[str] = Field(default_factory=list)
+    # Audiences the post reaches whatever it targets: a cashtag ($ZENA) is about the stock, so investors read it.
+    # Their rules are checked too, and the sentiment check holds the post to their standard.
+    implied_audiences: List[str] = Field(default_factory=list)
+    # Worth a look but not a rule breach, so no points off (outside links, too many hashtags).
+    notes: List[str] = Field(default_factory=list)
+
+
 class ComplianceCheckResponse(BaseModel):
     is_compliant: bool
     traffic_light: str = "GREEN"  # GREEN, YELLOW, RED
@@ -160,3 +183,9 @@ class ComplianceCheckResponse(BaseModel):
     rules_checked: int = 0
     # Of rules_checked, the ones the text check can't actually test: a reviewer confirms these when approving.
     manual_review_rules: List[ManualReviewRule] = Field(default_factory=list)
+    # The scope the rules were picked by: the audiences (target plus implied; empty when none is set, so every
+    # audience's rules ran) and the content parts (empty when not known, so every rule's applies_to matched).
+    audiences_checked: List[str] = Field(default_factory=list)
+    content_parts: List[str] = Field(default_factory=list)
+    # Missing on checks saved before signals were read.
+    signals: Optional[CheckSignals] = None

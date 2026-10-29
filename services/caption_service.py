@@ -10,7 +10,8 @@ Nothing is saved; the writer picks one, edits it, and it goes through the normal
 
 import json
 import logging
-from typing import Any, Dict, List
+import re
+from typing import Any, Dict, List, Optional, Sequence
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -19,9 +20,9 @@ from pydantic import ValidationError
 
 from models.caption_model import CaptionCheck, CaptionSuggestion, CaptionSuggestions, CaptionSuggestRequest
 from models.compliance_model import ComplianceCheckRequest
-from services import ai_usage_service, context_service
+from services import ai_usage_service, context_service, hashtag_library
 from services import sentiment_service as sentiment
-from services.compliance_service import applicable_rules, check_compliance
+from services.compliance_service import applicable_rules, check_compliance, flagged_tags
 from services.gemini_service import generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
@@ -29,9 +30,74 @@ logger = logging.getLogger(__name__)
 MAX_IMAGES = 6
 MAX_TRANSCRIPT_CHARS = 8000
 MAX_RULES = 25
-# Captions are short and sweet: a sentence or two before the hashtags, and a few hashtags at most.
+# Captions are short and sweet: a sentence or two before the hashtags, and a few hashtags at most (how many depends
+# on the platforms; see hashtag_library.max_hashtags).
 CAPTION_MAX_CHARS = 150
-MAX_HASHTAGS = 3
+# A usable hashtag: starts with a letter, then letters, digits or underscores.
+_VALID_TAG = re.compile(r"^#[A-Za-z][A-Za-z0-9_]{1,60}$")
+# A writer's hint that asks for the cashtag.
+_WANTS_CASHTAG = re.compile(r"\$zena|cashtag|\binvestors?\b|\bshareholders?\b", re.IGNORECASE)
+
+
+async def get_hashtag_library(brand_code: Optional[str], audience: Optional[str], region: Optional[str],
+                              platforms: Sequence[str], rule_sets: Sequence[str]) -> hashtag_library.HashtagLibrary:
+    """The hashtag library for a post, minus any tag the rules that apply to it would flag."""
+    rules = await applicable_rules(ComplianceCheckRequest(
+        text="-", rule_sets=list(rule_sets), brand_code=brand_code, audience=audience, region=region,
+        platforms=list(platforms),
+    ))
+    tags = hashtag_library.candidates(brand_code, audience)
+    flagged = flagged_tags(tags, rules)
+    return hashtag_library.build(brand_code, audience, platforms, allowed=[t for t in tags if t not in flagged])
+
+
+def _wants_cashtag(row: Dict[str, Any], req: CaptionSuggestRequest) -> bool:
+    """The cashtag goes on investor posts, or when the writer asks for it."""
+    return row["audience"] == "INVESTORS" or bool(req.hint and _WANTS_CASHTAG.search(req.hint))
+
+
+def _lower_first(text: str) -> str:
+    return text[:1].lower() + text[1:]
+
+
+def _hashtag_guide(row: Dict[str, Any], req: CaptionSuggestRequest, library: List[str]) -> str:
+    """The hashtag instructions for the prompt: how many, which to prefer, and when the cashtag belongs."""
+    platforms = list(row["platforms"] or [])
+    n = hashtag_library.max_hashtags(platforms)
+    reason = hashtag_library.max_reason(platforms)
+    if n == 0:
+        return f"- No hashtags or cashtags ({_lower_first(reason or '')}): return an empty hashtags list."
+    cashtag = hashtag_library.CASHTAG
+    lines = [
+        f"- Hashtags: at most {n} ({_lower_first(reason or 'the norm for social posts')}), each starting with # and without spaces."
+        f" Prefer these, in this order of fit: {', '.join(library) or '(none)'}. Add a topical hashtag only if it"
+        " names something the post actually shows (a product, place or event); never a claim (#BestInClass,"
+        " #CombatProven, #Guaranteed, #GameChanger). Don't repeat hashtags inside the caption text.",
+    ]
+    if _wants_cashtag(row, req):
+        lines.append(f"- This post is for investors: put the cashtag {cashtag} first in the hashtags list (it doesn't"
+                     " count toward the hashtag limit). Keep the caption itself factual: no stock, price or return talk.")
+    else:
+        lines.append(f"- Don't use the cashtag {cashtag}: it would put the post in front of investors.")
+    return "\n".join(lines)
+
+
+def _clean_tags(raw: Any, allow_cashtag: bool, limit: int) -> List[str]:
+    """The model's hashtags as usable tags: '#' added, invalid ones and duplicates dropped, the cashtag only when
+    it belongs (first, and not counted toward the limit)."""
+    cashtag = hashtag_library.CASHTAG
+    has_cashtag, tags = False, []
+    for t in raw or []:
+        t = str(t).strip().replace(" ", "")
+        if t.startswith("$"):
+            has_cashtag = has_cashtag or (allow_cashtag and t.upper() == cashtag.upper())
+            continue
+        t = "#" + t.lstrip("#")
+        if _VALID_TAG.match(t) and t.lower() not in {x.lower() for x in tags}:
+            tags.append(t)
+    if limit == 0:
+        return []
+    return ([cashtag] if has_cashtag else []) + tags[:limit]
 
 RESPONSE_SCHEMA: Dict[str, Any] = {
     "type": "OBJECT",
@@ -65,7 +131,8 @@ def _transcript_text(row: Dict[str, Any]) -> tuple[str, str]:
 
 
 def _prompt(row: Dict[str, Any], req: CaptionSuggestRequest, spoken: str, on_screen: str, images: int,
-            context: List[Dict[str, Any]], rules: List[Any], video_attached: bool = False) -> str:
+            context: List[Dict[str, Any]], rules: List[Any], video_attached: bool = False,
+            library: Sequence[str] = ()) -> str:
     meta = sentiment._json(row["account_meta"]) or {}
     is_ceo = bool(meta.get("is_ceo")) or row["brand_code"] == sentiment.CEO_BRAND
     rule_lines = "\n".join(
@@ -99,8 +166,8 @@ Hard rules:
 - Some rules require a disclaimer only when a post says certain things (e.g. a safe-harbor note for forward-looking
   statements). Write captions that don't need one; never add a disclaimer to a caption that doesn't trigger it.
 - Match the brand voice and the platform norms in the reference context.
-- Each caption plus its hashtags must fit in {req.max_chars} characters. Up to {MAX_HASHTAGS} relevant hashtags, without
-  spaces, each starting with #. Don't repeat hashtags inside the caption text.
+- Each caption plus its hashtags must fit in {req.max_chars} characters.
+{_hashtag_guide(row, req, list(library))}
 - {"Write in the first person as the executive whose channel this is." if is_ceo else "Write as the company or brand."}
 - Plain text only: no markdown, no surrounding quotes. Emoji only if the platform norms suit them, and sparingly.
 - notes: short points for the writer, e.g. a fact worth adding that the content doesn't show. Empty if none.
@@ -168,11 +235,16 @@ async def suggest(submission_id: UUID, user_id: UUID, req: CaptionSuggestRequest
         text="-", rule_sets=list(row["rule_sets"] or []), brand_code=row["brand_code"], audience=row["audience"],
         region=row["region"], platforms=platforms,
     ))
+    # The same hashtags the picker offers, minus any the rules flag.
+    candidates = hashtag_library.candidates(row["brand_code"], row["audience"])
+    rejected = flagged_tags(candidates, rules)
+    library = [t for t in candidates if t not in rejected]
     client = sentiment._get_client()
     # Let the model watch the video, as the sentiment analysis does: a transcript alone says nothing about a video
     # with music and no speech, and the captions then end up written from the title.
     video = await sentiment._upload_video(client, str(row["video_id"])) if row.get("video_id") else None
-    prompt = _prompt(row, req, spoken, on_screen, len(images), context, rules, video_attached=video is not None)
+    prompt = _prompt(row, req, spoken, on_screen, len(images), context, rules, video_attached=video is not None,
+                     library=library)
     contents: Any = prompt
     if images or video:
         contents = []
@@ -201,16 +273,18 @@ async def suggest(submission_id: UUID, user_id: UUID, req: CaptionSuggestRequest
             await sentiment._delete_upload(client, video)
 
     out = CaptionSuggestions(model=getattr(response, "model_version", None), notes=list(data.get("notes") or [])[:4])
+    allow_cashtag = _wants_cashtag(row, req)
+    limit = hashtag_library.max_hashtags(platforms)
+    left_out: Dict[str, str] = {}
     for s in raw[:3]:
         text = str(s.get("text") or "").strip().strip('"').strip()
         if not text:
             continue
-        tags = []
-        for t in s.get("hashtags") or []:
-            t = "#" + str(t).strip().lstrip("#").replace(" ", "")
-            if len(t) > 1 and t.lower() not in {x.lower() for x in tags}:
-                tags.append(t)
-        tags = tags[:MAX_HASHTAGS]
+        tags = _clean_tags(s.get("hashtags"), allow_cashtag, limit)
+        # A hashtag the model made up can still trip a rule ("#CombatProven"); leave it out rather than offer it.
+        flagged = flagged_tags(tags, rules)
+        left_out.update(flagged)
+        tags = [t for t in tags if t not in flagged]
         full = text + ("\n\n" + " ".join(tags) if tags else "")
         # Trim hashtags rather than the caption when it runs over the limit.
         while tags and len(full) > req.max_chars:
@@ -226,6 +300,10 @@ async def suggest(submission_id: UUID, user_id: UUID, req: CaptionSuggestRequest
         ))
     if not out.suggestions:
         raise HTTPException(status_code=502, detail="No usable suggestions came back. Try again.")
+    for tag, rule_number in left_out.items():
+        out.notes.append(f"Left out {tag}: {rule_number} flags it.")
+    if any(hashtag_library.CASHTAG in s.hashtags for s in out.suggestions):
+        out.notes.append(f"{hashtag_library.CASHTAG} puts the post in front of investors, so investor-disclosure rules apply.")
 
     if images:
         out.based_on.append(f"{len(images)} image{'s' if len(images) != 1 else ''}")

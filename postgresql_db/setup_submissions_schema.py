@@ -138,6 +138,12 @@ async def setup():
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_status VARCHAR(20);
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_error TEXT;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_updated_at TIMESTAMP WITH TIME ZONE;
+            -- Text of a script (or a blog's article file), read once so the rulebook check screens it like the
+            -- caption (see services/document_text_service.py).
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text TEXT;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_status VARCHAR(20);
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_error TEXT;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_updated_at TIMESTAMP WITH TIME ZONE;
 
             CREATE TABLE IF NOT EXISTS content_submission_versions (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
