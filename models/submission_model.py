@@ -144,6 +144,8 @@ class SubmissionSummary(BaseModel):
     latest_traffic_light: Optional[str] = None
     # None while the post is still being analysed (analysis_pending): no score until it's been read in full.
     latest_score: Optional[int] = None
+    # How many rulebook issues the latest check found; None while it's still being analysed.
+    issue_count: Optional[int] = None
     analysis_pending: bool = False
     file_count: int = 0
     # Review comments across all versions, for the count on each Content Portal row.

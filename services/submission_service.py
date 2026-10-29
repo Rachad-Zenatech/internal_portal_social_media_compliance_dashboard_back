@@ -424,6 +424,11 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
                left(s.caption_text, 600) AS caption_text,
                s.latest_check->>'traffic_light' AS latest_traffic_light,
                CASE WHEN """ + _pending_sql("s.latest_check") + """ THEN NULL ELSE (s.latest_check->>'score')::int END AS latest_score,
+               CASE WHEN """ + _pending_sql("s.latest_check") + """ THEN NULL
+                    ELSE COALESCE((s.latest_check->>'violations_count')::int,
+                                  CASE WHEN jsonb_typeof(s.latest_check->'violations') = 'array'
+                                       THEN jsonb_array_length(s.latest_check->'violations') END)
+               END AS issue_count,
                """ + _pending_sql("s.latest_check") + """ AS analysis_pending,
                (SELECT count(*) FROM content_submission_files f
                  WHERE f.submission_id = s.id AND f.deleted_at IS NULL) AS file_count,
