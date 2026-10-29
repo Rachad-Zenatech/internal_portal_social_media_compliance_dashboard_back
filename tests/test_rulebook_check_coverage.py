@@ -36,11 +36,18 @@ class RulebookCheckReadsImageTextTests(unittest.IsolatedAsyncioTestCase):
     async def run_check(self, images, video=None):
         check = AsyncMock(return_value=ComplianceCheckResponse(is_compliant=True, rules_checked=3))
         schedule_missing = AsyncMock()
+
+        # The check reads the post's documents (script, article) and its images with separate queries; these
+        # tests are about images, so the post has no documents.
+        async def fetch_all(sql, *args):
+            return [] if "doc_text" in sql else images
+
         with (
             patch(f"{SVC}.fetch_one", new=AsyncMock(return_value=video)),
-            patch(f"{SVC}.fetch_all", new=AsyncMock(return_value=images)),
+            patch(f"{SVC}.fetch_all", new=fetch_all),
             patch(f"{SVC}.check_compliance", new=check),
             patch(f"{SVC}.image_text_service.schedule_missing", new=schedule_missing),
+            patch(f"{SVC}.document_text_service.schedule_missing", new=AsyncMock()),
         ):
             _, stored = await submission_service._run_check(submission_row())
         return check.await_args.args[0].text, stored, schedule_missing
