@@ -1,5 +1,6 @@
 import json
 import unittest
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -29,6 +30,7 @@ def submission_row(**overrides):
         "caption_text": "Meet the team at the expo.",
         "content_type": "SOCIAL_POST",
         "latest_check": json.dumps({"violations": []}),
+        "approval_needed_by": datetime.now(timezone.utc) + timedelta(days=2),
     }
     row.update(overrides)
     return row
@@ -89,11 +91,12 @@ class SubmitRequirementTests(unittest.IsolatedAsyncioTestCase):
     async def test_every_missing_field_is_reported(self):
         row = submission_row(
             title=" ", brand_code=None, audience=None, region=None, platforms=[], account_ids=[], rule_sets=[],
-            caption_text="",
+            caption_text="", approval_needed_by=None,
         )
         self.assertEqual(
             set(await self.missing(row)),
-            {"title", "brand_code", "audience", "region", "platforms", "account_id", "rule_sets", "caption"},
+            {"title", "brand_code", "audience", "region", "platforms", "account_id", "rule_sets", "caption",
+             "approval_needed_by"},
         )
 
     async def test_image_posts_need_their_image(self):

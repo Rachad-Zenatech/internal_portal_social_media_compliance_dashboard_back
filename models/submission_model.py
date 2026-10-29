@@ -90,12 +90,16 @@ class SubmissionUpdate(BaseModel):
     account_ids: Optional[List[UUID]] = Field(None, max_length=MAX_ACCOUNTS)
     account_id: Optional[UUID] = None
     publish_at: Optional[datetime] = None
+    # When the creator needs it approved by (required to submit); becomes the reviewer's deadline.
+    approval_needed_by: Optional[datetime] = None
     caption_html: Optional[str] = Field(None, max_length=200_000)
     caption_text: Optional[str] = Field(None, max_length=100_000)
     rule_sets: Optional[List[str]] = Field(None, max_length=len(RULE_SETS))
     reviewer_route: Optional[List[str]] = Field(None, max_length=len(REVIEWER_ROUTES))
     # Explicitly clear nullable fields (e.g. account_id, publish_at) by listing them here. account_id clears every account.
-    clear_fields: List[Literal["account_id", "publish_at", "brand_code", "audience", "region"]] = Field(default_factory=list)
+    clear_fields: List[Literal["account_id", "publish_at", "approval_needed_by", "brand_code", "audience", "region"]] = Field(
+        default_factory=list
+    )
 
 
 TranscriptStatus = Literal["PENDING", "PROCESSING", "COMPLETED", "FAILED"]
@@ -138,6 +142,7 @@ class SubmissionSummary(BaseModel):
     status: str
     current_version: int
     publish_at: Optional[datetime] = None
+    approval_needed_by: Optional[datetime] = None
     # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
     due_at: Optional[datetime] = None
     due_kind: Optional[Literal["REVIEW", "REVISION"]] = None
@@ -189,6 +194,8 @@ class Submission(BaseModel):
     account_ids: List[UUID] = Field(default_factory=list)
     accounts: List[AccountOption] = Field(default_factory=list)
     publish_at: Optional[datetime] = None
+    # When the creator needs it approved by; the reviewer's deadline once it's submitted.
+    approval_needed_by: Optional[datetime] = None
     # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
     due_at: Optional[datetime] = None
     due_kind: Optional[Literal["REVIEW", "REVISION"]] = None

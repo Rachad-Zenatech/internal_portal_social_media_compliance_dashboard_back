@@ -70,6 +70,8 @@ async def setup():
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS due_kind VARCHAR(20);
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS due_reminded_at TIMESTAMP WITH TIME ZONE;
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS due_overdue_notified_at TIMESTAMP WITH TIME ZONE;
+            -- When the creator needs the post approved by; it becomes the reviewer's deadline on submit.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS approval_needed_by TIMESTAMP WITH TIME ZONE;
             CREATE INDEX IF NOT EXISTS idx_content_submissions_due ON content_submissions(due_at)
                 WHERE due_at IS NOT NULL AND deleted_at IS NULL;
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS deleted_by UUID REFERENCES users(id) ON DELETE SET NULL;

@@ -321,6 +321,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         account_ids=_account_ids(row),
         accounts=_accounts(row),
         publish_at=row["publish_at"],
+        approval_needed_by=row.get("approval_needed_by"),
         **_due(row),
         caption_html=row["caption_html"],
         caption_text=row["caption_text"],
@@ -419,7 +420,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
     rows = await fetch_all(
         """
         SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.platforms, s.status,
-               s.current_version, s.publish_at, s.submitted_at, s.created_at, s.updated_at, s.audience,
+               s.current_version, s.publish_at, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience,
                s.due_at, s.due_kind, s.rule_sets,
                left(s.caption_text, 600) AS caption_text,
                s.latest_check->>'traffic_light' AS latest_traffic_light,
@@ -565,6 +566,10 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["account_id"] = account_ids[0] if account_ids else None
     if payload.get("publish_at"):
         fields["publish_at"] = payload["publish_at"]
+    # Saved as picked; whether it's still in the future (and before the publish date) is checked on submit, so
+    # autosave never fails because time passed.
+    if payload.get("approval_needed_by"):
+        fields["approval_needed_by"] = payload["approval_needed_by"]
     if "caption_html" in payload:
         # Shown back to other people in the editor, so only safe formatting is kept.
         fields["caption_html"] = sanitize_caption_html(payload["caption_html"])
@@ -1055,6 +1060,8 @@ async def _missing_for_submit(row: Dict[str, Any]) -> List[str]:
         missing.append("account_id")
     if not row["rule_sets"]:
         missing.append("rule_sets")
+    if not row.get("approval_needed_by"):
+        missing.append("approval_needed_by")
     has_main = await fetch_one(
         "SELECT 1 AS ok FROM content_submission_files WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL LIMIT 1",
         row["id"],
@@ -1108,8 +1115,17 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
                        + ", ".join(a.label for a in stray) + ".",
             "missing": ["platforms"],
         })
-    if row["publish_at"] and row["publish_at"] < datetime.now(timezone.utc):
+    now = datetime.now(timezone.utc)
+    if row["publish_at"] and row["publish_at"] < now:
         missing.append("publish_at")
+    needed_by = row.get("approval_needed_by")
+    if needed_by and needed_by < now:
+        missing.append("approval_needed_by")
+    if needed_by and row["publish_at"] and needed_by > row["publish_at"] and "publish_at" not in missing:
+        raise HTTPException(status_code=422, detail={
+            "message": "The approval date has to be on or before the publish date.",
+            "missing": ["approval_needed_by"],
+        })
     if missing:
         raise HTTPException(status_code=422, detail={
             "message": "Some required information is missing.",
@@ -1131,6 +1147,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         "account": account.model_dump(mode="json") if account else None,
         "accounts": [a.model_dump(mode="json") for a in accounts],
         "publish_at": row["publish_at"].isoformat() if row["publish_at"] else None,
+        "approval_needed_by": needed_by.isoformat() if needed_by else None,
         "caption_html": row["caption_html"],
         "caption_text": row["caption_text"],
         "rule_sets": list(row["rule_sets"] or []),
@@ -1179,7 +1196,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
                 WHERE id = $1
                 """,
                 submission_id, version, json.dumps(check), user_id,
-                review_deadline_service.due_date("REVIEW", row["publish_at"]),
+                review_deadline_service.due_date("REVIEW", row["publish_at"], requested=needed_by),
             )
             await _add_event(conn, submission_id, "SUBMITTED", f"Version {version} submitted for review", user_id,
                              {"version": version, "review_job_id": str(job["id"])})

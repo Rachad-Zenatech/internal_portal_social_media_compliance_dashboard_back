@@ -56,14 +56,17 @@ def add_working_days(start: datetime, days: int) -> datetime:
 
 
 def due_date(kind: str, publish_at: Optional[datetime], now: Optional[datetime] = None,
-             days: Optional[int] = None) -> datetime:
-    """When the next step is due: the normal window (or the working days a reviewer chose), pulled in if the
-    publish time is close."""
+             days: Optional[int] = None, requested: Optional[datetime] = None) -> datetime:
+    """When the next step is due: the date asked for (a creator's "need approval by"), else the working days a
+    reviewer chose, else the normal window; pulled in if the publish time is close."""
     now = now or datetime.now(timezone.utc)
     window, before_publish = (
         (REVIEW_HOURS, REVIEW_BEFORE_PUBLISH_HOURS) if kind == "REVIEW" else (REVISION_HOURS, REVISION_BEFORE_PUBLISH_HOURS)
     )
-    due = add_working_days(now, days) if days else now + timedelta(hours=window)
+    if requested:
+        due = requested
+    else:
+        due = add_working_days(now, days) if days else now + timedelta(hours=window)
     if publish_at:
         due = min(due, publish_at - timedelta(hours=before_publish))
     return max(due, now + timedelta(hours=MIN_HOURS))
