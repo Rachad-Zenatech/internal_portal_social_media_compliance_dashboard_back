@@ -13,7 +13,7 @@ from fastapi import HTTPException
 from models.approval_path_model import ApprovalPath, ApprovalPathIn, ApprovalPathOptions, ApproverOption
 from models.submission_model import AUDIENCES
 from postgresql_db.database import fetch_all, fetch_one
-from services.audit_service import log_audit_event
+from services.shared.audit_service import log_audit_event
 
 CEO_RULE_SET = "Shaun CEO Thought Leadership"
 
@@ -40,7 +40,7 @@ async def list_paths() -> List[ApprovalPath]:
 
 async def options() -> ApprovalPathOptions:
     """Who can be named an approver (anyone who can review) and what a path can match on."""
-    from services import submission_service
+    from services.compliance import submission_service
 
     ids = await submission_service._reviewer_ids()
     rows = await fetch_all(
@@ -61,7 +61,7 @@ async def options() -> ApprovalPathOptions:
 
 
 async def _validate(data: ApprovalPathIn) -> None:
-    from services import submission_service
+    from services.compliance import submission_service
 
     if data.brand_code and not await fetch_one("SELECT 1 FROM brands WHERE code = $1 AND is_active", data.brand_code):
         raise HTTPException(status_code=422, detail=f"Unknown brand: {data.brand_code}")

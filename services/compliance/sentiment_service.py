@@ -47,13 +47,14 @@ from models.sentiment_model import (
     SentimentResult,
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
-from services import ai_usage_service
-from services.ai_usage_service import AiLimitExceeded
-from services import ai_observability, context_service, review_memory_service
-from services.ai_guardrails import screen_input
-from services import post_signals
-from services.compliance_service import applicable_rules, implied_audiences, parts_for
-from services.gemini_service import is_rotatable_model_error
+from services.ai import ai_usage_service
+from services.ai.ai_usage_service import AiLimitExceeded
+from services.ai import ai_observability
+from services.compliance import context_service, review_memory_service
+from services.ai.ai_guardrails import screen_input
+from services.compliance import post_signals
+from services.compliance.compliance_service import applicable_rules, implied_audiences, parts_for
+from services.ai.gemini_service import is_rotatable_model_error
 
 logger = logging.getLogger(__name__)
 
@@ -751,7 +752,7 @@ def _verify(result: SentimentResult, inp: Dict[str, Any], video_attached: bool =
 async def _upload_video(client: genai.Client, file_id: str) -> Optional[types.File]:
     """Upload the submission's video to Gemini so the analysis can watch it. None if it can't be attached
     (missing file, upload or processing failure); the analysis then goes ahead on the text alone."""
-    from services.transcription_service import STORAGE_ROOT  # local import, as transcription imports this module
+    from services.compliance.transcription_service import STORAGE_ROOT  # local import, as transcription imports this module
 
     row = await fetch_one(
         "SELECT storage_path, mime_type FROM content_submission_files WHERE id = $1 AND deleted_at IS NULL",
@@ -793,7 +794,7 @@ async def _delete_upload(client: genai.Client, uploaded: types.File) -> None:
 def _image_bytes(path: Any, mime_type: str) -> Tuple[bytes, str]:
     """An image ready to send: as is when Gemini reads it and it's small, otherwise a smaller JPEG (first frame of
     a GIF)."""
-    from services.canva_mock_render import _ffmpeg
+    from services.compliance.canva_mock_render import _ffmpeg
     import subprocess
 
     if mime_type in GEMINI_IMAGE_TYPES and path.stat().st_size <= IMAGE_INLINE_MAX_BYTES:
@@ -811,7 +812,7 @@ def _image_bytes(path: Any, mime_type: str) -> Tuple[bytes, str]:
 async def _image_parts(images: List[Dict[str, Any]]) -> List[types.Part]:
     """The post's images as prompt parts, in order. Stops at the first one that can't be read, so the numbers
     Gemini sees (IMAGE 1, 2, ...) always match the post's order."""
-    from services.transcription_service import STORAGE_ROOT  # local import, as transcription imports this module
+    from services.compliance.transcription_service import STORAGE_ROOT  # local import, as transcription imports this module
 
     if not images:
         return []
@@ -1205,7 +1206,7 @@ async def _request(submission_id: UUID, user_id: Optional[UUID], trigger: str) -
             """,
             submission_id, row["current_version"], trigger, PROMPT_VERSION, user_id,
         )
-        from services import transcription_service  # local import: transcription calls back into this module
+        from services.compliance import transcription_service
         await transcription_service.schedule_missing([row["video_id"]])
         return saved["id"]
     return await _queue_for(row, trigger, user_id)
@@ -1582,8 +1583,8 @@ async def delete_eval_case(case_id: UUID) -> None:
 
 async def video_frame(submission_id: UUID, analysis_id: UUID, at_sec: float):
     """A JPEG of the analysed video at a moment (cached on disk), so a finding can show what was on screen."""
-    from services.canva_mock_render import _ffmpeg
-    from services.transcription_service import STORAGE_ROOT
+    from services.compliance.canva_mock_render import _ffmpeg
+    from services.compliance.transcription_service import STORAGE_ROOT
     import subprocess
 
     row = await _analysis_row(submission_id, analysis_id)
@@ -1614,7 +1615,7 @@ async def video_frame(submission_id: UUID, analysis_id: UUID, at_sec: float):
 
 async def analysed_image(submission_id: UUID, analysis_id: UUID, index: int) -> Tuple[Any, str]:
     """One of the images an analysis looked at (1 = the first), as (path, mime type), so a finding can show it."""
-    from services.transcription_service import STORAGE_ROOT
+    from services.compliance.transcription_service import STORAGE_ROOT
 
     row = await _analysis_row(submission_id, analysis_id)
     images = (_json(row["input"]) or {}).get("images") or []

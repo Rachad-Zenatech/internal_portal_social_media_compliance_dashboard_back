@@ -33,12 +33,13 @@ from models.submission_model import (
     SubmissionUpdate,
     SubmitResult,
 )
-from services import ai_usage_service, caption_service, public_mood_service, sentiment_service
-from services import flag_review_service
-from services import submission_service as svc
+from services.ai import ai_usage_service
+from services.compliance import caption_service, public_mood_service, sentiment_service
+from services.compliance import flag_review_service
+from services.compliance import submission_service as svc
 from models.flag_review_model import FlagDismissRequest, FlagReview
-from services.auth_service import get_current_user_id_dependency
-from services.hashtag_library import HashtagLibrary
+from services.shared.auth_service import get_current_user_id_dependency
+from services.compliance.hashtag_library import HashtagLibrary
 
 router = APIRouter(prefix="/submissions", tags=["Content Submissions"])
 

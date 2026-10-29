@@ -51,14 +51,15 @@ from models.submission_model import (
     SubmissionVersion,
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
-from services.audit_service import log_audit_event
-from services import ai_usage_service, approval_path_service, canva_service, flag_review_service, review_deadline_service, transcription_service
-from services import document_text_service, image_text_service, review_memory_service
-from services.ai_usage_service import AiLimitExceeded
-from services.compliance_service import CEO_BRAND, check_compliance, flag_segments
-from services.compliance_service import parts_for as compliance_parts_for
-from services.compliance_service import rulebook_version as compliance_rulebook_version
-from services.html_sanitizer import sanitize_caption_html
+from services.shared.audit_service import log_audit_event
+from services.ai import ai_usage_service
+from services.compliance import approval_path_service, canva_service, flag_review_service, review_deadline_service, transcription_service
+from services.compliance import document_text_service, image_text_service, review_memory_service
+from services.ai.ai_usage_service import AiLimitExceeded
+from services.compliance.compliance_service import CEO_BRAND, check_compliance, flag_segments
+from services.compliance.compliance_service import parts_for as compliance_parts_for
+from services.compliance.compliance_service import rulebook_version as compliance_rulebook_version
+from services.compliance.html_sanitizer import sanitize_caption_html
 
 logger = logging.getLogger(__name__)
 
@@ -186,14 +187,14 @@ async def _is_super_admin(user_id: UUID) -> bool:
 async def _can_manage_team_content(user_id: UUID) -> bool:
     """Super admins and roles with "Manage Team Drafts" (Content Manager, Administrator) see everyone's content
     and can delete other people's drafts."""
-    from services.auth_service import user_can_access_page
+    from services.shared.auth_service import user_can_access_page
     return await _is_super_admin(user_id) or await user_can_access_page(user_id, "CONTENT_SUBMISSIONS", "DELETE")
 
 
 async def _can_review(user_id: UUID) -> bool:
     """Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
     Administrator) and super admins."""
-    from services.auth_service import user_can_access_page
+    from services.shared.auth_service import user_can_access_page
     return await _is_super_admin(user_id) or await user_can_access_page(user_id, "CONTENT_REVIEW", "APPROVE")
 
 
@@ -660,7 +661,7 @@ async def delete_draft(submission_id: UUID, user_id: UUID) -> None:
     if not is_creator:
         # Someone else removed their work: tell the creator who and what.
         try:
-            from services.notification_service import create_notification
+            from services.notifications.notification_service import create_notification
             actor = await fetch_one("SELECT full_name FROM users WHERE id = $1", user_id)
             await create_notification(NotificationCreate(
                 user_id=str(row["created_by"]),
@@ -1260,7 +1261,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
                           {"reference_code": row["reference_code"], "version": version,
                            "traffic_light": result.traffic_light, "score": result.score})
     try:
-        from services.notification_service import create_notification
+        from services.notifications.notification_service import create_notification
         await create_notification(NotificationCreate(
             user_id=str(user_id),
             type="SUBMISSION",
@@ -1713,7 +1714,7 @@ async def _notify(user_ids: List[UUID], title: str, message: str, link: str, sub
         return
     try:
         import asyncio
-        from services.notification_service import create_notification
+        from services.notifications.notification_service import create_notification
         await asyncio.gather(*(
             create_notification(NotificationCreate(
                 user_id=str(uid), type="SUBMISSION", title=title, message=message, link_url=link,

@@ -30,7 +30,7 @@ from typing import List, Optional
 from google.genai import types
 
 from postgresql_db.database import get_pool
-from services.ai_observability import span
+from services.ai.ai_observability import span
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ def numbers(text: str) -> List[str]:
 
 
 async def _embed(text: str) -> List[float]:
-    from services import vector_store_service
+    from services.ai import vector_store_service
 
     client = vector_store_service._gemini_client()
     model = os.getenv("AI_SEMANTIC_CACHE_EMBEDDING_MODEL", "").strip() or vector_store_service.embedding_model()

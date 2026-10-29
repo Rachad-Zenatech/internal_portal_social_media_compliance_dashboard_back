@@ -55,7 +55,7 @@ async def create_notification(data: NotificationCreate) -> NotificationResponse:
 
     # Publish notification event to MQTT bus for ecosystem integration
     try:
-        from services.mqtt_presence import publish_social_media_event
+        from services.notifications.mqtt_presence import publish_social_media_event
         publish_social_media_event(
             f"social-media/notifications/{data.user_id}",
             {
@@ -76,7 +76,7 @@ async def create_notification(data: NotificationCreate) -> NotificationResponse:
 
     # Publish persistent notification event to RabbitMQ events exchange
     try:
-        from services.rabbitmq_service import rabbitmq_manager
+        from services.notifications.rabbitmq_service import rabbitmq_manager
         asyncio.create_task(
             rabbitmq_manager.publish_social_media_event(
                 "notification.created",
@@ -99,7 +99,7 @@ async def create_notification(data: NotificationCreate) -> NotificationResponse:
 
     # Publish cross-application event to CEO Dashboard
     try:
-        from services.ceo_event_publisher import publish_ceo_event
+        from services.notifications.ceo_event_publisher import publish_ceo_event
         publish_ceo_event(
             event_type="social-media.notification.created",
             source="social-media",

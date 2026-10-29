@@ -177,7 +177,7 @@ class MqttServicePresence:
             # Check if this message relates to social media connections/accounts
             if any(k in topic for k in ("marketing/connections", "social-media/connections", "accounts/sync", "accounts/response")):
                 if self._loop and self._loop.is_running():
-                    from services.oauth_connection_service import handle_mqtt_social_accounts_message
+                    from services.shared.oauth_connection_service import handle_mqtt_social_accounts_message
                     asyncio.run_coroutine_threadsafe(
                         handle_mqtt_social_accounts_message(topic, data),
                         self._loop,

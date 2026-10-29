@@ -14,7 +14,7 @@ from fastapi import HTTPException
 
 from models.flag_review_model import REASON_LABELS, FlagDismissRequest, FlagReview, RuleFlagStats
 from postgresql_db.database import fetch_all, fetch_one, get_pool
-from services.audit_service import log_audit_event
+from services.shared.audit_service import log_audit_event
 
 
 def _json(value: Any) -> Any:
@@ -37,7 +37,7 @@ _SELECT = """
 
 
 async def list_for(submission_id: UUID, user_id: UUID) -> List[FlagReview]:
-    from services import submission_service
+    from services.compliance import submission_service
 
     await submission_service._get_owned_row(submission_id, user_id, manager_can_read=True)
     rows = await fetch_all(_SELECT + " WHERE f.submission_id = $1 ORDER BY f.version_number DESC, f.decided_at", submission_id)
@@ -46,7 +46,7 @@ async def list_for(submission_id: UUID, user_id: UUID) -> List[FlagReview]:
 
 async def _reviewable(submission_id: UUID, user_id: UUID) -> Dict[str, Any]:
     """The submission, if this user may make calls on its flags now: a reviewer, while it's in review."""
-    from services import submission_service
+    from services.compliance import submission_service
 
     row = await submission_service._get_owned_row(submission_id, user_id, manager_can_read=True)
     if not await submission_service._can_review(user_id):
@@ -81,7 +81,7 @@ async def dismiss(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagDi
                 submission_id, row["current_version"], rule_id, v.get("rule_number"), list(v.get("flagged_terms") or []),
                 v.get("traffic_light") or "YELLOW", req.reason, note, user_id,
             )
-            from services import submission_service
+            from services.compliance import submission_service
 
             await submission_service._add_event(
                 conn, submission_id, "FLAG_DISMISSED",
@@ -108,7 +108,7 @@ async def undo(submission_id: UUID, rule_id: UUID, user_id: UUID) -> None:
         raise HTTPException(status_code=404, detail="That flag isn't dismissed")
     pool = get_pool()
     async with pool.acquire() as conn:
-        from services import submission_service
+        from services.compliance import submission_service
 
         await submission_service._add_event(conn, submission_id, "FLAG_RESTORED",
                                             f"{removed['rule_number']} flag restored", user_id, {"rule_id": str(rule_id)})

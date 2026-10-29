@@ -3,8 +3,8 @@ import uuid
 from datetime import datetime, timezone
 
 from models.compliance_model import ComplianceRule
-from services import hashtag_library as hl
-from services.compliance_service import flagged_tags
+from services.compliance import hashtag_library as hl
+from services.compliance.compliance_service import flagged_tags
 
 
 def rule(**fields):

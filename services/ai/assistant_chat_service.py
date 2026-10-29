@@ -26,10 +26,10 @@ from uuid import UUID
 from google import genai
 from google.genai import types
 
-from services import ai_observability, model_router, semantic_cache
-from services.ai_guardrails import GuardResult, StreamRedactor, screen_input
-from services.ai_observability import span
-from services.gemini_service import is_rotatable_model_error
+from services.ai import ai_observability, model_router, semantic_cache
+from services.ai.ai_guardrails import GuardResult, StreamRedactor, screen_input
+from services.ai.ai_observability import span
+from services.ai.gemini_service import is_rotatable_model_error
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class PreparedChat:
 
 async def _scope(user_id: UUID, tools: List[str]) -> str:
     """Who can share a cached answer: same tools allowed, same rulebook version."""
-    from services.compliance_service import rulebook_version
+    from services.compliance.compliance_service import rulebook_version
 
     raw = json.dumps({"tools": sorted(tools), "rulebook": await rulebook_version()}, default=str)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]

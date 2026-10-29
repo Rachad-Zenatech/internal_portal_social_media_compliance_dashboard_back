@@ -117,7 +117,7 @@ def read_local(path: Path) -> Optional[str]:
 async def _read_pdf(path: Path) -> str:
     from google.genai import types
 
-    from services import image_text_service
+    from services.compliance import image_text_service
 
     data = await asyncio.to_thread(path.read_bytes)
     if len(data) > MAX_PDF_BYTES:
@@ -159,7 +159,7 @@ async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: O
 
 async def read_file(file_id: UUID) -> None:
     """Read one document's text and save it, then re-check its submission if it's still open."""
-    from services.transcription_service import STORAGE_ROOT  # local import: that module imports this one's callers
+    from services.compliance.transcription_service import STORAGE_ROOT  # local import: that module imports this one's callers
 
     async with _semaphore:
         row = await _claim(file_id)
@@ -180,7 +180,7 @@ async def read_file(file_id: UUID) -> None:
             logger.warning("Couldn't read the text in document %s: %s", file_id, e)
             await _save(file_id, "FAILED", error="The text couldn't be read right now. Remove the file and add it again "
                                                  "to retry, or paste the text into the caption.")
-    from services import submission_service
+    from services.compliance import submission_service
 
     await submission_service.recheck_after_document_text(file_id)
 

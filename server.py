@@ -22,14 +22,14 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from postgresql_db.database import close_pool, create_pool, fetch_one
-from services.logging_service import (
+from services.shared.logging_service import (
     asyncio_exception_handler,
     configure_logging,
     log_background_task_result,
     request_id_ctx,
 )
-from services.cache_service import start_cache_invalidation_listener
-from services.auth_service import (
+from services.shared.cache_service import start_cache_invalidation_listener
+from services.shared.auth_service import (
     current_user_id_ctx,
     get_current_user_id_dependency,
 )
@@ -55,8 +55,8 @@ from tools.sentiment_router import router as sentiment_router
 
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools, sync_mcp_tools_to_vector_db
-from services import ai_observability, assistant_chat_service
-from services.graph_sync_job import graph_sync_loop
+from services.ai import ai_observability, assistant_chat_service
+from services.microsoft_graph.graph_sync_job import graph_sync_loop
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -158,7 +158,7 @@ async def lifespan(app: FastAPI):
         )
 
     # 3b. Review and revision deadline reminders
-    from services.review_deadline_service import deadline_loop
+    from services.compliance.review_deadline_service import deadline_loop
     deadline_task = asyncio.create_task(deadline_loop(), name="review-deadlines")
     deadline_task.add_done_callback(
         partial(log_background_task_result, task_name="review-deadlines")
@@ -166,7 +166,7 @@ async def lifespan(app: FastAPI):
     background_tasks.append(deadline_task)
 
     # 3c. Sentiment analyses scheduled to run once Gemini's daily limit resets
-    from services.sentiment_service import scheduled_runs_loop
+    from services.compliance.sentiment_service import scheduled_runs_loop
     sentiment_task = asyncio.create_task(scheduled_runs_loop(), name="sentiment-scheduled-runs")
     sentiment_task.add_done_callback(
         partial(log_background_task_result, task_name="sentiment-scheduled-runs")
@@ -174,13 +174,13 @@ async def lifespan(app: FastAPI):
     background_tasks.append(sentiment_task)
 
     # 3d. Review memory: past review decisions as precedent for sentiment analysis (catches up on anything new)
-    from services.review_memory_service import remember_all_in_background
+    from services.compliance.review_memory_service import remember_all_in_background
     memory_task = asyncio.create_task(remember_all_in_background(), name="review-memory-sync")
     memory_task.add_done_callback(partial(log_background_task_result, task_name="review-memory-sync"))
     background_tasks.append(memory_task)
 
     # 3e. Open content checked against an older rulebook or older built-in claim checks is re-checked
-    from services.submission_service import recheck_outdated_on_start
+    from services.compliance.submission_service import recheck_outdated_on_start
     recheck_task = asyncio.create_task(recheck_outdated_on_start(), name="outdated-check-recheck")
     recheck_task.add_done_callback(partial(log_background_task_result, task_name="outdated-check-recheck"))
     background_tasks.append(recheck_task)
@@ -191,12 +191,12 @@ async def lifespan(app: FastAPI):
     background_tasks.append(trace_task)
 
     # 3g. Reference index: rulebook and Messaging Context in the vector store for the assistant's search
-    from services.reference_index_service import sync_soon as sync_reference_index
+    from services.compliance.reference_index_service import sync_soon as sync_reference_index
     sync_reference_index()
 
     # 4. Initialize Event-Driven MQTT Service Presence & Bus
-    from services import mqtt_presence as mqtt_module
-    from services.mqtt_presence import MqttServicePresence
+    from services.notifications import mqtt_presence as mqtt_module
+    from services.notifications.mqtt_presence import MqttServicePresence
     presence_instance = MqttServicePresence(
         service_name=os.getenv("SERVICE_NAME", "social-media"),
         instance_id=os.getenv("SERVICE_INSTANCE_ID", "social-media-01"),
@@ -205,7 +205,7 @@ async def lifespan(app: FastAPI):
     await presence_instance.start()
 
     # 5. Initialize RabbitMQ Manager (Cross-Service Asynchronous Messaging)
-    from services.rabbitmq_service import rabbitmq_manager
+    from services.notifications.rabbitmq_service import rabbitmq_manager
     await rabbitmq_manager.connect()
 
     logger.info("Application startup complete", extra={"event": "application_started"})
@@ -291,7 +291,7 @@ async def ai_chat(req: ChatRequest, user_id: UUID = Depends(get_current_user_id)
         )
     if not prepared.blocked and prepared.cached_answer is None:
         # Counts toward the same daily AI limits as the other Gemini features (429 with when it frees up).
-        from services import ai_usage_service
+        from services.ai import ai_usage_service
         await ai_usage_service.reserve("CHAT", user_id)
     try:
         async def stream_generator():
@@ -438,7 +438,7 @@ def _session_identity(request: Request) -> Optional[str]:
     if auth_header[:7].lower() == "bearer ":
         token = auth_header[7:].strip()
     if not token:
-        from services.auth_service import AUTH_COOKIE_NAME
+        from services.shared.auth_service import AUTH_COOKIE_NAME
         token = request.cookies.get(AUTH_COOKIE_NAME, "") or request.cookies.get("zenatech_access_token", "")
     if not token:
         return None

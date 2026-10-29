@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Set
 from uuid import UUID
 
 from postgresql_db.database import fetch_all
-from services import vector_store_service as store
+from services.ai import vector_store_service as store
 
 logger = logging.getLogger(__name__)
 

@@ -30,7 +30,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from google import genai
 from google.genai import types
 
-from services.ai_observability import span
+from services.ai.ai_observability import span
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +181,7 @@ async def delete(doc_ids: List[str]) -> int:
 async def _reference_changed() -> None:
     """Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
     decisions aren't shown to the assistant, so those don't count)."""
-    from services import semantic_cache
+    from services.ai import semantic_cache
     try:
         await semantic_cache.clear("CHAT")
     except Exception as e:

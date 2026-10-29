@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from authlib.integrations.starlette_client import OAuth
 from starlette.config import Config
-from services.auth_service import (
+from services.shared.auth_service import (
     create_access_token,
     getCurrentUserFromMicrosoftClaims,
     upsertMicrosoftUser,
@@ -20,8 +20,8 @@ from services.auth_service import (
     set_access_token_cookie,
     AUTH_COOKIE_NAME,
 )
-from services.graph_service import fetch_me_profile
-from services.rbac_service import log_login_activity
+from services.microsoft_graph.graph_service import fetch_me_profile
+from services.shared.rbac_service import log_login_activity
 from postgresql_db.database import get_pool
 from uuid import UUID
 from pydantic import BaseModel, Field
@@ -279,7 +279,7 @@ async def heartbeat(
 async def link_token(user_id: UUID = Depends(get_current_user_id_dependency)):
     """A short-lived token for loading media and the notification stream by URL (<img>, <video>, EventSource
     can't send headers). It only works for those GET URLs."""
-    from services.auth_service import create_link_token
+    from services.shared.auth_service import create_link_token
     token, expires = create_link_token(user_id)
     return {"token": token, "expires_at": expires.isoformat()}
 
@@ -305,8 +305,8 @@ async def logout(request: Request):
 
     if token:
         import jwt
-        from services.auth_service import JWT_SECRET, JWT_ALGORITHM
-        from services.cache_service import emit_cache_invalidation
+        from services.shared.auth_service import JWT_SECRET, JWT_ALGORITHM
+        from services.shared.cache_service import emit_cache_invalidation
         try:
             payload = jwt.decode(
                 token,
@@ -328,7 +328,7 @@ async def logout(request: Request):
                     if user:
                         # Every token issued before now stops working (see get_current_user_id_dependency).
                         await conn.execute("UPDATE users SET last_logout_at = now() WHERE id = $1", user_id)
-                        from services.auth_service import _user_auth_cache
+                        from services.shared.auth_service import _user_auth_cache
                         _user_auth_cache.pop(user_id, None)
                         # Update the corresponding login activity log to set logout_at
                         await conn.execute("""

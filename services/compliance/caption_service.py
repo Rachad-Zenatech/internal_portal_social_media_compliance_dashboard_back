@@ -20,10 +20,11 @@ from pydantic import ValidationError
 
 from models.caption_model import CaptionCheck, CaptionSuggestion, CaptionSuggestions, CaptionSuggestRequest
 from models.compliance_model import ComplianceCheckRequest
-from services import ai_usage_service, context_service, hashtag_library
-from services import sentiment_service as sentiment
-from services.compliance_service import applicable_rules, check_compliance, flagged_tags
-from services.gemini_service import generate_content_with_fallback
+from services.ai import ai_usage_service
+from services.compliance import context_service, hashtag_library
+from services.compliance import sentiment_service as sentiment
+from services.compliance.compliance_service import applicable_rules, check_compliance, flagged_tags
+from services.ai.gemini_service import generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
 

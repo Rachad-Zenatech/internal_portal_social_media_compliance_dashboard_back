@@ -25,7 +25,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from postgresql_db.database import close_pool, create_pool, fetch_all  # noqa: E402
-from services import sentiment_service  # noqa: E402
+from services.compliance import sentiment_service
 
 MODEL_OVERRIDE = None  # --model: run every case on this model instead of the one it would normally get
 

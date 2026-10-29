@@ -41,11 +41,11 @@ from models.public_mood_model import (
     TopicSnapshot,
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
-from services import ai_usage_service
-from services import vector_store_service as store
-from services.compliance_service import _matches, _normalize
-from services.gemini_service import generate_content_with_fallback
-from services.listening_providers import ListeningUnavailable, get_provider
+from services.ai import ai_usage_service
+from services.ai import vector_store_service as store
+from services.compliance.compliance_service import _matches, _normalize
+from services.ai.gemini_service import generate_content_with_fallback
+from services.compliance.listening_providers import ListeningUnavailable, get_provider
 
 logger = logging.getLogger(__name__)
 

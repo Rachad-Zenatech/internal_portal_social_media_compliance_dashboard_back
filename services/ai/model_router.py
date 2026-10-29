@@ -20,7 +20,7 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List
 
-from services.gemini_service import get_gemini_fallback_models
+from services.ai.gemini_service import get_gemini_fallback_models
 
 TIERS = ("LIGHT", "STANDARD", "HEAVY")
 # HEAVY defaults to flash because Pro models have no free-tier allowance; on a paid key, put a Pro model first.

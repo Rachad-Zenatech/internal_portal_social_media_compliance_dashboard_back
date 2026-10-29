@@ -26,9 +26,9 @@ from models.compliance_model import (
 )
 from models.submission_model import AUDIENCES, PLATFORMS, REGIONS, RULE_SETS
 from postgresql_db.database import fetch_all, fetch_one, get_pool
-from services import claim_checks, post_signals, reference_index_service
-from services.audit_service import log_audit_event
-from services.cache_service import emit_cache_invalidation
+from services.compliance import claim_checks, post_signals, reference_index_service
+from services.shared.audit_service import log_audit_event
+from services.shared.cache_service import emit_cache_invalidation
 
 logger = logging.getLogger(__name__)
 

@@ -7,8 +7,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from models.public_mood_model import ListeningTopic, ListeningTopicUpdate, MatchTestRequest, MatchTestResult
-from services import public_mood_service as svc
-from services.auth_service import get_current_user_id_dependency, require_permission
+from services.compliance import public_mood_service as svc
+from services.shared.auth_service import get_current_user_id_dependency, require_permission
 
 router = APIRouter(prefix="/listening")
 

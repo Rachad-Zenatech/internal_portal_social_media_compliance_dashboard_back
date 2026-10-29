@@ -92,7 +92,7 @@ async def generate_content_with_fallback(
     The model order comes from model_router (by feature and request size), and every
     attempt is traced and prompt-logged (ai_observability).
     """
-    from services import ai_observability, model_router
+    from services.ai import ai_observability, model_router
 
     prompt, attachments = ai_observability.describe_contents(contents)
     route = model_router.route(feature, prompt_chars=len(prompt), attachments=attachments)

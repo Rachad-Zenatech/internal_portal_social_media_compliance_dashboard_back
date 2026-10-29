@@ -16,7 +16,7 @@ from typing import Callable, List, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from services.ai_guardrails import StreamRedactor, redact_pii, screen_input  # noqa: E402
+from services.ai.ai_guardrails import StreamRedactor, redact_pii, screen_input  # noqa: E402
 
 # Targets: attacks caught (FLAG or BLOCK) and real content left alone (ALLOW).
 MIN_RECALL = 0.9
@@ -132,7 +132,7 @@ def _stream() -> Tuple[bool, List[str]]:
 
 
 def _routing() -> Tuple[bool, List[str]]:
-    from services import model_router
+    from services.ai import model_router
 
     cases: List[Tuple[str, Callable[[], model_router.Route], str]] = [
         ("short chat goes light", lambda: model_router.route("CHAT", prompt_chars=200), "LIGHT"),
@@ -153,7 +153,7 @@ def _routing() -> Tuple[bool, List[str]]:
 
 
 def _cache_numbers() -> Tuple[bool, List[str]]:
-    from services.semantic_cache import normalise, numbers
+    from services.ai.semantic_cache import normalise, numbers
 
     cases = [
         ("Can we post that revenue grew 30%?", "can we post that revenue grew 30% ?", True),

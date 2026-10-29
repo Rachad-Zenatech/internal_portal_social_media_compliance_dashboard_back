@@ -1,7 +1,8 @@
 import json
 from typing import Optional
 
-from services import reference_index_service, vector_store_service
+from services.compliance import reference_index_service
+from services.ai import vector_store_service
 
 
 async def search_reference_material_tool(query: str, kind: Optional[str] = None, brand: Optional[str] = None,
@@ -65,7 +66,7 @@ async def list_compliance_rules_tool(search: Optional[str] = None, rule_set: Opt
     Side Effects / Confirmation:
         Read-only.
     """
-    from services.compliance_service import list_compliance_rules
+    from services.compliance.compliance_service import list_compliance_rules
 
     rules = await list_compliance_rules(severity=severity, is_active=True, search=search, rule_set=rule_set)
     if not rules:

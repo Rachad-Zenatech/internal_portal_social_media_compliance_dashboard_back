@@ -555,14 +555,14 @@ async def sync_accounts_from_mqtt(
             if conn_obj:
                 synced_connections.append(conn_obj)
 
-    from services.cache_service import emit_cache_invalidation
+    from services.shared.cache_service import emit_cache_invalidation
     await emit_cache_invalidation(scope="oauth", key="connections")
     return synced_connections
 
 
 async def sync_with_social_media_app_mqtt() -> dict[str, Any]:
     """Requests account synchronization over MQTT, and populates connected accounts."""
-    from services.mqtt_presence import publish_social_media_event, get_social_media_presence
+    from services.notifications.mqtt_presence import publish_social_media_event, get_social_media_presence
 
     presence = get_social_media_presence()
     mqtt_is_connected = bool(presence and presence.is_connected)

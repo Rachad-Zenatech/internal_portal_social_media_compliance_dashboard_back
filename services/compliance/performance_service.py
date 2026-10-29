@@ -30,8 +30,8 @@ from models.performance_model import (
     PlatformApi,
 )
 from postgresql_db.database import fetch_all, get_pool
-from services import submission_service
-from services.post_metrics_providers import PLATFORM_APIS, MetricsUnavailable, api_for, get_provider
+from services.compliance import submission_service
+from services.compliance.post_metrics_providers import PLATFORM_APIS, MetricsUnavailable, api_for, get_provider
 
 
 def _env_float(name: str, default: float) -> float:

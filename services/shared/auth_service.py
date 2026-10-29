@@ -1,6 +1,6 @@
 from uuid import UUID
 from postgresql_db.database import fetch_all, fetch_one
-from services.cache_service import permission_cache, emit_cache_invalidation
+from services.shared.cache_service import permission_cache, emit_cache_invalidation
 import jwt
 import asyncio
 import contextvars
@@ -602,7 +602,7 @@ def require_permission(permission_code: str):
 
         has_access = await user_can_access_page(user_id, navigationCode, db_action_code)
         if not has_access:
-            from services.rbac_service import log_audit_action
+            from services.shared.rbac_service import log_audit_action
             await log_audit_action('PERMISSION_DENIED', user_id, f'Denied {permission_code}')
             raise HTTPException(status_code=403, detail='Permission denied')
         return user_id

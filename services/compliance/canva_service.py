@@ -16,8 +16,8 @@ from fastapi import HTTPException, status
 
 from models.canva_model import CanvaConnection, CanvaDesign
 from postgresql_db.database import fetch_all, fetch_one
-from services import canva_mock_render as render
-from services.canva_mock_render import RGB, TextLine
+from services.compliance import canva_mock_render as render
+from services.compliance.canva_mock_render import RGB, TextLine
 
 
 def mode() -> str:

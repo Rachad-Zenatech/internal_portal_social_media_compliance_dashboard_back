@@ -1,6 +1,6 @@
 """AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls,
 guard checks, cache lookups), the prompt log of every model call, and the semantic cache of assistant answers.
-See services/ai_observability.py and services/semantic_cache.py."""
+See services/ai/ai_observability.py and services/ai/semantic_cache.py."""
 
 import logging
 

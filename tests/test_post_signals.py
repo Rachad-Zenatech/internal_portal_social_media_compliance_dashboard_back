@@ -1,6 +1,6 @@
 import unittest
 
-from services import post_signals as ps
+from services.compliance import post_signals as ps
 
 
 class ExtractTests(unittest.TestCase):

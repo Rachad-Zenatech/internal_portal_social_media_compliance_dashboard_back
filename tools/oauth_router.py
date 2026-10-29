@@ -18,10 +18,10 @@ from models.oauth_connection_model import (
     Organization,
     OrganizationCreate,
 )
-from services import oauth_connection_service as oauth_svc
-from services.audit_service import log_audit_event
-from services.auth_service import get_current_user_id_dependency, require_permission
-from services.cache_service import emit_cache_invalidation
+from services.shared import oauth_connection_service as oauth_svc
+from services.shared.audit_service import log_audit_event
+from services.shared.auth_service import get_current_user_id_dependency, require_permission
+from services.shared.cache_service import emit_cache_invalidation
 
 router = APIRouter(prefix="/oauth", tags=["Social Media Channels (MQTT)"])
 
@@ -206,7 +206,7 @@ async def sync_accounts_via_mqtt(_user_id: CurrentUser):
 @router.get("/mqtt-status")
 async def get_mqtt_sync_status(_user_id: CurrentUser):
     """Returns the current MQTT bus connection and synchronization status."""
-    from services.mqtt_presence import get_social_media_presence
+    from services.notifications.mqtt_presence import get_social_media_presence
     presence = get_social_media_presence()
     return {
         "mqtt_connected": bool(presence and presence.is_connected),

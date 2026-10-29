@@ -12,8 +12,8 @@ from fastapi import HTTPException
 from models.context_model import ContextEntry, ContextEntryIn
 from models.submission_model import AUDIENCES, PLATFORMS
 from postgresql_db.database import fetch_all, fetch_one
-from services import reference_index_service
-from services.audit_service import log_audit_event
+from services.compliance import reference_index_service
+from services.shared.audit_service import log_audit_event
 
 # The order sections appear in the analysis prompt and on the page.
 KIND_ORDER = ["BRAND_VOICE", "FACT", "PLATFORM_NORM", "AUDIENCE_PROFILE"]

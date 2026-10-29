@@ -6,7 +6,7 @@
 #
 # The same tools serve two callers, with the same RBAC check, tracing and output
 # redaction: MCP clients through /mcp (mcp_tools.middleware) and the assistant
-# chat through Gemini function calling (services.assistant_chat_service, via run_tool).
+# chat through Gemini function calling (services.ai.assistant_chat_service, via run_tool).
 import inspect
 import json
 import logging
@@ -18,8 +18,8 @@ from fastmcp.prompts import Prompt
 from mcp_tools.permissions import list_my_accessible_tools_tool
 from mcp_tools.prompts import ALL_PROMPTS
 from mcp_tools.reference import list_compliance_rules_tool, search_reference_material_tool
-from services.ai_guardrails import redact_pii
-from services.ai_observability import span
+from services.ai.ai_guardrails import redact_pii
+from services.ai.ai_observability import span
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ def register_all(mcp):
 
 async def allowed_tool_names(user_id: Optional[UUID]) -> List[str]:
     """The registered tools this person's roles allow (all of them for super admins)."""
-    from services.auth_service import get_my_permissions
+    from services.shared.auth_service import get_my_permissions
 
     if not user_id:
         return []
@@ -79,7 +79,7 @@ async def allowed_tool_names(user_id: Optional[UUID]) -> List[str]:
 
 async def run_tool(name: str, args: Dict[str, Any], user_id: Optional[UUID], source: str = "chat") -> str:
     """Run a tool for a person: RBAC check, traced, output PII-redacted. Failures come back as text for the model."""
-    from services.auth_service import current_user_id_ctx, user_can_use_mcp_tool
+    from services.shared.auth_service import current_user_id_ctx, user_can_use_mcp_tool
 
     async with span("tool", name, source=source, code=tool_code(name), args=sorted(args)) as s:
         fn = TOOLS_BY_NAME.get(name)

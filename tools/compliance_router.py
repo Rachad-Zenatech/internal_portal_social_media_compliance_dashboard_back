@@ -15,12 +15,12 @@ from models.compliance_model import (
     ComplianceRuleUpdate,
     RuleSelfTest,
 )
-from services import compliance_service as comp_svc
-from services import submission_service
-from services import flag_review_service
+from services.compliance import compliance_service as comp_svc
+from services.compliance import submission_service
+from services.compliance import flag_review_service
 from models.flag_review_model import RuleFlagStats
-from services.audit_service import log_audit_event
-from services.auth_service import get_current_user_id_dependency, require_permission
+from services.shared.audit_service import log_audit_event
+from services.shared.auth_service import get_current_user_id_dependency, require_permission
 
 router = APIRouter(prefix="/compliance", tags=["Compliance Rules & Governance"])
 
@@ -128,7 +128,7 @@ async def reset_defaults(user_id: ManageUser):
     return {"status": "ok", "message": "Baseline rules successfully re-synced from Rulebook"}
 
 from pydantic import BaseModel
-from services import video_job_service as vjs
+from services.compliance import video_job_service as vjs
 from fastapi import BackgroundTasks
 
 class VideoJobCreateRequest(BaseModel):

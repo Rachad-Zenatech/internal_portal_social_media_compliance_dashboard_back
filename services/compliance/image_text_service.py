@@ -20,8 +20,8 @@ from google import genai
 from google.genai import types
 
 from postgresql_db.database import fetch_all, fetch_one, get_pool
-from services import ai_observability
-from services.gemini_service import is_rotatable_model_error
+from services.ai import ai_observability
+from services.ai.gemini_service import is_rotatable_model_error
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +123,8 @@ def _clean(text: str) -> str:
 
 async def read_file(file_id: UUID) -> None:
     """Read one image's text and save it, then re-check its submission if it's still open."""
-    from services.sentiment_service import _image_bytes  # local imports: those modules import this one's callers
-    from services.transcription_service import STORAGE_ROOT
+    from services.compliance.sentiment_service import _image_bytes  # local imports: those modules import this one's callers
+    from services.compliance.transcription_service import STORAGE_ROOT
 
     async with _semaphore:
         row = await _claim(file_id)
@@ -142,7 +142,7 @@ async def read_file(file_id: UUID) -> None:
         except Exception as e:
             logger.warning("Couldn't read the text in image %s: %s", file_id, e)
             await _save(file_id, "FAILED", error=str(e)[:500] or e.__class__.__name__)
-    from services import submission_service
+    from services.compliance import submission_service
 
     await submission_service.recheck_after_image_text(file_id)
 

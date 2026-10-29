@@ -81,7 +81,7 @@ def _when(dt: datetime) -> str:
 async def _recipients(row: Dict[str, Any]) -> List[UUID]:
     """Reviews: every reviewer except the creator. Revisions: the creator, and for overdue ones also whoever
     asked for the changes."""
-    from services import submission_service
+    from services.compliance import submission_service
 
     if row["due_kind"] == "REVIEW":
         return await submission_service._reviewer_ids(exclude=row["created_by"], brand_code=row.get("brand_code"))
@@ -133,7 +133,7 @@ async def _claim(stage: str) -> List[Dict[str, Any]]:
 
 async def send_due_notices() -> int:
     """One pass: "due soon" reminders, then overdue notices. Returns how many deadlines were notified."""
-    from services import submission_service
+    from services.compliance import submission_service
 
     sent = 0
     for stage in ("soon", "overdue"):

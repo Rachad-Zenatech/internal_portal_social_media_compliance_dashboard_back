@@ -7,8 +7,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from models.performance_model import PerformanceReport
-from services import performance_service as svc
-from services.auth_service import get_current_user_id_dependency
+from services.compliance import performance_service as svc
+from services.shared.auth_service import get_current_user_id_dependency
 
 router = APIRouter(prefix="/performance")
 

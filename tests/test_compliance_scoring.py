@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi import HTTPException
 
 from models.compliance_model import ComplianceCheckRequest, ComplianceRule
-from services import compliance_service as cs
+from services.compliance import compliance_service as cs
 
 
 def rule(**fields):
@@ -68,8 +68,8 @@ class ScoringTests(unittest.IsolatedAsyncioTestCase):
             return [r for r in rules if cs._rule_applies(r, req)]
 
         with (
-            patch("services.compliance_service.applicable_rules", new=AsyncMock(side_effect=applicable)),
-            patch("services.compliance_service.rulebook_version", new=AsyncMock(return_value=None)),
+            patch("services.compliance.compliance_service.applicable_rules", new=AsyncMock(side_effect=applicable)),
+            patch("services.compliance.compliance_service.rulebook_version", new=AsyncMock(return_value=None)),
         ):
             return await cs.check_compliance(ComplianceCheckRequest(text=text, **scope))
 
@@ -144,7 +144,7 @@ class PostSignalScoringTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.violations[0].kind, "MISSING_DISCLAIMER")
 
     async def test_tagging_the_military_is_a_yellow_finding(self):
-        from services import post_signals
+        from services.compliance import post_signals
         result = await self.check([], "Great demo with @USArmy today.")
         self.assertEqual([v.rule_id for v in result.violations], [post_signals.GOVERNMENT_REFERENCE_ID])
         self.assertEqual(result.traffic_light, "YELLOW")
@@ -175,8 +175,8 @@ class ManualReviewRuleTests(unittest.IsolatedAsyncioTestCase):
         disclaimer_rule = rule(rule_number="Rule 4", required_disclaimers=["No endorsement implied"], disclaimer_triggers=["army"])
 
         with (
-            patch("services.compliance_service.applicable_rules", new=AsyncMock(return_value=[image_rule, phrase_rule, disclaimer_rule])),
-            patch("services.compliance_service.rulebook_version", new=AsyncMock(return_value=None)),
+            patch("services.compliance.compliance_service.applicable_rules", new=AsyncMock(return_value=[image_rule, phrase_rule, disclaimer_rule])),
+            patch("services.compliance.compliance_service.rulebook_version", new=AsyncMock(return_value=None)),
         ):
             result = await cs.check_compliance(ComplianceCheckRequest(text="Meet the team."))
 

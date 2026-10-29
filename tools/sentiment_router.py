@@ -7,9 +7,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from models.sentiment_model import EvalCase, EvalCaseIn, FeedbackSummaryRow
-from services import sentiment_service
-from services import submission_service as svc
-from services.auth_service import get_current_user_id_dependency
+from services.compliance import sentiment_service
+from services.compliance import submission_service as svc
+from services.shared.auth_service import get_current_user_id_dependency
 
 router = APIRouter(prefix="/sentiment", tags=["Sentiment Quality"])
 

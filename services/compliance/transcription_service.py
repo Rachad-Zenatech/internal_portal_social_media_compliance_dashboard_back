@@ -18,7 +18,7 @@ from google import genai
 from google.genai import types
 
 from postgresql_db.database import fetch_one, get_pool
-from services.gemini_service import generate_content_with_fallback
+from services.ai.gemini_service import generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +187,7 @@ async def transcribe_file(file_id: UUID) -> None:
                 except Exception:
                     pass
         # Sentiment analyses wait for the transcript; either outcome lets them run.
-        from services import sentiment_service, submission_service
+        from services.compliance import sentiment_service, submission_service
         await submission_service.recheck_after_transcript(file_id)
         await sentiment_service.on_transcript_finished(file_id)
 
@@ -214,7 +214,7 @@ async def schedule_missing(file_ids: List[UUID]) -> None:
     """Queue videos that were never transcribed, or whose previous attempt was abandoned."""
     if not file_ids:
         return
-    from services import ai_usage_service  # local import keeps module load order simple
+    from services.ai import ai_usage_service
     pool = get_pool()
     async with pool.acquire() as conn:
         due = await conn.fetch(

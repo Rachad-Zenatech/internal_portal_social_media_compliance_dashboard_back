@@ -5,8 +5,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from pydantic import BaseModel, Field
 
-from services import ai_observability_service
-from services.auth_service import get_current_user_id_dependency, require_permission
+from services.ai import ai_observability_service
+from services.shared.auth_service import get_current_user_id_dependency, require_permission
 
 
 router = APIRouter()

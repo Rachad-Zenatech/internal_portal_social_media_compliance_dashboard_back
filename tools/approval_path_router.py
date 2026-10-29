@@ -6,8 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from models.approval_path_model import ApprovalPath, ApprovalPathIn, ApprovalPathOptions
-from services import approval_path_service as svc
-from services.auth_service import require_permission
+from services.compliance import approval_path_service as svc
+from services.shared.auth_service import require_permission
 
 router = APIRouter(prefix="/approval-paths")
 

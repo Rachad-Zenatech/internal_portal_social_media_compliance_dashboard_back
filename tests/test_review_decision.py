@@ -8,11 +8,11 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from models.submission_model import ReviewDecisionRequest
-from services import submission_service
+from services.compliance import submission_service
 
 CREATOR = uuid4()
 REVIEWER = uuid4()
-SVC = "services.submission_service"
+SVC = "services.compliance.submission_service"
 
 
 def submission_row(manual_rules=(), **overrides):
