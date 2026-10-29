@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# One-time sign-in codes (see postgresql_db/setup_login_codes_schema.py).
+# One-time sign-in codes (see postgresql_db/schemas/setup_login_codes_schema.py).
 LOGIN_CODE_TTL_SECONDS = 120
 _NONCE_RE = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
 

@@ -18,8 +18,8 @@ from fastapi import HTTPException
 from google.genai import types
 from pydantic import ValidationError
 
-from models.caption_model import CaptionCheck, CaptionSuggestion, CaptionSuggestions, CaptionSuggestRequest
-from models.compliance_model import ComplianceCheckRequest
+from models.compliance.caption_model import CaptionCheck, CaptionSuggestion, CaptionSuggestions, CaptionSuggestRequest
+from models.compliance.compliance_model import ComplianceCheckRequest
 from services.ai import ai_usage_service
 from services.compliance import context_service, hashtag_library
 from services.compliance import sentiment_service as sentiment

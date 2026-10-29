@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from models.compliance_model import (
+from models.compliance.compliance_model import (
     ComplianceCheckRequest,
     ComplianceCheckResponse,
     ComplianceRule,
@@ -18,7 +18,7 @@ from models.compliance_model import (
 from services.compliance import compliance_service as comp_svc
 from services.compliance import submission_service
 from services.compliance import flag_review_service
-from models.flag_review_model import RuleFlagStats
+from models.compliance.flag_review_model import RuleFlagStats
 from services.shared.audit_service import log_audit_event
 from services.shared.auth_service import get_current_user_id_dependency, require_permission
 
@@ -116,7 +116,7 @@ async def get_compliance_stats(_user_id: CurrentUser):
 async def reset_defaults(user_id: ManageUser):
     """Restore baseline rules to the official Defense Rulebook wording, scope and active state.
     Custom rules are not touched."""
-    from postgresql_db.setup_compliance_schema import setup as setup_compliance
+    from postgresql_db.schemas.setup_compliance_schema import setup as setup_compliance
     await setup_compliance(reset=True)
     submission_service.schedule_rulebook_recheck("baseline rules restored")
     await log_audit_event(

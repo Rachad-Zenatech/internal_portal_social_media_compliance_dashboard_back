@@ -15,9 +15,9 @@ from uuid import UUID
 
 from fastmcp.prompts import Prompt
 
-from mcp_tools.permissions import list_my_accessible_tools_tool
+from mcp_tools.shared.permissions import list_my_accessible_tools_tool
 from mcp_tools.prompts import ALL_PROMPTS
-from mcp_tools.reference import list_compliance_rules_tool, search_reference_material_tool
+from mcp_tools.compliance.reference import list_compliance_rules_tool, search_reference_material_tool
 from services.ai.ai_guardrails import redact_pii
 from services.ai.ai_observability import span
 

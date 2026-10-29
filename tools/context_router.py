@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from models.context_model import ContextEntry, ContextEntryIn
+from models.compliance.context_model import ContextEntry, ContextEntryIn
 from services.compliance import context_service as svc
 from services.shared.auth_service import get_current_user_id_dependency, require_permission
 

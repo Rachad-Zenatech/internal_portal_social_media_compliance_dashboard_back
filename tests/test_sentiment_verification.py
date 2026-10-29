@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timezone
 
-from models.sentiment_model import SentimentFinding, SentimentResult
+from models.compliance.sentiment_model import SentimentFinding, SentimentResult
 from services.compliance import sentiment_service as s
 
 

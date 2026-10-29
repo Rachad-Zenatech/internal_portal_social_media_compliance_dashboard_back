@@ -80,47 +80,47 @@ async def lifespan(app: FastAPI):
         await create_pool()
         # Ensure schema tables exist
         try:
-            from postgresql_db.setup_pbac_schema import setup as setup_schema
+            from postgresql_db.schemas.setup_pbac_schema import setup as setup_schema
             await setup_schema()
         except Exception as schema_err:
             logger.warning(f"Schema verification note: {schema_err}")
         try:
-            from postgresql_db.setup_social_media_schema import setup as setup_social_media_schema
+            from postgresql_db.schemas.setup_social_media_schema import setup as setup_social_media_schema
             await setup_social_media_schema()
         except Exception as sm_err:
             logger.warning(f"Social media schema setup note: {sm_err}")
         try:
-            from postgresql_db.setup_compliance_schema import setup as setup_compliance_schema
+            from postgresql_db.schemas.setup_compliance_schema import setup as setup_compliance_schema
             await setup_compliance_schema()
         except Exception as comp_err:
             logger.warning(f"Compliance schema setup note: {comp_err}")
         try:
-            from postgresql_db.setup_submissions_schema import setup as setup_submissions_schema
+            from postgresql_db.schemas.setup_submissions_schema import setup as setup_submissions_schema
             await setup_submissions_schema()
         except Exception as sub_err:
             logger.warning(f"Submission schema setup note: {sub_err}")
         try:
-            from postgresql_db.setup_context_schema import setup as setup_context_schema
+            from postgresql_db.schemas.setup_context_schema import setup as setup_context_schema
             await setup_context_schema()
         except Exception as ctx_err:
             logger.warning(f"Messaging context schema setup note: {ctx_err}")
         try:
-            from postgresql_db.setup_listening_schema import setup as setup_listening_schema
+            from postgresql_db.schemas.setup_listening_schema import setup as setup_listening_schema
             await setup_listening_schema()
         except Exception as listen_err:
             logger.warning(f"Listening schema setup note: {listen_err}")
         try:
-            from postgresql_db.setup_login_codes_schema import setup as setup_login_codes_schema
+            from postgresql_db.schemas.setup_login_codes_schema import setup as setup_login_codes_schema
             await setup_login_codes_schema()
         except Exception as login_err:
             logger.warning(f"Login codes schema setup note: {login_err}")
         try:
-            from postgresql_db.setup_performance_schema import setup as setup_performance_schema
+            from postgresql_db.schemas.setup_performance_schema import setup as setup_performance_schema
             await setup_performance_schema()
         except Exception as perf_err:
             logger.warning(f"Post performance schema setup note: {perf_err}")
         try:
-            from postgresql_db.setup_ai_observability_schema import setup as setup_ai_observability_schema
+            from postgresql_db.schemas.setup_ai_observability_schema import setup as setup_ai_observability_schema
             await setup_ai_observability_schema()
         except Exception as ai_err:
             logger.warning(f"AI observability schema setup note: {ai_err}")

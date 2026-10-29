@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
-from models.performance_model import (
+from models.compliance.performance_model import (
     CommentSentiment,
     PerformancePost,
     PerformanceReport,

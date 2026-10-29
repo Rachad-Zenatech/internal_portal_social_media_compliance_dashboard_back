@@ -8,11 +8,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
-from models.canva_model import CanvaImportRequest, CanvaReimportRequest
-from models.caption_model import CaptionSuggestions, CaptionSuggestRequest
-from models.public_mood_model import MoodFeedbackIn, PublicMood
-from models.sentiment_model import FindingFeedback, FindingFeedbackIn, SentimentAnalysis
-from models.submission_model import (
+from models.compliance.canva_model import CanvaImportRequest, CanvaReimportRequest
+from models.compliance.caption_model import CaptionSuggestions, CaptionSuggestRequest
+from models.compliance.public_mood_model import MoodFeedbackIn, PublicMood
+from models.compliance.sentiment_model import FindingFeedback, FindingFeedbackIn, SentimentAnalysis
+from models.compliance.submission_model import (
     DashboardSummary,
     ReviewComment,
     ReviewCommentCreate,
@@ -37,7 +37,7 @@ from services.ai import ai_usage_service
 from services.compliance import caption_service, public_mood_service, sentiment_service
 from services.compliance import flag_review_service
 from services.compliance import submission_service as svc
-from models.flag_review_model import FlagDismissRequest, FlagReview
+from models.compliance.flag_review_model import FlagDismissRequest, FlagReview
 from services.shared.auth_service import get_current_user_id_dependency
 from services.compliance.hashtag_library import HashtagLibrary
 

@@ -8,7 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from models.oauth_connection_model import (
+from models.shared.oauth_connection_model import (
     Company,
     CompanyCreate,
     CompanyUpdate,

@@ -33,8 +33,8 @@ from google import genai
 from google.genai import types
 from pydantic import ValidationError
 
-from models.compliance_model import ComplianceCheckRequest, ComplianceRule
-from models.sentiment_model import (
+from models.compliance.compliance_model import ComplianceCheckRequest, ComplianceRule
+from models.compliance.sentiment_model import (
     EvalCase,
     EvalCaseIn,
     FeedbackSummaryRow,

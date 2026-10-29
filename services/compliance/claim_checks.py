@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Callable, List
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from models.compliance_model import ComplianceViolation
+from models.compliance.compliance_model import ComplianceViolation
 
 # Bump when the checks change, so open content is re-checked on the next start (see rulebook_version).
 VERSION = "claims-1"

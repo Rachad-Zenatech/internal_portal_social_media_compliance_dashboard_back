@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from models.approval_path_model import ApprovalPath, ApprovalPathIn, ApprovalPathOptions
+from models.compliance.approval_path_model import ApprovalPath, ApprovalPathIn, ApprovalPathOptions
 from services.compliance import approval_path_service as svc
 from services.shared.auth_service import require_permission
 

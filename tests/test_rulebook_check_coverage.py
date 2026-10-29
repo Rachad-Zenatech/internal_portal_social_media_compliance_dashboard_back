@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-from models.compliance_model import ComplianceCheckResponse
+from models.compliance.compliance_model import ComplianceCheckResponse
 from services.compliance import image_text_service, submission_service
 
 SVC = "services.compliance.submission_service"

@@ -9,8 +9,8 @@ from uuid import UUID
 
 from fastapi import HTTPException
 
-from models.context_model import ContextEntry, ContextEntryIn
-from models.submission_model import AUDIENCES, PLATFORMS
+from models.compliance.context_model import ContextEntry, ContextEntryIn
+from models.compliance.submission_model import AUDIENCES, PLATFORMS
 from postgresql_db.database import fetch_all, fetch_one
 from services.compliance import reference_index_service
 from services.shared.audit_service import log_audit_event

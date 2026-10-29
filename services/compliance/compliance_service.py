@@ -12,7 +12,7 @@ from uuid import UUID
 import asyncpg
 from fastapi import HTTPException
 
-from models.compliance_model import (
+from models.compliance.compliance_model import (
     CheckSignals,
     ComplianceCheckRequest,
     ComplianceCheckResponse,
@@ -24,7 +24,7 @@ from models.compliance_model import (
     RuleExampleResult,
     RuleSelfTest,
 )
-from models.submission_model import AUDIENCES, PLATFORMS, REGIONS, RULE_SETS
+from models.compliance.submission_model import AUDIENCES, PLATFORMS, REGIONS, RULE_SETS
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.compliance import claim_checks, post_signals, reference_index_service
 from services.shared.audit_service import log_audit_event

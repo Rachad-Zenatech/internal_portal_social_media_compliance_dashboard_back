@@ -12,7 +12,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 
-from models.flag_review_model import REASON_LABELS, FlagDismissRequest, FlagReview, RuleFlagStats
+from models.compliance.flag_review_model import REASON_LABELS, FlagDismissRequest, FlagReview, RuleFlagStats
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.audit_service import log_audit_event
 

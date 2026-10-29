@@ -14,7 +14,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 
-from models.canva_model import CanvaConnection, CanvaDesign
+from models.compliance.canva_model import CanvaConnection, CanvaDesign
 from postgresql_db.database import fetch_all, fetch_one
 from services.compliance import canva_mock_render as render
 from services.compliance.canva_mock_render import RGB, TextLine

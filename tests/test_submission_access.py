@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from models.flag_review_model import FlagDismissRequest
+from models.compliance.flag_review_model import FlagDismissRequest
 from services.compliance import flag_review_service, submission_service
 
 CREATOR = uuid4()

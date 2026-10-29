@@ -27,7 +27,7 @@ from google import genai
 from google.genai import types
 from pydantic import ValidationError
 
-from models.public_mood_model import (
+from models.compliance.public_mood_model import (
     DismissedTopic,
     ListeningTopic,
     ListeningTopicUpdate,

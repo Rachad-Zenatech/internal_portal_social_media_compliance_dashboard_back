@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from models.submission_model import ReviewDecisionRequest
+from models.compliance.submission_model import ReviewDecisionRequest
 from services.compliance import submission_service
 
 CREATOR = uuid4()

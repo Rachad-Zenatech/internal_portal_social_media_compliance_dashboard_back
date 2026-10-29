@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi import HTTPException
 
-from models.compliance_model import ComplianceCheckRequest, ComplianceRule
+from models.compliance.compliance_model import ComplianceCheckRequest, ComplianceRule
 from services.compliance import compliance_service as cs
 
 

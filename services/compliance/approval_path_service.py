@@ -10,8 +10,8 @@ from uuid import UUID
 
 from fastapi import HTTPException
 
-from models.approval_path_model import ApprovalPath, ApprovalPathIn, ApprovalPathOptions, ApproverOption
-from models.submission_model import AUDIENCES
+from models.compliance.approval_path_model import ApprovalPath, ApprovalPathIn, ApprovalPathOptions, ApproverOption
+from models.compliance.submission_model import AUDIENCES
 from postgresql_db.database import fetch_all, fetch_one
 from services.shared.audit_service import log_audit_event
 

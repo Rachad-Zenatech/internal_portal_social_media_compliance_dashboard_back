@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from google.genai import errors
 
-from models.sentiment_model import SentimentResult
+from models.compliance.sentiment_model import SentimentResult
 from services.compliance import image_text_service
 from services.compliance import sentiment_service as s
 

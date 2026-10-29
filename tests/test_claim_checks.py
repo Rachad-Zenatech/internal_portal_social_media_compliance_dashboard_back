@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from models.compliance_model import ComplianceCheckRequest
+from models.compliance.compliance_model import ComplianceCheckRequest
 from services.compliance import claim_checks, compliance_service
 
 # The text read from the "$25M contract" graphic, line breaks and all.

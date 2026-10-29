@@ -17,9 +17,9 @@ from uuid import UUID, uuid4
 import aiofiles
 from fastapi import HTTPException, UploadFile, status
 
-from models.compliance_model import ComplianceCheckRequest
-from models.notification_model import NotificationCreate
-from models.submission_model import (
+from models.compliance.compliance_model import ComplianceCheckRequest
+from models.notifications.notification_model import NotificationCreate
+from models.compliance.submission_model import (
     DashboardActivity,
     DashboardFinding,
     DashboardSummary,

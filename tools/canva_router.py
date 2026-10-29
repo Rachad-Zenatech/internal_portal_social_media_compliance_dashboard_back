@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response, status
 
-from models.canva_model import CanvaConnection, CanvaDesign
+from models.compliance.canva_model import CanvaConnection, CanvaDesign
 from services.compliance import canva_service
 from services.shared.auth_service import get_current_user_id_dependency
 
