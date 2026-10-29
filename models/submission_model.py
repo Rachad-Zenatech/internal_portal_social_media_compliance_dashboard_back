@@ -125,6 +125,10 @@ class SubmissionFile(BaseModel):
     transcript_status: Optional[TranscriptStatus] = None
     transcript: Optional[List[TranscriptSegment]] = None
     transcript_error: Optional[str] = None
+    # Scripts and article files: their text is read in the background so the check screens it.
+    # NULL (not read yet), PROCESSING, COMPLETED or FAILED (doc_text_error says why, in words the creator can act on).
+    doc_text_status: Optional[str] = None
+    doc_text_error: Optional[str] = None
     # Where it came from. CANVA files remember the design and revision, so the creator can reimport the latest.
     source: Literal["UPLOAD", "CANVA"] = "UPLOAD"
     canva_design_id: Optional[str] = None
@@ -372,6 +376,10 @@ class ReviewQueueItem(BaseModel):
     # Critical (red) flags on the current version that a reviewer hasn't dismissed; approval waits on these.
     open_critical_flags: int = 0
     publish_at: Optional[datetime] = None
+    # For the screener's filters and header.
+    brand_code: Optional[str] = None
+    audience: Optional[str] = None
+    approval_needed_by: Optional[datetime] = None
     # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
     due_at: Optional[datetime] = None
     due_kind: Optional[Literal["REVIEW", "REVISION"]] = None

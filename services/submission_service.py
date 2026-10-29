@@ -53,9 +53,10 @@ from models.submission_model import (
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.audit_service import log_audit_event
 from services import ai_usage_service, approval_path_service, canva_service, flag_review_service, review_deadline_service, transcription_service
-from services import image_text_service, review_memory_service
+from services import document_text_service, image_text_service, review_memory_service
 from services.ai_usage_service import AiLimitExceeded
-from services.compliance_service import check_compliance, flag_segments
+from services.compliance_service import CEO_BRAND, check_compliance, flag_segments
+from services.compliance_service import parts_for as compliance_parts_for
 from services.compliance_service import rulebook_version as compliance_rulebook_version
 from services.html_sanitizer import sanitize_caption_html
 
@@ -75,7 +76,7 @@ IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 VIDEO_EXT = {".mp4", ".mov", ".avi", ".webm", ".mkv", ".m4v"}
 DOC_EXT = {".pdf", ".doc", ".docx", ".txt", ".md"}
 ALLOWED_EXT = {
-    "SCRIPT": {".pdf", ".doc", ".docx", ".txt"},
+    "SCRIPT": {".pdf", ".doc", ".docx", ".txt", ".md"},
     "IMAGE": IMAGE_EXT,
     "SUPPORTING": DOC_EXT | {".xls", ".xlsx", ".csv", ".zip", ".ppt", ".pptx"} | IMAGE_EXT,
 }
@@ -168,6 +169,8 @@ def _file_out(submission_id: UUID, row: Dict[str, Any]) -> SubmissionFile:
         transcript_status=row.get("transcript_status"),
         transcript=transcript,
         transcript_error=row.get("transcript_error"),
+        doc_text_status=row.get("doc_text_status"),
+        doc_text_error=row.get("doc_text_error"),
         source=row.get("source") or "UPLOAD",
         canva_design_id=row.get("canva_design_id"),
         canva_design_title=row.get("canva_design_title"),
@@ -287,7 +290,7 @@ async def _list_files(submission_id: UUID) -> List[Dict[str, Any]]:
     return await fetch_all(
         """
         SELECT id, kind, original_name, mime_type, size_bytes, created_at,
-               transcript, transcript_status, transcript_error,
+               transcript, transcript_status, transcript_error, doc_text_status, doc_text_error,
                source, canva_design_id, canva_design_title, canva_revision
         FROM content_submission_files
         WHERE submission_id = $1 AND deleted_at IS NULL
@@ -809,6 +812,8 @@ async def _record_file(
         transcription_service.schedule([file_id])
     if image_text_service.is_image_file(kind, mime):
         image_text_service.schedule([file_id])
+    if document_text_service.is_document_file(kind, original_name):
+        document_text_service.schedule([file_id])
     return _file_out(submission_id, dict(saved))
 
 
@@ -954,14 +959,16 @@ def analysis_pending(check: Optional[Dict[str, Any]]) -> bool:
         return False
     if "analysis_pending" in check:
         return bool(check["analysis_pending"])
-    return bool(check.get("transcript_pending")) or (check.get("images_pending") or 0) > 0
+    return (bool(check.get("transcript_pending")) or (check.get("images_pending") or 0) > 0
+            or (check.get("documents_pending") or 0) > 0)
 
 
 def _pending_sql(column: str) -> str:
     """SQL for analysis_pending() on a stored check (older checks only have the two parts)."""
     return (
         f"coalesce(({column}->>'analysis_pending')::boolean, "
-        f"coalesce(({column}->>'transcript_pending')::boolean, false) OR coalesce(({column}->>'images_pending')::int, 0) > 0)"
+        f"coalesce(({column}->>'transcript_pending')::boolean, false) OR coalesce(({column}->>'images_pending')::int, 0) > 0"
+        f" OR coalesce(({column}->>'documents_pending')::int, 0) > 0)"
     )
 
 
@@ -970,8 +977,9 @@ def _check_text(row: Dict[str, Any]) -> str:
 
 
 async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
-    """The one rulebook check every screen shows: title, caption, the video transcript and the text shown in the
-    post's images (each once it's been read), against the rules scoped to this submission. Includes per-segment
+    """The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
+    transcript and the text shown in the post's images (each once it's been read), against the rules scoped to this
+    submission. Includes per-segment
     flags for the reviewer's timeline, and says what was read and which rules need a person."""
     video = await fetch_one(
         """
@@ -1001,7 +1009,23 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         for n, i in enumerate(images, start=1)
         if i["image_text_status"] == "COMPLETED" and (i["image_text"] or "").strip()
     ]
-    text = "\n\n".join(p for p in [_check_text(row), spoken, *image_texts] if p) or row["title"]
+    # The script, and a blog's article file: read in the background like image text, re-checked when done.
+    documents = await fetch_all(
+        """
+        SELECT id, kind, original_name, doc_text, doc_text_status, doc_text_error FROM content_submission_files
+        WHERE submission_id = $1 AND kind IN ('SCRIPT', 'MAIN') AND deleted_at IS NULL
+          AND lower(original_name) ~ '\\.(txt|md|docx|pdf|doc)$'
+        ORDER BY (kind <> 'SCRIPT'), created_at
+        """,
+        row["id"],
+    )
+    await document_text_service.schedule_missing([d["id"] for d in documents if d["doc_text_status"] is None])
+    document_texts = [
+        f"{'Script' if d['kind'] == 'SCRIPT' else 'Article'}:\n{d['doc_text']}"
+        for d in documents
+        if d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
+    ]
+    text = "\n\n".join(p for p in [_check_text(row), *document_texts, spoken, *image_texts] if p) or row["title"]
     result = await check_compliance(ComplianceCheckRequest(
         text=text,
         video_title=row["title"],
@@ -1011,6 +1035,14 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         audience=row["audience"],
         region=row["region"],
         platforms=list(row["platforms"] or []),
+        # For rules limited by "applies to": its type, what's actually attached, and whether it's Shaun's own post.
+        content_parts=compliance_parts_for(
+            row["content_type"],
+            has_video=bool(video),
+            has_images=bool(images),
+            is_ceo=row.get("brand_code") == CEO_BRAND
+            or approval_path_service.is_ceo_content(row.get("rule_sets") or [], _accounts(row)),
+        ),
     ))
     check = {
         **result.model_dump(mode="json"),
@@ -1024,6 +1056,15 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         "images_read": sum(1 for i in images if i["image_text_status"] == "COMPLETED"),
         "images_pending": sum(1 for i in images if i["image_text_status"] in (None, "PROCESSING")),
         "images_failed": sum(1 for i in images if i["image_text_status"] == "FAILED"),
+        # The same for the script (and a blog's article file). Failed ones say why, so the creator can fix it.
+        "includes_script": any(d["kind"] == "SCRIPT" and d["doc_text_status"] == "COMPLETED" for d in documents),
+        "documents_total": len(documents),
+        "documents_read": sum(1 for d in documents if d["doc_text_status"] == "COMPLETED"),
+        "documents_pending": sum(1 for d in documents if d["doc_text_status"] in (None, "PROCESSING")),
+        "documents_failed": [
+            {"name": d["original_name"], "error": d["doc_text_error"]}
+            for d in documents if d["doc_text_status"] == "FAILED"
+        ],
         "segment_flags": flag_segments(segments, result.violations),
     }
     # No score until the whole post has been read; screens show "Under review" until then.
@@ -1136,6 +1177,15 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
     result, check = await _run_check(row)
 
     files = await _list_files(submission_id)
+    # The script's text as read now, kept with the version so later versions can be compared with it.
+    script = await fetch_one(
+        """
+        SELECT doc_text FROM content_submission_files
+        WHERE submission_id = $1 AND kind = 'SCRIPT' AND deleted_at IS NULL AND doc_text_status = 'COMPLETED'
+        ORDER BY created_at DESC LIMIT 1
+        """,
+        submission_id,
+    )
     version = row["current_version"] + 1
     snapshot = {
         "title": row["title"],
@@ -1150,6 +1200,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         "approval_needed_by": needed_by.isoformat() if needed_by else None,
         "caption_html": row["caption_html"],
         "caption_text": row["caption_text"],
+        "script_text": script["doc_text"] if script else None,
         "rule_sets": list(row["rule_sets"] or []),
         "reviewer_route": list(row["reviewer_route"] or []),
         "files": [
@@ -1447,7 +1498,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         f"""
         SELECT s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
                s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
-               s.brand_code, s.audience, s.rule_sets,
+               s.brand_code, s.audience, s.rule_sets, s.approval_needed_by,
                {_DECIDED_AT} AS decided_at,
                u.full_name AS creator_name,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
@@ -1525,6 +1576,9 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             **_approval_fields(rules, r, user_id, is_reviewer, is_super),
             open_critical_flags=open_critical.get(r["id"], 0),
             publish_at=r["publish_at"],
+            brand_code=r["brand_code"],
+            audience=r["audience"],
+            approval_needed_by=r["approval_needed_by"],
             **_due(r),
             created_by=r["created_by"],
             can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
@@ -2145,6 +2199,11 @@ async def recheck_after_transcript(file_id: UUID) -> None:
 async def recheck_after_image_text(file_id: UUID) -> None:
     """When an image's text has been read (or couldn't be), re-run the check so the score includes it."""
     await _recheck_for_file(file_id, list(image_text_service.IMAGE_KINDS), "the text in its images")
+
+
+async def recheck_after_document_text(file_id: UUID) -> None:
+    """When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it."""
+    await _recheck_for_file(file_id, ["SCRIPT", "MAIN"], "the script")
 
 
 async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
