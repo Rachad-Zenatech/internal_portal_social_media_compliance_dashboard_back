@@ -35,23 +35,23 @@ from services.shared.auth_service import (
 )
 
 # FastAPI routers
-from tools.search import router as search_router
-from tools.rbac_router import router as rbac_router, get_current_user_id
-from tools.approval_path_router import router as approval_path_router
-from tools.context_router import router as context_router
-from tools.listening_router import router as listening_router
-from tools.performance_router import router as performance_router
-from tools.auth_router import router as auth_router
-from tools.notification_router import notification_router
-from tools.observability import router as observability_router
-from tools.log_router import router as log_router
-from tools.graph_router import router as graph_router
-from tools.oauth_router import router as oauth_router
-from tools.compliance_router import router as compliance_router
-from tools.submission_router import router as submission_router
-from tools.canva_router import router as canva_router
-from tools.vector_store_router import router as vector_store_router
-from tools.sentiment_router import router as sentiment_router
+from tools.shared.search import router as search_router
+from tools.shared.rbac_router import router as rbac_router, get_current_user_id
+from tools.compliance.approval_path_router import router as approval_path_router
+from tools.compliance.context_router import router as context_router
+from tools.compliance.listening_router import router as listening_router
+from tools.compliance.performance_router import router as performance_router
+from tools.shared.auth_router import router as auth_router
+from tools.notifications.notification_router import notification_router
+from tools.shared.observability import router as observability_router
+from tools.shared.log_router import router as log_router
+from tools.microsoft_graph.graph_router import router as graph_router
+from tools.shared.oauth_router import router as oauth_router
+from tools.compliance.compliance_router import router as compliance_router
+from tools.compliance.submission_router import router as submission_router
+from tools.compliance.canva_router import router as canva_router
+from tools.ai.vector_store_router import router as vector_store_router
+from tools.compliance.sentiment_router import router as sentiment_router
 
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools, sync_mcp_tools_to_vector_db

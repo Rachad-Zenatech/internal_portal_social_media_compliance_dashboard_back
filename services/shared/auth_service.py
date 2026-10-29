@@ -479,7 +479,7 @@ async def get_current_user_id_dependency(
     access_token: Optional[str] = Cookie(None, alias=AUTH_COOKIE_NAME),
     zenatech_token: Optional[str] = Cookie(None, alias="zenatech_access_token"),
     query_token: Optional[str] = Query(None, alias='token'),
-    # Last and optional: some callers pass the tokens positionally (e.g. tools/rbac_router.get_current_user_id).
+    # Last and optional: some callers pass the tokens positionally (e.g. tools/shared/rbac_router.get_current_user_id).
     request: Request = None,  # type: ignore[assignment]  # FastAPI injects it; direct callers may leave it out
 ) -> UUID:
     bearer_token = None
