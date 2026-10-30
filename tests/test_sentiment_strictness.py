@@ -1,6 +1,6 @@
 import unittest
 
-from services import sentiment_service as s
+from services.compliance import sentiment_service as s
 
 
 def inp(audience="GENERAL", rule_sets=("ZenaTech General",), is_ceo_channel=False, controversy_dial=False):

@@ -2,8 +2,8 @@ import unittest
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from services import submission_service
-from services.submission_service import analysis_pending
+from services.compliance import submission_service
+from services.compliance.submission_service import analysis_pending
 
 
 def job(check, score=100):

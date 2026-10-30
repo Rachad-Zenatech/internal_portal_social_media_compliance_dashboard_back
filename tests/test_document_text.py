@@ -4,7 +4,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from services import document_text_service as dts
+from services.compliance import document_text_service as dts
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 

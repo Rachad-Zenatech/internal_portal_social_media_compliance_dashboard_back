@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-from services import analysis_progress_service as ap
+from services.compliance import analysis_progress_service as ap
 
 NOW = datetime(2026, 10, 30, 12, 0, tzinfo=timezone.utc)
 MB = 1048576

@@ -13,8 +13,8 @@ from fastapi import HTTPException
 # secret from the environment wins.
 os.environ.setdefault("JWT_SECRET", "test-only-secret-for-unit-tests-0123456789")
 
-from services import auth_service, rbac_service  # noqa: E402
-from services.html_sanitizer import sanitize_caption_html  # noqa: E402
+from services.shared import auth_service, rbac_service
+from services.compliance.html_sanitizer import sanitize_caption_html  # noqa: E402
 
 
 class CaptionSanitizerTests(unittest.TestCase):
@@ -85,7 +85,7 @@ class LinkTokenTests(unittest.IsolatedAsyncioTestCase):
         auth_service._user_auth_cache.clear()
 
     async def call(self, req, *, bearer=None, query=None):
-        with patch("services.auth_service.fetch_one", new=AsyncMock(return_value=self.user)):
+        with patch("services.shared.auth_service.fetch_one", new=AsyncMock(return_value=self.user)):
             return await auth_service.get_current_user_id_dependency(
                 authorization=f"Bearer {bearer}" if bearer else None, access_token=None, zenatech_token=None,
                 query_token=query, request=req,

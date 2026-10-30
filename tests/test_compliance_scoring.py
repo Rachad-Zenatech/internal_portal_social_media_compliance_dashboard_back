@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi import HTTPException
 
-from models.compliance_model import ComplianceCheckRequest, ComplianceRule
-from services import compliance_service as cs
+from models.compliance.compliance_model import ComplianceCheckRequest, ComplianceRule
+from services.compliance import compliance_service as cs
 
 
 def rule(**fields):
@@ -80,8 +80,8 @@ class ScoringTests(unittest.IsolatedAsyncioTestCase):
             return [r for r in rules if cs._rule_applies(r, req)]
 
         with (
-            patch("services.compliance_service.applicable_rules", new=AsyncMock(side_effect=applicable)),
-            patch("services.compliance_service.rulebook_version", new=AsyncMock(return_value=None)),
+            patch("services.compliance.compliance_service.applicable_rules", new=AsyncMock(side_effect=applicable)),
+            patch("services.compliance.compliance_service.rulebook_version", new=AsyncMock(return_value=None)),
         ):
             return await cs.check_compliance(ComplianceCheckRequest(text=text, **scope))
 
@@ -162,7 +162,7 @@ class PostSignalScoringTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.violations[0].kind, "MISSING_DISCLAIMER")
 
     async def test_tagging_the_military_is_a_yellow_finding(self):
-        from services import post_signals
+        from services.compliance import post_signals
         result = await self.check([], "Great demo with @USArmy today.")
         self.assertEqual([v.rule_id for v in result.violations], [post_signals.GOVERNMENT_REFERENCE_ID])
         self.assertEqual(result.traffic_light, "YELLOW")
@@ -193,8 +193,8 @@ class ManualReviewRuleTests(unittest.IsolatedAsyncioTestCase):
         disclaimer_rule = rule(rule_number="Rule 4", required_disclaimers=["No endorsement implied"], disclaimer_triggers=["army"])
 
         with (
-            patch("services.compliance_service.applicable_rules", new=AsyncMock(return_value=[image_rule, phrase_rule, disclaimer_rule])),
-            patch("services.compliance_service.rulebook_version", new=AsyncMock(return_value=None)),
+            patch("services.compliance.compliance_service.applicable_rules", new=AsyncMock(return_value=[image_rule, phrase_rule, disclaimer_rule])),
+            patch("services.compliance.compliance_service.rulebook_version", new=AsyncMock(return_value=None)),
         ):
             result = await cs.check_compliance(ComplianceCheckRequest(text="Meet the team."))
 
@@ -252,7 +252,7 @@ class RulesCacheTests(unittest.IsolatedAsyncioTestCase):
         return {**r.model_dump(), "deleted_at": None}
 
     async def asyncSetUp(self):
-        from services.cache_service import rules_cache
+        from services.shared.cache_service import rules_cache
         self.cache = rules_cache
         await rules_cache.clear()
 
@@ -260,9 +260,9 @@ class RulesCacheTests(unittest.IsolatedAsyncioTestCase):
         await self.cache.clear()
 
     async def test_the_rulebook_is_read_once_until_a_rule_changes(self):
-        from services.cache_service import _apply_cache_invalidation
+        from services.shared.cache_service import _apply_cache_invalidation
         fetch_all = AsyncMock(return_value=[self.row(rule_number="Rule 1")])
-        with patch("services.compliance_service.fetch_all", new=fetch_all):
+        with patch("services.compliance.compliance_service.fetch_all", new=fetch_all):
             first = await cs.list_compliance_rules(is_active=True)
             second = await cs.list_compliance_rules(is_active=True)
             self.assertEqual(fetch_all.await_count, 1)
@@ -277,7 +277,7 @@ class RulesCacheTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_filtered_searches_always_query(self):
         fetch_all = AsyncMock(return_value=[])
-        with patch("services.compliance_service.fetch_all", new=fetch_all):
+        with patch("services.compliance.compliance_service.fetch_all", new=fetch_all):
             await cs.list_compliance_rules(search="combat")
             await cs.list_compliance_rules(search="combat")
         self.assertEqual(fetch_all.await_count, 2)
@@ -288,14 +288,14 @@ class RulesCacheTests(unittest.IsolatedAsyncioTestCase):
             await self.cache.clear()
             return [self.row(rule_number="Old")]
 
-        with patch("services.compliance_service.fetch_all", new=AsyncMock(side_effect=slow_read)):
+        with patch("services.compliance.compliance_service.fetch_all", new=AsyncMock(side_effect=slow_read)):
             await cs.list_compliance_rules(is_active=True)
         self.assertIsNone(await self.cache.get("rules:active=True"))
 
     async def test_the_rulebook_version_is_cached_with_the_rules(self):
-        from services.cache_service import _apply_cache_invalidation
+        from services.shared.cache_service import _apply_cache_invalidation
         fetch_one = AsyncMock(return_value={"v": None})
-        with patch("services.compliance_service.fetch_one", new=fetch_one):
+        with patch("services.compliance.compliance_service.fetch_one", new=fetch_one):
             v1 = await cs.rulebook_version()
             self.assertEqual(await cs.rulebook_version(), v1)
             self.assertEqual(fetch_one.await_count, 1)

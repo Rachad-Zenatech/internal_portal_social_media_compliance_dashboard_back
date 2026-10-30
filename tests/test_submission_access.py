@@ -6,12 +6,12 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from models.flag_review_model import FlagDismissRequest
-from services import flag_review_service, submission_service
+from models.compliance.flag_review_model import FlagDismissRequest
+from services.compliance import flag_review_service, submission_service
 
 CREATOR = uuid4()
 OTHER = uuid4()
-SVC = "services.submission_service"
+SVC = "services.compliance.submission_service"
 
 
 def submission_row(**overrides):
@@ -140,7 +140,7 @@ class FlagDismissalTests(unittest.IsolatedAsyncioTestCase):
         rule_id = uuid4()
         row = submission_row(latest_check=json.dumps({"violations": [{"rule_id": str(rule_id), "rule_number": "Rule 6"}]}))
         with (
-            patch("services.flag_review_service._reviewable", new=AsyncMock(return_value=row)),
+            patch("services.compliance.flag_review_service._reviewable", new=AsyncMock(return_value=row)),
             self.assertRaises(HTTPException) as caught,
         ):
             await flag_review_service.dismiss(row["id"], rule_id, OTHER, FlagDismissRequest(reason="OTHER"))

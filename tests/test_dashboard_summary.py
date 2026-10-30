@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-from services import submission_service
+from services.compliance import submission_service
 
-SVC = "services.submission_service"
+SVC = "services.compliance.submission_service"
 USER = uuid4()
 
 
