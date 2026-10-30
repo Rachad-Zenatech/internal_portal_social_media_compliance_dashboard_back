@@ -50,6 +50,17 @@ class StrictnessTests(unittest.TestCase):
         self.assertIn(s.STRICT_GUIDE, prompt)
         self.assertIn("it also reaches investors: it mentions $ZENA", prompt)
 
+    def test_defense_wording_holds_a_general_post_to_the_defense_standard(self):
+        case = {**inp(audience="GENERAL"), "implied_audiences": ["DEFENSE"], "implied_because": ["pentagon", "#DoD"]}
+        self.assertTrue(s._held_to_full_standard(case))
+        prompt = s._prompt(case)
+        self.assertIn(s.STRICT_GUIDE, prompt)
+        self.assertIn("it also reaches U.S. defense buyers and program managers: it mentions pentagon, #DoD", prompt)
+
+    def test_investor_wording_without_a_cashtag_says_why(self):
+        case = {**inp(audience="GENERAL"), "implied_audiences": ["INVESTORS"], "implied_because": ["shareholders"]}
+        self.assertIn("it also reaches investors: it mentions shareholders", s._prompt(case))
+
     def test_relaxed_style_never_relaxes_claims(self):
         self.assertIn("Claims, figures, disclosure and the rulebook guidelines still apply in full", s.RELAXED_GUIDE)
 

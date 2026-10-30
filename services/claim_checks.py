@@ -17,7 +17,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from models.compliance_model import ComplianceViolation
 
 # Bump when the checks change, so open content is re-checked on the next start (see rulebook_version).
-VERSION = "claims-1"
+VERSION = "claims-2"
 
 PENALTY_HIGH = 20
 PENALTY_MEDIUM = 10
@@ -87,7 +87,9 @@ _FUTURE = re.compile(
     r"projected|projects|projecting|forecast(?:s|ed)?|estimate[sd]?|on track|this year|next year|this quarter|"
     r"next quarter|by year end|by the end of (?:the|this) year|in 20[2-9]\d)\b"
 )
-_SAFE_HARBOR = re.compile(r"forward\W+looking")
+# The safe-harbor wording itself ("forward-looking statements", or Canada's "forward-looking information"), not just
+# the words "forward looking": "We're a forward-looking team!" is not a disclaimer.
+_SAFE_HARBOR = re.compile(r"\bforward\W+looking\W+(?:statements?|information)\b")
 
 
 def _forward_looking(text: str) -> List[str]:
@@ -250,6 +252,11 @@ CHECKS: List[ClaimCheck] = [
 FORWARD_LOOKING_ID = CHECKS[0].rule_id
 
 
+def _quoted(items: List[str]) -> str:
+    """'"a", "b"'. A helper rather than inline, since Python before 3.12 allows no backslash inside an f-string's {}."""
+    return ", ".join(f'"{i}"' for i in items)
+
+
 def find_claims(text: str) -> List[ComplianceViolation]:
     """The built-in claim checks that fire on this text, as findings."""
     clean = _clean(text)
@@ -266,7 +273,7 @@ def find_claims(text: str) -> List[ComplianceViolation]:
             severity=check.severity,
             traffic_light="YELLOW",
             flagged_terms=hits[:8],
-            explanation=f"Found: {', '.join(f'\"{h}\"' for h in hits[:4])}. {check.explanation}",
+            explanation=f"Found: {_quoted(hits[:4])}. {check.explanation}",
             remediation_guidance=check.remediation,
             penalty=check.penalty,
         ))

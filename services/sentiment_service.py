@@ -52,7 +52,7 @@ from services.ai_usage_service import AiLimitExceeded
 from services import ai_observability, context_service, review_memory_service
 from services.ai_guardrails import screen_input
 from services import post_signals
-from services.compliance_service import applicable_rules, implied_audiences, parts_for
+from services.compliance_service import applicable_rules, implied_audiences, implied_by_wording, parts_for
 from services.gemini_service import is_rotatable_model_error
 
 logger = logging.getLogger(__name__)
@@ -372,10 +372,19 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
     is_ceo = bool(meta.get("is_ceo"))
     rule_sets = list(row["rule_sets"] or [])
     platforms = list(row["platforms"] or [])
-    # A cashtag ($ZENA) in the post means investors read it, whatever audience it targets (see the rulebook check).
-    post_text = "\n".join(p for p in (row["title"], row["caption_text"]) if p)
+    # Investor wording ($ZENA, "shareholders") means investors read the post, and defense wording ("Pentagon",
+    # "program managers") means defense buyers do, whatever audience it targets (see the rulebook check). What's
+    # said in the video counts as much as the caption.
+    spoken = ""
+    if row["video_id"] and row["transcript_status"] == "COMPLETED":
+        spoken = " ".join(str(s.get("text", "")) for s in (_json(row["transcript"]) or []))
+    post_text = "\n".join(p for p in (row["title"], row["caption_text"], spoken) if p)
     signals = post_signals.extract(post_text)
-    implied = implied_audiences(row["audience"], signals)
+    implied = implied_audiences(row["audience"], signals, post_text)
+    # Rule sets the wording brings in (only when some are chosen; with none, every rule already applies).
+    wording = implied_by_wording(post_text, signals)
+    added_rule_sets = [rs for rs in wording if rule_sets and rs not in rule_sets]
+    checked_rule_sets = [*rule_sets, *added_rule_sets]
     # Shaun's own posts and anything investors read carry the most risk, so they get the stronger model.
     high_stakes = (is_ceo or row["brand_code"] == CEO_BRAND or CEO_RULE_SET in rule_sets
                    or row["audience"] == "INVESTORS" or "INVESTORS" in implied)
@@ -422,7 +431,7 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
         "is_ceo_channel": is_ceo,
         "high_stakes": high_stakes,
         "model": HIGH_STAKES_MODEL if high_stakes else MODEL,
-        "controversy_dial": is_ceo or CEO_RULE_SET in rule_sets or DEFENSE_RULE_SET in rule_sets,
+        "controversy_dial": is_ceo or CEO_RULE_SET in rule_sets or DEFENSE_RULE_SET in checked_rule_sets,
         "guidelines": [
             {
                 "rule_number": r.rule_number,
@@ -438,7 +447,10 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
     # Only set when it applies, so saved analyses of every other post keep matching their input's hash.
     if implied:
         inp["implied_audiences"] = implied
-        inp["cashtags"] = signals.cashtags
+        # The wording that reaches them ($ZENA, "shareholders", "Pentagon"), so the model knows why.
+        inp["implied_because"] = list(dict.fromkeys(w for ws in wording.values() for w in ws))
+    if added_rule_sets:
+        inp["added_rule_sets"] = added_rule_sets
     return inp
 
 
@@ -511,7 +523,9 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
     audience = AUDIENCE_NAMES.get(inp["audience"] or "", inp["audience"] or "not specified")
     if inp.get("implied_audiences"):
         also = ", ".join(AUDIENCE_NAMES.get(a, a) for a in inp["implied_audiences"])
-        audience += (f" (it also reaches {also}: it mentions {', '.join(inp.get('cashtags') or [])}, "
+        # Analyses saved before the wording was recorded have the cashtags instead.
+        because = inp.get("implied_because") or inp.get("cashtags") or []
+        audience += (f" (it also reaches {also}: it mentions {', '.join(because)}, "
                      "so assess how they would read it too)")
     context = [
         f"Brand: {inp['brand'] or 'not specified'}",

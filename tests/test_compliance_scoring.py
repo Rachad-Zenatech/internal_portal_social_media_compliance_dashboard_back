@@ -50,6 +50,18 @@ class PhraseMatchingTests(unittest.TestCase):
         )
         self.assertFalse(cs._disclaimer_present(disclaimer, padded("Visual information from partners")))
 
+    def test_a_disclaimers_words_scattered_across_the_post_are_not_the_disclaimer(self):
+        disclaimer = ("The appearance of U.S. Department of Defense visual information does not imply or constitute "
+                      "DOD endorsement.")
+        scattered = ("Our DOD work: information on the appearance of our visual U.S. defense department demo. "
+                     "Big news coming soon for the whole team and all of our partners. Does it imply we constitute "
+                     "endorsement? See more.")
+        self.assertFalse(cs._disclaimer_present(disclaimer, padded(scattered)))
+        # The real thing, with a little drift, still counts wherever it sits in the post.
+        self.assertTrue(cs._disclaimer_present(disclaimer, padded(
+            "Great demo today! Appearance of U.S. Department of Defense visual information does not imply or "
+            "constitute DoD endorsement")))
+
 
 class RuleScopeTests(unittest.TestCase):
     def test_a_rule_applies_unless_limited_to_other_values(self):
@@ -86,6 +98,12 @@ class ScoringTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.score, 100 - cs.PENALTY_HIGH - cs.PENALTY_OTHER)
         self.assertEqual(result.traffic_light, "YELLOW")
         self.assertFalse(result.blocked)
+
+    async def test_a_finding_from_a_green_rule_is_still_yellow(self):
+        rules = [rule(severity="LOW", traffic_light="GREEN", prohibited_terms=["best in class"])]
+        result = await self.check(rules, "The best in class drone.")
+        self.assertEqual((result.score, result.traffic_light, result.is_compliant), (100 - cs.PENALTY_OTHER, "YELLOW", False))
+        self.assertEqual(result.violations[0].traffic_light, "YELLOW")
 
     async def test_a_critical_finding_blocks_and_caps_the_score(self):
         rules = [rule(severity="CRITICAL", traffic_light="RED", prohibited_terms=["deployed in combat"])]
@@ -226,6 +244,66 @@ class AppliesToTests(unittest.TestCase):
             cs._clean_applies_to(["script"])
 
 
+class RulesCacheTests(unittest.IsolatedAsyncioTestCase):
+    """Every check loads the rulebook; it's read from the database once, until a rule changes."""
+
+    def row(self, **fields):
+        r = rule(**fields)
+        return {**r.model_dump(), "deleted_at": None}
+
+    async def asyncSetUp(self):
+        from services.cache_service import rules_cache
+        self.cache = rules_cache
+        await rules_cache.clear()
+
+    async def asyncTearDown(self):
+        await self.cache.clear()
+
+    async def test_the_rulebook_is_read_once_until_a_rule_changes(self):
+        from services.cache_service import _apply_cache_invalidation
+        fetch_all = AsyncMock(return_value=[self.row(rule_number="Rule 1")])
+        with patch("services.compliance_service.fetch_all", new=fetch_all):
+            first = await cs.list_compliance_rules(is_active=True)
+            second = await cs.list_compliance_rules(is_active=True)
+            self.assertEqual(fetch_all.await_count, 1)
+            self.assertEqual([r.rule_number for r in second], ["Rule 1"])
+            # Callers get their own list.
+            first.clear()
+            self.assertEqual(len(await cs.list_compliance_rules(is_active=True)), 1)
+
+            await _apply_cache_invalidation("compliance_rules", "some-rule-id")
+            await cs.list_compliance_rules(is_active=True)
+            self.assertEqual(fetch_all.await_count, 2)
+
+    async def test_filtered_searches_always_query(self):
+        fetch_all = AsyncMock(return_value=[])
+        with patch("services.compliance_service.fetch_all", new=fetch_all):
+            await cs.list_compliance_rules(search="combat")
+            await cs.list_compliance_rules(search="combat")
+        self.assertEqual(fetch_all.await_count, 2)
+
+    async def test_rows_read_while_a_rule_changed_arent_kept(self):
+        async def slow_read(*args):
+            # A rule changes while this query is running.
+            await self.cache.clear()
+            return [self.row(rule_number="Old")]
+
+        with patch("services.compliance_service.fetch_all", new=AsyncMock(side_effect=slow_read)):
+            await cs.list_compliance_rules(is_active=True)
+        self.assertIsNone(await self.cache.get("rules:active=True"))
+
+    async def test_the_rulebook_version_is_cached_with_the_rules(self):
+        from services.cache_service import _apply_cache_invalidation
+        fetch_one = AsyncMock(return_value={"v": None})
+        with patch("services.compliance_service.fetch_one", new=fetch_one):
+            v1 = await cs.rulebook_version()
+            self.assertEqual(await cs.rulebook_version(), v1)
+            self.assertEqual(fetch_one.await_count, 1)
+            await _apply_cache_invalidation("compliance_rules")
+            await cs.rulebook_version()
+            self.assertEqual(fetch_one.await_count, 2)
+
+
 class CashtagAudienceTests(unittest.IsolatedAsyncioTestCase):
     check = ScoringTests.check
     investor_rule = rule(rule_number="Rule IR", audiences=["INVESTORS"], prohibited_terms=["guaranteed returns"])
@@ -239,7 +317,7 @@ class CashtagAudienceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([v.rule_number for v in result.violations], ["Rule IR"])
         self.assertEqual(result.audiences_checked, ["GENERAL", "INVESTORS"])
         self.assertEqual(result.signals.implied_audiences, ["INVESTORS"])
-        self.assertTrue(result.signals.notes[0].startswith("$ZENA is about the stock"))
+        self.assertTrue(result.signals.notes[0].startswith('"$ZENA" means investors will read this post'))
 
     async def test_no_audience_still_checks_every_audience(self):
         defense_rule = rule(audiences=["DEFENSE"], prohibited_terms=["combat proven"])
@@ -253,6 +331,61 @@ class CashtagAudienceTests(unittest.IsolatedAsyncioTestCase):
         result = await self.check([self.investor_rule], "$ZENA update.", audience="INVESTORS")
         self.assertEqual(result.signals.implied_audiences, [])
         self.assertEqual(result.audiences_checked, ["INVESTORS"])
+
+
+class RuleSetsFromWordingTests(unittest.IsolatedAsyncioTestCase):
+    """Investor and defense wording brings in the Public Company Disclosure and ZenaDrone Defense rule sets."""
+    check = ScoringTests.check
+    disclosure_rule = rule(rule_number="Rule 25", rule_sets=[cs.DISCLOSURE_RULE_SET], prohibited_terms=["to the moon"])
+    defense_rule = rule(rule_number="Rule 2", rule_sets=[cs.DEFENSE_RULE_SET], prohibited_terms=["combat proven"])
+    general = {"audience": "GENERAL", "rule_sets": ["ZenaTech General"]}
+
+    async def test_a_cashtag_on_a_general_post_adds_the_disclosure_rules(self):
+        result = await self.check([self.disclosure_rule], "$ZENA is going to the moon.", **self.general)
+        self.assertEqual([v.rule_number for v in result.violations], ["Rule 25"])
+        self.assertEqual([(a.rule_set, a.because) for a in result.added_rule_sets],
+                         [(cs.DISCLOSURE_RULE_SET, ["$ZENA"])])
+        self.assertTrue(result.signals.notes[0].startswith('Public Company Disclosure rules added because of "$ZENA"'))
+        self.assertEqual(result.signals.implied_audiences, ["INVESTORS"])
+
+    async def test_investor_wording_without_a_cashtag_adds_them_too(self):
+        result = await self.check([self.disclosure_rule], "A note to our shareholders: to the moon.", **self.general)
+        self.assertEqual(result.violations_count, 1)
+        self.assertEqual(result.added_rule_sets[0].because, ["shareholders"])
+
+    async def test_a_general_post_with_no_investor_wording_is_left_alone(self):
+        result = await self.check([self.disclosure_rule], "Our new drone is going to the moon.", **self.general)
+        self.assertTrue(result.is_compliant)
+        self.assertEqual(result.added_rule_sets, [])
+        self.assertEqual(result.signals.implied_audiences, [])
+        self.assertEqual(result.signals.notes, [])
+
+    async def test_defense_wording_adds_the_defense_rules(self):
+        result = await self.check([self.defense_rule], "Built for program managers at the Pentagon. Combat proven.",
+                                  **self.general)
+        self.assertEqual([v.rule_number for v in result.violations], ["Rule 2"])
+        self.assertEqual(result.added_rule_sets[0].rule_set, cs.DEFENSE_RULE_SET)
+        self.assertEqual(result.added_rule_sets[0].because, ["pentagon", "program managers"])
+        self.assertEqual(result.signals.implied_audiences, ["DEFENSE"])
+
+    async def test_a_hashtag_is_reported_once(self):
+        result = await self.check([self.defense_rule], "Proud day. #DoD", **self.general)
+        self.assertEqual(result.added_rule_sets[0].because, ["#DoD"])
+
+    async def test_nothing_is_added_when_already_chosen_or_none_are_chosen(self):
+        chosen = await self.check([self.disclosure_rule], "$ZENA is going to the moon.", audience="GENERAL",
+                                  rule_sets=[cs.DISCLOSURE_RULE_SET])
+        self.assertEqual((chosen.violations_count, chosen.added_rule_sets), (1, []))
+        # With no rule sets chosen every rule already runs; adding one would narrow the check.
+        none = await self.check([self.disclosure_rule, self.defense_rule], "$ZENA is going to the moon. Combat proven.",
+                                audience="GENERAL")
+        self.assertEqual((none.violations_count, none.added_rule_sets), (2, []))
+
+    async def test_both_reasons_are_given_investors_first(self):
+        result = await self.check([], "$ZENA shareholders: a Pentagon update.", **self.general)
+        self.assertEqual([a.rule_set for a in result.added_rule_sets], [cs.DISCLOSURE_RULE_SET, cs.DEFENSE_RULE_SET])
+        self.assertTrue(result.signals.notes[0].startswith("Public Company Disclosure"))
+        self.assertTrue(result.signals.notes[1].startswith("ZenaDrone Defense"))
 
 
 if __name__ == "__main__":

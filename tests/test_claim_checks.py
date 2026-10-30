@@ -49,6 +49,12 @@ class ClaimCheckTests(unittest.TestCase):
         self.assertNotIn("Claim check 1", fired(text))
         self.assertIn("Claim check 1", fired("We expect revenue to grow next year."))
 
+    def test_the_words_forward_looking_alone_are_not_safe_harbor(self):
+        self.assertIn("Claim check 1", fired("Revenue will double this year. We're a forward-looking team!"))
+        # Canada's term for it counts too.
+        self.assertNotIn("Claim check 1", fired(
+            "Revenue will double this year. This post contains forward-looking information; results may differ."))
+
     def test_an_approval_that_names_its_issuer_is_fine(self):
         self.assertNotIn("Claim check 3", fired("Approved by the FAA under a Part 107 waiver for beyond-line-of-sight flights."))
         self.assertIn("Claim check 3", fired("Our drone is now fully certified."))

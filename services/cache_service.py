@@ -19,6 +19,9 @@ class AsyncInMemoryCache:
         self._cache: Dict[str, Tuple[float, Any]] = {}
         self._maxsize = maxsize
         self._lock = asyncio.Lock()
+        # Goes up on every invalidation. A loader reads it before querying and stores its result only if it hasn't
+        # moved, so a change made while the query was running can't be overwritten with the older rows.
+        self.generation = 0
 
     async def get(self, key: str) -> Optional[Any]:
         async with self._lock:
@@ -49,18 +52,26 @@ class AsyncInMemoryCache:
 
             self._cache[key] = (time.monotonic() + ttl_seconds, value)
 
+    async def set_if_unchanged(self, key: str, value: Any, generation: int, ttl_seconds: int = 60) -> None:
+        """set(), unless the cache was invalidated since `generation` was read (the value may be stale)."""
+        if self.generation == generation:
+            await self.set(key, value, ttl_seconds)
+
     async def invalidate(self, key: str) -> None:
         async with self._lock:
+            self.generation += 1
             self._cache.pop(key, None)
 
     async def invalidate_prefix(self, prefix: str) -> None:
         async with self._lock:
+            self.generation += 1
             keys_to_del = [k for k in self._cache.keys() if k.startswith(prefix)]
             for k in keys_to_del:
                 del self._cache[k]
 
     async def clear(self) -> None:
         async with self._lock:
+            self.generation += 1
             self._cache.clear()
 
 
@@ -68,6 +79,8 @@ class AsyncInMemoryCache:
 permission_cache = AsyncInMemoryCache(maxsize=1000)
 master_data_cache = AsyncInMemoryCache(maxsize=500)
 config_cache = AsyncInMemoryCache(maxsize=500)
+# The compliance rulebook: the rule lists every check and self-test runs on, and the rulebook version.
+rules_cache = AsyncInMemoryCache(maxsize=20)
 
 
 async def _apply_cache_invalidation(scope: str, key: Optional[str] = None) -> None:
@@ -90,10 +103,14 @@ async def _apply_cache_invalidation(scope: str, key: Optional[str] = None) -> No
                 await master_data_cache.invalidate(key)
             else:
                 await master_data_cache.clear()
+        elif scope == "compliance_rules":
+            # Every cached list may hold the changed rule, and the rulebook version moves, so drop it all.
+            await rules_cache.clear()
         elif scope == "all":
             await permission_cache.clear()
             await config_cache.clear()
             await master_data_cache.clear()
+            await rules_cache.clear()
     except Exception as e:
         logger.warning(f"Error applying cache invalidation for scope={scope}, key={key}: {e}")
 
