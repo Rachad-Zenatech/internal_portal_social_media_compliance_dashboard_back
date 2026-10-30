@@ -144,6 +144,12 @@ async def setup():
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_status VARCHAR(20);
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_error TEXT;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_updated_at TIMESTAMP WITH TIME ZONE;
+            -- When each reading job last started, so screens can say how long the check has left: *_updated_at
+            -- moves again when the job finishes, and finished jobs' durations give the estimate
+            -- (see services/analysis_progress_service.py).
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript_started_at TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_started_at TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_started_at TIMESTAMP WITH TIME ZONE;
 
             CREATE TABLE IF NOT EXISTS content_submission_versions (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

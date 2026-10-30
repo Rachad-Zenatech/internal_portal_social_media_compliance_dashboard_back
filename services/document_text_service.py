@@ -136,7 +136,8 @@ async def _claim(file_id: UUID) -> Optional[dict]:
     return await fetch_one(
         f"""
         UPDATE content_submission_files
-        SET doc_text_status = 'PROCESSING', doc_text_error = NULL, doc_text_updated_at = NOW()
+        SET doc_text_status = 'PROCESSING', doc_text_error = NULL, doc_text_updated_at = NOW(),
+            doc_text_started_at = NOW()
         WHERE id = $1 AND deleted_at IS NULL
           AND (doc_text_status IS DISTINCT FROM 'PROCESSING'
                OR doc_text_updated_at < NOW() - INTERVAL '{STALE_MINUTES} minutes')
