@@ -1,13 +1,16 @@
 """Reviewers' calls on automated compliance flags.
 
-A reviewer can dismiss a flag on the version in review, with a reason (negated, different meaning, ...). The score
-itself isn't changed: it stays what the rulebook found, and the dismissal sits beside it with who, why and when.
-Critical flags must be fixed or dismissed before the content can be approved. Dismissals per rule show how noisy
-each rule's phrases are.
+A reviewer can dismiss a flag on the version in review, with a reason (negated, different meaning, ...). The saved
+score isn't changed: it stays what the rulebook found, and the dismissal sits beside it with who, why and when.
+Before content can be approved, critical flags must be fixed or dismissed, and the score counting only the flags
+still open (the approval score) must reach MIN_APPROVAL_SCORE. Dismissals per rule show how noisy each rule's
+phrases are.
 """
 
 import json
-from typing import Any, Dict, Iterable, List, Optional
+import os
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, List, Optional, Set
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -15,6 +18,10 @@ from fastapi import HTTPException
 from models.flag_review_model import REASON_LABELS, FlagDismissRequest, FlagReview, RuleFlagStats
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.audit_service import log_audit_event
+from services.compliance_service import CRITICAL_SCORE_CAP
+
+# The least rulebook score (counting only flags nobody has dismissed) content needs to be approved.
+MIN_APPROVAL_SCORE = int(os.getenv("MIN_APPROVAL_SCORE", "70"))
 
 
 def _json(value: Any) -> Any:
@@ -116,8 +123,47 @@ async def undo(submission_id: UUID, rule_id: UUID, user_id: UUID) -> None:
                           {"rule_number": removed["rule_number"], "version": row["current_version"]})
 
 
-async def open_critical_counts(rows: Iterable[Dict[str, Any]]) -> Dict[UUID, int]:
-    """Per submission: critical (red) flags on its current version that nobody has dismissed. One query for all."""
+def score_after_dismissals(check: Optional[Dict[str, Any]], dismissed: Set[str]) -> Optional[int]:
+    """The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
+    points back, and the critical cap only holds while a critical flag is still open. None when there's no score
+    yet (not checked, or still being analysed)."""
+    if not check or check.get("score") is None or check.get("analysis_pending"):
+        return None
+    violations = check.get("violations") or []
+    # Checks saved before findings carried their points can't be recounted; they keep their score.
+    if any("penalty" not in v for v in violations):
+        return int(check["score"])
+    open_flags = [v for v in violations if str(v.get("rule_id")) not in dismissed]
+    dismissed_numbers = {v.get("rule_number") for v in violations if str(v.get("rule_id")) in dismissed}
+    points = 0
+    for v in open_flags:
+        # Words counted once under a stricter rule cost their own points if that rule's flag was dismissed.
+        if v.get("counted_with") and v["counted_with"] in dismissed_numbers:
+            points += int(v.get("uncounted_penalty") or 0)
+        else:
+            points += int(v.get("penalty") or 0)
+    score = max(0, 100 - points)
+    if any(v.get("traffic_light") == "RED" for v in open_flags):
+        score = min(score, CRITICAL_SCORE_CAP)
+    return score
+
+
+@dataclass(frozen=True)
+class ApprovalStanding:
+    # Critical (red) flags on the current version that nobody has dismissed.
+    open_critical: int
+    # The score counting only open flags (see score_after_dismissals); None when there's none yet.
+    score: Optional[int]
+    min_score: int = MIN_APPROVAL_SCORE
+
+    @property
+    def score_too_low(self) -> bool:
+        return self.score is not None and self.score < self.min_score
+
+
+async def approval_standing(rows: Iterable[Dict[str, Any]]) -> Dict[UUID, ApprovalStanding]:
+    """Per submission, what stands between its current version and approval: open critical flags and the score
+    counting only open flags. One query for all."""
     rows = list(rows)
     if not rows:
         return {}
@@ -129,15 +175,26 @@ async def open_critical_counts(rows: Iterable[Dict[str, Any]]) -> Dict[UUID, int
         """,
         [r["id"] for r in rows],
     )
-    done = {(d["submission_id"], str(d["rule_id"])) for d in dismissed}
-    counts: Dict[UUID, int] = {}
+    done: Dict[UUID, Set[str]] = {}
+    for d in dismissed:
+        done.setdefault(d["submission_id"], set()).add(str(d["rule_id"]))
+    out: Dict[UUID, ApprovalStanding] = {}
     for r in rows:
         check = _json(r.get("latest_check")) or {}
-        counts[r["id"]] = sum(
-            1 for v in check.get("violations") or []
-            if v.get("traffic_light") == "RED" and (r["id"], str(v.get("rule_id"))) not in done
+        mine = done.get(r["id"], set())
+        out[r["id"]] = ApprovalStanding(
+            open_critical=sum(
+                1 for v in check.get("violations") or []
+                if v.get("traffic_light") == "RED" and str(v.get("rule_id")) not in mine
+            ),
+            score=score_after_dismissals(check, mine),
         )
-    return counts
+    return out
+
+
+async def open_critical_counts(rows: Iterable[Dict[str, Any]]) -> Dict[UUID, int]:
+    """Per submission: critical (red) flags on its current version that nobody has dismissed. One query for all."""
+    return {k: s.open_critical for k, s in (await approval_standing(rows)).items()}
 
 
 async def rule_stats() -> List[RuleFlagStats]:

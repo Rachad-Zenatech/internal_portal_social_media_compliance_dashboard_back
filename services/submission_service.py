@@ -53,7 +53,7 @@ from models.submission_model import (
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.audit_service import log_audit_event
 from services import ai_usage_service, approval_path_service, canva_service, flag_review_service, review_deadline_service, transcription_service
-from services import document_text_service, image_text_service, review_memory_service
+from services import analysis_progress_service, document_text_service, image_text_service, review_memory_service
 from services.ai_usage_service import AiLimitExceeded
 from services.compliance_service import CEO_BRAND, check_compliance, flag_segments
 from services.compliance_service import parts_for as compliance_parts_for
@@ -495,6 +495,10 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             **_approval_fields(rules, r, user_id, is_reviewer, is_super, _accounts(r)),
             can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
         ))
+    # Posts still being read: what's left and when their score should be ready.
+    progress = await analysis_progress_service.for_submissions([s.id for s in summaries if s.analysis_pending])
+    for s in summaries:
+        s.analysis_progress = progress.get(s.id)
     return summaries
 
 
@@ -512,11 +516,16 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
         sub.can_review = row["status"] == "IN_REVIEW" and may_decide
         sub.can_approve = sub.can_review and _may_approve(user_id, is_super, approver_ids)
         sub.can_manage_approval = row["status"] == "APPROVED" and may_decide
-    sub.open_critical_flags = (await flag_review_service.open_critical_counts([row])).get(row["id"], 0)
+    standing = (await flag_review_service.approval_standing([row])).get(row["id"])
+    if standing:
+        sub.open_critical_flags, sub.approval_score = standing.open_critical, standing.score
+        sub.min_approval_score = standing.min_score
     saved = _json(row["latest_check"]) or {}
     if saved:
         current = await compliance_rulebook_version()
         sub.check_outdated = bool(current) and saved.get("rulebook_version") != current
+    if analysis_pending(saved):
+        sub.analysis_progress = (await analysis_progress_service.for_submissions([row["id"]])).get(row["id"])
     sub.created_by = row["created_by"]
     if not is_creator:
         creator = await fetch_one("SELECT full_name FROM users WHERE id = $1", row["created_by"])
@@ -1529,7 +1538,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         term,
     )
     rules = await approval_path_service.load_rules()
-    open_critical = await flag_review_service.open_critical_counts([dict(r) for r in rows])
+    standing = await flag_review_service.approval_standing([dict(r) for r in rows])
     # Videos uploaded before transcription existed (or whose attempt was abandoned) get transcribed now.
     await transcription_service.schedule_missing(
         [r["file_id"] for r in rows if r["file_id"] and r["file_transcript_status"] not in ("COMPLETED", "FAILED")]
@@ -1550,6 +1559,10 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
     # Images uploaded before their text was read (or whose read was abandoned) are read now; the check of
     # each open item updates when that's done.
     await image_text_service.schedule_missing([img["id"] for img in image_rows if img["image_text_status"] is None])
+    # Posts still being read: what's left and when their score should be ready.
+    progress = await analysis_progress_service.for_submissions(
+        [r["id"] for r in rows if analysis_pending(_json(r["latest_check"]))]
+    )
     return [
         ReviewQueueItem(
             id=r["id"],
@@ -1561,6 +1574,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             account=_account_option(r, prefix="acc_"),
             caption_text=r["caption_text"],
             latest_check=_json(r["latest_check"]),
+            analysis_progress=progress.get(r["id"]),
             current_version=r["current_version"],
             submitted_at=r["submitted_at"],
             creator_name=r["creator_name"],
@@ -1574,7 +1588,9 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             images=images.get(r["id"], []),
             can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
             **_approval_fields(rules, r, user_id, is_reviewer, is_super),
-            open_critical_flags=open_critical.get(r["id"], 0),
+            open_critical_flags=standing[r["id"]].open_critical if r["id"] in standing else 0,
+            approval_score=standing[r["id"]].score if r["id"] in standing else None,
+            min_approval_score=flag_review_service.MIN_APPROVAL_SCORE,
             publish_at=r["publish_at"],
             brand_code=r["brand_code"],
             audience=r["audience"],
@@ -1773,14 +1789,24 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     is_super = await _is_super_admin(user_id)
     if row["created_by"] == user_id and not is_super:
         raise HTTPException(status_code=403, detail="You can't review your own content; another reviewer needs to")
+    approval_score: Optional[int] = None
     if req.decision == "APPROVE":
-        open_critical = (await flag_review_service.open_critical_counts([row])).get(row["id"], 0)
+        standing = (await flag_review_service.approval_standing([row])).get(row["id"])
+        open_critical = standing.open_critical if standing else 0
         if open_critical:
             raise HTTPException(
                 status_code=422,
                 detail=f"{open_critical} critical compliance flag{'s are' if open_critical > 1 else ' is'} still open. "
                        "Request changes to fix it, or dismiss the flag with a reason if it's a false alarm.",
             )
+        # Flags dismissed as false alarms give their points back; what's left must reach the minimum.
+        if standing and standing.score_too_low:
+            raise HTTPException(
+                status_code=422,
+                detail=f"The rulebook score is {standing.score}/100; approval needs at least {standing.min_score}. "
+                       "Request changes to fix the flagged wording, or dismiss flags with a reason if they're false alarms.",
+            )
+        approval_score = standing.score if standing else None
         approver_ids, approver_names = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
         if not _may_approve(user_id, is_super, approver_ids):
             raise HTTPException(
@@ -1866,12 +1892,13 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                               "revision_days": req.revision_days,
                               "revision_due": revision_due.isoformat() if revision_due else None,
                               "publish_at": publish_at.isoformat() if publish_at else None,
-                              "publish_now": req.publish_now, "manual_checks": manual_checks})
+                              "publish_now": req.publish_now, "manual_checks": manual_checks,
+                              "approval_score": approval_score})
 
     await log_audit_event("content_submission", str(submission_id), f"REVIEW_{req.decision}", user_id,
                           {"reference_code": row["reference_code"], "version": version, "notes": notes,
                            "publish_at": publish_at.isoformat() if publish_at else None,
-                           "manual_checks": manual_checks})
+                           "manual_checks": manual_checks, "approval_score": approval_score})
 
     reviewer = await fetch_one("SELECT full_name FROM users WHERE id = $1", user_id)
     who = reviewer["full_name"] if reviewer else "A reviewer"

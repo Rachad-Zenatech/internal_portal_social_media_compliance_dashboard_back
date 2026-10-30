@@ -86,7 +86,7 @@ class ReviewQueueScopeTests(unittest.IsolatedAsyncioTestCase):
             patch(f"{SVC}._brand_scope", new=AsyncMock(return_value=None)),
             patch(f"{SVC}.fetch_all", new=fetch_all),
             patch(f"{SVC}.approval_path_service.load_rules", new=AsyncMock()),
-            patch(f"{SVC}.flag_review_service.open_critical_counts", new=AsyncMock(return_value={})),
+            patch(f"{SVC}.flag_review_service.approval_standing", new=AsyncMock(return_value={})),
             patch(f"{SVC}.transcription_service.schedule_missing", new=AsyncMock()),
             patch(f"{SVC}.image_text_service.schedule_missing", new=AsyncMock()),
         ):

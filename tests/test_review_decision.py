@@ -8,7 +8,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from models.submission_model import ReviewDecisionRequest
-from services import submission_service
+from services import flag_review_service, submission_service
 
 CREATOR = uuid4()
 REVIEWER = uuid4()
@@ -71,6 +71,7 @@ class ReviewDecisionTestCase(unittest.IsolatedAsyncioTestCase):
         is_reviewer=True,
         is_super=False,
         open_critical=0,
+        score=100,
         approvers=((), ()),
         open_comments=0,
     ):
@@ -85,8 +86,10 @@ class ReviewDecisionTestCase(unittest.IsolatedAsyncioTestCase):
             stack.enter_context(patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=is_super)))
             stack.enter_context(
                 patch(
-                    f"{SVC}.flag_review_service.open_critical_counts",
-                    new=AsyncMock(return_value={row["id"]: open_critical}),
+                    f"{SVC}.flag_review_service.approval_standing",
+                    new=AsyncMock(return_value={
+                        row["id"]: flag_review_service.ApprovalStanding(open_critical=open_critical, score=score),
+                    }),
                 )
             )
             stack.enter_context(patch(f"{SVC}.approval_path_service.load_rules", new=AsyncMock()))
@@ -150,6 +153,24 @@ class ApprovalRequirementTests(ReviewDecisionTestCase):
         detail = await self.assert_refused(422, approve_now(), submission_row(), open_critical=1)
         self.assertIn("critical", detail)
 
+    async def test_a_score_below_the_minimum_blocks_approval(self):
+        detail = await self.assert_refused(422, approve_now(), submission_row(), score=5)
+        self.assertIn("5/100", detail)
+        self.assertIn(f"at least {flag_review_service.MIN_APPROVAL_SCORE}", detail)
+
+    async def test_the_minimum_itself_is_enough(self):
+        _, conn = await self.decide(approve_now(), submission_row(), score=flag_review_service.MIN_APPROVAL_SCORE)
+        self.assertEqual(self.job_update(conn)[3], "APPROVED")
+
+    async def test_a_low_score_doesnt_stop_requesting_changes(self):
+        req = ReviewDecisionRequest(decision="REQUEST_CHANGES", notes="Rephrase the claims.")
+        _, conn = await self.decide(req, submission_row(), score=5)
+        self.assertEqual(self.job_update(conn)[3], "CHANGES_REQUESTED")
+
+    async def test_content_with_no_score_yet_isnt_held_by_the_minimum(self):
+        _, conn = await self.decide(approve_now(), submission_row(), score=None)
+        self.assertEqual(self.job_update(conn)[3], "APPROVED")
+
     async def test_approving_needs_a_publish_time(self):
         await self.assert_refused(422, ReviewDecisionRequest(decision="APPROVE"), submission_row())
 
@@ -197,6 +218,41 @@ class ManualRuleChecklistTests(ReviewDecisionTestCase):
         row = submission_row(latest_check=json.dumps({"score": 100}))
         _, conn = await self.decide(approve_now(), row)
         self.assertEqual(self.job_update(conn)[3], "APPROVED")
+
+
+class ScoreAfterDismissalsTests(unittest.TestCase):
+    """The approval score: dismissed flags give their points back."""
+
+    @staticmethod
+    def flag(rule_id, penalty, light="YELLOW", number=None, **extra):
+        return {"rule_id": rule_id, "rule_number": number or f"Rule {rule_id}", "penalty": penalty,
+                "traffic_light": light, **extra}
+
+    def score(self, violations, dismissed=(), saved=None):
+        check = {"score": saved if saved is not None else 0, "violations": violations}
+        return flag_review_service.score_after_dismissals(check, set(dismissed))
+
+    def test_dismissed_flags_give_their_points_back(self):
+        flags = [self.flag("a", 20), self.flag("b", 20), self.flag("c", 20)]
+        self.assertEqual(self.score(flags), 40)
+        self.assertEqual(self.score(flags, dismissed=["a"]), 60)
+        self.assertEqual(self.score(flags, dismissed=["a", "b"]), 80)
+
+    def test_the_critical_cap_lasts_only_while_a_critical_flag_is_open(self):
+        flags = [self.flag("red", 35, "RED"), self.flag("y", 10)]
+        self.assertEqual(self.score(flags), 40)  # 55, capped at 40
+        self.assertEqual(self.score(flags, dismissed=["red"]), 90)
+
+    def test_dismissing_the_stricter_of_two_flags_on_the_same_words_doesnt_make_them_free(self):
+        flags = [self.flag("a", 35, "RED", number="Rule A"),
+                 self.flag("b", 0, number="Rule B", counted_with="Rule A", uncounted_penalty=20)]
+        self.assertEqual(self.score(flags, dismissed=["a"]), 80)
+        self.assertEqual(self.score(flags, dismissed=["a", "b"]), 100)
+
+    def test_no_score_yet_or_an_old_check_without_points(self):
+        self.assertIsNone(flag_review_service.score_after_dismissals(None, set()))
+        self.assertIsNone(flag_review_service.score_after_dismissals({"score": 90, "analysis_pending": True}, set()))
+        self.assertEqual(self.score([{"rule_id": "a", "traffic_light": "YELLOW"}], dismissed=["a"], saved=55), 55)
 
 
 if __name__ == "__main__":
