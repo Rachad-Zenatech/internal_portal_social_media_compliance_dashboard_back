@@ -52,7 +52,7 @@ from services.ai.ai_usage_service import AiLimitExceeded
 from services.ai import ai_observability
 from services.compliance import context_service, review_memory_service
 from services.ai.ai_guardrails import screen_input
-from services.compliance import post_signals
+from services.compliance import document_layout, post_signals
 from services.compliance.compliance_service import applicable_rules, implied_audiences, implied_by_wording, parts_for
 from services.ai.gemini_service import is_rotatable_model_error
 
@@ -388,7 +388,7 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
     spoken = ""
     if row["video_id"] and row["transcript_status"] == "COMPLETED":
         spoken = " ".join(str(s.get("text", "")) for s in (_json(row["transcript"]) or []))
-    script = (row.get("script_text") or "").strip()
+    script = document_layout.plain_text(row.get("script_text")).strip()
     post_text = "\n".join(p for p in (row["title"], row["caption_text"], spoken, script) if p)
     signals = post_signals.extract(post_text)
     implied = implied_audiences(row["audience"], signals, post_text)

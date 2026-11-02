@@ -26,6 +26,7 @@ from uuid import UUID
 from xml.etree import ElementTree
 
 from postgresql_db.database import fetch_all, fetch_one, get_pool
+from services.compliance import document_layout
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,10 @@ MAX_PDF_BYTES = 18 * 1024 * 1024
 PDF_PROMPT = """This PDF is a script or article for a social media post that is screened for compliance, so we need
 every word it contains. Transcribe all of its text exactly as written, in reading order: headings, body, speaker
 lines, on-screen text notes, captions, figures and amounts, footnotes and fine print. One paragraph per line. Do not
-describe the layout, translate, correct or summarise anything. If there is no readable text, return an empty string."""
+translate, correct or summarise anything. Keep the structure with these marks: start each page with a line
+"--- Page N ---" (N is the page number); put "# " before a title or heading; write each table row as one line, "| cell
+| cell |", with no separator row; wrap bold wording in **double asterisks**. If there is no readable text, return an
+empty string."""
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
@@ -73,26 +77,12 @@ def _decode(data: bytes) -> str:
 
 
 def read_docx(data: bytes) -> str:
-    """The text of a .docx, one paragraph per line, tabs and line breaks kept. Tables are read row by row, since
-    their cells are paragraphs too."""
+    """The text of a .docx with its headings, bold wording, tables (one row per line) and page breaks marked, so it
+    shows like the document (see document_layout)."""
     try:
-        with zipfile.ZipFile(io.BytesIO(data)) as z:
-            xml = z.read("word/document.xml")
-    except (zipfile.BadZipFile, KeyError) as e:
+        return document_layout.docx_to_text(data)
+    except (zipfile.BadZipFile, KeyError, ElementTree.ParseError) as e:
         raise UnreadableDocument("This file isn't a valid Word document. Save it again as .docx or PDF.") from e
-    root = ElementTree.fromstring(xml)
-    lines: List[str] = []
-    for p in root.iter(f"{_W}p"):
-        parts: List[str] = []
-        for el in p.iter():
-            if el.tag == f"{_W}t" and el.text:
-                parts.append(el.text)
-            elif el.tag == f"{_W}tab":
-                parts.append("\t")
-            elif el.tag in (f"{_W}br", f"{_W}cr"):
-                parts.append("\n")
-        lines.append("".join(parts))
-    return "\n".join(lines)
 
 
 def clean(text: str) -> str:
@@ -125,6 +115,10 @@ async def _read_pdf(path: Path) -> str:
     from services.compliance import image_text_service
 
     data = await asyncio.to_thread(path.read_bytes)
+    # A PDF with a text layer is read directly, keeping its pages, headings and tables; only scans need the AI.
+    laid_out = await asyncio.to_thread(document_layout.pdf_to_text, data)
+    if laid_out:
+        return clean(laid_out)
     if len(data) > MAX_PDF_BYTES:
         raise UnreadableDocument("This PDF is too large to read. Upload it as .docx, or split it.")
     response = await image_text_service._generate(

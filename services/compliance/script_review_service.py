@@ -27,7 +27,7 @@ from models.compliance.script_review_model import (
     ScriptVersion,
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
-from services.compliance import submission_service as subs
+from services.compliance import document_layout, submission_service as subs
 from services.compliance.compliance_service import check_compliance
 from services.shared.audit_service import log_audit_event
 
@@ -54,7 +54,7 @@ def _status(row: Dict[str, Any]) -> str:
 async def check_text(row: Dict[str, Any], text: str) -> Dict[str, Any]:
     """The rulebook check of a script: the title and the script, scoped like the post. The script is what the video
     will say and show, so rules for video apply."""
-    body = "\n\n".join(p for p in [(row["title"] or "").strip(), text.strip()] if p)
+    body = "\n\n".join(p for p in [(row["title"] or "").strip(), document_layout.plain_text(text).strip()] if p)
     result = await check_compliance(subs.check_request(row, body, has_video=True, has_images=False))
     return result.model_dump(mode="json")
 

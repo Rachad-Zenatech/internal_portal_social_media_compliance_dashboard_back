@@ -54,7 +54,7 @@ from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.audit_service import log_audit_event
 from services.ai import ai_usage_service
 from services.compliance import approval_path_service, canva_service, flag_review_service, review_deadline_service, transcription_service
-from services.compliance import analysis_progress_service, document_text_service, image_text_service, review_memory_service
+from services.compliance import analysis_progress_service, document_layout, document_text_service, image_text_service, review_memory_service
 from services.ai.ai_usage_service import AiLimitExceeded
 from services.compliance.compliance_service import CEO_BRAND, check_compliance, flag_segments
 from services.compliance.compliance_service import parts_for as compliance_parts_for
@@ -497,6 +497,9 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
                 if not k.startswith(("acc_", "cov_"))
                 and k not in ("platforms", "accounts_json", "due_at", "due_kind", "rule_sets")}
         cover = {k[4:]: v for k, v in r.items() if k.startswith("cov_")}
+        if base.get("script_excerpt"):
+            # The card shows the wording, without the page, heading and table marks.
+            base["script_excerpt"] = " ".join(document_layout.plain_text(base["script_excerpt"]).split())
         summaries.append(SubmissionSummary(
             **base,
             platforms=list(r["platforms"] or []),
@@ -1119,7 +1122,10 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     ]
     if script:
         document_texts.insert(0, f"Script:\n{script}")
-    text = "\n\n".join(p for p in [_check_text(row), *document_texts, spoken, *image_texts] if p) or row["title"]
+    # Scripts and articles carry their page, heading and table marks; the check reads the wording only.
+    text = document_layout.plain_text(
+        "\n\n".join(p for p in [_check_text(row), *document_texts, spoken, *image_texts] if p)
+    ) or row["title"]
     result = await check_compliance(check_request(row, text, has_video=bool(video), has_images=bool(images)))
     check = {
         **result.model_dump(mode="json"),
