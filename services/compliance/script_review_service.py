@@ -26,9 +26,9 @@ from models.compliance.script_review_model import (
     ScriptStage,
     ScriptVersion,
 )
-from postgresql_db.database import fetch_all, fetch_one, get_pool
+from postgresql_db.database import execute, fetch_all, fetch_one, get_pool
 from services.compliance import document_layout, submission_service as subs
-from services.compliance.compliance_service import check_compliance
+from services.compliance.compliance_service import check_compliance, rulebook_version
 from services.shared.audit_service import log_audit_event
 
 logger = logging.getLogger(__name__)
@@ -111,13 +111,24 @@ async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
     file = await _script_file(submission_id)
     is_creator = row["created_by"] == user_id or await subs._is_super_admin(user_id)
     editable = row["status"] in subs.EDITABLE_STATUSES
+    versions = await _versions(submission_id)
+    if versions and status in ("IN_REVIEW", "DRAFT", "CHANGES_REQUESTED", "EDITS_PROPOSED"):
+        latest = versions[-1]
+        current_rb = await rulebook_version()
+        if current_rb and (latest.check or {}).get("rulebook_version") != current_rb:
+            fresh = await check_text(row, latest.body)
+            await execute(
+                "UPDATE content_script_versions SET check_result = $3::jsonb WHERE submission_id = $1 AND version_number = $2",
+                submission_id, latest.version_number, json.dumps(fresh),
+            )
+            latest.check = fresh
     return ScriptStage(
         submission_id=row["id"],
         reference_code=row["reference_code"],
         title=row["title"],
         required=subs.script_stage_on(row),
         status=status,
-        versions=await _versions(submission_id),
+        versions=versions,
         file_name=file["original_name"] if file else None,
         file_status=file["doc_text_status"] if file else None,
         file_error=file["doc_text_error"] if file else None,
@@ -352,10 +363,10 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
         f"""
         SELECT s.id, s.reference_code, s.title, s.platforms, s.brand_code, s.audience, s.created_by,
                s.approval_needed_by, s.script_status, s.updated_at, u.full_name AS creator_name,
-               v.version_number, v.created_at AS sent_at, v.check_result, v.reviewed_at
+               v.version_number, v.created_at AS sent_at, v.body AS script_body, v.check_result, v.reviewed_at
         FROM content_submissions s
         JOIN LATERAL (
-            SELECT version_number, created_at, check_result, reviewed_at FROM content_script_versions sv
+            SELECT version_number, created_at, body, check_result, reviewed_at FROM content_script_versions sv
             WHERE sv.submission_id = s.id ORDER BY version_number DESC LIMIT 1
         ) v ON true
         LEFT JOIN users u ON u.id = s.created_by
@@ -366,9 +377,16 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
         """,
         await subs._brand_scope(user_id),
     )
+    current_rb = await rulebook_version() if tab in ("review", "sent_back") else None
     items = []
     for r in rows:
         check = subs._json(r["check_result"]) or {}
+        if current_rb and check.get("rulebook_version") != current_rb and r.get("script_body"):
+            check = await check_text(r, r["script_body"])
+            await execute(
+                "UPDATE content_script_versions SET check_result = $3::jsonb WHERE submission_id = $1 AND version_number = $2",
+                r["id"], r["version_number"], json.dumps(check),
+            )
         items.append(ScriptQueueItem(
             id=r["id"], reference_code=r["reference_code"], title=r["title"], platforms=list(r["platforms"] or []),
             brand_code=r["brand_code"], audience=r["audience"], creator_name=r["creator_name"],

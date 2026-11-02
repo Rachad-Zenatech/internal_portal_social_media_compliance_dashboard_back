@@ -38,3 +38,7 @@ aio-pika>=9.5.4
 imageio-ffmpeg>=0.5.1
 # Time zone data for zoneinfo (Windows has none built in); sentiment uses it for Gemini's Pacific-time quota reset
 tzdata>=2024.1
+
+# Social Listening & X (Twitter) Sentiment Testing
+vaderSentiment>=3.3.2
+playwright>=1.49.0

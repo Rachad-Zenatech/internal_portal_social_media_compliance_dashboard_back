@@ -31,6 +31,7 @@ _TIER_DEFAULTS: Dict[str, str] = {
 }
 _FEATURE_TIERS: Dict[str, str] = {
     "CHAT": "LIGHT",
+    "COMPLIANCE_CHECK": "STANDARD",
     "CAPTION": "STANDARD",
     "PUBLIC_MOOD": "STANDARD",
     "TRANSCRIPTION": "STANDARD",

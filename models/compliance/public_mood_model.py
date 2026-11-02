@@ -7,12 +7,15 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+PublishingRecommendation = Literal["POST", "WAIT", "HOLD"]
+
 
 class ListeningPost(BaseModel):
     network: str
     author: str
     text: str
     sentiment: Literal["POSITIVE", "NEUTRAL", "NEGATIVE"]
+    confidence: Optional[float] = None
     engagements: int = 0
     posted_on: Optional[str] = None
 
@@ -30,6 +33,8 @@ class TopicSnapshot(BaseModel):
     is_spike: bool = False
     daily_volume: List[int] = Field(default_factory=list)
     top_posts: List[ListeningPost] = Field(default_factory=list)
+    recommendation: Optional[PublishingRecommendation] = None
+    recommendation_reason: Optional[str] = None
     fetched_at: datetime
 
 
@@ -52,6 +57,8 @@ class TopicReading(BaseModel):
 
 class PublicMoodResult(BaseModel):
     overall: Literal["FAVOURABLE", "MIXED", "UNFAVOURABLE", "NO_DATA"]
+    recommendation: Optional[PublishingRecommendation] = None
+    recommendation_reason: Optional[str] = None
     headline: str
     topics: List[TopicReading] = Field(default_factory=list)
     risks: List[str] = Field(default_factory=list)
@@ -146,3 +153,44 @@ class MatchTestResult(BaseModel):
     matched_by_meaning: bool
     # Matched topics first, then the closest that didn't make it.
     topics: List[MatchTestTopic] = Field(default_factory=list)
+
+
+class XTrendOpportunity(BaseModel):
+    topic_id: Optional[UUID] = None
+    external_id: str
+    name: str
+    description: Optional[str] = None
+    positive_pct: float
+    neutral_pct: float
+    negative_pct: float
+    net_sentiment: float
+    volume: int
+    volume_change_pct: Optional[float] = None
+    is_spike: bool = False
+    recommendation: PublishingRecommendation
+    recommendation_reason: str
+    can_jump_on_trend: bool = False
+    trend_angle: str
+    top_posts: List[ListeningPost] = Field(default_factory=list)
+
+
+class XCommentInput(BaseModel):
+    author: str = "@user"
+    text: str = Field(..., min_length=1, max_length=2000)
+    engagements: int = Field(0, ge=0)
+    posted_on: Optional[str] = None
+
+
+class XIngestTopicInput(BaseModel):
+    external_id: str = Field(..., min_length=1, max_length=200)
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = None
+    keywords: List[str] = Field(default_factory=list)
+    volume: Optional[int] = Field(None, ge=0)
+    volume_change_pct: Optional[float] = None
+    daily_volume: List[int] = Field(default_factory=list)
+    comments: List[XCommentInput] = Field(default_factory=list)
+
+
+class XIngestRequest(BaseModel):
+    topics: List[XIngestTopicInput] = Field(..., min_length=1)

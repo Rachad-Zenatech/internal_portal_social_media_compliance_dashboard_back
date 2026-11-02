@@ -2,6 +2,8 @@
 Rule CRUD and rulebook screening of captions, scripts and transcripts.
 """
 
+import hashlib
+import json
 import logging
 import os
 import re
@@ -12,6 +14,8 @@ from uuid import UUID
 
 import asyncpg
 from fastapi import HTTPException
+from google import genai
+from google.genai import types
 
 from models.compliance.compliance_model import (
     AddedRuleSet,
@@ -28,9 +32,11 @@ from models.compliance.compliance_model import (
 )
 from models.compliance.submission_model import AUDIENCES, PLATFORMS, REGIONS, RULE_SETS
 from postgresql_db.database import fetch_all, fetch_one, get_pool
+from services.ai import vector_store_service as store
+from services.ai.gemini_service import generate_content_with_fallback
 from services.compliance import claim_checks, post_signals, reference_index_service
 from services.shared.audit_service import log_audit_event
-from services.shared.cache_service import emit_cache_invalidation, rules_cache
+from services.shared.cache_service import AsyncInMemoryCache, emit_cache_invalidation, rules_cache
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +57,29 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # Bump when how rules are picked or matched changes, so open content is re-checked on the next start.
 # 3: near-match disclaimers must be together; any finding is at least YELLOW.
 # 4: investor and defense wording brings in the Public Company Disclosure and ZenaDrone Defense rule sets.
-SCOPE_VERSION = "scope-4"
+# 5: AI + vector store viability check filters out false-positive keyword/regex hits and adds semantic rule matches.
+SCOPE_VERSION = "scope-5"
+
+AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
+_ai_check_cache = AsyncInMemoryCache(maxsize=500)
+_gemini_client: Optional[genai.Client] = None
+
+
+def _get_gemini_client() -> Optional[genai.Client]:
+    global _gemini_client
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return None
+    if _gemini_client is None:
+        _gemini_client = genai.Client(api_key=api_key)
+    return _gemini_client
+
+
+def _ai_viability_enabled() -> bool:
+    return (
+        os.getenv("COMPLIANCE_AI_VIABILITY_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+        and bool(os.getenv("GEMINI_API_KEY", "").strip())
+    )
 
 
 def _row_to_rule(row: dict) -> ComplianceRule:
@@ -257,6 +285,7 @@ async def create_compliance_rule(data: ComplianceRuleCreate, user_id: Optional[U
         raise _duplicate_number(data.rule_number)
 
     await emit_cache_invalidation(scope="compliance_rules", key=str(row["id"]))
+    await _ai_check_cache.clear()
     reference_index_service.sync_soon()
     await log_audit_event(
         entity_type="compliance_rule",
@@ -324,6 +353,7 @@ async def update_compliance_rule(rule_id: UUID, data: ComplianceRuleUpdate, user
         return None
 
     await emit_cache_invalidation(scope="compliance_rules", key=str(rule_id))
+    await _ai_check_cache.clear()
     reference_index_service.sync_soon()
     await log_audit_event(
         entity_type="compliance_rule",
@@ -359,6 +389,7 @@ async def delete_compliance_rule(rule_id: UUID, user_id: Optional[UUID] = None) 
         )
 
     await emit_cache_invalidation(scope="compliance_rules", key=str(rule_id))
+    await _ai_check_cache.clear()
     reference_index_service.sync_soon()
     await log_audit_event(
         entity_type="compliance_rule",
@@ -687,6 +718,17 @@ def _quoted(items: Sequence[str]) -> str:
     return ", ".join(f'"{i}"' for i in items)
 
 
+def _penalty_and_light(rule: ComplianceRule, kind: str = "PROHIBITED_TERM") -> Tuple[int, str]:
+    if kind == "MISSING_DISCLAIMER":
+        return PENALTY_MISSING_DISCLAIMER, "YELLOW"
+    severity = rule.severity.upper()
+    if severity == "CRITICAL" or rule.traffic_light == "RED":
+        return PENALTY_CRITICAL, "RED"
+    if severity == "HIGH" or rule.traffic_light == "YELLOW":
+        return PENALTY_HIGH, "YELLOW"
+    return PENALTY_OTHER, "YELLOW"
+
+
 def _evaluate_rule(rule: ComplianceRule, padded_text: str,
                    hashtag_keys: Sequence[str] = ()) -> Optional[ComplianceViolation]:
     """One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
@@ -712,14 +754,7 @@ def _evaluate_rule(rule: ComplianceRule, padded_text: str,
             missing = list(rule.required_disclaimers)
 
     if flagged:
-        severity = rule.severity.upper()
-        if severity == "CRITICAL" or rule.traffic_light == "RED":
-            penalty, light = PENALTY_CRITICAL, "RED"
-        elif severity == "HIGH" or rule.traffic_light == "YELLOW":
-            penalty, light = PENALTY_HIGH, "YELLOW"
-        else:
-            # A finding is never green, even from a green (low-risk) rule: it still needs a reviewer's look.
-            penalty, light = PENALTY_OTHER, "YELLOW"
+        penalty, light = _penalty_and_light(rule, "PROHIBITED_TERM")
         return ComplianceViolation(
             rule_id=rule.id,
             rule_number=rule.rule_number,
@@ -757,10 +792,291 @@ def _evaluate_rule(rule: ComplianceRule, padded_text: str,
     return None
 
 
+# ---------------------------------------------------------------------------
+# Vector DB + Gemini AI Viability & Semantic Rule Evaluation
+# ---------------------------------------------------------------------------
+
+_VIABILITY_SCHEMA: Dict[str, Any] = {
+    "type": "OBJECT",
+    "properties": {
+        "candidate_decisions": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "rule_number": {"type": "STRING"},
+                    "viable": {"type": "BOOLEAN"},
+                    "explanation": {"type": "STRING", "nullable": True},
+                    "flagged_terms": {"type": "ARRAY", "items": {"type": "STRING"}, "nullable": True},
+                },
+                "required": ["rule_number", "viable"],
+            },
+        },
+        "semantic_violations": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "rule_number": {"type": "STRING"},
+                    "kind": {"type": "STRING", "enum": ["PROHIBITED_TERM", "MISSING_DISCLAIMER"]},
+                    "quote": {"type": "STRING"},
+                    "explanation": {"type": "STRING"},
+                },
+                "required": ["rule_number", "kind", "quote", "explanation"],
+            },
+        },
+    },
+    "required": ["candidate_decisions", "semantic_violations"],
+}
+
+
+async def _vector_context_for_check(
+    req: ComplianceCheckRequest,
+    rules: List[ComplianceRule],
+    candidate_rule_numbers: set,
+) -> Tuple[List[ComplianceRule], List[str]]:
+    """Query the MongoDB Atlas vector store for:
+    1. Applicable compliance rules semantically closest to the script/post (even when exact keywords weren't used).
+    2. Company facts, brand voice, and past review decisions (including previously dismissed false-alarm flags).
+    """
+    if not store.is_enabled() or not (req.text or "").strip():
+        return [], []
+    rule_by_id = {str(r.id): r for r in rules}
+    rule_by_num = {r.rule_number: r for r in rules}
+    query = (req.text or "").strip()[:4000]
+    try:
+        rule_hits = await store.search(
+            query,
+            kinds=[reference_index_service.RULE_KIND],
+            brand=req.brand_code,
+            audience=req.audience,
+            platforms=req.platforms,
+            limit=8,
+            min_score=0.68,
+        )
+        ctx_hits = await store.search(
+            query,
+            kinds=["FACT", "BRAND_VOICE", "REVIEW_DECISION"],
+            brand=req.brand_code,
+            audience=req.audience,
+            platforms=req.platforms,
+            limit=6,
+            min_score=0.68,
+        )
+    except Exception as e:
+        logger.warning("Vector store lookup for compliance viability failed: %s", e)
+        return [], []
+
+    semantic_rules: List[ComplianceRule] = []
+    for h in rule_hits:
+        r = rule_by_id.get(str(h.get("source_id"))) or rule_by_num.get((h.get("meta") or {}).get("rule_number", ""))
+        if r and r.rule_number not in candidate_rule_numbers and r not in semantic_rules:
+            semantic_rules.append(r)
+
+    context_notes: List[str] = []
+    for h in ctx_hits:
+        kind = h.get("kind")
+        if kind == "REVIEW_DECISION":
+            meta = h.get("meta") or {}
+            for d in meta.get("dismissed_flags") or []:
+                terms = ", ".join(f'"{t}"' for t in d.get("terms") or [])
+                context_notes.append(
+                    f"Past reviewer dismissed {d.get('rule_number')} on {terms} as false alarm"
+                    + (f" ({d.get('note')})" if d.get("note") else "")
+                )
+        else:
+            title = h.get("title") or kind
+            snippet = (h.get("text") or "").strip()[:350]
+            if snippet:
+                context_notes.append(f"[{kind}] {title}: {snippet}")
+
+    return semantic_rules[:6], context_notes[:8]
+
+
+async def _refine_violations_with_ai(
+    req: ComplianceCheckRequest,
+    rules: List[ComplianceRule],
+    candidates: List[ComplianceViolation],
+    padded_text: str,
+) -> List[ComplianceViolation]:
+    """Validate candidate keyword/regex flags and check vector-matched rules using Gemini + Vector Store context.
+    Drops false-positive keyword hits (e.g. '1 drone' as a count rather than '#1 drone', '$30' industry cost rather
+    than ZenaTech earnings, 'concept'/'animation' stage notes that aren't deceptive photographic proof, 'navy'
+    mentioned without DoD visual imagery or endorsement claims, or 'solves' used about general industry context).
+    """
+    if not _ai_viability_enabled() or not (req.text or "").strip():
+        return candidates
+    client = _get_gemini_client()
+    if client is None:
+        return candidates
+
+    rule_map = {r.rule_number: r for r in rules}
+    cand_nums = {c.rule_number for c in candidates}
+    semantic_rules, vector_notes = await _vector_context_for_check(req, rules, cand_nums)
+
+    if not candidates and not semantic_rules:
+        return candidates
+
+    cache_payload = {
+        "v": SCOPE_VERSION,
+        "text": (req.text or "").strip(),
+        "brand": req.brand_code,
+        "audience": req.audience,
+        "candidates": [
+            {"r": c.rule_number, "k": c.kind, "t": c.flagged_terms, "m": c.missing_disclaimers[:1]}
+            for c in candidates
+        ],
+        "semantic_rules": [r.rule_number for r in semantic_rules],
+    }
+    cache_key = "ai_viability:" + hashlib.sha256(json.dumps(cache_payload, sort_keys=True).encode("utf-8")).hexdigest()
+    cached = await _ai_check_cache.get(cache_key)
+    if cached is not None:
+        return [ComplianceViolation.model_validate(item) for item in cached]
+
+    candidate_specs = []
+    for c in candidates:
+        r = rule_map.get(c.rule_number)
+        candidate_specs.append({
+            "rule_number": c.rule_number,
+            "title": c.title,
+            "kind": c.kind,
+            "matched_keywords_or_figures": c.flagged_terms,
+            "rule_summary": r.summary if r else c.explanation,
+            "allowed_examples": r.allowed_examples if r else None,
+            "prohibited_examples": r.prohibited_examples if r else None,
+            "required_disclaimers": c.missing_disclaimers[:2],
+        })
+
+    semantic_specs = [
+        {
+            "rule_number": r.rule_number,
+            "title": r.title,
+            "summary": r.summary,
+            "allowed_examples": r.allowed_examples,
+            "prohibited_examples": r.prohibited_examples,
+            "required_disclaimers": r.required_disclaimers[:2],
+        }
+        for r in semantic_rules
+    ]
+
+    prompt = f"""You are a compliance reviewer for ZenaTech (and ZenaDrone), a Nasdaq-listed drone and technology company.
+A fast keyword/regex scanner produced CANDIDATE FLAGS on the content below, and a Vector Database search retrieved
+SEMANTICALLY RELEVANT RULES and REFERENCE CONTEXT.
+
+Your job is to evaluate each candidate flag in the actual context of the script/post and decide whether it is a
+VIABLE compliance violation (`viable: true`) or a FALSE POSITIVE keyword hit (`viable: false`), and check whether
+any vector-retrieved rule is clearly violated even without exact keyword hits.
+
+How to judge viability (do NOT blindly flag keywords):
+1. Keyword context matters:
+   - Rule 24 (No Absolute or Unprovable Performance Claims): If "1 drone" is used as a literal quantity/count (e.g., "1 drone vs 10", "send 1 drone", "cost of 1 drone") rather than an unsubstantiated "#1 drone" superlative or guarantee, it is NOT a violation (`viable: false`).
+   - Claim check 4 (Financial figure): Only viable when the dollar figure or percentage states or implies ZenaTech's own financial results, revenue, stock, contract value, or unverified company pricing. If a figure (like "$30", "$2,000", "$38,000") describes general industry/competitor economics, historical/public military equipment costs, or a thought-leadership problem statement, set `viable: false`.
+   - Rule 4 / Rule 13 (DoD Endorsement / Military Visual Information): If a military branch word (like "navy" or "army") is mentioned only in passing or as general industry context without using U.S. DoD visual imagery or implying DoD endorsement/partnership, set `viable: false` unless the rule explicitly requires the disclaimer on any mention of U.S. military visual material present in the script's visual directions.
+   - Rule 9 (AI Content / Conceptual Visualization): Viable when the script/post describes or shows AI-generated, animated, or conceptual military/product visualizations without the required "Conceptual visualization" / "Simulation" label. If "concept" is used only as an abstract noun in speech (e.g., "the concept of autonomy") with no conceptual/AI visual, set `viable: false`.
+   - Rule 16 (Separate Vision from Current Capability): Viable when certainty words ("solves", "guarantees", "proves", "will") claim ZenaDrone/ZenaTech has already solved a defense problem or guarantees operational performance without qualification. If "solves" is negated ("doesn't solve", "no single sensor solves") or does not claim an unverified ZenaDrone capability, set `viable: false`.
+2. When `viable: true`, write a concise, context-aware `explanation` (1-2 sentences) explaining why the specific wording in this script/post triggers the rule, and return the relevant `flagged_terms` (exact words from the text so the UI can highlight them).
+3. For `semantic_violations`, only add a rule from SEMANTICALLY RELEVANT RULES if the content clearly violates that rule's standard in meaning and `quote` is an exact verbatim substring from the content (at most 12 words). Otherwise return `[]`.
+
+CONTENT METADATA
+Brand: {req.brand_code or "unspecified"}
+Audience: {req.audience or "unspecified"}
+Content Type: {req.content_type or "unspecified"}
+Platforms: {", ".join(req.platforms) or "unspecified"}
+
+VECTOR DATABASE REFERENCE CONTEXT & PAST REVIEW PRECEDENTS
+{chr(10).join(vector_notes) if vector_notes else "(None)"}
+
+CANDIDATE FLAGS FROM KEYWORD/REGEX SCANNER
+{json.dumps(candidate_specs, indent=1)}
+
+SEMANTICALLY RELEVANT RULES FROM VECTOR DATABASE (not already in candidate flags)
+{json.dumps(semantic_specs, indent=1)}
+
+CONTENT TO EVALUATE
+\"\"\"
+{(req.text or "")[:12000]}
+\"\"\"
+"""
+
+    config = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        response_schema=_VIABILITY_SCHEMA,
+        temperature=0,
+    )
+    try:
+        response = await generate_content_with_fallback(
+            client,
+            prompt,
+            config,
+            feature="COMPLIANCE_CHECK",
+        )
+        parsed = json.loads(response.text or "{}")
+    except Exception as e:
+        logger.warning("AI compliance viability check failed (falling back to keyword matches): %s", e)
+        return candidates
+
+    decisions = {
+        str(d.get("rule_number", "")).strip(): d
+        for d in (parsed.get("candidate_decisions") or [])
+        if isinstance(d, dict) and d.get("rule_number")
+    }
+
+    kept: List[ComplianceViolation] = []
+    for c in candidates:
+        dec = decisions.get(c.rule_number)
+        if dec is not None and not dec.get("viable", True):
+            continue
+        if dec:
+            new_exp = (dec.get("explanation") or "").strip()
+            if new_exp:
+                c.explanation = new_exp
+            new_terms = [t.strip() for t in (dec.get("flagged_terms") or []) if t and t.strip()]
+            if new_terms:
+                c.flagged_terms = new_terms
+        kept.append(c)
+
+    existing_rules = {c.rule_number for c in kept}
+    for sv in parsed.get("semantic_violations") or []:
+        if not isinstance(sv, dict):
+            continue
+        r_num = str(sv.get("rule_number", "")).strip()
+        quote = str(sv.get("quote", "")).strip()
+        explanation = str(sv.get("explanation", "")).strip()
+        kind = sv.get("kind") if sv.get("kind") in ("PROHIBITED_TERM", "MISSING_DISCLAIMER") else "PROHIBITED_TERM"
+        rule = rule_map.get(r_num)
+        if not rule or r_num in existing_rules or not quote or not explanation:
+            continue
+        if kind == "MISSING_DISCLAIMER" and rule.required_disclaimers:
+            if any(_disclaimer_present(d, padded_text) for d in rule.required_disclaimers):
+                continue
+        penalty, light = _penalty_and_light(rule, kind)
+        kept.append(
+            ComplianceViolation(
+                rule_id=rule.id,
+                rule_number=rule.rule_number,
+                title=rule.title,
+                category=rule.category,
+                severity="HIGH" if kind == "MISSING_DISCLAIMER" else rule.severity,
+                traffic_light=light,
+                flagged_terms=[quote],
+                explanation=explanation,
+                remediation_guidance=rule.remediation_guidance,
+                kind=kind,
+                missing_disclaimers=list(rule.required_disclaimers) if kind == "MISSING_DISCLAIMER" else [],
+                penalty=penalty,
+                exception_terms=list(rule.exception_terms or []),
+            )
+        )
+        existing_rules.add(r_num)
+
+    await _ai_check_cache.set(cache_key, [v.model_dump(mode="json") for v in kept], AI_CHECK_CACHE_TTL)
+    return kept
+
+
 async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckResponse:
     """Screen text against the active rules that apply to this content's rule sets, brand,
-    audience, region and platforms. Each finding takes its penalty off 100; any critical finding blocks
-    publication and caps the score, so a post that can't go out never looks like a pass."""
+    audience, region and platforms, then verify candidate flags and semantic vector-store rules with Gemini AI.
+    Each finding takes its penalty off 100; any critical finding blocks publication and caps the score."""
     # Cashtags, hashtags, mentions and links, read before normalizing strips their symbols, and before the rules are
     # picked: a cashtag brings in the investor rules. CamelCase hashtags are added as words ("#CombatProven" ->
     # "combat proven") so phrase rules see them.
@@ -815,6 +1131,9 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         for f in post_signals.findings(signals)
         if not (endorsement_reported and f.rule_id == post_signals.GOVERNMENT_REFERENCE_ID)
     )
+
+    # Verify candidate keyword/regex flags and check vector-matched rules in context using AI + Vector Store.
+    violations = await _refine_violations_with_ai(req, rules, violations, padded_text)
 
     _count_overlaps_once(violations, padded_text)
     blocked = any(v.traffic_light == "RED" for v in violations)

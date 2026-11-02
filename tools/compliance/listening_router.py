@@ -1,12 +1,19 @@
-"""Listening topics: what social listening tracks (Sprout Social; sample data until connected), and the team's
-tuning of how posts are matched to it."""
+"""Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery,
+and the team's tuning of how posts and scripts are matched to it."""
 
 from typing import Annotated, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from models.compliance.public_mood_model import ListeningTopic, ListeningTopicUpdate, MatchTestRequest, MatchTestResult
+from models.compliance.public_mood_model import (
+    ListeningTopic,
+    ListeningTopicUpdate,
+    MatchTestRequest,
+    MatchTestResult,
+    XIngestRequest,
+    XTrendOpportunity,
+)
 from services.compliance import public_mood_service as svc
 from services.shared.auth_service import get_current_user_id_dependency, require_permission
 
@@ -38,3 +45,17 @@ async def update_topic(topic_id: UUID, data: ListeningTopicUpdate, user_id: Mana
 async def match_test(data: MatchTestRequest, user_id: CurrentUser):
     """Which topics this text would match and why, including the near misses. Nothing is saved."""
     return await svc.match_test(data.text)
+
+
+@router.get("/trends", response_model=List[XTrendOpportunity])
+async def get_trends(user_id: CurrentUser, refresh: bool = Query(False)):
+    """What is trending right now, whether sentiment is positive or negative, and whether the team can jump on
+    the trend (POST), wait (WAIT), or avoid/escalate due to crisis/backlash (HOLD)."""
+    return await svc.list_trend_opportunities(refresh=refresh)
+
+
+@router.post("/x-ingest", response_model=List[XTrendOpportunity])
+async def ingest_x_comments(data: XIngestRequest, user_id: ManageUser):
+    """Ingest scraped or collected X (Twitter) topics and comments, classify each comment as POSITIVE/NEGATIVE/NEUTRAL
+    with confidence, save to `.data/x_listening_feed.json`, and sync into the listening pipeline."""
+    return await svc.ingest_x_json(data)

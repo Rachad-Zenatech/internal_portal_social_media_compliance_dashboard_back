@@ -66,10 +66,12 @@ class ClaimCheckTests(unittest.TestCase):
 
 
 class ScoreWithClaimChecksTests(unittest.IsolatedAsyncioTestCase):
-    async def check(self, text):
+    async def check(self, text, ai_fn=None):
+        passthrough = AsyncMock(side_effect=lambda req, rules, cand, padded_text: cand)
         with (
             patch.object(compliance_service, "applicable_rules", new=AsyncMock(return_value=[])),
             patch.object(compliance_service, "rulebook_version", new=AsyncMock(return_value=None)),
+            patch.object(compliance_service, "_refine_violations_with_ai", new=ai_fn or passthrough),
         ):
             return await compliance_service.check_compliance(ComplianceCheckRequest(text=text))
 
@@ -83,6 +85,31 @@ class ScoreWithClaimChecksTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_clean_caption_still_scores_100(self):
         result = await self.check("Happy Thanksgiving from the ZenaTech family!")
         self.assertEqual(result.score, 100)
+
+    async def test_ai_viability_check_drops_false_positive_keyword_flags(self):
+        await compliance_service._ai_check_cache.clear()
+        fake_ai_response = type("Resp", (), {
+            "text": (
+                '{"candidate_decisions": ['
+                '{"rule_number": "Claim check 4", "viable": false, '
+                '"explanation": "Industry cost example ($30 and $38,000), not a ZenaTech financial earnings claim.", '
+                '"flagged_terms": []}'
+                '], "semantic_violations": []}'
+            )
+        })()
+        with (
+            patch.object(compliance_service, "applicable_rules", new=AsyncMock(return_value=[])),
+            patch.object(compliance_service, "rulebook_version", new=AsyncMock(return_value=None)),
+            patch.object(compliance_service, "_vector_context_for_check", new=AsyncMock(return_value=([], []))),
+            patch.object(compliance_service, "generate_content_with_fallback", new=AsyncMock(return_value=fake_ai_response)),
+            patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}),
+        ):
+            result = await compliance_service.check_compliance(
+                ComplianceCheckRequest(text="A typical battery swap costs $30 while older sensors cost $38,000.")
+            )
+        self.assertTrue(result.is_compliant)
+        self.assertEqual(result.score, 100)
+        self.assertEqual(result.violations, [])
 
 
 if __name__ == "__main__":

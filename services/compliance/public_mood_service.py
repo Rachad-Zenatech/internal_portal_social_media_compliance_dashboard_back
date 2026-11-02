@@ -1,14 +1,15 @@
 """Public mood: what people online currently think about the topics a post touches, and what that means for it.
 
-1. Topics come from the listening source (Sprout Social; mocked until API access exists) and are re-synced daily.
-2. A post is tied to topics two ways: a topic's keywords appearing in its title, caption or transcript, and the
+1. Topics come from the listening source (Sprout Social or X/Twitter JSON feed) and are re-synced daily.
+2. A post is tied to topics two ways: a topic's keywords appearing in its title, caption, script or transcript, and the
    post being close in meaning to the topic's description (MongoDB Atlas vector search over Gemini embeddings, via
    vector_store_service). Keywords catch exact mentions; meaning catches posts that talk about a topic without
    naming it, and weeds out keyword hits that are about something else ("crop" a photo, not crops).
 3. Each topic's latest snapshot is shared by every post: it's fetched again only once it goes stale (sooner while the
    topic is spiking), so the listening API is called per topic, not per post.
-4. A Gemini summary reads the post against those snapshots. It's saved with a hash of what it read, reused while
-   nothing has changed, and marked out of date when the post or the moods move on.
+4. A Gemini summary reads the post (including uploaded scripts and video transcripts) against those snapshots and
+   recommends POST, WAIT, or HOLD. It's saved with a hash of what it read, reused while nothing has changed, and marked
+   out of date when the post or the moods move on.
 
 Advisory only: nothing here affects the compliance score or approval.
 """
@@ -39,17 +40,26 @@ from models.compliance.public_mood_model import (
     PublicMoodResult,
     PublicMoodSummary,
     TopicSnapshot,
+    XIngestRequest,
+    XTrendOpportunity,
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai import ai_usage_service
 from services.ai import vector_store_service as store
-from services.compliance.compliance_service import _matches, _normalize
 from services.ai.gemini_service import generate_content_with_fallback
-from services.compliance.listening_providers import ListeningUnavailable, get_provider
+from services.compliance.compliance_service import _matches, _normalize
+from services.compliance.listening_providers import (
+    DEFAULT_X_JSON_PATH,
+    ListeningUnavailable,
+    analyze_raw_x_topic,
+    evaluate_publishing_decision,
+    get_provider,
+    reset_provider_cache,
+)
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSION = "public-mood-v1"
+PROMPT_VERSION = "public-mood-v2"
 
 
 def _env_float(name: str, default: float) -> float:
@@ -90,19 +100,42 @@ def _get_client() -> genai.Client:
     return _client
 
 
+def _source_label(provider_name: str) -> str:
+    if provider_name == "x_json":
+        return "X (Twitter)"
+    return "Sprout Social"
+
+
+def _x_json_mtime(provider_name: str) -> Optional[datetime]:
+    if provider_name == "x_json" and DEFAULT_X_JSON_PATH.exists():
+        try:
+            return datetime.fromtimestamp(DEFAULT_X_JSON_PATH.stat().st_mtime, tz=timezone.utc)
+        except OSError:
+            return None
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Topics and snapshots
 # ---------------------------------------------------------------------------
 
 async def _sync_topics(force: bool = False) -> None:
-    """Refresh the topic list from the listening source when it's older than a day (or empty, or asked to). The
-    team's own keywords and watch settings are kept."""
+    """Refresh the topic list from the listening source when it's older than a day (or empty, or asked to, or
+    when the scraped X JSON file on disk is newer than the last sync). The team's own keywords and watch settings are kept."""
     provider = get_provider()
     row = await fetch_one(
         "SELECT max(synced_at) AS at FROM listening_topics WHERE provider = $1 AND is_mock = $2 AND deleted_at IS NULL",
         provider.name, provider.is_mock,
     )
-    if not force and row and row["at"] and row["at"] > datetime.now(timezone.utc) - timedelta(hours=TOPIC_SYNC_HOURS):
+    file_mtime = _x_json_mtime(provider.name)
+    file_newer = bool(file_mtime and (not row or not row["at"] or file_mtime > row["at"]))
+    if (
+        not force
+        and not file_newer
+        and row
+        and row["at"]
+        and row["at"] > datetime.now(timezone.utc) - timedelta(hours=TOPIC_SYNC_HOURS)
+    ):
         return
     topics = await provider.list_topics()
     pool = get_pool()
@@ -186,12 +219,18 @@ _MEANING_CACHE_SIZE = 500
 async def _meaning_scores(row: Dict[str, Any], topic_count: int) -> Optional[Dict[str, Tuple[float, float]]]:
     """How close the post is in meaning to each topic: the raw score, and its margin over the post's median score
     across all topics. Embedding scores are compressed (unrelated text still scores ~0.78), so the margin is what
-    says "this topic, not just drones in general". The caption and the transcript are searched separately (a long
+    says "this topic, not just drones in general". The caption, script and transcript are searched separately (a long
     transcript would drown out the caption) and the better margin counts. None when the store is off, unreachable
     or hasn't indexed the topics yet."""
     if not store.is_enabled() or not topic_count:
         return None
-    parts = [p for p in ["\n".join(x for x in [row["title"], row["caption_text"]] if x), row["transcript_text"]] if p]
+    parts = [
+        p for p in [
+            "\n".join(x for x in [row.get("title"), row.get("caption_text")] if x),
+            row.get("script_text"),
+            row.get("transcript_text"),
+        ] if p
+    ]
     if not parts:
         return None
     key = hashlib.sha256(json.dumps([parts, store.embedding_model(), topic_count]).encode("utf-8")).hexdigest()
@@ -253,7 +292,9 @@ def _match(text: str, topics: List[Dict[str, Any]], meaning: Optional[Dict[str, 
     return [(t, terms, score, close) for t, terms, score, close, _ in found[:MAX_TOPICS]]
 
 
-def _is_fresh(snap: Dict[str, Any], now: datetime, watched: bool = False) -> bool:
+def _is_fresh(snap: Dict[str, Any], now: datetime, watched: bool = False, file_mtime: Optional[datetime] = None) -> bool:
+    if file_mtime and snap["fetched_at"] < file_mtime:
+        return False
     hours = SPIKE_FRESH_HOURS if snap["is_spike"] or watched else FRESH_HOURS
     return snap["fetched_at"] > now - timedelta(hours=hours) and snap["window_days"] == WINDOW_DAYS
 
@@ -270,15 +311,22 @@ async def _latest_snapshots(topic_ids: List[UUID]) -> Dict[UUID, Dict[str, Any]]
     return {r["topic_id"]: dict(r) for r in rows}
 
 
-async def _fresh_snapshots(topics: List[Dict[str, Any]]) -> Dict[UUID, Dict[str, Any]]:
+async def _fresh_snapshots(topics: List[Dict[str, Any]], force: bool = False) -> Dict[UUID, Dict[str, Any]]:
     """The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale. If the
     source can't be reached, the last snapshot (however old) is used rather than nothing."""
     latest = await _latest_snapshots([t["id"] for t in topics])
     now = datetime.now(timezone.utc)
-    stale = [t for t in topics if not (t["id"] in latest and _is_fresh(latest[t["id"]], now, bool(t.get("is_watched"))))]
+    provider = get_provider()
+    file_mtime = _x_json_mtime(provider.name)
+    if force:
+        stale = list(topics)
+    else:
+        stale = [
+            t for t in topics
+            if not (t["id"] in latest and _is_fresh(latest[t["id"]], now, bool(t.get("is_watched")), file_mtime))
+        ]
     if not stale:
         return latest
-    provider = get_provider()
     fetched = []
     for t in stale:
         try:
@@ -313,32 +361,69 @@ async def _fresh_snapshots(topics: List[Dict[str, Any]]) -> Dict[UUID, Dict[str,
 
 
 def _snapshot_model(s: Dict[str, Any]) -> TopicSnapshot:
-    posts = s["top_posts"]
+    posts_raw = s["top_posts"]
+    posts = json.loads(posts_raw) if isinstance(posts_raw, str) else (posts_raw or [])
+    pos = float(s["positive_pct"])
+    neu = float(s["neutral_pct"])
+    neg = float(s["negative_pct"])
+    vol = int(s["volume"])
+    change = float(s["volume_change_pct"]) if s["volume_change_pct"] is not None else None
+    spike = bool(s["is_spike"])
+    rec, rec_reason = evaluate_publishing_decision(
+        positive_pct=pos,
+        neutral_pct=neu,
+        negative_pct=neg,
+        volume=vol,
+        volume_change_pct=change,
+        is_spike=spike,
+        top_posts=posts,
+    )
     return TopicSnapshot(
         id=s["id"],
         window_days=s["window_days"],
-        positive_pct=float(s["positive_pct"]),
-        neutral_pct=float(s["neutral_pct"]),
-        negative_pct=float(s["negative_pct"]),
-        net_sentiment=round(float(s["positive_pct"]) - float(s["negative_pct"]), 1),
-        volume=s["volume"],
-        volume_change_pct=float(s["volume_change_pct"]) if s["volume_change_pct"] is not None else None,
-        is_spike=s["is_spike"],
+        positive_pct=pos,
+        neutral_pct=neu,
+        negative_pct=neg,
+        net_sentiment=round(pos - neg, 1),
+        volume=vol,
+        volume_change_pct=change,
+        is_spike=spike,
         daily_volume=list(s["daily_volume"] or []),
-        top_posts=json.loads(posts) if isinstance(posts, str) else (posts or []),
+        top_posts=posts,
+        recommendation=rec,
+        recommendation_reason=rec_reason,
         fetched_at=s["fetched_at"],
     )
 
 
+def _overall_post_recommendation(topics: List[MatchedTopic]) -> Tuple[str, str]:
+    """Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
+    A single HOLD topic (e.g., attack drones during a raid/crisis) escalates the entire post to HOLD."""
+    snaps = [(t.name, t.snapshot) for t in topics if t.snapshot]
+    if not snaps:
+        return ("WAIT", "No social listening data available for the topics in this post yet.")
+    holds = [(name, s) for name, s in snaps if s.recommendation == "HOLD"]
+    if holds:
+        names = ", ".join(n for n, _ in holds)
+        reasons = "; ".join(f"{n}: {s.recommendation_reason}" for n, s in holds if s.recommendation_reason)
+        return ("HOLD", f"Escalate to human reviewer ({names}). {reasons}")
+    waits = [(name, s) for name, s in snaps if s.recommendation == "WAIT"]
+    if waits:
+        names = ", ".join(n for n, _ in waits)
+        return ("WAIT", f"Mixed or cautious sentiment on {names}. Review angle and timing before publishing.")
+    names = ", ".join(n for n, _ in snaps)
+    return ("POST", f"Favourable public mood across {names} with no reputation or crisis alerts.")
+
+
 # ---------------------------------------------------------------------------
-# The post
+# The post (Title + Caption + Script + Video Transcript)
 # ---------------------------------------------------------------------------
 
 async def _load(submission_id: UUID) -> Dict[str, Any]:
     row = await fetch_one(
         """
         SELECT s.id, s.title, s.caption_text, s.brand_code, s.audience, s.platforms, s.current_version,
-               b.name AS brand_name, v.transcript
+               b.name AS brand_name, v.transcript, sv.body AS script_version_body, sf.doc_text AS script_file_text
         FROM content_submissions s
         LEFT JOIN brands b ON b.code = s.brand_code
         LEFT JOIN LATERAL (
@@ -346,6 +431,16 @@ async def _load(submission_id: UUID) -> Dict[str, Any]:
             WHERE f.submission_id = s.id AND f.kind = 'MAIN' AND f.deleted_at IS NULL AND f.transcript_status = 'COMPLETED'
             ORDER BY f.created_at DESC LIMIT 1
         ) v ON true
+        LEFT JOIN LATERAL (
+            SELECT body FROM content_script_versions csv
+            WHERE csv.submission_id = s.id
+            ORDER BY csv.version_number DESC LIMIT 1
+        ) sv ON true
+        LEFT JOIN LATERAL (
+            SELECT doc_text FROM content_submission_files f2
+            WHERE f2.submission_id = s.id AND f2.kind = 'SCRIPT' AND f2.deleted_at IS NULL AND f2.doc_text_status = 'COMPLETED'
+            ORDER BY f2.created_at DESC LIMIT 1
+        ) sf ON true
         WHERE s.id = $1 AND s.deleted_at IS NULL
         """,
         submission_id,
@@ -355,8 +450,11 @@ async def _load(submission_id: UUID) -> Dict[str, Any]:
     row = dict(row)
     transcript = row["transcript"]
     segments = json.loads(transcript) if isinstance(transcript, str) else (transcript or [])
-    row["transcript_text"] = " ".join(str(s.get("text", "")) for s in segments)
-    row["text"] = "\n".join(p for p in [row["title"], row["caption_text"], row["transcript_text"]] if p)[:MAX_TEXT_CHARS]
+    row["transcript_text"] = " ".join(str(s.get("text", "")) for s in segments).strip()
+    row["script_text"] = (row.get("script_version_body") or row.get("script_file_text") or "").strip()
+    row["text"] = "\n".join(
+        p for p in [row["title"], row["caption_text"], row["script_text"], row["transcript_text"]] if p
+    )[:MAX_TEXT_CHARS]
     return row
 
 
@@ -364,7 +462,7 @@ async def _gather(submission_id: UUID) -> Tuple[Dict[str, Any], PublicMood]:
     """The post, its matched topics and their current snapshots."""
     row = await _load(submission_id)
     provider = get_provider()
-    mood = PublicMood(source="Sprout Social", is_mock=provider.is_mock, connected=True)
+    mood = PublicMood(source=_source_label(provider.name), is_mock=provider.is_mock, connected=True)
     try:
         await _sync_topics()
     except ListeningUnavailable as e:
@@ -417,12 +515,17 @@ def _input_hash(row: Dict[str, Any], mood: PublicMood) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-def _summary_model(r: Dict[str, Any], current_hash: Optional[str]) -> PublicMoodSummary:
-    result = r["result"]
+def _summary_model(r: Dict[str, Any], current_hash: Optional[str], topics: Optional[List[MatchedTopic]] = None) -> PublicMoodSummary:
+    raw = r["result"]
+    parsed = json.loads(raw) if isinstance(raw, str) else dict(raw)
+    if topics and (not parsed.get("recommendation") or not parsed.get("recommendation_reason")):
+        rec, rec_reason = _overall_post_recommendation(topics)
+        parsed.setdefault("recommendation", rec)
+        parsed.setdefault("recommendation_reason", rec_reason)
     return PublicMoodSummary(
         id=r["id"],
         version_number=r["version_number"],
-        result=PublicMoodResult.model_validate(json.loads(result) if isinstance(result, str) else result),
+        result=PublicMoodResult.model_validate(parsed),
         model=r["model"],
         is_mock=r["is_mock"],
         created_at=r["created_at"],
@@ -455,7 +558,7 @@ async def get_public_mood(submission_id: UUID, viewer: Optional[UUID] = None) ->
         submission_id, max(row["current_version"] or 0, 1), mood.is_mock,
     )
     if saved:
-        mood.summary = await _with_feedback(_summary_model(dict(saved), _input_hash(row, mood)), viewer)
+        mood.summary = await _with_feedback(_summary_model(dict(saved), _input_hash(row, mood), mood.topics), viewer)
     return mood
 
 
@@ -501,14 +604,14 @@ async def rate_summary(submission_id: UUID, summary_id: UUID, user_id: UUID, dat
 
 
 # ---------------------------------------------------------------------------
-# Managing topics
+# Managing topics & Trend discovery
 # ---------------------------------------------------------------------------
 
 async def list_topics(refresh: bool = False) -> List[ListeningTopic]:
     """Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly."""
     await _sync_topics(force=refresh)
     topics = await _load_topics()
-    snaps = await _fresh_snapshots(topics) if topics else {}
+    snaps = await _fresh_snapshots(topics, force=refresh) if topics else {}
     stats = {
         r["topic_id"]: r for r in await fetch_all(
             """
@@ -535,6 +638,105 @@ async def list_topics(refresh: bool = False) -> List[ListeningTopic]:
     return out
 
 
+async def list_trend_opportunities(refresh: bool = False) -> List[XTrendOpportunity]:
+    """See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
+    whether the social team should jump on the trend (POST), wait (WAIT), or avoid/escalate due to
+    crisis/backlash (HOLD)."""
+    topics = await list_topics(refresh=refresh)
+    opportunities: List[XTrendOpportunity] = []
+    for t in topics:
+        snap = t.snapshot
+        if not snap:
+            continue
+        rec = snap.recommendation or "WAIT"
+        rec_reason = snap.recommendation_reason or ""
+        # A topic is a good trend to jump on if recommendation is POST and either spiking, growing, or strong net sentiment
+        can_jump = rec == "POST" and (snap.is_spike or (snap.volume_change_pct or 0) >= 10.0 or snap.positive_pct >= 65.0)
+        if can_jump:
+            growth = f" (+{snap.volume_change_pct:.0f}% mentions)" if (snap.volume_change_pct or 0) > 0 else ""
+            angle = (
+                f"Jump on trend: {t.name} is seeing {snap.positive_pct:.0f}% positive sentiment{growth}. "
+                f"Great timing to publish educational, demo, or thought-leadership content."
+            )
+        elif rec == "HOLD":
+            angle = (
+                f"Avoid / Escalate: {t.name} has {snap.negative_pct:.0f}% negative sentiment or crisis sensitivity. "
+                f"Do not publish promotional posts on this topic right now ({rec_reason})."
+            )
+        else:
+            angle = (
+                f"Monitor / Wait: {t.name} has mixed sentiment ({snap.positive_pct:.0f}% positive, "
+                f"{snap.negative_pct:.0f}% negative). Review carefully before posting."
+            )
+        opportunities.append(XTrendOpportunity(
+            topic_id=t.id,
+            external_id=t.name.lower().replace(" ", "-"),
+            name=t.name,
+            description=t.description,
+            positive_pct=snap.positive_pct,
+            neutral_pct=snap.neutral_pct,
+            negative_pct=snap.negative_pct,
+            net_sentiment=snap.net_sentiment,
+            volume=snap.volume,
+            volume_change_pct=snap.volume_change_pct,
+            is_spike=snap.is_spike,
+            recommendation=rec,
+            recommendation_reason=rec_reason,
+            can_jump_on_trend=can_jump,
+            trend_angle=angle,
+            top_posts=snap.top_posts,
+        ))
+    # Sort actionable trends to jump on first, then HOLD alerts, then by volume change / volume
+    opportunities.sort(
+        key=lambda o: (
+            -int(o.can_jump_on_trend),
+            -int(o.is_spike),
+            -(o.volume_change_pct or 0.0),
+            -o.volume,
+        )
+    )
+    return opportunities
+
+
+async def ingest_x_json(req: XIngestRequest) -> List[XTrendOpportunity]:
+    """Save scraped/collected X (Twitter) topics and raw comments to `.data/x_listening_feed.json`,
+    score every comment with VADER + crisis detection, and sync into the listening database."""
+    DEFAULT_X_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
+    raw_topics = []
+    for t in req.topics:
+        topic_dict = t.model_dump(mode="json")
+        analyzed = analyze_raw_x_topic(topic_dict, days=WINDOW_DAYS)
+        rec, rec_reason = evaluate_publishing_decision(
+            positive_pct=analyzed["positive"],
+            neutral_pct=analyzed["neutral"],
+            negative_pct=analyzed["negative"],
+            volume=analyzed["volume"],
+            volume_change_pct=analyzed["volume_change_pct"],
+            is_spike=(analyzed["volume_change_pct"] or 0) >= SPIKE_CHANGE_PCT,
+            top_posts=analyzed["top_posts"],
+        )
+        raw_topics.append({
+            "external_id": t.external_id,
+            "name": t.name,
+            "description": t.description or f"X (Twitter) conversation and comments around {t.name}.",
+            "keywords": t.keywords or [t.name.lower()],
+            **analyzed,
+            "recommendation": rec,
+            "recommendation_reason": rec_reason,
+            "comments": [c.model_dump(mode="json") for c in t.comments],
+        })
+    payload = {
+        "source": "X (Twitter) Playwright / JSON Collector",
+        "collected_at": datetime.now(timezone.utc).isoformat(),
+        "topics": raw_topics,
+    }
+    DEFAULT_X_JSON_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    os.environ["SOCIAL_LISTENING_PROVIDER"] = "x_json"
+    reset_provider_cache()
+    _meaning_cache.clear()
+    return await list_trend_opportunities(refresh=True)
+
+
 def _clean_words(words: List[str]) -> List[str]:
     return list(dict.fromkeys(w.strip() for w in words if w and w.strip() and _normalize(w)))
 
@@ -559,7 +761,7 @@ async def update_topic(topic_id: UUID, data: ListeningTopicUpdate, user_id: UUID
 async def match_test(text: str) -> MatchTestResult:
     """Which topics a piece of text would match and why, with the near misses, for tuning keywords."""
     topics = await _load_topics()
-    meaning = await _meaning_scores({"title": text, "caption_text": None, "transcript_text": ""}, len(topics))
+    meaning = await _meaning_scores({"title": text, "caption_text": None, "script_text": "", "transcript_text": ""}, len(topics))
     matched = {t["id"]: (terms, close) for t, terms, _, close in _match(text, topics, meaning)}
     padded = f" {_normalize(text)} "
     results = []
@@ -609,6 +811,8 @@ RESPONSE_SCHEMA: Dict[str, Any] = {
     "type": "OBJECT",
     "properties": {
         "overall": _enum("FAVOURABLE", "MIXED", "UNFAVOURABLE", "NO_DATA"),
+        "recommendation": _enum("POST", "WAIT", "HOLD"),
+        "recommendation_reason": {"type": "STRING"},
         "headline": {"type": "STRING"},
         "topics": {
             "type": "ARRAY",
@@ -626,7 +830,7 @@ RESPONSE_SCHEMA: Dict[str, Any] = {
         "opportunities": {"type": "ARRAY", "items": {"type": "STRING"}},
         "timing_note": {"type": "STRING", "nullable": True},
     },
-    "required": ["overall", "headline", "topics", "risks", "opportunities"],
+    "required": ["overall", "recommendation", "recommendation_reason", "headline", "topics", "risks", "opportunities"],
 }
 
 
@@ -649,32 +853,44 @@ def _prompt(row: Dict[str, Any], mood: PublicMood) -> str:
             "mentions": s.volume,
             "mentions_change_pct": s.volume_change_pct,
             "spiking": s.is_spike,
-            "sample_posts": [{"sentiment": p.sentiment, "text": p.text} for p in s.top_posts],
+            "baseline_recommendation": s.recommendation,
+            "baseline_reason": s.recommendation_reason,
+            "sample_posts": [
+                {"sentiment": p.sentiment, "confidence": p.confidence, "text": p.text}
+                for p in s.top_posts
+            ],
         })
+    baseline_rec, baseline_reason = _overall_post_recommendation(mood.topics)
     return f"""You advise a social media reviewer at a publicly listed drone and technology company.
-Below is a post that's about to be published, and social listening data on how people online currently feel about the
-topics it touches. Say, briefly and concretely, how this post is likely to land given that mood: where it could be
-misread or draw criticism, where it rides goodwill, and whether the timing is good (for example, a topic that's
-spiking with negative mentions).
+Below is a post (including its title, caption, any uploaded script, and any video speech transcript) that is in review,
+along with social listening data on how people online currently feel about the topics it touches.
+Say, briefly and concretely, how this post or script is likely to land given that mood: where it could be
+misread or draw criticism (for example, posting about attack/military drones while a country is being raided by attack drones),
+where it rides goodwill or a positive trend the team can jump on, and recommend whether to POST, WAIT, or HOLD.
+
+Decision Rules for `recommendation`:
+- POST: At least ~70% positive sentiment (or clearly favourable mood), limited negative feedback, and no serious reputation or crisis alerts.
+- WAIT: Mixed sentiment, an unusual increase in negative comments, low confidence, or insufficient data.
+- HOLD: A serious verified reputation issue, geopolitical/safety crisis (e.g., drone attacks/raids/casualties in the news), or a significant negative trend. Send to a human reviewer rather than publishing now.
+- Do not rely on sentiment percentage alone: a small number of serious crisis or safety complaints matters more than hundreds of positive comments.
 
 Rules:
-- Base every statement on the post and the data given. Don't invent events, numbers or news.
-- Advise; don't decide. Don't comment on legal compliance (a separate check does that).
-- The headline is one sentence. Each topic reading is one or two sentences. Up to 3 risks and 3 opportunities.
+- Base every statement on the post/script/transcript and the listening data given. Don't invent events, numbers or news.
+- The headline is one sentence. `recommendation_reason` is one concise sentence explaining why POST, WAIT, or HOLD was chosen.
+- Each topic reading is one or two sentences. Up to 3 risks and 3 opportunities.
 - Use NO_DATA only if no topic data is given.
 - timing_note only when spiking or shifting mentions matter for when to post; otherwise null.
-- Weigh topics the post names above ones it only touches on. A sample post is one voice, not the trend: lean on the
-  percentages and mention changes, and use sample posts only to say what kind of criticism or praise is going round.
 - Today is {datetime.now(timezone.utc).date().isoformat()}.
 
-POST
+POST / SCRIPT / TRANSCRIPT IN REVIEW
 Brand: {row["brand_name"] or row["brand_code"] or "unknown"}
 Audience: {row["audience"] or "general"}
 Platforms: {", ".join(row["platforms"] or []) or "unspecified"}
-Text (title, caption, then any transcript):
+Baseline Rule Recommendation: {baseline_rec} ({baseline_reason})
+Text (title, caption, uploaded script, and/or video transcript):
 \"\"\"{row["text"]}\"\"\"
 
-LISTENING DATA ({"Sprout Social" if not mood.is_mock else "Sprout Social (sample data)"})
+LISTENING DATA ({mood.source}{" (sample data)" if mood.is_mock else ""})
 {json.dumps(topics, indent=1)}
 """
 
@@ -695,7 +911,7 @@ async def summarise(submission_id: UUID, user_id: UUID) -> PublicMood:
         submission_id, version, current_hash,
     )
     if same:
-        mood.summary = await _with_feedback(_summary_model(dict(same), current_hash), user_id)
+        mood.summary = await _with_feedback(_summary_model(dict(same), current_hash, mood.topics), user_id)
         return mood
 
     await ai_usage_service.reserve("PUBLIC_MOOD", user_id, submission_id)
@@ -725,5 +941,5 @@ async def summarise(submission_id: UUID, user_id: UUID) -> PublicMood:
         submission_id, version, [t.snapshot.id for t in mood.topics if t.snapshot], current_hash,
         result.model_dump_json(), getattr(response, "model_version", None), mood.is_mock, user_id,
     )
-    mood.summary = await _with_feedback(_summary_model(dict(saved), current_hash), user_id)
+    mood.summary = await _with_feedback(_summary_model(dict(saved), current_hash, mood.topics), user_id)
     return mood
