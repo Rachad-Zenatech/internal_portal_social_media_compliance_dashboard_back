@@ -181,6 +181,8 @@ class SubmissionSummary(BaseModel):
     analysis_pending: bool = False
     # While analysis_pending: what's still being read and when the score is expected.
     analysis_progress: Optional[AnalysisProgress] = None
+    # Video posts with a script stage: where the script is (see Submission.script_status); None otherwise.
+    script_status: Optional[str] = None
     file_count: int = 0
     # Review comments across all versions, for the count on each Content Portal row.
     comment_count: int = 0
@@ -193,6 +195,8 @@ class SubmissionSummary(BaseModel):
     account: Optional[AccountOption] = None
     accounts: List[AccountOption] = Field(default_factory=list)
     caption_text: Optional[str] = None
+    # Video posts with a script stage: the start of the script, shown on the card until a video is added.
+    script_excerpt: Optional[str] = None
     cover: Optional[SubmissionFile] = None
     created_by: Optional[UUID] = None
     created_by_name: Optional[str] = None
@@ -239,6 +243,10 @@ class Submission(BaseModel):
     analysis_progress: Optional[AnalysisProgress] = None
     files: List[SubmissionFile] = Field(default_factory=list)
     can_edit: bool
+    # Video posts: the script is approved before the video is uploaded. script_status is None when there's no
+    # script stage, otherwise DRAFT, IN_REVIEW, EDITS_PROPOSED, CHANGES_REQUESTED or APPROVED.
+    script_required: bool = False
+    script_status: Optional[str] = None
     created_by: Optional[UUID] = None
     created_by_name: Optional[str] = None
     # For the person viewing it: drafts can be deleted by their creator, super admins and Content Managers.
@@ -433,6 +441,11 @@ class ReviewQueueCounts(BaseModel):
     review: int = 0
     sent_back: int = 0
     done: int = 0
+    # Scripts waiting for a reviewer (the script stage of video posts).
+    scripts: int = 0
+    # Scripts sent back to their creator, and approved ones whose video is still to come (last 30 days).
+    scripts_sent_back: int = 0
+    scripts_done: int = 0
 
 
 class DashboardActivity(BaseModel):

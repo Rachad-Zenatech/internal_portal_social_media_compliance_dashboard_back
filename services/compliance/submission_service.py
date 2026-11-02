@@ -336,6 +336,8 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         latest_check=_json(row["latest_check"]),
         files=[_file_out(row["id"], f) for f in files],
         can_edit=row["status"] in EDITABLE_STATUSES,
+        script_required=script_stage_on(row),
+        script_status=(row.get("script_status") or "DRAFT") if script_stage_on(row) else None,
         submitted_at=row["submitted_at"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
@@ -400,8 +402,8 @@ async def create_submission(data: SubmissionCreate, user_id: UUID) -> Submission
         async with conn.transaction():
             row = await conn.fetchrow(
                 """
-                INSERT INTO content_submissions (title, content_type, created_by, updated_by)
-                VALUES ($1, $2, $3, $3)
+                INSERT INTO content_submissions (title, content_type, created_by, updated_by, script_required)
+                VALUES ($1, $2::varchar, $3, $3, $2::varchar = 'VIDEO')
                 RETURNING id, reference_code
                 """,
                 data.title.strip(),
@@ -426,7 +428,18 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.platforms, s.status,
                s.current_version, s.publish_at, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience,
                s.due_at, s.due_kind, s.rule_sets,
+               CASE WHEN s.script_required AND s.content_type = 'VIDEO' THEN coalesce(s.script_status, 'DRAFT') END
+                   AS script_status,
                left(s.caption_text, 600) AS caption_text,
+               -- The script as the card's preview until a video is added: the uploaded file's text, else the last version sent.
+               CASE WHEN s.script_required AND s.content_type = 'VIDEO' THEN coalesce(
+                   (SELECT left(sf.doc_text, 500) FROM content_submission_files sf
+                     WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL
+                       AND sf.doc_text_status = 'COMPLETED' AND sf.doc_text <> ''
+                     ORDER BY sf.created_at DESC LIMIT 1),
+                   (SELECT left(sv.body, 500) FROM content_script_versions sv
+                     WHERE sv.submission_id = s.id ORDER BY sv.version_number DESC LIMIT 1)
+               ) END AS script_excerpt,
                s.latest_check->>'traffic_light' AS latest_traffic_light,
                CASE WHEN """ + _pending_sql("s.latest_check") + """ THEN NULL ELSE (s.latest_check->>'score')::int END AS latest_score,
                CASE WHEN """ + _pending_sql("s.latest_check") + """ THEN NULL
@@ -545,6 +558,9 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["title"] = payload["title"].strip()
     if payload.get("content_type"):
         fields["content_type"] = payload["content_type"]
+        # A draft switched to a video before it was ever sent goes through the script stage too.
+        if payload["content_type"] == "VIDEO" and row["current_version"] == 0 and not row.get("script_required"):
+            fields["script_required"] = True
     if payload.get("brand_code"):
         brand = await fetch_one("SELECT code FROM brands WHERE code = $1 AND is_active", payload["brand_code"])
         if not brand:
@@ -699,6 +715,7 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
     _require_editable(row)
     if kind not in MAX_BYTES:
         raise HTTPException(status_code=422, detail="Unknown file kind")
+    _require_script_stage_allows(row, kind)
 
     original_name = _safe_name(upload.filename or "file")
     ext = Path(original_name).suffix.lower()
@@ -730,7 +747,26 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
         raise HTTPException(status_code=422, detail="The file is empty")
 
     mime = upload.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
-    return await _record_file(row, kind, file_id, path, original_name, mime, size, user_id)
+    saved = await _record_file(row, kind, file_id, path, original_name, mime, size, user_id)
+    if kind == "SCRIPT" and script_stage_on(row) and row.get("script_status") not in (None, "DRAFT"):
+        # A new script file is a new script: it goes through review again.
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("UPDATE content_submissions SET script_status = 'DRAFT' WHERE id = $1", submission_id)
+            await _add_event(conn, submission_id, "SCRIPT_REPLACED",
+                             f"New script uploaded ({original_name}); it needs review again", user_id)
+    return saved
+
+
+def _require_script_stage_allows(row: Dict[str, Any], kind: str) -> None:
+    """On a post with a script stage, the video waits for the approved script, and the script can't change while a
+    reviewer is looking at it."""
+    if not script_stage_on(row):
+        return
+    if kind == "MAIN" and row.get("script_status") != "APPROVED":
+        raise HTTPException(status_code=409, detail="Get the script approved first, then upload the video.")
+    if kind == "SCRIPT" and row.get("script_status") == "IN_REVIEW":
+        raise HTTPException(status_code=409, detail="The script is with a reviewer. Wait for their reply to change it.")
 
 
 async def _record_file(
@@ -834,6 +870,7 @@ async def _record_file(
 async def _store_canva_export(row: Dict[str, Any], export: canva_service.DesignExport, user_id: UUID,
                               replaces_file_id: Optional[UUID] = None) -> SubmissionFile:
     """Write a Canva export into the submission's storage and record it as the main file."""
+    _require_script_stage_allows(row, "MAIN")
     allowed = MAIN_EXT_BY_TYPE.get(row["content_type"], set())
     if export.extension not in allowed:
         kind = "a video" if export.design.kind == "VIDEO" else "an image"
@@ -925,6 +962,10 @@ async def retranscribe(submission_id: UUID, file_id: UUID, user_id: UUID) -> Sub
 async def remove_file(submission_id: UUID, file_id: UUID, user_id: UUID) -> None:
     row = await _get_owned_row(submission_id, user_id)
     _require_editable(row)
+    if script_stage_on(row) and row.get("script_status") == "IN_REVIEW":
+        kind = await fetch_one("SELECT kind FROM content_submission_files WHERE id = $1", file_id)
+        if kind and kind["kind"] == "SCRIPT":
+            raise HTTPException(status_code=409, detail="The script is with a reviewer. Wait for their reply to change it.")
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -986,6 +1027,44 @@ def _check_text(row: Dict[str, Any]) -> str:
     return "\n\n".join(p for p in [row["title"], row["caption_text"]] if p and p.strip())
 
 
+def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: bool) -> ComplianceCheckRequest:
+    """The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms)."""
+    return ComplianceCheckRequest(
+        text=text,
+        video_title=row["title"],
+        content_type=f"{row['content_type']}_{(row['platforms'] or ['GENERAL'])[0]}",
+        rule_sets=list(row["rule_sets"] or []),
+        brand_code=row["brand_code"],
+        audience=row["audience"],
+        region=row["region"],
+        platforms=list(row["platforms"] or []),
+        # For rules limited by "applies to": its type, what's actually attached, and whether it's Shaun's own post.
+        content_parts=compliance_parts_for(
+            row["content_type"],
+            has_video=has_video,
+            has_images=has_images,
+            is_ceo=row.get("brand_code") == CEO_BRAND
+            or approval_path_service.is_ceo_content(row.get("rule_sets") or [], _accounts(row)),
+        ),
+    )
+
+
+def script_stage_on(row: Dict[str, Any]) -> bool:
+    """Video posts created since the script stage existed have their script approved before the video."""
+    return bool(row.get("script_required")) and row.get("content_type") == "VIDEO"
+
+
+async def approved_script(row: Dict[str, Any]) -> Optional[str]:
+    """The approved script's text, when the post went through the script stage and it was approved."""
+    if row.get("script_status") != "APPROVED":
+        return None
+    found = await fetch_one(
+        "SELECT body FROM content_script_versions WHERE submission_id = $1 ORDER BY version_number DESC LIMIT 1",
+        row["id"],
+    )
+    return found["body"] if found else None
+
+
 async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     """The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
     transcript and the text shown in the post's images (each once it's been read), against the rules scoped to this
@@ -1030,30 +1109,18 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         row["id"],
     )
     await document_text_service.schedule_missing([d["id"] for d in documents if d["doc_text_status"] is None])
+    # Once the script is approved, the approved wording (which may include the reviewer's edits) is what's checked.
+    script = await approved_script(row)
     document_texts = [
         f"{'Script' if d['kind'] == 'SCRIPT' else 'Article'}:\n{d['doc_text']}"
         for d in documents
         if d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
+        and not (script and d["kind"] == "SCRIPT")
     ]
+    if script:
+        document_texts.insert(0, f"Script:\n{script}")
     text = "\n\n".join(p for p in [_check_text(row), *document_texts, spoken, *image_texts] if p) or row["title"]
-    result = await check_compliance(ComplianceCheckRequest(
-        text=text,
-        video_title=row["title"],
-        content_type=f"{row['content_type']}_{(row['platforms'] or ['GENERAL'])[0]}",
-        rule_sets=list(row["rule_sets"] or []),
-        brand_code=row["brand_code"],
-        audience=row["audience"],
-        region=row["region"],
-        platforms=list(row["platforms"] or []),
-        # For rules limited by "applies to": its type, what's actually attached, and whether it's Shaun's own post.
-        content_parts=compliance_parts_for(
-            row["content_type"],
-            has_video=bool(video),
-            has_images=bool(images),
-            is_ceo=row.get("brand_code") == CEO_BRAND
-            or approval_path_service.is_ceo_content(row.get("rule_sets") or [], _accounts(row)),
-        ),
-    ))
+    result = await check_compliance(check_request(row, text, has_video=bool(video), has_images=bool(images)))
     check = {
         **result.model_dump(mode="json"),
         "checked_at": datetime.now(timezone.utc).isoformat(),
@@ -1124,6 +1191,8 @@ async def _missing_for_submit(row: Dict[str, Any]) -> List[str]:
     # first, so the check never runs on an image alone.
     if not has_text:
         missing.append("caption")
+    if script_stage_on(row) and row.get("script_status") != "APPROVED":
+        missing.append("script_approval")
     return missing
 
 
@@ -1196,6 +1265,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         """,
         submission_id,
     )
+    script_text = await approved_script(row) or (script["doc_text"] if script else None)
     version = row["current_version"] + 1
     snapshot = {
         "title": row["title"],
@@ -1210,7 +1280,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         "approval_needed_by": needed_by.isoformat() if needed_by else None,
         "caption_html": row["caption_html"],
         "caption_text": row["caption_text"],
-        "script_text": script["doc_text"] if script else None,
+        "script_text": script_text,
         "rule_sets": list(row["rule_sets"] or []),
         "reviewer_route": list(row["reviewer_route"] or []),
         "files": [
@@ -1480,7 +1550,13 @@ async def review_queue_counts(user_id: UUID, mine: bool = False) -> ReviewQueueC
         SELECT
             count(*) FILTER (WHERE {_queue_filter("review")}) AS review,
             count(*) FILTER (WHERE {_queue_filter("sent_back")}) AS sent_back,
-            count(*) FILTER (WHERE {_queue_filter("done")}) AS done
+            count(*) FILTER (WHERE {_queue_filter("done")}) AS done,
+            count(*) FILTER (WHERE s.script_status = 'IN_REVIEW' AND s.script_required AND s.content_type = 'VIDEO')
+                AS scripts,
+            count(*) FILTER (WHERE s.script_status IN ('CHANGES_REQUESTED', 'EDITS_PROPOSED') AND s.script_required
+                AND s.content_type = 'VIDEO') AS scripts_sent_back,
+            count(*) FILTER (WHERE s.script_status = 'APPROVED' AND s.status = 'DRAFT' AND s.script_required
+                AND s.content_type = 'VIDEO' AND s.updated_at > NOW() - INTERVAL '30 days') AS scripts_done
         FROM content_submissions s
         WHERE s.deleted_at IS NULL
           AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))))

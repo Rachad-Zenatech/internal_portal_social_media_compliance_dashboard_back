@@ -330,7 +330,16 @@ async def _load_submission(submission_id: UUID) -> Optional[Dict[str, Any]]:
         SELECT s.id, s.title, s.content_type, s.caption_text, s.brand_code, s.audience, s.region, s.platforms,
                s.rule_sets, s.current_version, b.name AS brand_name,
                c.account_name AS account_name, c.connection_metadata AS account_meta,
-               v.id AS video_id, v.transcript_status, v.transcript
+               v.id AS video_id, v.transcript_status, v.transcript,
+               -- The script: its latest version in the script stage, otherwise the uploaded script file as read.
+               coalesce(
+                   (SELECT sv.body FROM content_script_versions sv WHERE sv.submission_id = s.id
+                    ORDER BY sv.version_number DESC LIMIT 1),
+                   (SELECT sf.doc_text FROM content_submission_files sf
+                    WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL
+                      AND sf.doc_text_status = 'COMPLETED'
+                    ORDER BY sf.created_at DESC LIMIT 1)
+               ) AS script_text
         FROM content_submissions s
         LEFT JOIN brands b ON b.code = s.brand_code
         LEFT JOIN oauth_connections c ON c.id = s.account_id
@@ -379,7 +388,8 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
     spoken = ""
     if row["video_id"] and row["transcript_status"] == "COMPLETED":
         spoken = " ".join(str(s.get("text", "")) for s in (_json(row["transcript"]) or []))
-    post_text = "\n".join(p for p in (row["title"], row["caption_text"], spoken) if p)
+    script = (row.get("script_text") or "").strip()
+    post_text = "\n".join(p for p in (row["title"], row["caption_text"], spoken, script) if p)
     signals = post_signals.extract(post_text)
     implied = implied_audiences(row["audience"], signals, post_text)
     # Rule sets the wording brings in (only when some are chosen; with none, every rule already applies).
@@ -446,6 +456,8 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
         ],
     }
     # Only set when it applies, so saved analyses of every other post keep matching their input's hash.
+    if script:
+        inp["script"] = script[:MAX_TEXT_CHARS]
     if implied:
         inp["implied_audiences"] = implied
         # The wording that reaches them ($ZENA, "shareholders", "Pentagon"), so the model knows why.
@@ -564,6 +576,11 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
             "Format: video (not attached). Its transcript is included with timestamps." if transcript_text
             else "Format: video (not attached) with no speech or readable on-screen text; note that its visuals could not be assessed."
         )
+    elif inp.get("script"):
+        context.append(
+            "Format: script for a video that hasn't been filmed yet. Read the script as what the video will say and "
+            "show, and assess how it will come across once filmed. There is no video or transcript to expect."
+        )
     elif images_attached:
         context.append("Format: image post with no video, so there is no transcript to expect.")
     else:
@@ -576,7 +593,8 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
         )
     elif inp.get("images"):
         context.append("Images: the post has images, but they couldn't be attached; note that its visuals could not be assessed.")
-    content = json.dumps({"title": inp["title"], "caption": inp["caption"] or "(no caption)"}, ensure_ascii=False)
+    content = json.dumps({"title": inp["title"], "caption": inp["caption"] or "(no caption)",
+                          **({"script": inp["script"]} if inp.get("script") else {})}, ensure_ascii=False)
     return (
         f"{INSTRUCTIONS}\n\nCONTEXT\n" + "\n".join(context)
         + f"\n\n{_reference_context(inp.get('context') or [])}"
@@ -632,7 +650,7 @@ def _locate(quote: str, inp: Dict[str, Any]) -> Optional[Tuple[str, Optional[flo
     parts = [p for p in (_norm(x) for x in re.split(r"\.\.\.|…", quote)) if len(p) >= 3]
     if not parts:
         return None
-    for source in ("title", "caption"):
+    for source in ("title", "caption", "script"):
         haystack = f" {_norm(inp.get(source) or '')} "
         if all(f" {p} " in haystack for p in parts):
             return source, None, None
