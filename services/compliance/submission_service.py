@@ -751,25 +751,26 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
 
     mime = upload.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
     saved = await _record_file(row, kind, file_id, path, original_name, mime, size, user_id)
-    if kind == "SCRIPT" and script_stage_on(row) and row.get("script_status") not in (None, "DRAFT"):
-        # A new script file is a new script: it goes through review again.
+    if kind == "SCRIPT":
+        # A new script file enables the script stage on the post and resets it to DRAFT so it goes through review.
         pool = get_pool()
         async with pool.acquire() as conn:
-            await conn.execute("UPDATE content_submissions SET script_status = 'DRAFT' WHERE id = $1", submission_id)
-            await _add_event(conn, submission_id, "SCRIPT_REPLACED",
-                             f"New script uploaded ({original_name}); it needs review again", user_id)
+            await conn.execute(
+                "UPDATE content_submissions SET script_required = TRUE, script_status = 'DRAFT' WHERE id = $1",
+                submission_id,
+            )
+            if row.get("script_status") not in (None, "DRAFT"):
+                await _add_event(conn, submission_id, "SCRIPT_REPLACED",
+                                 f"New script uploaded ({original_name}); it needs review again", user_id)
     return saved
 
 
 def _require_script_stage_allows(row: Dict[str, Any], kind: str) -> None:
-    """On a post with a script stage, the video waits for the approved script, and the script can't change while a
-    reviewer is looking at it."""
+    """On a post with a script stage, the video waits for the approved script."""
     if not script_stage_on(row):
         return
     if kind == "MAIN" and row.get("script_status") != "APPROVED":
         raise HTTPException(status_code=409, detail="Get the script approved first, then upload the video.")
-    if kind == "SCRIPT" and row.get("script_status") == "IN_REVIEW":
-        raise HTTPException(status_code=409, detail="The script is with a reviewer. Wait for their reply to change it.")
 
 
 async def _record_file(

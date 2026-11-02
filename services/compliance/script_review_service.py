@@ -11,6 +11,7 @@ uploaded once the script is approved, and the approved wording is what the video
                                                           -> creator edits   -> IN_REVIEW
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -27,7 +28,7 @@ from models.compliance.script_review_model import (
     ScriptVersion,
 )
 from postgresql_db.database import execute, fetch_all, fetch_one, get_pool
-from services.compliance import document_layout, submission_service as subs
+from services.compliance import document_layout, document_text_service, submission_service as subs
 from services.compliance.compliance_service import check_compliance, rulebook_version
 from services.shared.audit_service import log_audit_event
 
@@ -184,6 +185,13 @@ async def submit(submission_id: UUID, user_id: UUID) -> ScriptStage:
     if not file:
         raise HTTPException(status_code=422, detail="Upload the script first (PDF, Word or text)")
     if file["doc_text_status"] in (None, "PENDING", "PROCESSING"):
+        await document_text_service.read_file(file["id"])
+        for _ in range(30):
+            file = await _script_file(submission_id)
+            if not file or file["doc_text_status"] not in (None, "PENDING", "PROCESSING"):
+                break
+            await asyncio.sleep(0.5)
+    if not file or file["doc_text_status"] in (None, "PENDING", "PROCESSING"):
         raise HTTPException(status_code=409, detail="The script is still being read. Try again in a moment.")
     if file["doc_text_status"] != "COMPLETED" or not (file["doc_text"] or "").strip():
         raise HTTPException(status_code=422, detail=file["doc_text_error"] or "The script's text couldn't be read")
