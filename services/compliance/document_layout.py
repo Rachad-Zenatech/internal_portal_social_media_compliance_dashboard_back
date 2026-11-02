@@ -383,15 +383,25 @@ def _block_lines(block: Dict[str, Any], body: float, repeated: set) -> List[str]
 
 # --- Back to plain wording --------------------------------------------------------------------------------------------
 
+# _italic_ words (underscores at the edges of words, so snake_case_names are left alone) and list markers.
+_ITALIC = re.compile(r"(^|[\s(\[\"'\u201c])_(?=\S)([^_\n]*?\S)_(?=$|[\s)\].,;:!?\"'\u201d])")
+_LIST_MARK = re.compile(r"^\s*(?:[-\u2022]|\d+[.)])\s+")
+
+
 def plain_text(text: Optional[str]) -> str:
-    """The wording alone: page marks dropped, headings and bold unmarked, table cells run on."""
+    """The wording alone: page marks dropped, headings, bold and italics unmarked, list markers dropped, table cells
+    run on."""
     out: List[str] = []
     for line in (text or "").splitlines():
         s = line.strip()
         if PAGE_RE.match(s):
             continue
-        s = re.sub(r"^#{1,3}\s+", "", s)
+        heading = re.match(r"^#{1,3}\s+", s)
+        s = s[heading.end():] if heading else s
         if s.startswith("|") and s.endswith("|") and len(s) > 1:
             s = "  ".join(c.strip() for c in s.strip("|").split("|"))
-        out.append(s.replace("**", ""))
+        elif not heading:
+            s = _LIST_MARK.sub("", s)
+        s = _ITALIC.sub(lambda m: m.group(1) + m.group(2), s.replace("**", ""))
+        out.append(s)
     return "\n".join(out)
