@@ -136,6 +136,29 @@ class SubmissionFile(BaseModel):
     canva_revision: Optional[int] = None
 
 
+class AnalysisStep(BaseModel):
+    """One part of the post still being read before the rulebook check can score it."""
+    kind: Literal["VIDEO", "IMAGES", "DOCUMENTS"]
+    label: str  # e.g. "Reading the video", "Reading the text in 3 images"
+    # WAITING: queued, not started yet. RUNNING: being read now.
+    state: Literal["WAITING", "RUNNING"]
+    started_at: Optional[datetime] = None
+    expected_seconds: int
+    expected_done_at: datetime
+
+
+class AnalysisProgress(BaseModel):
+    """How far the post's reading has got and when the score is expected. Only set while analysis_pending."""
+    steps: List[AnalysisStep] = Field(default_factory=list)
+    # When reading started (the earliest running step), and when the score should be ready.
+    started_at: datetime
+    expected_done_at: datetime
+    # The server's clock when this was made, so a screen can count down without trusting its own clock.
+    server_time: datetime
+    # True when the estimate comes from how long recent reads took; False while there's too little history yet.
+    from_history: bool = False
+
+
 class SubmissionSummary(BaseModel):
     id: UUID
     reference_code: str
@@ -156,6 +179,10 @@ class SubmissionSummary(BaseModel):
     # How many rulebook issues the latest check found; None while it's still being analysed.
     issue_count: Optional[int] = None
     analysis_pending: bool = False
+    # While analysis_pending: what's still being read and when the score is expected.
+    analysis_progress: Optional[AnalysisProgress] = None
+    # Video posts with a script stage: where the script is (see Submission.script_status); None otherwise.
+    script_status: Optional[str] = None
     file_count: int = 0
     # Review comments across all versions, for the count on each Content Portal row.
     comment_count: int = 0
@@ -168,6 +195,8 @@ class SubmissionSummary(BaseModel):
     account: Optional[AccountOption] = None
     accounts: List[AccountOption] = Field(default_factory=list)
     caption_text: Optional[str] = None
+    # Video posts with a script stage: the start of the script, shown on the card until a video is added.
+    script_excerpt: Optional[str] = None
     cover: Optional[SubmissionFile] = None
     created_by: Optional[UUID] = None
     created_by_name: Optional[str] = None
@@ -210,8 +239,14 @@ class Submission(BaseModel):
     status: str
     current_version: int
     latest_check: Optional[Dict[str, Any]] = None
+    # While the check is still reading the post: what's left and when the score is expected.
+    analysis_progress: Optional[AnalysisProgress] = None
     files: List[SubmissionFile] = Field(default_factory=list)
     can_edit: bool
+    # Video posts: the script is approved before the video is uploaded. script_status is None when there's no
+    # script stage, otherwise DRAFT, IN_REVIEW, EDITS_PROPOSED, CHANGES_REQUESTED or APPROVED.
+    script_required: bool = False
+    script_status: Optional[str] = None
     created_by: Optional[UUID] = None
     created_by_name: Optional[str] = None
     # For the person viewing it: drafts can be deleted by their creator, super admins and Content Managers.
@@ -224,6 +259,10 @@ class Submission(BaseModel):
     can_approve: bool = False
     # Critical (red) flags on the current version that a reviewer hasn't dismissed; approval waits on these.
     open_critical_flags: int = 0
+    # The rulebook score counting only flags nobody has dismissed, and the least it needs to be approved. None when
+    # there's no score yet (not checked, or still being analysed).
+    approval_score: Optional[int] = None
+    min_approval_score: int = 70
     # The saved check was made before the rulebook last changed (new, edited or removed rules).
     check_outdated: bool = False
     # For the person viewing it: it's approved and they're a reviewer who may reschedule it or reopen it.
@@ -361,6 +400,8 @@ class ReviewQueueItem(BaseModel):
     account: Optional[AccountOption] = None
     caption_text: Optional[str] = None
     latest_check: Optional[Dict[str, Any]] = None
+    # While the check is still reading the post: what's left and when the score is expected.
+    analysis_progress: Optional[AnalysisProgress] = None
     current_version: int
     submitted_at: Optional[datetime] = None
     creator_name: Optional[str] = None
@@ -375,6 +416,9 @@ class ReviewQueueItem(BaseModel):
     can_approve: bool = False
     # Critical (red) flags on the current version that a reviewer hasn't dismissed; approval waits on these.
     open_critical_flags: int = 0
+    # The rulebook score counting only flags nobody has dismissed, and the least it needs to be approved.
+    approval_score: Optional[int] = None
+    min_approval_score: int = 70
     publish_at: Optional[datetime] = None
     # For the screener's filters and header.
     brand_code: Optional[str] = None
@@ -397,6 +441,11 @@ class ReviewQueueCounts(BaseModel):
     review: int = 0
     sent_back: int = 0
     done: int = 0
+    # Scripts waiting for a reviewer (the script stage of video posts).
+    scripts: int = 0
+    # Scripts sent back to their creator, and approved ones whose video is still to come (last 30 days).
+    scripts_sent_back: int = 0
+    scripts_done: int = 0
 
 
 class DashboardActivity(BaseModel):

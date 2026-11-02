@@ -19,7 +19,7 @@ tools/                # HTTP routers (FastAPI APIRouter), grouped by feature
   compliance/         # Compliance review: submissions, rulebook checks, AI content analysis, review flow, Canva import, post metrics, social listening
     approval_path_router.py, canva_router.py, compliance_router.py
     context_router.py, listening_router.py, performance_router.py
-    sentiment_router.py, submission_router.py
+    script_review_router.py, sentiment_router.py, submission_router.py
   microsoft_graph/    # Microsoft Graph (Entra users/org) client and background sync
     graph_router.py
 services/             # Business logic, grouped by feature
@@ -35,14 +35,15 @@ services/             # Business logic, grouped by feature
     ceo_event_publisher.py, email_service.py, mqtt_presence.py
     notification_service.py, rabbitmq_service.py
   compliance/         # Compliance review: submissions, rulebook checks, AI content analysis, review flow, Canva import, post metrics, social listening
-    approval_path_service.py, canva_mock_render.py, canva_service.py
-    caption_service.py, claim_checks.py, compliance_service.py
+    analysis_progress_service.py, approval_path_service.py, canva_mock_render.py
+    canva_service.py, caption_service.py, claim_checks.py, compliance_service.py
     context_service.py, document_text_service.py, flag_review_service.py
     hashtag_library.py, html_sanitizer.py, image_text_service.py
     listening_providers.py, performance_service.py, post_metrics_providers.py
     post_signals.py, public_mood_service.py, reference_index_service.py
-    review_deadline_service.py, review_memory_service.py, sentiment_service.py
-    submission_service.py, transcription_service.py, video_job_service.py
+    review_deadline_service.py, review_memory_service.py, script_review_service.py
+    sentiment_service.py, submission_service.py, transcription_service.py
+    video_job_service.py
   microsoft_graph/    # Microsoft Graph (Entra users/org) client and background sync
     graph_service.py, graph_sync_job.py
 models/               # Pydantic request/response models, grouped by feature
@@ -54,7 +55,7 @@ models/               # Pydantic request/response models, grouped by feature
     approval_path_model.py, canva_model.py, caption_model.py
     compliance_model.py, context_model.py, flag_review_model.py
     performance_model.py, public_mood_model.py, sentiment_model.py
-    submission_model.py
+    script_review_model.py, submission_model.py
 mcp_tools/            # MCP server: registry, middleware, prompts; tools grouped by feature
     __init__.py (registry), middleware.py, prompts.py
   shared/             # Tools for several features: permissions and account lookups

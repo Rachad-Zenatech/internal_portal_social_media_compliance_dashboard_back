@@ -61,7 +61,7 @@ class SentimentFinding(BaseModel):
     suggested_revision: Optional[str] = None
     # Filled in by the service after checking the quote against the submitted text ("video" / "image" for findings
     # about what is shown or heard).
-    source: Optional[Literal["title", "caption", "transcript", "video", "image"]] = None
+    source: Optional[Literal["title", "caption", "script", "transcript", "video", "image"]] = None
     # OBSERVED_VISUAL findings about an image: which one (1 = the first image attached, in the post's order).
     image_index: Optional[int] = None
     # A past review this finding follows (e.g. "SUB-1012 v2"), when the same issue was raised or cleared before.

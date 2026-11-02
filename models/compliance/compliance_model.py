@@ -137,6 +137,9 @@ class ComplianceViolation(BaseModel):
     penalty: int = 0
     # Set when every word it flagged was already counted for a stricter rule (the same words, counted once).
     counted_with: Optional[str] = None
+    # When counted_with is set: the points this finding would have cost on its own. If a reviewer dismisses the
+    # stricter finding, these count instead, so dismissing one rule doesn't make the shared words free.
+    uncounted_penalty: int = 0
     # The rule's exceptions, so the per-moment video flags skip the same excused wording.
     exception_terms: List[str] = Field(default_factory=list)
 
@@ -166,6 +169,12 @@ class CheckSignals(BaseModel):
     notes: List[str] = Field(default_factory=list)
 
 
+class AddedRuleSet(BaseModel):
+    """A rule set checked because of what the post says, not because it was chosen."""
+    rule_set: str
+    because: List[str] = Field(default_factory=list)
+
+
 class ComplianceCheckResponse(BaseModel):
     is_compliant: bool
     traffic_light: str = "GREEN"  # GREEN, YELLOW, RED
@@ -187,5 +196,8 @@ class ComplianceCheckResponse(BaseModel):
     # audience's rules ran) and the content parts (empty when not known, so every rule's applies_to matched).
     audiences_checked: List[str] = Field(default_factory=list)
     content_parts: List[str] = Field(default_factory=list)
+    # Rule sets the post's wording brought in on top of the chosen ones, each with the wording that did it, e.g.
+    # [{"rule_set": "Public Company Disclosure", "because": ["$ZENA", "shareholders"]}].
+    added_rule_sets: List[AddedRuleSet] = Field(default_factory=list)
     # Missing on checks saved before signals were read.
     signals: Optional[CheckSignals] = None

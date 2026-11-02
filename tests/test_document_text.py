@@ -42,14 +42,15 @@ class ReadTests(unittest.TestCase):
 
     def test_docx_paragraphs_are_read_in_order(self):
         path = self.write("script.docx", docx("SCENE 1", "Shaun: Our drone is combat proven.", "", "Cut to\tlogo"))
-        self.assertEqual(dts.read_local(path), "SCENE 1\nShaun: Our drone is combat proven.\nCut to logo")
+        # The empty paragraph stays as one blank line, so scenes stay apart when the script is shown and edited.
+        self.assertEqual(dts.read_local(path), "SCENE 1\nShaun: Our drone is combat proven.\n\nCut to logo")
 
     def test_a_line_break_inside_a_paragraph_starts_a_new_line(self):
         path = self.write("script.docx", docx("First line\nsecond line"))
         self.assertEqual(dts.read_local(path), "First line\nsecond line")
 
     def test_text_files_in_common_encodings(self):
-        self.assertEqual(dts.read_local(self.write("a.txt", "Café launch\r\n\r\nDay two".encode("utf-8"))), "Café launch\nDay two")
+        self.assertEqual(dts.read_local(self.write("a.txt", "Café launch\r\n\r\n\r\nDay two".encode("utf-8"))), "Café launch\n\nDay two")
         self.assertEqual(dts.read_local(self.write("b.md", "Café".encode("cp1252"))), "Café")
         self.assertEqual(dts.read_local(self.write("c.txt", "Café".encode("utf-16"))), "Café")
 

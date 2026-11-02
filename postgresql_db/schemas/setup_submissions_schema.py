@@ -144,6 +144,12 @@ async def setup():
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_status VARCHAR(20);
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_error TEXT;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_updated_at TIMESTAMP WITH TIME ZONE;
+            -- When each reading job last started, so screens can say how long the check has left: *_updated_at
+            -- moves again when the job finishes, and finished jobs' durations give the estimate
+            -- (see services/analysis_progress_service.py).
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript_started_at TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_started_at TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_started_at TIMESTAMP WITH TIME ZONE;
 
             CREATE TABLE IF NOT EXISTS content_submission_versions (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -180,6 +186,33 @@ async def setup():
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_content_submission_events_submission ON content_submission_events(submission_id, created_at DESC);
+
+            -- Script stage (see services/compliance/script_review_service.py): a video post's script is reviewed and
+            -- approved before the video is uploaded. Only posts created as videos since this existed need it, so
+            -- drafts already in progress aren't blocked. script_status: DRAFT, IN_REVIEW, EDITS_PROPOSED (the
+            -- reviewer changed the wording; the creator accepts or edits), CHANGES_REQUESTED, APPROVED.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_required BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_status VARCHAR(30);
+            CREATE INDEX IF NOT EXISTS idx_content_submissions_script_status ON content_submissions(script_status)
+                WHERE script_status IS NOT NULL AND deleted_at IS NULL;
+            -- Each version of the script's text: the creator's upload or edit, or the reviewer's edit. The reviewer's
+            -- decision on a version the creator sent is kept on that version.
+            CREATE TABLE IF NOT EXISTS content_script_versions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                submission_id UUID NOT NULL REFERENCES content_submissions(id) ON DELETE CASCADE,
+                version_number INT NOT NULL,
+                body TEXT NOT NULL,
+                source VARCHAR(20) NOT NULL,
+                file_id UUID REFERENCES content_submission_files(id) ON DELETE SET NULL,
+                check_result JSONB,
+                created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                review_decision VARCHAR(30),
+                review_note TEXT,
+                reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                reviewed_at TIMESTAMP WITH TIME ZONE,
+                CONSTRAINT content_script_versions_unique UNIQUE (submission_id, version_number)
+            );
 
             -- Reviewer decision on each review job (one job per submitted version).
             ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS decision VARCHAR(30);

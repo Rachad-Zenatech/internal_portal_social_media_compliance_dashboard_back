@@ -96,9 +96,14 @@ def read_docx(data: bytes) -> str:
 
 
 def clean(text: str) -> str:
-    """Whitespace tidied, blank lines dropped, capped at MAX_TEXT_CHARS."""
-    lines = [" ".join(line.split()) for line in (text or "").splitlines()]
-    return "\n".join(line for line in lines if line)[:MAX_TEXT_CHARS]
+    """Whitespace tidied, runs of blank lines cut to one (so a script's scenes stay apart when it's shown and edited),
+    capped at MAX_TEXT_CHARS."""
+    kept: List[str] = []
+    for line in (text or "").splitlines():
+        line = " ".join(line.split())
+        if line or (kept and kept[-1]):
+            kept.append(line)
+    return "\n".join(kept).strip()[:MAX_TEXT_CHARS]
 
 
 def read_local(path: Path) -> Optional[str]:
@@ -136,7 +141,8 @@ async def _claim(file_id: UUID) -> Optional[dict]:
     return await fetch_one(
         f"""
         UPDATE content_submission_files
-        SET doc_text_status = 'PROCESSING', doc_text_error = NULL, doc_text_updated_at = NOW()
+        SET doc_text_status = 'PROCESSING', doc_text_error = NULL, doc_text_updated_at = NOW(),
+            doc_text_started_at = NOW()
         WHERE id = $1 AND deleted_at IS NULL
           AND (doc_text_status IS DISTINCT FROM 'PROCESSING'
                OR doc_text_updated_at < NOW() - INTERVAL '{STALE_MINUTES} minutes')

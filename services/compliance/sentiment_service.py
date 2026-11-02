@@ -53,7 +53,7 @@ from services.ai import ai_observability
 from services.compliance import context_service, review_memory_service
 from services.ai.ai_guardrails import screen_input
 from services.compliance import post_signals
-from services.compliance.compliance_service import applicable_rules, implied_audiences, parts_for
+from services.compliance.compliance_service import applicable_rules, implied_audiences, implied_by_wording, parts_for
 from services.ai.gemini_service import is_rotatable_model_error
 
 logger = logging.getLogger(__name__)
@@ -330,7 +330,16 @@ async def _load_submission(submission_id: UUID) -> Optional[Dict[str, Any]]:
         SELECT s.id, s.title, s.content_type, s.caption_text, s.brand_code, s.audience, s.region, s.platforms,
                s.rule_sets, s.current_version, b.name AS brand_name,
                c.account_name AS account_name, c.connection_metadata AS account_meta,
-               v.id AS video_id, v.transcript_status, v.transcript
+               v.id AS video_id, v.transcript_status, v.transcript,
+               -- The script: its latest version in the script stage, otherwise the uploaded script file as read.
+               coalesce(
+                   (SELECT sv.body FROM content_script_versions sv WHERE sv.submission_id = s.id
+                    ORDER BY sv.version_number DESC LIMIT 1),
+                   (SELECT sf.doc_text FROM content_submission_files sf
+                    WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL
+                      AND sf.doc_text_status = 'COMPLETED'
+                    ORDER BY sf.created_at DESC LIMIT 1)
+               ) AS script_text
         FROM content_submissions s
         LEFT JOIN brands b ON b.code = s.brand_code
         LEFT JOIN oauth_connections c ON c.id = s.account_id
@@ -373,10 +382,20 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
     is_ceo = bool(meta.get("is_ceo"))
     rule_sets = list(row["rule_sets"] or [])
     platforms = list(row["platforms"] or [])
-    # A cashtag ($ZENA) in the post means investors read it, whatever audience it targets (see the rulebook check).
-    post_text = "\n".join(p for p in (row["title"], row["caption_text"]) if p)
+    # Investor wording ($ZENA, "shareholders") means investors read the post, and defense wording ("Pentagon",
+    # "program managers") means defense buyers do, whatever audience it targets (see the rulebook check). What's
+    # said in the video counts as much as the caption.
+    spoken = ""
+    if row["video_id"] and row["transcript_status"] == "COMPLETED":
+        spoken = " ".join(str(s.get("text", "")) for s in (_json(row["transcript"]) or []))
+    script = (row.get("script_text") or "").strip()
+    post_text = "\n".join(p for p in (row["title"], row["caption_text"], spoken, script) if p)
     signals = post_signals.extract(post_text)
-    implied = implied_audiences(row["audience"], signals)
+    implied = implied_audiences(row["audience"], signals, post_text)
+    # Rule sets the wording brings in (only when some are chosen; with none, every rule already applies).
+    wording = implied_by_wording(post_text, signals)
+    added_rule_sets = [rs for rs in wording if rule_sets and rs not in rule_sets]
+    checked_rule_sets = [*rule_sets, *added_rule_sets]
     # Shaun's own posts and anything investors read carry the most risk, so they get the stronger model.
     high_stakes = (is_ceo or row["brand_code"] == CEO_BRAND or CEO_RULE_SET in rule_sets
                    or row["audience"] == "INVESTORS" or "INVESTORS" in implied)
@@ -423,7 +442,7 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
         "is_ceo_channel": is_ceo,
         "high_stakes": high_stakes,
         "model": HIGH_STAKES_MODEL if high_stakes else MODEL,
-        "controversy_dial": is_ceo or CEO_RULE_SET in rule_sets or DEFENSE_RULE_SET in rule_sets,
+        "controversy_dial": is_ceo or CEO_RULE_SET in rule_sets or DEFENSE_RULE_SET in checked_rule_sets,
         "guidelines": [
             {
                 "rule_number": r.rule_number,
@@ -437,9 +456,14 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
         ],
     }
     # Only set when it applies, so saved analyses of every other post keep matching their input's hash.
+    if script:
+        inp["script"] = script[:MAX_TEXT_CHARS]
     if implied:
         inp["implied_audiences"] = implied
-        inp["cashtags"] = signals.cashtags
+        # The wording that reaches them ($ZENA, "shareholders", "Pentagon"), so the model knows why.
+        inp["implied_because"] = list(dict.fromkeys(w for ws in wording.values() for w in ws))
+    if added_rule_sets:
+        inp["added_rule_sets"] = added_rule_sets
     return inp
 
 
@@ -512,7 +536,9 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
     audience = AUDIENCE_NAMES.get(inp["audience"] or "", inp["audience"] or "not specified")
     if inp.get("implied_audiences"):
         also = ", ".join(AUDIENCE_NAMES.get(a, a) for a in inp["implied_audiences"])
-        audience += (f" (it also reaches {also}: it mentions {', '.join(inp.get('cashtags') or [])}, "
+        # Analyses saved before the wording was recorded have the cashtags instead.
+        because = inp.get("implied_because") or inp.get("cashtags") or []
+        audience += (f" (it also reaches {also}: it mentions {', '.join(because)}, "
                      "so assess how they would read it too)")
     context = [
         f"Brand: {inp['brand'] or 'not specified'}",
@@ -550,6 +576,11 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
             "Format: video (not attached). Its transcript is included with timestamps." if transcript_text
             else "Format: video (not attached) with no speech or readable on-screen text; note that its visuals could not be assessed."
         )
+    elif inp.get("script"):
+        context.append(
+            "Format: script for a video that hasn't been filmed yet. Read the script as what the video will say and "
+            "show, and assess how it will come across once filmed. There is no video or transcript to expect."
+        )
     elif images_attached:
         context.append("Format: image post with no video, so there is no transcript to expect.")
     else:
@@ -562,7 +593,8 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
         )
     elif inp.get("images"):
         context.append("Images: the post has images, but they couldn't be attached; note that its visuals could not be assessed.")
-    content = json.dumps({"title": inp["title"], "caption": inp["caption"] or "(no caption)"}, ensure_ascii=False)
+    content = json.dumps({"title": inp["title"], "caption": inp["caption"] or "(no caption)",
+                          **({"script": inp["script"]} if inp.get("script") else {})}, ensure_ascii=False)
     return (
         f"{INSTRUCTIONS}\n\nCONTEXT\n" + "\n".join(context)
         + f"\n\n{_reference_context(inp.get('context') or [])}"
@@ -618,7 +650,7 @@ def _locate(quote: str, inp: Dict[str, Any]) -> Optional[Tuple[str, Optional[flo
     parts = [p for p in (_norm(x) for x in re.split(r"\.\.\.|…", quote)) if len(p) >= 3]
     if not parts:
         return None
-    for source in ("title", "caption"):
+    for source in ("title", "caption", "script"):
         haystack = f" {_norm(inp.get(source) or '')} "
         if all(f" {p} " in haystack for p in parts):
             return source, None, None
