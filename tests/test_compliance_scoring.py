@@ -8,6 +8,18 @@ from fastapi import HTTPException
 from models.compliance.compliance_model import ComplianceCheckRequest, ComplianceRule
 from services.compliance import compliance_service as cs
 
+# These tests are about the wording-based rules, so the vector store and the model that match rules by meaning are
+# left out (they would be called for real otherwise).
+_no_semantic_matches = patch.object(cs, "_semantic_findings", new=AsyncMock(return_value=[]))
+
+
+def setUpModule():
+    _no_semantic_matches.start()
+
+
+def tearDownModule():
+    _no_semantic_matches.stop()
+
 
 def rule(**fields):
     now = datetime.now(timezone.utc)

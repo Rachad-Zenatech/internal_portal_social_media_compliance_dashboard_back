@@ -42,6 +42,16 @@ class ComplianceRuleBase(BaseModel):
     platforms: List[str] = Field(default_factory=list, description="Platforms this rule is limited to")
     is_active: bool = Field(True, description="Whether this rule is actively enforced")
     sort_order: int = Field(0, description="Display order within category")
+    evaluation_mode: Literal["RULE", "CONTEXT"] = Field(
+        "RULE",
+        description="RULE: a match is a finding, every time (hard bans and required disclaimers). CONTEXT: a match is "
+                    "only a candidate, and the AI judges from the surrounding wording whether the rule really applies",
+    )
+    evaluation_guidance: Optional[str] = Field(
+        None,
+        description="For CONTEXT rules: what the judge must decide, e.g. who the statement is about, whether it is "
+                    "history or opinion, and what would make it a violation, need review or need evidence",
+    )
 
 
 class ComplianceRuleCreate(ComplianceRuleBase):
@@ -70,6 +80,8 @@ class ComplianceRuleUpdate(BaseModel):
     platforms: Optional[List[str]] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None
+    evaluation_mode: Optional[Literal["RULE", "CONTEXT"]] = None
+    evaluation_guidance: Optional[str] = None
 
 
 class ComplianceRule(ComplianceRuleBase):
@@ -119,6 +131,33 @@ class ComplianceCheckRequest(BaseModel):
     content_parts: List[str] = Field(default_factory=list)
 
 
+# What a finding amounts to once its context is read:
+#   VIOLATION          the content breaks the rule (costs points; a critical one blocks publication)
+#   NEEDS_REVIEW       whether it applies depends on something the text can't show, such as the final footage
+#   EVIDENCE_REQUIRED  a factual claim that needs a source before it goes out
+#   CLEARED            a trigger was found, but the context shows the rule doesn't apply
+# Only violations cost points or block; the rest are warnings, so a reviewer sees them without being stopped.
+FindingStatus = Literal["VIOLATION", "NEEDS_REVIEW", "EVIDENCE_REQUIRED", "CLEARED"]
+
+
+class ContextEvaluation(BaseModel):
+    """How the AI read a rule's trigger in context, kept beside the finding so the decision can be audited."""
+    decision: FindingStatus
+    # The passage the decision is about, exactly as it appears in the content.
+    matched_text: Optional[str] = None
+    # Who or what the statement is about (e.g. "a 1942 patent, not ZenaDrone").
+    subject: Optional[str] = None
+    reasoning: str = ""
+    confidence: float = 0.0
+    recommended_action: Optional[str] = None
+    # What the rule check alone would have said, before the context was read.
+    rule_decision: FindingStatus = "VIOLATION"
+    # AI: the model judged it. ADJUSTED: the model's answer was changed by a safeguard (low confidence, or wording that
+    # isn't in the content). UNAVAILABLE: no model could judge it, so the rule's own answer stands.
+    source: Literal["AI", "ADJUSTED", "UNAVAILABLE"] = "AI"
+    model: Optional[str] = None
+
+
 class ComplianceViolation(BaseModel):
     rule_id: UUID
     rule_number: str
@@ -142,6 +181,14 @@ class ComplianceViolation(BaseModel):
     uncounted_penalty: int = 0
     # The rule's exceptions, so the per-moment video flags skip the same excused wording.
     exception_terms: List[str] = Field(default_factory=list)
+    # Findings saved before statuses existed are violations.
+    status: FindingStatus = "VIOLATION"
+    # Set when the AI read the trigger in context (CONTEXT rules).
+    evaluation: Optional[ContextEvaluation] = None
+    # The sentence the wording sits in and the lines around it, kept so a reviewer's call on this finding can be saved
+    # as an example (see finding_precedent_service).
+    passage: Optional[str] = None
+    context: Optional[str] = None
 
 
 class ManualReviewRule(BaseModel):
@@ -186,7 +233,13 @@ class ComplianceCheckResponse(BaseModel):
     raw_score: int = 100
     # The rulebook as of this check (when any rule last changed), to tell whether a saved check is out of date.
     rulebook_version: Optional[str] = None
+    # Findings that are violations: what costs points and what "issues to fix" counts.
     violations_count: int = 0
+    # Warnings that don't cost points or block: need a person's look, need a source, and triggers cleared by context.
+    review_count: int = 0
+    evidence_count: int = 0
+    cleared_count: int = 0
+    # Every finding, whatever its status (see ComplianceViolation.status), so a cleared one can still be shown.
     violations: List[ComplianceViolation] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
     rules_checked: int = 0

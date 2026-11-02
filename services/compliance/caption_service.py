@@ -210,7 +210,8 @@ async def _check(text: str, row: Dict[str, Any]) -> CaptionCheck:
         traffic_light=result.traffic_light,
         blocked=result.blocked,
         flags=[
-            f"{v.rule_number}: {', '.join(v.flagged_terms) if v.flagged_terms else v.title}" for v in result.violations
+            f"{v.rule_number}: {', '.join(v.flagged_terms) if v.flagged_terms else v.title}"
+            for v in result.violations if v.status != "CLEARED"
         ],
     )
 

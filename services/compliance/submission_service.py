@@ -1525,6 +1525,7 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             FROM content_review_jobs j JOIN content_submissions s ON s.id = j.submission_id,
                  jsonb_array_elements(COALESCE(j.automated_check->'violations', '[]'::jsonb)) v
             WHERE {visible} AND j.created_at >= {since} AND v->>'rule_number' IS NOT NULL
+              AND coalesce(v->>'status', 'VIOLATION') = 'VIOLATION'
             GROUP BY 1 ORDER BY 3 DESC, 1 LIMIT 5
             """,
             *args,

@@ -37,7 +37,7 @@ from services.ai import ai_usage_service
 from services.compliance import caption_service, public_mood_service, sentiment_service
 from services.compliance import flag_review_service
 from services.compliance import submission_service as svc
-from models.compliance.flag_review_model import FlagDismissRequest, FlagReview
+from models.compliance.flag_review_model import FindingVerdict, FlagConfirmRequest, FlagDismissRequest, FlagReview
 from services.shared.auth_service import get_current_user_id_dependency
 from services.compliance.hashtag_library import HashtagLibrary
 
@@ -358,6 +358,24 @@ async def dismiss_flag(submission_id: UUID, rule_id: UUID, data: FlagDismissRequ
 async def restore_flag(submission_id: UUID, rule_id: UUID, user_id: CurrentUser):
     """Undo a dismissal on the version in review."""
     await flag_review_service.undo(submission_id, rule_id, user_id)
+
+
+@router.get("/{submission_id}/flag-verdicts", response_model=List[FindingVerdict])
+async def list_flag_verdicts(submission_id: UUID, user_id: CurrentUser):
+    """Reviewers' calls on the automated flags (right, or a false alarm), on every version."""
+    return await flag_review_service.verdicts_for(submission_id, user_id)
+
+
+@router.put("/{submission_id}/flags/{rule_id}/confirm", response_model=FindingVerdict)
+async def confirm_flag(submission_id: UUID, rule_id: UUID, data: FlagConfirmRequest, user_id: CurrentUser):
+    """Say a flag on the version in review is right. It's kept as an example for the contextual check."""
+    return await flag_review_service.confirm(submission_id, rule_id, user_id, data)
+
+
+@router.delete("/{submission_id}/flags/{rule_id}/confirm", status_code=status.HTTP_204_NO_CONTENT)
+async def unconfirm_flag(submission_id: UUID, rule_id: UUID, user_id: CurrentUser):
+    """Take back a confirmation."""
+    await flag_review_service.unconfirm(submission_id, rule_id, user_id)
 
 
 @router.get("/{submission_id}/comments", response_model=List[ReviewComment])

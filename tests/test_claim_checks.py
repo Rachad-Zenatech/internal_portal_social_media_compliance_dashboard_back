@@ -1,7 +1,10 @@
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from models.compliance.compliance_model import ComplianceCheckRequest
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from models.compliance.compliance_model import ComplianceCheckRequest, ComplianceRule
 from services.compliance import claim_checks, compliance_service
 
 # The text read from the "$25M contract" graphic, line breaks and all.
@@ -29,11 +32,23 @@ class ClaimCheckTests(unittest.TestCase):
     def test_the_contract_graphic_trips_every_check(self):
         found = fired(CONTRACT_GRAPHIC)
 
-        self.assertEqual(set(found), {c.rule_number for c in claim_checks.CHECKS})
+        # The performance-figure check looks for measured results, which the graphic doesn't carry.
+        self.assertEqual(set(found), {c.rule_number for c in claim_checks.CHECKS if c.key != "performance-figure"})
         self.assertIn("$25m", found["Claim check 4"].flagged_terms)
         self.assertIn("major global company", found["Claim check 5"].flagged_terms)
         self.assertIn("officially approved", found["Claim check 3"].flagged_terms)
         self.assertIn("already in deployment", found["Claim check 6"].flagged_terms)
+
+    def test_measured_results_and_figures_need_a_source_but_cost_nothing(self):
+        for text, check in [
+            ("Our drone reduces inventory counting time by 60%.", "Claim check 7"),
+            ("It is 40% faster than manual counting.", "Claim check 7"),
+            ("Replaced a $38,000 handgrip with a $30 controller.", "Claim check 4"),
+        ]:
+            with self.subTest(text=text):
+                finding = fired(text)[check]
+                self.assertEqual((finding.status, finding.penalty), ("EVIDENCE_REQUIRED", 0))
+        self.assertNotIn("Claim check 7", fired("Save 50% off today"))
 
     def test_ordinary_posts_are_left_alone(self):
         for text in [
@@ -66,12 +81,12 @@ class ClaimCheckTests(unittest.TestCase):
 
 
 class ScoreWithClaimChecksTests(unittest.IsolatedAsyncioTestCase):
-    async def check(self, text, ai_fn=None):
-        passthrough = AsyncMock(side_effect=lambda req, rules, cand, padded_text: cand)
+    async def check(self, text):
+        # No vector store or model: only the wording-based findings.
         with (
             patch.object(compliance_service, "applicable_rules", new=AsyncMock(return_value=[])),
             patch.object(compliance_service, "rulebook_version", new=AsyncMock(return_value=None)),
-            patch.object(compliance_service, "_refine_violations_with_ai", new=ai_fn or passthrough),
+            patch.object(compliance_service, "_semantic_findings", new=AsyncMock(return_value=[])),
         ):
             return await compliance_service.check_compliance(ComplianceCheckRequest(text=text))
 
@@ -86,30 +101,46 @@ class ScoreWithClaimChecksTests(unittest.IsolatedAsyncioTestCase):
         result = await self.check("Happy Thanksgiving from the ZenaTech family!")
         self.assertEqual(result.score, 100)
 
-    async def test_ai_viability_check_drops_false_positive_keyword_flags(self):
+    async def test_figures_need_a_source_but_are_not_violations(self):
+        result = await self.check("A typical battery swap costs $30 while older sensors cost $38,000.")
+
+        self.assertEqual((result.violations_count, result.evidence_count), (0, 1))
+        self.assertEqual(result.score, 100)
+        # Something still needs a look, so it isn't green, and it can't be approved by accident as "no issues".
+        self.assertEqual(result.traffic_light, "YELLOW")
+        self.assertFalse(result.is_compliant)
+        self.assertEqual(result.violations[0].status, "EVIDENCE_REQUIRED")
+
+    async def test_semantic_matches_are_things_to_check_not_violations(self):
+        now = datetime.now(timezone.utc)
+        rule = ComplianceRule(
+            id=uuid4(), rule_number="Rule 16", category="Claims", title="Separate Vision from Current Capability",
+            summary="s", created_at=now, updated_at=now, severity="HIGH", traffic_light="YELLOW",
+        )
+        answer = type("Resp", (), {"text": (
+            '{"semantic_violations": ['
+            '{"rule_number": "Rule 16", "quote": "our drones already guard every border", "explanation": "Presents a '
+            'future capability as current.", "confidence": 0.9},'
+            '{"rule_number": "Rule 16", "quote": "words that are not in the post", "explanation": "x", "confidence": 0.99}'
+            "]}"
+        )})()
         await compliance_service._ai_check_cache.clear()
-        fake_ai_response = type("Resp", (), {
-            "text": (
-                '{"candidate_decisions": ['
-                '{"rule_number": "Claim check 4", "viable": false, '
-                '"explanation": "Industry cost example ($30 and $38,000), not a ZenaTech financial earnings claim.", '
-                '"flagged_terms": []}'
-                '], "semantic_violations": []}'
-            )
-        })()
         with (
-            patch.object(compliance_service, "applicable_rules", new=AsyncMock(return_value=[])),
+            patch.object(compliance_service, "applicable_rules", new=AsyncMock(return_value=[rule])),
             patch.object(compliance_service, "rulebook_version", new=AsyncMock(return_value=None)),
-            patch.object(compliance_service, "_vector_context_for_check", new=AsyncMock(return_value=([], []))),
-            patch.object(compliance_service, "generate_content_with_fallback", new=AsyncMock(return_value=fake_ai_response)),
+            patch.object(compliance_service, "_vector_context_for_check", new=AsyncMock(return_value=([rule], []))),
+            patch.object(compliance_service, "generate_content_with_fallback", new=AsyncMock(return_value=answer)),
             patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}),
         ):
             result = await compliance_service.check_compliance(
-                ComplianceCheckRequest(text="A typical battery swap costs $30 while older sensors cost $38,000.")
+                ComplianceCheckRequest(text="Good news: our drones already guard every border.")
             )
-        self.assertTrue(result.is_compliant)
-        self.assertEqual(result.score, 100)
-        self.assertEqual(result.violations, [])
+
+        # One finding: the quote that is in the post. It costs nothing and doesn't block.
+        self.assertEqual([v.status for v in result.violations], ["NEEDS_REVIEW"])
+        self.assertEqual((result.violations_count, result.review_count, result.score), (0, 1, 100))
+        self.assertEqual(result.violations[0].flagged_terms, ["our drones already guard every border"])
+        self.assertIn("by meaning", result.violations[0].explanation)
 
 
 if __name__ == "__main__":

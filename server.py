@@ -180,6 +180,12 @@ async def lifespan(app: FastAPI):
     memory_task.add_done_callback(partial(log_background_task_result, task_name="review-memory-sync"))
     background_tasks.append(memory_task)
 
+    # 3d'. Reviewers' verdicts on flags, as examples for the contextual check (indexes any given while it was off)
+    from services.compliance.finding_precedent_service import remember_all_in_background as remember_verdicts
+    verdict_task = asyncio.create_task(remember_verdicts(), name="finding-precedent-sync")
+    verdict_task.add_done_callback(partial(log_background_task_result, task_name="finding-precedent-sync"))
+    background_tasks.append(verdict_task)
+
     # 3e. Open content checked against an older rulebook or older built-in claim checks is re-checked
     from services.compliance.submission_service import recheck_outdated_on_start
     recheck_task = asyncio.create_task(recheck_outdated_on_start(), name="outdated-check-recheck")

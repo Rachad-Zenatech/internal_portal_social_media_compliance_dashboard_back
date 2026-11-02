@@ -747,6 +747,58 @@ _BASE_RULES_SELECT = """
 """
 
 
+# Baseline rules whose wording trigger isn't enough to decide a breach (a historical mention, an opinion, a visual that
+# isn't final), so the AI reads the context first. Hard bans and required disclaimers stay plain rule matches. Applied
+# once per rule, while its guidance is empty, so editing or clearing it in the Rulebook is never undone.
+_CONTEXTUAL_BASELINE = {
+    "Rule 4": (
+        "Decide whether the post actually uses cleared U.S. Department of Defense visual information, a service's seal, "
+        "mark or personnel, or implies endorsement by a defense agency. VIOLATION: it says or shows endorsement, "
+        "partnership or approval by a defense agency, or says the footage is official DoD/DVIDS material without the "
+        "disclaimer. NEEDS_REVIEW: the passage only names a service or agency (e.g. 'a US Navy submarine in 2017') and "
+        "the footage or its source isn't stated, so the visual has to be checked: if it is cleared DoD visual "
+        "information the disclaimer is required. NO_VIOLATION: a plain factual or historical mention with no imagery or "
+        "endorsement involved."
+    ),
+    "Rule 9": (
+        "Decide whether the passage presents AI-generated, simulated or concept imagery as real. VIOLATION: it presents "
+        "generated or simulated imagery as real footage or a real photograph. NEEDS_REVIEW: it describes concept "
+        "animation or generated visuals (even one already described as 'clearly labeled' or 'licensed stock'), because "
+        "only the final video shows whether the on-screen concept label is there. NO_VIOLATION: the words 'concept' "
+        "or 'animation' are used in another sense (a business concept, a product concept, an animated discussion)."
+    ),
+    "Rule 16": (
+        "Decide who or what the sentence is about and whether it claims a CURRENT ZenaTech/ZenaDrone capability that is "
+        "really future, planned or unproven. VIOLATION: it states a future or unproven capability of the company's "
+        "product as present fact ('our drone solves...', 'guarantees', 'proves'). NO_VIOLATION: it refers to history "
+        "or to another technology, person or company; it is clearly framed as the speaker's opinion or prediction "
+        "('my bet', 'I think', 'in ten years'); or it is a hypothetical example not about the company's current "
+        "capabilities. NEEDS_REVIEW: it is about the company's future capability and it is unclear whether it is "
+        "framed as a goal or a fact."
+    ),
+    "Rule 24": (
+        "Decide whether the passage makes an absolute, superlative or unprovable PERFORMANCE claim about ZenaTech "
+        "products or services. VIOLATION: it claims the best, perfect, zero-failure, 100%, guaranteed or unmatched "
+        "performance of the company's product. NO_VIOLATION: it counts, compares or describes a scenario or "
+        "operating model ('1 drone = 1 person', 'nobody flies just one drone'), or is clearly framed as an opinion or "
+        "prediction. EVIDENCE_REQUIRED: it states a concrete, measurable result for the company's product "
+        "('reduces counting time by 60%') without saying where it comes from."
+    ),
+}
+
+
+async def _mark_contextual_rules(conn) -> None:
+    for number, guidance in _CONTEXTUAL_BASELINE.items():
+        await conn.execute(
+            """
+            UPDATE compliance_rules
+            SET evaluation_mode = 'CONTEXT', evaluation_guidance = $2, updated_at = NOW()
+            WHERE rule_number = $1 AND NOT is_custom AND evaluation_guidance IS NULL AND evaluation_mode = 'RULE'
+            """,
+            number, guidance,
+        )
+
+
 async def setup(reset: bool = False):
     """Create the tables and add any missing baseline rules.
 
@@ -809,7 +861,11 @@ async def setup(reset: bool = False):
             ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS disclaimer_triggers TEXT[] DEFAULT '{}'::text[];
             -- Phrases that cancel a match inside them (e.g. "not combat proven")
             ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS exception_terms TEXT[] DEFAULT '{}'::text[];
+            -- RULE: a match is a finding. CONTEXT: a match is a candidate the AI judges from the surrounding wording
+            ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS evaluation_mode VARCHAR(10) NOT NULL DEFAULT 'RULE';
+            ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS evaluation_guidance TEXT;
         """)
+        await _mark_contextual_rules(conn)
 
         # Scope columns. They're added without a default so the first run can tell which rows still
         # need their baseline scope; after the backfill below they're non-null with an empty default.
@@ -923,6 +979,8 @@ async def setup(reset: bool = False):
             """, primary_rb_id, _base_rules_json())
         else:
             await conn.execute(insert + " ON CONFLICT (rule_number) DO NOTHING", primary_rb_id, _base_rules_json())
+        # A fresh database only has the baseline rules now.
+        await _mark_contextual_rules(conn)
 
         logger.info("Compliance schema and rules successfully initialized!")
 

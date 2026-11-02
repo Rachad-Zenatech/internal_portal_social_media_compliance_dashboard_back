@@ -17,7 +17,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from models.compliance.compliance_model import ComplianceViolation
 
 # Bump when the checks change, so open content is re-checked on the next start (see rulebook_version).
-VERSION = "claims-2"
+VERSION = "claims-4"
 
 PENALTY_HIGH = 20
 PENALTY_MEDIUM = 10
@@ -39,6 +39,8 @@ class ClaimCheck:
     explanation: str
     remediation: str
     find: Callable[[str], List[str]]
+    # VIOLATION costs points. EVIDENCE_REQUIRED is a claim to be sourced before it goes out: shown as a warning, free.
+    status: str = "VIOLATION"
 
     @property
     def rule_id(self) -> UUID:
@@ -46,6 +48,8 @@ class ClaimCheck:
 
     @property
     def penalty(self) -> int:
+        if self.status != "VIOLATION":
+            return 0
         return PENALTY_HIGH if self.severity == "HIGH" else PENALTY_MEDIUM
 
 
@@ -74,6 +78,20 @@ _MONEY = re.compile(
 
 def _money(text: str) -> List[str]:
     return _snippets(_MONEY, text)
+
+
+# --- Measured performance results ------------------------------------------------------------------------------
+
+_PERFORMANCE = re.compile(
+    r"\b(?:reduc\w+|cut\w*|improv\w+|increas\w+|boost\w*|speed\w*|sav\w+|lower\w*|shorten\w*|accelerat\w+)\b"
+    r"[^.;\n]{0,45}?\b\d+(?:\.\d+)?\s?(?:%|percent|x|times)(?!\w)(?!\s+off\b)"
+    r"|\b\d+(?:\.\d+)?\s?(?:%|percent|x|times)\s+(?:faster|quicker|cheaper|more\s+(?:accurate|efficient|reliable)|"
+    r"less|fewer|lower|higher|better|reduction|improvement|savings|increase)\b"
+)
+
+
+def _performance(text: str) -> List[str]:
+    return _snippets(_PERFORMANCE, text)
 
 
 # --- Forward-looking financial statements ----------------------------------------------------------------------
@@ -218,10 +236,25 @@ CHECKS: List[ClaimCheck] = [
         title="Financial figure",
         category="Financial Disclosure",
         severity="MEDIUM",
-        explanation="Dollar amounts and growth percentages must match a public filing or press release exactly.",
-        remediation="Check every figure against the published source and keep the source with the post; remove "
-        "any figure that hasn't been published.",
+        explanation="Dollar amounts and growth percentages are factual claims. They need a source (a public filing, a "
+        "press release or the original report) that matches them exactly.",
+        remediation="Get the original source for every figure and keep it with the post; remove any figure that "
+        "can't be sourced.",
         find=_money,
+        status="EVIDENCE_REQUIRED",
+    ),
+    ClaimCheck(
+        key="performance-figure",
+        rule_number="Claim check 7",
+        title="Measured performance claim",
+        category="Substantiation",
+        severity="MEDIUM",
+        explanation="A measured result (a percentage or multiple saved, gained or improved) is a factual claim about a "
+        "product. It needs a source: a test, report or published study that supports it under the conditions stated.",
+        remediation="Keep the original test or report with the post, state the conditions it was measured under, and "
+        "remove the figure if it can't be sourced.",
+        find=_performance,
+        status="EVIDENCE_REQUIRED",
     ),
     ClaimCheck(
         key="unnamed-counterparty",
@@ -276,5 +309,6 @@ def find_claims(text: str) -> List[ComplianceViolation]:
             explanation=f"Found: {_quoted(hits[:4])}. {check.explanation}",
             remediation_guidance=check.remediation,
             penalty=check.penalty,
+            status=check.status,
         ))
     return out

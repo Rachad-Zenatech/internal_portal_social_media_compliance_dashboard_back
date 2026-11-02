@@ -240,6 +240,30 @@ async def setup():
             );
             CREATE INDEX IF NOT EXISTS idx_flag_reviews_rule ON flag_reviews(rule_number);
 
+            -- Reviewers' verdicts on findings, as labelled examples the contextual check learns from: the flag was
+            -- right (CORRECT) or a false alarm (OVER_FLAGGED, which is every dismissal). One per rule per version.
+            CREATE TABLE IF NOT EXISTS finding_verdicts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                submission_id UUID NOT NULL REFERENCES content_submissions(id) ON DELETE CASCADE,
+                version_number INT NOT NULL,
+                rule_id UUID NOT NULL,
+                rule_number VARCHAR(50) NOT NULL,
+                verdict VARCHAR(20) NOT NULL,
+                reason VARCHAR(40),
+                note TEXT,
+                passage TEXT,
+                context TEXT,
+                flagged_terms TEXT[] NOT NULL DEFAULT '{}',
+                -- What the check said when the reviewer made the call (VIOLATION, NEEDS_REVIEW, ...), and what the AI
+                -- decided when the rule is judged in context.
+                finding_status VARCHAR(20),
+                ai_decision VARCHAR(20),
+                decided_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                decided_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                UNIQUE (submission_id, version_number, rule_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_finding_verdicts_rule ON finding_verdicts(rule_id);
+
             -- Review comments: what the reviewer wants changed (optionally pinned to a moment in a video), and the
             -- creator's replies. Tied to the version they were written on, so the history reads correctly.
             CREATE TABLE IF NOT EXISTS content_review_comments (

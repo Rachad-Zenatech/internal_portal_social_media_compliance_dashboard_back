@@ -35,6 +35,26 @@ class FlagReview(BaseModel):
     decided_at: datetime
 
 
+FindingVerdictKind = Literal["CORRECT", "OVER_FLAGGED"]
+
+
+class FlagConfirmRequest(BaseModel):
+    note: Optional[str] = Field(None, max_length=500)
+
+
+class FindingVerdict(BaseModel):
+    """A reviewer's call on a finding, kept as a labelled example: the flag was right, or it was a false alarm."""
+    rule_id: UUID
+    rule_number: str
+    version_number: int
+    verdict: FindingVerdictKind
+    reason: Optional[str] = None
+    reason_label: Optional[str] = None
+    note: Optional[str] = None
+    decided_by_name: Optional[str] = None
+    decided_at: datetime
+
+
 class RuleFlagStats(BaseModel):
     rule_number: str
     # Submitted versions this rule flagged, and how many of those flags reviewers dismissed.
