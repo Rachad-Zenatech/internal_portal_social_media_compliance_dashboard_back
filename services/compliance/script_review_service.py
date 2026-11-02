@@ -361,8 +361,8 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
     where, order = _QUEUE_TABS[tab]
     rows = await fetch_all(
         f"""
-        SELECT s.id, s.reference_code, s.title, s.platforms, s.brand_code, s.audience, s.created_by,
-               s.approval_needed_by, s.script_status, s.updated_at, u.full_name AS creator_name,
+        SELECT s.id, s.reference_code, s.title, s.content_type, s.platforms, s.brand_code, s.audience, s.region,
+               s.rule_sets, s.created_by, s.approval_needed_by, s.script_status, s.updated_at, u.full_name AS creator_name,
                v.version_number, v.created_at AS sent_at, v.body AS script_body, v.check_result, v.reviewed_at
         FROM content_submissions s
         JOIN LATERAL (
@@ -382,11 +382,14 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
     for r in rows:
         check = subs._json(r["check_result"]) or {}
         if current_rb and check.get("rulebook_version") != current_rb and r.get("script_body"):
-            check = await check_text(r, r["script_body"])
-            await execute(
-                "UPDATE content_script_versions SET check_result = $3::jsonb WHERE submission_id = $1 AND version_number = $2",
-                r["id"], r["version_number"], json.dumps(check),
-            )
+            try:
+                check = await check_text(r, r["script_body"])
+                await execute(
+                    "UPDATE content_script_versions SET check_result = $3::jsonb WHERE submission_id = $1 AND version_number = $2",
+                    r["id"], r["version_number"], json.dumps(check),
+                )
+            except Exception as e:
+                logger.warning("Failed to re-check script version on the fly: %s", e)
         items.append(ScriptQueueItem(
             id=r["id"], reference_code=r["reference_code"], title=r["title"], platforms=list(r["platforms"] or []),
             brand_code=r["brand_code"], audience=r["audience"], creator_name=r["creator_name"],
