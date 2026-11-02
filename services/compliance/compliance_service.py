@@ -383,7 +383,7 @@ def _term_pattern(term: str) -> Optional["re.Pattern[str]"]:
     if not any(parts):
         return None
     # Each gap is "up to three words, then a space", so "a * b" matches "a b" and "a x y b".
-    gap = r"(?: \S+){0,3} "
+    gap = r"(?: \S+){0,3}? "
     body = gap.join(re.escape(p) for p in parts)
     return re.compile(rf"(?<!\S){body}(?!\S)")
 
@@ -412,10 +412,31 @@ def _spans(term: str, padded_text: str) -> List[Tuple[int, int]]:
     return [m.span() for m in pattern.finditer(padded_text)] if pattern else []
 
 
-def _hit(term: str, padded_text: str, exceptions: List[str]) -> bool:
+# A prohibited phrase straight after one of these is being denied ("no guaranteed returns"), not claimed. "t" is what
+# "don't", "can't" and "won't" leave once punctuation is stripped.
+_NEGATORS = frozenset({"no", "not", "never", "without", "nor", "neither", "cannot", "t"})
+
+
+# "do not offer guaranteed returns": a negator, one of these verbs, then the phrase.
+_DENIED_VERBS = frozenset({"offer", "promise", "guarantee", "make", "give", "provide", "claim", "expect", "imply",
+                           "ensure", "suggest", "promising", "offering", "guaranteeing", "making", "claiming"})
+
+
+def _negated(padded_text: str, start: int) -> bool:
+    """Whether the phrase at `start` is denied: a negator right before it, or before one verb that precedes it."""
+    before = padded_text[:start].rstrip().rsplit(" ", 2)[-2:]
+    if before[-1] in _NEGATORS:
+        return True
+    return len(before) == 2 and before[-1] in _DENIED_VERBS and before[0] in _NEGATORS
+
+
+def _hit(term: str, padded_text: str, exceptions: List[str], honor_negation: bool = False) -> bool:
     """A phrase counts unless every place it occurs sits inside one of the rule's exceptions, so "not combat
-    proven" doesn't trip "combat proven" but "not just talk: combat proven" still does."""
+    proven" doesn't trip "combat proven" but "not just talk: combat proven" still does. With honor_negation, a
+    phrase straight after "no", "not", "never" or "without" doesn't count either ("no guaranteed returns")."""
     spans = _spans(term, padded_text)
+    if honor_negation:
+        spans = [(a, b) for a, b in spans if not _negated(padded_text, a)]
     if not spans or not exceptions:
         return bool(spans)
     excused = [e for x in exceptions for e in _spans(x, padded_text)]
@@ -676,7 +697,9 @@ def _evaluate_rule(rule: ComplianceRule, padded_text: str,
     def found(term: str) -> bool:
         return _hit(term, padded_text, exceptions) or _hashtag_hit(term, hashtag_keys, exceptions)
 
-    flagged = [t for t in rule.prohibited_terms if found(t)]
+    # Saying a post makes no such promise ("No guaranteed returns") isn't making it, so a negated phrase doesn't flag.
+    flagged = [t for t in rule.prohibited_terms
+               if _hit(t, padded_text, exceptions, honor_negation=True) or _hashtag_hit(t, hashtag_keys, exceptions)]
 
     # Required disclaimers: needed when one of the rule's trigger phrases appears (or always, if it has
     # none). Any one of the listed disclaimers satisfies the rule.
