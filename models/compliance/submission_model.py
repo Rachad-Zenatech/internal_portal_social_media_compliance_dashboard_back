@@ -127,6 +127,7 @@ class SubmissionFile(BaseModel):
     transcript_error: Optional[str] = None
     # Scripts and article files: their text is read in the background so the check screens it.
     # NULL (not read yet), PROCESSING, COMPLETED or FAILED (doc_text_error says why, in words the creator can act on).
+    doc_text: Optional[str] = None
     doc_text_status: Optional[str] = None
     doc_text_error: Optional[str] = None
     # Where it came from. CANVA files remember the design and revision, so the creator can reimport the latest.

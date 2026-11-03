@@ -42,6 +42,8 @@ class ScriptStage(BaseModel):
     file_name: Optional[str] = None
     file_status: Optional[str] = None
     file_error: Optional[str] = None
+    file_text: Optional[str] = None
+    file_url: Optional[str] = None
     # For the viewer.
     can_submit: bool = False
     can_review: bool = False

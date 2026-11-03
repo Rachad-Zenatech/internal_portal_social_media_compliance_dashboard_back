@@ -170,6 +170,7 @@ def _file_out(submission_id: UUID, row: Dict[str, Any]) -> SubmissionFile:
         transcript_status=row.get("transcript_status"),
         transcript=transcript,
         transcript_error=row.get("transcript_error"),
+        doc_text=row.get("doc_text"),
         doc_text_status=row.get("doc_text_status"),
         doc_text_error=row.get("doc_text_error"),
         source=row.get("source") or "UPLOAD",
@@ -291,7 +292,7 @@ async def _list_files(submission_id: UUID) -> List[Dict[str, Any]]:
     return await fetch_all(
         """
         SELECT id, kind, original_name, mime_type, size_bytes, created_at,
-               transcript, transcript_status, transcript_error, doc_text_status, doc_text_error,
+               transcript, transcript_status, transcript_error, doc_text, doc_text_status, doc_text_error,
                source, canva_design_id, canva_design_title, canva_revision
         FROM content_submission_files
         WHERE submission_id = $1 AND deleted_at IS NULL

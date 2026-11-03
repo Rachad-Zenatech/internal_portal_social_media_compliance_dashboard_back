@@ -133,6 +133,8 @@ async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
         file_name=file["original_name"] if file else None,
         file_status=file["doc_text_status"] if file else None,
         file_error=file["doc_text_error"] if file else None,
+        file_text=_clean(file["doc_text"]) if file and file.get("doc_text") else None,
+        file_url=f"/api/submissions/{submission_id}/files/{file['id']}" if file else None,
         can_submit=bool(status) and is_creator and editable and status in ("DRAFT", "CHANGES_REQUESTED"),
         can_review=status == "IN_REVIEW" and await _reviewer_may_act(row, user_id),
         can_respond=bool(status) and is_creator and editable and status in CREATOR_TURN,
