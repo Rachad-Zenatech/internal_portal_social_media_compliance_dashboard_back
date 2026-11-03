@@ -61,7 +61,7 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-6"
+SCOPE_VERSION = "scope-7"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
@@ -724,6 +724,10 @@ PENALTY_HIGH = 20
 PENALTY_OTHER = 10
 PENALTY_MISSING_DISCLAIMER = 20
 CRITICAL_SCORE_CAP = 40
+# A rule's penalty covers its first claim. Each further, separate claim under the same rule costs a little more, up
+# to a cap, so a post that breaks a rule eight times scores below one that breaks it once.
+EXTRA_CLAIM_PENALTY = 5
+EXTRA_CLAIM_CAP = 10
 
 
 def _quoted(items: Sequence[str]) -> str:
@@ -1132,6 +1136,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # Only violations cost points and block; the other findings are warnings that stay on the list.
     breaches = [v for v in violations if v.status == "VIOLATION"]
     _count_overlaps_once(breaches, padded_text)
+    _count_extra_claims(breaches, rules, padded_text)
     blocked = any(v.traffic_light == "RED" for v in breaches)
     needs_review = sum(1 for v in violations if v.status == "NEEDS_REVIEW")
     needs_evidence = sum(1 for v in violations if v.status == "EVIDENCE_REQUIRED")
@@ -1258,6 +1263,32 @@ def _count_overlaps_once(violations: List[ComplianceViolation], padded_text: str
             v.penalty = 0
             continue
         counted.extend((sp, v.rule_number) for sp in mine)
+
+
+def _count_extra_claims(violations: List[ComplianceViolation], rules: Sequence[ComplianceRule], padded_text: str) -> None:
+    """A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
+    up to EXTRA_CLAIM_CAP. Phrases that overlap are one claim ("guarantees * accuracy" and "100 * accuracy" in "guarantees 100% accuracy"), and
+    phrases that are denied ("no guaranteed returns") or sit inside an exception aren't claims. The extra points are
+    part of the finding's penalty, so a reviewer who dismisses it gets all of them back."""
+    by_number = {r.rule_number: r for r in rules}
+    for v in violations:
+        rule = by_number.get(v.rule_number)
+        if v.kind != "PROHIBITED_TERM" or v.penalty <= 0 or not rule:
+            continue
+        excused = [sp for x in (rule.exception_terms or []) for sp in _spans(x, padded_text)]
+        spans = sorted(
+            (a, b) for t in v.flagged_terms for a, b in _spans(t, padded_text)
+            if not _negated(padded_text, a) and not any(es <= a and b <= ee for es, ee in excused)
+        )
+        claims: List[List[int]] = []
+        for a, b in spans:
+            if claims and a < claims[-1][1]:
+                claims[-1][1] = max(claims[-1][1], b)
+            else:
+                claims.append([a, b])
+        extra = max(0, len(claims) - 1)
+        v.extra_claims = extra
+        v.penalty += min(extra * EXTRA_CLAIM_PENALTY, EXTRA_CLAIM_CAP)
 
 
 async def rulebook_version() -> Optional[str]:
