@@ -344,6 +344,15 @@ def _style(line: Dict[str, Any]) -> Tuple[int, int]:
     return round(last["size"]), last.get("color", 0)
 
 
+_ITEM_START = re.compile(r"^(?:\*\*|[\u2022\u00b7\u25cf\u25aa\u2013\u2014-]\s|\d+[.)]\s)")
+
+
+def _starts_item(line: Dict[str, Any]) -> bool:
+    """A line that begins its own paragraph however wide the one before it was: a label (written with ** in the file),
+    a bullet or a numbered item."""
+    return bool(_ITEM_START.match(_line_text(line)))
+
+
 def _block_lines(block: Dict[str, Any], body: float, repeated: set) -> List[str]:
     """A text block as paragraphs: its visual lines joined, except where the style changes or a short line ends one.
     A line set larger than the body is a heading."""
@@ -356,7 +365,7 @@ def _block_lines(block: Dict[str, Any], body: float, repeated: set) -> List[str]
         else:
             prev = groups[-1][-1]
             short = (prev["bbox"][2] - prev["bbox"][0]) < widest * 0.7
-            if _style(prev) != _style(ln) or short:
+            if _style(prev) != _style(ln) or short or _starts_item(ln):
                 groups.append([])
         groups[-1].append(ln)
     out: List[str] = []
@@ -377,6 +386,8 @@ def _block_lines(block: Dict[str, Any], body: float, repeated: set) -> List[str]
         if not text:
             continue
         heading = biggest >= body * PDF_HEADING_RATIO or (all_bold and biggest >= body * PDF_BOLD_HEADING_RATIO)
+        # A bullet drawn as a character becomes a list item.
+        text = re.sub(r"^[\u2022\u00b7\u25cf\u25aa]\s*", "- ", text)
         out.append("# " + text.replace("**", "") if heading and len(text) <= 160 else text)
     return out
 
