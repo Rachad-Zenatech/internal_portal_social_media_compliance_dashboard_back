@@ -54,7 +54,7 @@ from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.audit_service import log_audit_event
 from services.ai import ai_usage_service
 from services.compliance import approval_path_service, canva_service, flag_review_service, review_deadline_service, transcription_service
-from services.compliance import analysis_progress_service, document_layout, document_text_service, image_text_service, review_memory_service
+from services.compliance import analysis_progress_service, document_layout, document_text_service, image_text_service, review_memory_service, script_match
 from services.ai.ai_usage_service import AiLimitExceeded
 from services.compliance.compliance_service import CEO_BRAND, check_compliance, flag_segments
 from services.compliance.compliance_service import parts_for as compliance_parts_for
@@ -1116,13 +1116,16 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     await document_text_service.schedule_missing([d["id"] for d in documents if d["doc_text_status"] is None])
     # Once the script is approved, the approved wording (which may include the reviewer's edits) is what's checked.
     script = await approved_script(row)
+    # Once the video's speech is read, the video is scored on what it says: the script was already checked and
+    # approved on its own, and how far the video follows it is reported separately (script_match).
+    video_scored = bool(script and spoken)
     document_texts = [
         f"{'Script' if d['kind'] == 'SCRIPT' else 'Article'}:\n{d['doc_text']}"
         for d in documents
         if d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
         and not (script and d["kind"] == "SCRIPT")
     ]
-    if script:
+    if script and not video_scored:
         document_texts.insert(0, f"Script:\n{script}")
     # Scripts and articles carry their page, heading and table marks; the check reads the wording only.
     text = document_layout.plain_text(
@@ -1142,7 +1145,9 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         "images_pending": sum(1 for i in images if i["image_text_status"] in (None, "PROCESSING")),
         "images_failed": sum(1 for i in images if i["image_text_status"] == "FAILED"),
         # The same for the script (and a blog's article file). Failed ones say why, so the creator can fix it.
-        "includes_script": any(d["kind"] == "SCRIPT" and d["doc_text_status"] == "COMPLETED" for d in documents),
+        "includes_script": not video_scored and (
+            bool(script) or any(d["kind"] == "SCRIPT" and d["doc_text_status"] == "COMPLETED" for d in documents)
+        ),
         "documents_total": len(documents),
         "documents_read": sum(1 for d in documents if d["doc_text_status"] == "COMPLETED"),
         "documents_pending": sum(1 for d in documents if d["doc_text_status"] in (None, "PROCESSING")),
@@ -1151,6 +1156,8 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
             for d in documents if d["doc_text_status"] == "FAILED"
         ],
         "segment_flags": flag_segments(segments, result.violations),
+        # Does the video say what the approved script says? Only once the script is approved and the transcript read.
+        "script_match": script_match.compare(script, spoken) if script and segments else None,
     }
     # No score until the whole post has been read; screens show "Under review" until then.
     check["analysis_pending"] = analysis_pending(check)
