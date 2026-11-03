@@ -76,8 +76,8 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/review_memory_service.py (190 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/script_review_service.py (413 lines) - Script stage of a video post.
 - services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
-- services/compliance/sentiment/config.py (341 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
-- services/compliance/sentiment/engine.py (316 lines) - Gemini execution and model failover chain for sentiment analysis.
+- services/compliance/sentiment/config.py (348 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
+- services/compliance/sentiment/engine.py (317 lines) - Gemini execution and model failover chain for sentiment analysis.
 - services/compliance/sentiment/evidence.py (153 lines) - Verification of quotes and rule references in sentiment findings.
 - services/compliance/sentiment/feedback.py (139 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
 - services/compliance/sentiment/input_builder.py (344 lines) - Input building and prompt construction for sentiment analysis.

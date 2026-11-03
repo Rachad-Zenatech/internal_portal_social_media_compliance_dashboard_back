@@ -845,15 +845,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 
-## services/compliance/sentiment/config.py (341 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
+## services/compliance/sentiment/config.py (348 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
 - `_get_client` (def)
 - `_enum` (def)
+- `next_quota_reset` (def) - The next midnight Pacific time, when Gemini's daily quotas reset (in UTC).
 - `QuotaExhausted` (class) - Gemini's daily limit for a model is used up; it resets at reset_at (midnight Pacific).
     - `__init__` (def)
 - `ModelUnavailable` (class) - The model can't be used right now: it doesn't exist for this key (e.g.
     - `__init__` (def)
 
-## services/compliance/sentiment/engine.py (316 lines) - Gemini execution and model failover chain for sentiment analysis.
+## services/compliance/sentiment/engine.py (317 lines) - Gemini execution and model failover chain for sentiment analysis.
 - `_upload_video` (def) - Upload the submission's video to Gemini so the analysis can watch it.
 - `_delete_upload` (def)
 - `_image_bytes` (def) - An image ready to send: as is when Gemini reads it and it's small, otherwise a smaller JPEG (first frame of
