@@ -159,7 +159,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `NotificationCreate` (class)
 - `NotificationResponse` (class)
 
-## models/shared/oauth_connection_model.py (126 lines) - Pydantic models for Organization, Company, and OAuth connections.
+## models/shared/oauth_connection_model.py (127 lines) - Pydantic models for Organization, Company, and OAuth connections.
 - `OrganizationBase` (class)
 - `OrganizationCreate` (class)
 - `Organization` (class)
@@ -825,6 +825,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `query_text` (def) - The text a post is matched on: the same parts that are stored for past reviews.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
+## services/compliance/script_match.py (56 lines) - Script vs video.
+- `_words` (def)
+- `_shown` (def)
+- `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
+
 ## services/compliance/script_review_service.py (424 lines) - Script stage of a video post.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
@@ -934,7 +939,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 
-## services/compliance/submission_service.py (2381 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submission_service.py (2386 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -1462,6 +1467,15 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ImageTextSchedulingTests` (class)
     - `test_only_unread_or_abandoned_images_are_scheduled` (def)
     - `test_nothing_to_schedule_makes_no_query` (def)
+
+## tests/test_script_match.py (44 lines) - test script match
+- `ScriptMatchTests` (class)
+    - `test_same_words_match` (def)
+    - `test_small_transcription_noise_still_matches` (def)
+    - `test_added_claim_is_listed` (def)
+    - `test_dropped_passage_is_listed` (def)
+    - `test_different_video_is_a_mismatch` (def)
+    - `test_nothing_to_compare` (def)
 
 ## tests/test_security_fixes.py (127 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - `CaptionSanitizerTests` (class)

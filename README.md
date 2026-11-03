@@ -213,7 +213,12 @@ The AI pipeline's settings (all optional, with defaults) are listed under [AI Pi
 
 ### 4. Run Development Server
 ```bash
-uvicorn server:app --host 0.0.0.0 --port 8009 --reload
+./run_server_dev.sh
+```
+
+Or directly via Uvicorn (with `--timeout-graceful-shutdown 2` to release port 8009 cleanly on exit):
+```bash
+uvicorn server:app --host 0.0.0.0 --port 8009 --reload --timeout-graceful-shutdown 2
 ```
 Open API docs at `http://localhost:8009/docs`.
 

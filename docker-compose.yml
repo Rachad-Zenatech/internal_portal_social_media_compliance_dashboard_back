@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17
+    container_name: social_media_db_local
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: social_media_compliance_dev
+    ports:
+      - "3008:5432"
+    volumes:
+      - social_media_db_data_17:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d social_media_compliance_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  social_media_db_data_17:
