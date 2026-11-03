@@ -4,7 +4,9 @@ and the team's tuning of how posts and scripts are matched to it."""
 from typing import Annotated, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+import asyncio
+import logging
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
 from models.compliance.public_mood_model import (
     ListeningTopic,
@@ -59,3 +61,30 @@ async def ingest_x_comments(data: XIngestRequest, user_id: ManageUser):
     """Ingest scraped or collected X (Twitter) topics and comments, classify each comment as POSITIVE/NEGATIVE/NEUTRAL
     with confidence, save to `.data/x_listening_feed.json`, and sync into the listening pipeline."""
     return await svc.ingest_x_json(data)
+
+logger = logging.getLogger("listening_router")
+
+
+async def _run_scrape_and_refresh() -> None:
+    try:
+        from scripts import scrape_x_playwright as sxp
+        await sxp.build_live_x_listening_json()
+        await svc.list_topics(refresh=True)
+        await svc.list_trend_opportunities(refresh=True)
+    except Exception as exc:
+        logger.warning("Scrape background task failed: %s", exc)
+
+
+@router.post("/scrape")
+async def trigger_live_scrape(
+    background_tasks: BackgroundTasks,
+    user_id: CurrentUser,
+):
+    """Trigger live scraping of public X posts and news trends via Playwright + VADER,
+    updating the listening feed in the background. Designed to transition smoothly to live API."""
+    background_tasks.add_task(_run_scrape_and_refresh)
+    return {
+        "status": "started",
+        "message": "Scraping live X (Twitter) posts and news sentiment in the background...",
+        "source": "Playwright Scraper (Global News & Industry X Trends) + VADER Sentiment",
+    }

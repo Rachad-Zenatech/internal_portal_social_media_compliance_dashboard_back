@@ -211,6 +211,8 @@ class MqttServicePresence:
 
     async def _connection_supervisor(self):
         attempt = 0
+        ever_connected = False
+        max_initial_attempts = int(os.getenv("MQTT_MAX_RETRIES", "3"))
         while self._running:
             if not self._connected:
                 try:
@@ -230,9 +232,16 @@ class MqttServicePresence:
                         await asyncio.sleep(0.1)
                     if self._connected:
                         attempt = 0
+                        ever_connected = True
                 except Exception as exc:
                     logger.debug(f"[MQTT Presence] Connection attempt failed: {exc}")
                     attempt += 1
+                    if not ever_connected and attempt >= max_initial_attempts:
+                        logger.info(
+                            f"[MQTT Presence] Broker unavailable at {self.host}:{self.port} after {attempt} attempts, running without MQTT presence."
+                        )
+                        self._running = False
+                        break
                     base_delay = min(30.0, 1.0 * (2 ** min(attempt, 5)))
                     jitter = random.uniform(0.8, 1.2)
                     delay = base_delay * jitter
