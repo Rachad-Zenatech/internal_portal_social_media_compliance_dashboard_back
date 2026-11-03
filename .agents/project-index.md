@@ -28,7 +28,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - postgresql_db/schema_metadata.py (328 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
-- postgresql_db/schemas/setup_compliance_schema.py (999 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
+- postgresql_db/schemas/setup_compliance_schema.py (1067 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
 - postgresql_db/schemas/setup_context_schema.py (200 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
 - postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
 - postgresql_db/schemas/setup_listening_schema.py (92 lines) - Public mood: topics from the social listening source (Sprout Social, mocked for now), dated snapshots of how people feel about each one, ...
@@ -56,10 +56,10 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
 - services/compliance/caption_service.py (331 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
 - services/compliance/claim_checks.py (315 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
-- services/compliance/compliance_service.py (1354 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
-- services/compliance/context_evaluator.py (332 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+- services/compliance/compliance_service.py (1357 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+- services/compliance/context_evaluator.py (343 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/context_service.py (159 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
-- services/compliance/document_layout.py (408 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
+- services/compliance/document_layout.py (419 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
 - services/compliance/document_text_service.py (227 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - services/compliance/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
 - services/compliance/flag_review_service.py (342 lines) - Reviewers' calls on automated compliance flags.
@@ -74,17 +74,17 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - services/compliance/review_deadline_service.py (194 lines) - Review and revision deadlines.
 - services/compliance/review_memory_service.py (190 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
-- services/compliance/script_review_service.py (413 lines) - Script stage of a video post.
+- services/compliance/script_review_service.py (424 lines) - Script stage of a video post.
 - services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 - services/compliance/sentiment/config.py (348 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
-- services/compliance/sentiment/engine.py (317 lines) - Gemini execution and model failover chain for sentiment analysis.
+- services/compliance/sentiment/engine.py (313 lines) - Gemini execution and model failover chain for sentiment analysis.
 - services/compliance/sentiment/evidence.py (153 lines) - Verification of quotes and rule references in sentiment findings.
-- services/compliance/sentiment/feedback.py (139 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
+- services/compliance/sentiment/feedback.py (146 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
 - services/compliance/sentiment/input_builder.py (344 lines) - Input building and prompt construction for sentiment analysis.
 - services/compliance/sentiment/jobs.py (467 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
-- services/compliance/sentiment/media.py (63 lines) - Video frames and attached images for sentiment findings.
+- services/compliance/sentiment/media.py (66 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
-- services/compliance/submission_service.py (2361 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submission_service.py (2378 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/transcription_service.py (257 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
 - services/compliance/video_job_service.py (182 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
@@ -108,7 +108,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_dashboard_summary.py (107 lines) - test dashboard summary
 - tests/test_document_text.py (81 lines) - test document text
 - tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
-- tests/test_model_fallback.py (164 lines) - test model fallback
+- tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
 - tests/test_post_signals.py (93 lines) - test post signals
 - tests/test_review_decision.py (260 lines) - test review decision
 - tests/test_rulebook_check_coverage.py (164 lines) - test rulebook check coverage

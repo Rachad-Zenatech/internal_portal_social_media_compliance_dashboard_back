@@ -216,8 +216,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
 - `setup` (def)
 
-## postgresql_db/schemas/setup_compliance_schema.py (999 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
+## postgresql_db/schemas/setup_compliance_schema.py (1067 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
 - `_base_rules_json` (def)
+- `_add_baseline_terms` (def)
 - `_mark_contextual_rules` (def)
 - `setup` (def) - Create the tables and add any missing baseline rules.
 - `_main` (def)
@@ -502,7 +503,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_quoted` (def) - a", "b"'.
 - `find_claims` (def) - The built-in claim checks that fire on this text, as findings.
 
-## services/compliance/compliance_service.py (1354 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/compliance_service.py (1357 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def)
 - `_ai_viability_enabled` (def)
 - `_row_to_rule` (def)
@@ -551,7 +552,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `self_test_all` (def)
 - `get_compliance_stats` (def) - Retrieve aggregate compliance metrics.
 
-## services/compliance/context_evaluator.py (332 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+## services/compliance/context_evaluator.py (343 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - `_Result` (class)
 - `_Response` (class)
 - `_enum` (def)
@@ -576,7 +577,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_applies` (def)
 - `for_content` (def) - The active entries that apply to this content, in prompt order, trimmed to a sensible total size.
 
-## services/compliance/document_layout.py (408 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
+## services/compliance/document_layout.py (419 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
 - `page_marker` (def)
 - `_format_runs` (def) - Runs of (text, bold) as one line, each bold stretch wrapped in ** (spacing kept outside the marks).
 - `_cell` (def)
@@ -606,6 +607,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_line_text` (def)
 - `_repeated_lines` (def) - Lines that head or foot most pages (a running title, "Page 3"): shown as page breaks already, so left out.
 - `_style` (def) - The size and colour of a line's last words, which is what its text is set in after any bold label.
+- `_starts_item` (def) - A line that begins its own paragraph however wide the one before it was: a label (written with ** in the file),
 - `_block_lines` (def) - A text block as paragraphs: its visual lines joined, except where the style changes or a short line ends one.
 - `plain_text` (def) - The wording alone: page marks dropped, headings, bold and italics unmarked, list markers dropped, table cells
 
@@ -822,7 +824,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `query_text` (def) - The text a post is matched on: the same parts that are stored for past reviews.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/script_review_service.py (413 lines) - Script stage of a video post.
+## services/compliance/script_review_service.py (424 lines) - Script stage of a video post.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
 - `_status` (def)
@@ -832,6 +834,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_require_stage` (def)
 - `_reviewer_may_act` (def)
 - `get_stage` (def)
+- `_adopt_check` (def) - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
 - `_add_version` (def)
 - `_lock_status` (def) - Lock the post and make sure the script is still where the caller saw it (two people can act at once).
 - `_send_to_reviewers` (def)
@@ -854,7 +857,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ModelUnavailable` (class) - The model can't be used right now: it doesn't exist for this key (e.g.
     - `__init__` (def)
 
-## services/compliance/sentiment/engine.py (317 lines) - Gemini execution and model failover chain for sentiment analysis.
+## services/compliance/sentiment/engine.py (313 lines) - Gemini execution and model failover chain for sentiment analysis.
 - `_upload_video` (def) - Upload the submission's video to Gemini so the analysis can watch it.
 - `_delete_upload` (def)
 - `_image_bytes` (def) - An image ready to send: as is when Gemini reads it and it's small, otherwise a smaller JPEG (first frame of
@@ -865,7 +868,6 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_is_timeout` (def)
 - `_is_unavailable` (def)
 - `_models_to_try` (def) - The input's own model first, then the rest of the chain (unless fallback is off, e.g.
-- `next_quota_reset` (def) - The next midnight Pacific time, when Gemini's daily quotas reset (in UTC).
 - `_generate` (def) - Analyse with the first model in the chain that has allowance left and still exists.
 - `_generate_with` (def) - One model: retries brief rate limits and outages, and once on malformed output.
 
@@ -876,7 +878,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `finding_id` (def) - Stable id for a finding within its analysis, so reviewer feedback can point at it.
 - `_verify` (def)
 
-## services/compliance/sentiment/feedback.py (139 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
+## services/compliance/sentiment/feedback.py (146 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
 - `_feedback_map` (def)
 - `set_feedback` (def) - Record (or change) the reviewer's verdict on one finding.
 - `clear_feedback` (def)
@@ -925,13 +927,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `promote_due` (def) - Start scheduled analyses whose quota reset time has passed (all of them, or one submission's).
 - `scheduled_runs_loop` (def) - Background loop (started with the app): runs scheduled analyses once Gemini's daily limit has reset.
 
-## services/compliance/sentiment/media.py (63 lines) - Video frames and attached images for sentiment findings.
+## services/compliance/sentiment/media.py (66 lines) - Video frames and attached images for sentiment findings.
 - `video_frame` (def) - A JPEG of the analysed video at a moment (cached on disk), so a finding can show what was on screen.
 - `analysed_image` (def) - One of the images an analysis looked at (1 = the first), as (path, mime type), so a finding can show it.
 
 ## services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 
-## services/compliance/submission_service.py (2361 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submission_service.py (2378 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -976,6 +978,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `script_stage_on` (def) - Video posts created since the script stage existed have their script approved before the video.
 - `approved_script` (def) - The approved script's text, when the post went through the script stage and it was approved.
 - `_run_check` (def) - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
+- `_mirror_to_script_version` (def) - A check saved on the post while its script is with the reviewer is also the script version's check, so both
 - `run_initial_check` (def)
 - `_missing_for_submit` (def)
 - `_review_job` (def)
@@ -1358,7 +1361,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_tag_the_rules_flag_is_reported_with_its_rule` (def)
     - `test_a_disclaimer_rule_does_not_flag_a_tag` (def)
 
-## tests/test_model_fallback.py (164 lines) - test model fallback
+## tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
 - `result` (def)
 - `api_error` (def)
 - `SentimentModelChainTests` (class)
