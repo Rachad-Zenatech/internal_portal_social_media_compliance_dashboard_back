@@ -246,8 +246,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (518 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (545 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
+- `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
 - `_seed_demo_social_accounts` (def) - Insert the demo organic social accounts that aren't there yet, flagged demo_seed in their metadata.
 - `_main` (def)
@@ -552,7 +553,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `self_test_all` (def)
 - `get_compliance_stats` (def) - Retrieve aggregate compliance metrics.
 
-## services/compliance/context_evaluator.py (343 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+## services/compliance/context_evaluator.py (350 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - `_Result` (class)
 - `_Response` (class)
 - `_enum` (def)
@@ -933,7 +934,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 
-## services/compliance/submission_service.py (2378 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submission_service.py (2379 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
