@@ -32,7 +32,7 @@ from services.compliance.sentiment.config import (
     MODEL_CHAIN,
     QUOTA_TZ,
     VIDEO_READY_TIMEOUT_SEC,
-    _RESPONSE_SCHEMA,
+    RESPONSE_SCHEMA,
     _get_client,
 )
 from services.compliance.sentiment.input_builder import _model_for, _prompt
@@ -313,4 +313,4 @@ async def _generate_with(client: genai.Client, model: str, inp: Dict[str, Any], 
         raise ModelUnavailable(model, "was too busy") from last_error
     raise RuntimeError(f"Gemini didn't return a valid assessment: {last_error}")
 
-
+
