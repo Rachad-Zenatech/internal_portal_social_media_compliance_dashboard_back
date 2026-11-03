@@ -372,11 +372,38 @@ async def setup():
             ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, is_active = true;
         """)
         await _retire_product_brands(conn)
+        await _sync_script_checks(conn)
 
         if os.getenv("APP_ENV", "development").lower() != "production":
             await _seed_demo_social_accounts(conn)
 
         logger.info("Content submission schema setup successfully completed!")
+
+
+async def _sync_script_checks(conn):
+    """While a script is still being decided, the post's saved check and its latest script version's check are the same
+    check (see script_review_service._adopt_check). Brings older rows into line: the newer of the two is copied to the
+    other, so the creator and the reviewer see one score. Safe on every start: matching rows are left as they are."""
+    await conn.execute("""
+        WITH latest AS (
+            SELECT s.id, s.latest_check AS post, v.check_result AS script, v.version_number,
+                   coalesce((s.latest_check->>'checked_at')::timestamptz, 'epoch'::timestamptz) AS post_at, v.created_at AS script_at
+            FROM content_submissions s
+            JOIN content_script_versions v ON v.submission_id = s.id
+             AND v.version_number = (SELECT max(version_number) FROM content_script_versions WHERE submission_id = s.id)
+            WHERE s.deleted_at IS NULL AND s.script_status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'EDITS_PROPOSED')
+              AND v.check_result IS NOT NULL AND s.latest_check IS DISTINCT FROM v.check_result
+        ), to_script AS (
+            UPDATE content_script_versions v SET check_result = l.post
+            FROM latest l
+            WHERE l.post IS NOT NULL AND l.post_at > l.script_at AND v.submission_id = l.id AND v.version_number = l.version_number
+            RETURNING v.submission_id
+        )
+        UPDATE content_submissions s
+        SET latest_check = coalesce(l.post, '{}'::jsonb) || l.script || '{"analysis_pending": false, "documents_pending": 0}'::jsonb
+        FROM latest l
+        WHERE s.id = l.id AND (l.post IS NULL OR l.post_at <= l.script_at)
+    """)
 
 
 # Individual software products that used to be separate brands; they're filed under "Software Brands" now.

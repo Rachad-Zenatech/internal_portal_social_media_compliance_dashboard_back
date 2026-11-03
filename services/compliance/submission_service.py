@@ -1164,7 +1164,8 @@ async def _mirror_to_script_version(conn, submission_id: UUID, check: Dict[str, 
         """
         UPDATE content_script_versions v SET check_result = $2::jsonb
         FROM content_submissions s
-        WHERE s.id = $1 AND v.submission_id = s.id AND s.script_status = 'IN_REVIEW'
+        WHERE s.id = $1 AND v.submission_id = s.id
+          AND s.script_status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'EDITS_PROPOSED')
           AND v.version_number = (SELECT max(version_number) FROM content_script_versions WHERE submission_id = $1)
         """,
         submission_id, json.dumps(check),

@@ -51,9 +51,11 @@ logger = logging.getLogger(__name__)
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused.
 PROMPT_VERSION = "context-v2"
 MODELS = [m.strip() for m in os.getenv(
-    "CONTEXT_EVAL_MODELS", os.getenv("SENTIMENT_MODELS", "gemini-2.5-flash,gemini-3.8-flash,gemini-3.5-flash")
+    "CONTEXT_EVAL_MODELS", os.getenv("SENTIMENT_MODELS", "gemini-2.5-flash,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite")
 ).split(",") if m.strip()]
 TIMEOUT_SEC = int(os.getenv("CONTEXT_EVAL_TIMEOUT_SEC", "40"))
+# Pause before the second pass over the models when none could answer the first time.
+RETRY_PAUSE_SEC = float(os.getenv("CONTEXT_EVAL_RETRY_PAUSE_SEC", "3"))
 # Below this, a model that says "no violation" isn't believed; it becomes a review item.
 CLEAR_MIN_CONFIDENCE = float(os.getenv("CONTEXT_EVAL_CLEAR_MIN_CONFIDENCE", "0.8"))
 BATCH_SIZE = 10
@@ -235,17 +237,22 @@ async def _judge(batch: List[Tuple[int, Candidate]], guard: Any) -> Tuple[Dict[i
     """One request for a batch, trying each model in turn. Returns the answers by index and the model that gave them."""
     items = [_item(i, c) for i, c in batch]
     wanted = {str(i): i for i, _ in batch}
-    for model in MODELS:
-        try:
-            response = await _ask(model, items, guard)
-        except Exception as e:
-            # Quota, a busy or retired model, a timeout or a malformed answer: the next model gets a go.
-            level = logging.INFO if (is_rotatable_model_error(e) or isinstance(e, ValueError)) else logging.WARNING
-            logger.log(level, "Context evaluation: %s couldn't answer (%s); trying the next model", model, str(e)[:160])
-            continue
-        # Only answers to items that were actually asked, once each.
-        answers = {wanted[r.id]: r for r in response.results if r.id in wanted}
-        return answers, model
+    # Two passes over the models: a timeout or a busy model is often fine a few seconds later, and a finding that no model
+    # read is left for a person, so it is worth one more try.
+    for sweep in range(2):
+        if sweep:
+            await asyncio.sleep(RETRY_PAUSE_SEC)
+        for model in MODELS:
+            try:
+                response = await _ask(model, items, guard)
+            except Exception as e:
+                # Quota, a busy or retired model, a timeout or a malformed answer: the next model gets a go.
+                level = logging.INFO if (is_rotatable_model_error(e) or isinstance(e, ValueError)) else logging.WARNING
+                logger.log(level, "Context evaluation: %s couldn't answer (%s); trying the next model", model, str(e)[:160])
+                continue
+            # Only answers to items that were actually asked, once each.
+            answers = {wanted[r.id]: r for r in response.results if r.id in wanted}
+            return answers, model
     return {}, None
 
 
