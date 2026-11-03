@@ -212,7 +212,7 @@ async def get_history(submission_id: UUID, user_id: CurrentUser):
 async def get_sentiment(submission_id: UUID, user_id: CurrentUser, version: Optional[int] = Query(None, ge=0)):
     """Latest sentiment analysis (or null). While it runs, poll this for the status. With a version, the latest
     analysis of that version, as it was."""
-    await svc.get_submission(submission_id, user_id)  # access check
+    await svc._get_owned_row(submission_id, user_id, manager_can_read=True)  # access check
     if version is not None:
         return await sentiment_service.get_for_version(submission_id, version, viewer=user_id)
     return await sentiment_service.get_latest(submission_id, viewer=user_id)

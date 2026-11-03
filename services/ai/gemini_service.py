@@ -51,14 +51,14 @@ def is_rotatable_model_error(e: Exception) -> bool:
     """
     if isinstance(e, errors.APIError):
         code = getattr(e, "code", getattr(e, "status", None))
-        if code in (400, 404, 429, 503):
+        if code in (400, 404, 429, 503, 504):
             return True
 
         msg = str(e).lower()
         if any(k in msg for k in [
             "404", "not found", "no longer available", "not available",
             "429", "503", "resource_exhausted", "quota exceeded",
-            "too many requests", "unavailable", "high demand",
+            "too many requests", "unavailable", "high demand", "deadline_exceeded", "deadline expired", "deadline_exceeded", "deadline expired",
             "is not supported", "invalid model", "deprecated"
         ]):
             return True
