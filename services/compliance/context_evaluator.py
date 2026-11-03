@@ -15,7 +15,8 @@ The model can only make a finding more lenient with evidence of its own, so:
 - clearing needs the exact words it relied on, found in the passage, and a high confidence;
 - text that looks like an attempt to steer the model is never cleared;
 - the content is passed as data, and the model is told never to follow it;
-- when no model can answer, the rule's own answer (a violation) stands.
+- when no model can answer (quota, a timeout, malformed output), the finding is a needs-review item, never a violation
+  and never cleared: nothing was learned about it, so it neither costs points nor passes.
 Everything it decided is kept on the finding (ContextEvaluation) for audit.
 
 Past verdicts help. When reviewers have already called similar wording under the same rule, a flag they confirmed or
@@ -253,9 +254,19 @@ def _apply(c: Candidate, result: Optional[_Result], model: Optional[str], inject
     f = c.finding
     rule_decision = "VIOLATION"
     if result is None or result.status not in STATUS_BY_MODEL:
+        # It couldn't be read: a person checks it. The wording matched, so it isn't dropped; but a match that was never
+        # read in context isn't proof of a breach either, so it costs nothing.
+        quoted = ", ".join(f'"{t}"' for t in f.flagged_terms[:4])
+        reasoning = (
+            f"The wording matched ({quoted}) but it couldn't be read in context just now, because no model was "
+            "available. A person needs to check whether the rule really applies."
+        )
+        f.status = "NEEDS_REVIEW"
+        f.penalty, f.uncounted_penalty, f.counted_with = 0, 0, None
+        f.traffic_light = "YELLOW"
+        f.explanation = reasoning
         f.evaluation = ContextEvaluation(
-            decision="VIOLATION", reasoning="No model could read this in context, so the rule's own match stands.",
-            rule_decision=rule_decision, source="UNAVAILABLE",
+            decision="NEEDS_REVIEW", reasoning=reasoning, rule_decision=rule_decision, source="UNAVAILABLE",
         )
         return
     status = STATUS_BY_MODEL[result.status]

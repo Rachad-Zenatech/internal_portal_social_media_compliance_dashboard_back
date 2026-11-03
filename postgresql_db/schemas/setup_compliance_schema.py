@@ -761,11 +761,17 @@ _CONTEXTUAL_BASELINE = {
         "endorsement involved."
     ),
     "Rule 9": (
-        "Decide whether the passage presents AI-generated, simulated or concept imagery as real. VIOLATION: it presents "
-        "generated or simulated imagery as real footage or a real photograph. NEEDS_REVIEW: it describes concept "
-        "animation or generated visuals (even one already described as 'clearly labeled' or 'licensed stock'), because "
-        "only the final video shows whether the on-screen concept label is there. NO_VIOLATION: the words 'concept' "
-        "or 'animation' are used in another sense (a business concept, a product concept, an animated discussion)."
+        "Decide whether the passage presents AI-generated, simulated or concept imagery as real, by what KIND of visual "
+        "it is. NO_VIOLATION: an educational or explanatory animation or diagram (for example an animation of how a "
+        "radio technique, a process or an idea works), a historical illustration, patent drawing or archive image, "
+        "licensed stock, or the words 'concept', 'animation' or 'visualization' used in another sense (a business "
+        "concept, an animated discussion). An explainer animation is not a fabricated photograph. NEEDS_REVIEW: a "
+        "conceptual render or visualization of the company's product, a future use or a defense scenario (even one "
+        "already described as 'clearly labeled'), because only the final video shows whether the 'Conceptual "
+        "visualization' label is on screen; or an animation that could be mistaken for real footage of an operation, "
+        "test or deployment. VIOLATION: AI-generated or simulated imagery, photorealistic scenes or synthetic military "
+        "footage presented as real footage of a real operation, test, deployment or customer. Actual military footage is "
+        "a different rule (4 and 13), not this one."
     ),
     "Rule 16": (
         "Decide who or what the sentence is about and whether it claims a CURRENT ZenaTech/ZenaDrone capability that is "
@@ -776,6 +782,18 @@ _CONTEXTUAL_BASELINE = {
         "capabilities. NEEDS_REVIEW: it is about the company's future capability and it is unclear whether it is "
         "framed as a goal or a fact."
     ),
+    "Rule 19": (
+        "Decide whether the passage depicts or discusses an ACTUAL ZenaTech/ZenaDrone test, demonstration or customer "
+        "pilot, and whether it implies selection, adoption or validation by a customer or government. VIOLATION: it "
+        "presents a real test, demo or pilot of the company's product as validation, selection or deployment ('the "
+        "military puts ZenaDrone to the test', 'warfighters validate ZenaDrone', 'customer deploys ZenaDrone'), or "
+        "publishes real test or pilot imagery or results as if released. NEEDS_REVIEW: it describes a real company "
+        "test, demo or pilot and nothing says the organization, people, location and result are cleared for release. "
+        "NO_VIOLATION: it names a military branch, agency or customer only as a historical, third-party or general "
+        "reference (e.g. 'that happened on a US Navy submarine in 2017') with no ZenaTech test, demo or pilot "
+        "involved and no claim of selection, adoption or validation. Naming an organization is not by itself a "
+        "relationship, a test, an endorsement or a customer."
+    ),
     "Rule 24": (
         "Decide whether the passage makes an absolute, superlative or unprovable PERFORMANCE claim about ZenaTech "
         "products or services. VIOLATION: it claims the best, perfect, zero-failure, 100%, guaranteed or unmatched "
@@ -784,6 +802,45 @@ _CONTEXTUAL_BASELINE = {
         "prediction. EVIDENCE_REQUIRED: it states a concrete, measurable result for the company's product "
         "('reduces counting time by 60%') without saying where it comes from."
     ),
+}
+
+
+# Phrases added to baseline rules after the first release. They are merged into rules already in the database, so a
+# rulebook that was seeded earlier catches them too. Rule 19's phrases only route a real demo or pilot to the context
+# check (release and authorization), they are not violations on their own.
+_ADDED_BASELINE_TERMS = {
+    "Rule 19": [
+        "customer demonstration", "demonstration at a customer", "demonstration for a customer", "customer facility",
+        "customer site", "customer pilot", "pilot completed", "completed a pilot", "completed a demonstration",
+        "customer employees", "real demonstration", "live demonstration", "demonstration footage",
+    ],
+    "Rule 24": [
+        "guarantees * accuracy", "guaranteed * accuracy", "100 * accuracy", "100 * accurate", "never misses",
+        "never makes mistakes", "never makes a mistake", "never makes errors", "perfect results", "perfect accuracy",
+        "every single time", "flawless", "error free", "zero errors", "zero mistakes",
+    ],
+}
+
+
+async def _add_baseline_terms(conn) -> None:
+    for number, terms in _ADDED_BASELINE_TERMS.items():
+        await conn.execute(
+            """
+            UPDATE compliance_rules
+            SET prohibited_terms = prohibited_terms || ARRAY(
+                    SELECT t FROM unnest($2::text[]) AS t WHERE NOT (t = ANY(prohibited_terms))
+                ),
+                updated_at = NOW()
+            WHERE rule_number = $1 AND NOT is_custom
+              AND EXISTS (SELECT 1 FROM unnest($2::text[]) AS t WHERE NOT (t = ANY(prohibited_terms)))
+            """,
+            number, terms,
+        )
+
+
+# How an earlier baseline guidance began, so a rule still carrying it (never edited in the Rulebook) is brought up to date.
+_EARLIER_GUIDANCE_STARTS = {
+    "Rule 9": "Decide whether the passage presents AI-generated, simulated or concept imagery as real. VIOLATION:",
 }
 
 
@@ -797,6 +854,16 @@ async def _mark_contextual_rules(conn) -> None:
             """,
             number, guidance,
         )
+        earlier = _EARLIER_GUIDANCE_STARTS.get(number)
+        if earlier:
+            await conn.execute(
+                """
+                UPDATE compliance_rules SET evaluation_guidance = $2, updated_at = NOW()
+                WHERE rule_number = $1 AND NOT is_custom AND evaluation_mode = 'CONTEXT'
+                  AND evaluation_guidance LIKE $3 || '%' AND evaluation_guidance <> $2
+                """,
+                number, guidance, earlier,
+            )
 
 
 async def setup(reset: bool = False):
@@ -981,6 +1048,7 @@ async def setup(reset: bool = False):
             await conn.execute(insert + " ON CONFLICT (rule_number) DO NOTHING", primary_rb_id, _base_rules_json())
         # A fresh database only has the baseline rules now.
         await _mark_contextual_rules(conn)
+        await _add_baseline_terms(conn)
 
         logger.info("Compliance schema and rules successfully initialized!")
 
