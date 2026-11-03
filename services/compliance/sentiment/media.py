@@ -1,5 +1,6 @@
 """Video frames and attached images for sentiment findings."""
 
+import asyncio
 import os
 from typing import Any, Optional, Tuple
 from uuid import UUID
@@ -7,6 +8,8 @@ from fastapi import HTTPException
 from fastapi.responses import FileResponse, Response
 from postgresql_db.database import fetch_one
 from services.compliance.sentiment.config import FRAME_WIDTH
+from services.compliance.sentiment.input_builder import _json
+from services.compliance.sentiment.jobs import _analysis_row
 
 # ---------------------------------------------------------------------------
 # Video frames for findings

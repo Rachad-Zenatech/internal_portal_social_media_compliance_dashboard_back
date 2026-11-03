@@ -37,7 +37,7 @@ from services.compliance.sentiment.input_builder import (
     _model_for,
     _transcript_pending,
 )
-from services.compliance.sentiment.evidence import finding_id
+from services.compliance.sentiment.evidence import _norm, finding_id
 from services.compliance.sentiment.engine import analyse
 from services.compliance.sentiment.feedback import _feedback_map
 

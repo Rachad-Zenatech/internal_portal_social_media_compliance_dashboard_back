@@ -7,7 +7,9 @@ from fastapi import HTTPException
 
 from models.compliance.sentiment_model import EvalCase, EvalCaseIn, FeedbackSummaryRow, FindingFeedback, FindingFeedbackIn
 from postgresql_db.database import fetch_all, fetch_one
+from services.compliance import review_memory_service
 from services.compliance.sentiment.config import PROMPT_VERSION
+from services.compliance.sentiment.input_builder import _json
 
 # ---------------------------------------------------------------------------
 # Reviewer feedback on findings
@@ -35,6 +37,9 @@ async def _feedback_map(analysis_id: UUID, viewer: Optional[UUID]) -> Dict[str, 
 async def set_feedback(submission_id: UUID, analysis_id: UUID, fid: str, user_id: UUID,
                        data: FindingFeedbackIn) -> Dict[str, FindingFeedback]:
     """Record (or change) the reviewer's verdict on one finding."""
+    # jobs imports this module, so it is imported when needed.
+    from services.compliance.sentiment.jobs import _analysis_row, _result
+
     row = await _analysis_row(submission_id, analysis_id)
     result = _result(row)
     finding = next((f for f in (result.findings if result else []) if f.id == fid), None)
@@ -57,6 +62,8 @@ async def set_feedback(submission_id: UUID, analysis_id: UUID, fid: str, user_id
 
 
 async def clear_feedback(submission_id: UUID, analysis_id: UUID, fid: str, user_id: UUID) -> Dict[str, FindingFeedback]:
+    from services.compliance.sentiment.jobs import _analysis_row
+
     await _analysis_row(submission_id, analysis_id)
     await fetch_one(
         "DELETE FROM content_sentiment_feedback WHERE analysis_id = $1 AND finding_id = $2 AND user_id = $3 RETURNING finding_id",

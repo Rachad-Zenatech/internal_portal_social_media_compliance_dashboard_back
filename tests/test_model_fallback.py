@@ -9,6 +9,9 @@ from services.compliance import image_text_service
 from services.compliance import sentiment_service as s
 
 SS = "services.compliance.sentiment_service"
+# Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
+ENGINE = "services.compliance.sentiment.engine"
+INPUT = "services.compliance.sentiment.input_builder"
 
 
 def result():
@@ -43,9 +46,9 @@ class SentimentModelChainTests(unittest.IsolatedAsyncioTestCase):
             return outcome
 
         with (
-            patch(f"{SS}.MODEL_CHAIN", self.CHAIN),
-            patch(f"{SS}.MODEL", "model-a"),
-            patch(f"{SS}._generate_with", new=AsyncMock(side_effect=generate_with)),
+            patch(f"{ENGINE}.MODEL_CHAIN", self.CHAIN),
+            patch(f"{INPUT}.MODEL", "model-a"),
+            patch(f"{ENGINE}._generate_with", new=AsyncMock(side_effect=generate_with)),
         ):
             try:
                 out = await s._generate(MagicMock(), inp or {}, None, fallback=fallback)
@@ -106,7 +109,7 @@ class SentimentErrorClassificationTests(unittest.IsolatedAsyncioTestCase):
         inp = {"title": "t", "caption": "c", "transcript": None, "guidelines": [], "audience": None, "brand": None,
                "region": None, "platforms": [], "rule_sets": [], "channel": None, "is_ceo_channel": False,
                "controversy_dial": False}
-        with patch(f"{SS}.asyncio.sleep", new=AsyncMock()):
+        with patch(f"{ENGINE}.asyncio.sleep", new=AsyncMock()):
             await s._generate_with(client, "model-a", inp, None)
 
     async def test_a_daily_quota_error_is_reported_as_quota(self):

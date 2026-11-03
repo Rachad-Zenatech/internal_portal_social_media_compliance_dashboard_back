@@ -321,6 +321,13 @@ RESPONSE_SCHEMA: Dict[str, Any] = {
 
 
 
+def next_quota_reset(now: Optional[datetime] = None) -> datetime:
+    """The next midnight Pacific time, when Gemini's daily quotas reset (in UTC)."""
+    local = (now or datetime.now(timezone.utc)).astimezone(QUOTA_TZ)
+    midnight = datetime.combine((local + timedelta(days=1)).date(), datetime.min.time(), tzinfo=QUOTA_TZ)
+    return midnight.astimezone(timezone.utc)
+
+
 class QuotaExhausted(RuntimeError):
     """Gemini's daily limit for a model is used up; it resets at reset_at (midnight Pacific)."""
 

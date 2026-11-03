@@ -2,7 +2,7 @@
 
 import hashlib
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from models.compliance.sentiment_model import SentimentFinding, SentimentResult
 from services.compliance.sentiment.config import STRICT_AUDIENCES

@@ -22,8 +22,11 @@ from services.ai.ai_guardrails import screen_input
 from services.ai.gemini_service import is_rotatable_model_error
 from services.compliance import review_memory_service
 from services.compliance.sentiment.config import (
+    API_RETRIES,
+    MAX_IMAGES,
     QuotaExhausted,
     ModelUnavailable,
+    next_quota_reset,
     FRAME_WIDTH,
     GEMINI_IMAGE_TYPES,
     GENERATE_TIMEOUT_SEC,
@@ -35,7 +38,7 @@ from services.compliance.sentiment.config import (
     RESPONSE_SCHEMA,
     _get_client,
 )
-from services.compliance.sentiment.input_builder import _model_for, _prompt
+from services.compliance.sentiment.input_builder import _model_for, _precedent_label, _prompt
 from services.compliance.sentiment.evidence import _verify
 
 logger = logging.getLogger(__name__)
@@ -207,13 +210,6 @@ def _models_to_try(inp: Dict[str, Any], fallback: bool = True) -> List[str]:
     """The input's own model first, then the rest of the chain (unless fallback is off, e.g. to test one model)."""
     first = _model_for(inp)
     return [first] + ([m for m in MODEL_CHAIN if m != first] if fallback else [])
-
-
-def next_quota_reset(now: Optional[datetime] = None) -> datetime:
-    """The next midnight Pacific time, when Gemini's daily quotas reset (in UTC)."""
-    local = (now or datetime.now(timezone.utc)).astimezone(QUOTA_TZ)
-    midnight = datetime.combine((local + timedelta(days=1)).date(), datetime.min.time(), tzinfo=QUOTA_TZ)
-    return midnight.astimezone(timezone.utc)
 
 
 async def _generate(client: genai.Client, inp: Dict[str, Any], video: Optional[types.File],
