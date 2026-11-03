@@ -123,6 +123,7 @@ async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
                 submission_id, latest.version_number, json.dumps(fresh),
             )
             latest.check = fresh
+            await _adopt_check(execute, submission_id, fresh)
     return ScriptStage(
         submission_id=row["id"],
         reference_code=row["reference_code"],
@@ -141,6 +142,15 @@ async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
     )
 
 
+async def _adopt_check(run, submission_id: UUID, check: Dict[str, Any]) -> None:
+    """While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
+    never see two different scores for the same wording. `run` is conn.execute or the pool's execute."""
+    await run(
+        "UPDATE content_submissions SET latest_check = coalesce(latest_check, '{}'::jsonb) || $2::jsonb WHERE id = $1",
+        submission_id, json.dumps({**check, "analysis_pending": False, "documents_pending": 0}),
+    )
+
+
 async def _add_version(conn, row: Dict[str, Any], body: str, source: str, user_id: UUID,
                        check: Dict[str, Any], file_id: Optional[UUID] = None) -> int:
     number = await conn.fetchval(
@@ -153,6 +163,7 @@ async def _add_version(conn, row: Dict[str, Any], body: str, source: str, user_i
         """,
         row["id"], number, body, source, file_id, json.dumps(check), user_id,
     )
+    await _adopt_check(conn.execute, row["id"], check)
     return number
 
 

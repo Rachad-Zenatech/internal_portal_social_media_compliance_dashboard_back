@@ -1157,6 +1157,20 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     return result, check
 
 
+async def _mirror_to_script_version(conn, submission_id: UUID, check: Dict[str, Any]) -> None:
+    """A check saved on the post while its script is with the reviewer is also the script version's check, so both
+    screens show the same score (a check run twice at once can't leave them apart)."""
+    await conn.execute(
+        """
+        UPDATE content_script_versions v SET check_result = $2::jsonb
+        FROM content_submissions s
+        WHERE s.id = $1 AND v.submission_id = s.id AND s.script_status = 'IN_REVIEW'
+          AND v.version_number = (SELECT max(version_number) FROM content_script_versions WHERE submission_id = $1)
+        """,
+        submission_id, json.dumps(check),
+    )
+
+
 async def run_initial_check(submission_id: UUID, user_id: UUID) -> Submission:
     row = await _get_owned_row(submission_id, user_id)
     if not _check_text(row):
@@ -1167,6 +1181,7 @@ async def run_initial_check(submission_id: UUID, user_id: UUID) -> Submission:
         async with conn.transaction():
             await conn.execute("UPDATE content_submissions SET latest_check = $2::jsonb, updated_at = NOW() WHERE id = $1",
                                submission_id, json.dumps(check))
+            await _mirror_to_script_version(conn, submission_id, check)
             await _add_event(conn, submission_id, "CHECK_RUN",
                              f"Initial check: {result.violations_count} issue(s), score {result.score}/100", user_id,
                              {"traffic_light": result.traffic_light, "score": result.score})
@@ -2249,6 +2264,7 @@ async def recheck_open_submissions(reason: str) -> int:
                 await conn.execute(
                     "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1", row["id"], json.dumps(check)
                 )
+                await _mirror_to_script_version(conn, row["id"], check)
                 await conn.execute(
                     """
                     UPDATE content_review_jobs SET automated_check = $3::jsonb, score = $4, traffic_light = $5
@@ -2341,6 +2357,7 @@ async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
                     "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1",
                     sub["id"], json.dumps(check),
                 )
+                await _mirror_to_script_version(conn, sub["id"], check)
                 await conn.execute(
                     """
                     UPDATE content_review_jobs
