@@ -13,6 +13,7 @@ OAuthProvider = Literal[
     "LINKEDIN_ADS",
     # Organic Social Media
     "LINKEDIN_PAGE",
+    "LINKEDIN_PROFILE",
     "X_TWITTER",
     "FACEBOOK_PAGE",
     "INSTAGRAM",

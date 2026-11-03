@@ -159,7 +159,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `NotificationCreate` (class)
 - `NotificationResponse` (class)
 
-## models/shared/oauth_connection_model.py (126 lines) - Pydantic models for Organization, Company, and OAuth connections.
+## models/shared/oauth_connection_model.py (127 lines) - Pydantic models for Organization, Company, and OAuth connections.
 - `OrganizationBase` (class)
 - `OrganizationCreate` (class)
 - `Organization` (class)
