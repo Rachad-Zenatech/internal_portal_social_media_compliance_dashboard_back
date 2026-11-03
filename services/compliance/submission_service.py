@@ -442,13 +442,14 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
                      WHERE sv.submission_id = s.id ORDER BY sv.version_number DESC LIMIT 1)
                ) END AS script_excerpt,
                s.latest_check->>'traffic_light' AS latest_traffic_light,
-               CASE WHEN """ + _pending_sql("s.latest_check") + """ THEN NULL ELSE (s.latest_check->>'score')::int END AS latest_score,
-               CASE WHEN """ + _pending_sql("s.latest_check") + """ THEN NULL
+               CASE WHEN """ + _pending_sql("s.latest_check") + " OR " + _unavailable_sql("s.latest_check") + """ THEN NULL ELSE (s.latest_check->>'score')::int END AS latest_score,
+               CASE WHEN """ + _pending_sql("s.latest_check") + " OR " + _unavailable_sql("s.latest_check") + """ THEN NULL
                     ELSE COALESCE((s.latest_check->>'violations_count')::int,
                                   CASE WHEN jsonb_typeof(s.latest_check->'violations') = 'array'
                                        THEN jsonb_array_length(s.latest_check->'violations') END)
                END AS issue_count,
                """ + _pending_sql("s.latest_check") + """ AS analysis_pending,
+               """ + _unavailable_sql("s.latest_check") + """ AS ai_unavailable,
                (SELECT count(*) FROM content_submission_files f
                  WHERE f.submission_id = s.id AND f.deleted_at IS NULL) AS file_count,
                (SELECT count(*) FROM content_review_comments rc
@@ -1019,6 +1020,15 @@ def analysis_pending(check: Optional[Dict[str, Any]]) -> bool:
             or (check.get("documents_pending") or 0) > 0)
 
 
+def ai_unavailable(check: Optional[Dict[str, Any]]) -> bool:
+    """Whether the AI couldn't read part of the post, so the check has no score to show."""
+    return bool(check and check.get("ai_unavailable"))
+
+
+def _unavailable_sql(column: str) -> str:
+    return f"coalesce(({column}->>'ai_unavailable')::boolean, false)"
+
+
 def _pending_sql(column: str) -> str:
     """SQL for analysis_pending() on a stored check (older checks only have the two parts)."""
     return (
@@ -1156,6 +1166,9 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
             for d in documents if d["doc_text_status"] == "FAILED"
         ],
         "segment_flags": flag_segments(segments, result.violations),
+        # A context rule matched but no AI model could read it (key out of credits, quota used up, service down):
+        # the score would be a guess, so screens show a message instead of it (re-run the check once the AI is back).
+        "ai_unavailable": any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in result.violations),
         # Does the video say what the approved script says? Only once the script is approved and the transcript read.
         "script_match": script_match.compare(script, spoken) if script and segments else None,
     }
@@ -1191,7 +1204,8 @@ async def run_initial_check(submission_id: UUID, user_id: UUID) -> Submission:
                                submission_id, json.dumps(check))
             await _mirror_to_script_version(conn, submission_id, check)
             await _add_event(conn, submission_id, "CHECK_RUN",
-                             f"Initial check: {result.violations_count} issue(s), score {result.score}/100", user_id,
+                             "Initial check: the AI review couldn't run, so there is no score yet" if check["ai_unavailable"]
+                             else f"Initial check: {result.violations_count} issue(s), score {result.score}/100", user_id,
                              {"traffic_light": result.traffic_light, "score": result.score})
     return await get_submission(submission_id, user_id)
 
@@ -1235,7 +1249,7 @@ def _review_job(r: Dict[str, Any]) -> ReviewJob:
         reviewer_route=list(r["reviewer_route"] or []),
         traffic_light=r["traffic_light"],
         # No score while the post is still being read (see analysis_pending).
-        score=None if analysis_pending(_json(r["automated_check"])) else r["score"],
+        score=None if analysis_pending(_json(r["automated_check"])) or ai_unavailable(_json(r["automated_check"])) else r["score"],
         automated_check=_json(r["automated_check"]),
         created_at=r["created_at"],
         completed_at=r["completed_at"],
@@ -1540,7 +1554,7 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             f"""
             SELECT round(avg(j.score))::int AS average
             FROM content_review_jobs j JOIN content_submissions s ON s.id = j.submission_id
-            WHERE {visible} AND j.score IS NOT NULL AND NOT {_pending_sql("j.automated_check")} AND j.created_at >= {since}
+            WHERE {visible} AND j.score IS NOT NULL AND NOT {_pending_sql("j.automated_check")} AND NOT {_unavailable_sql("j.automated_check")} AND j.created_at >= {since}
             """,
             *args,
         ),
@@ -1854,12 +1868,16 @@ def _score_line(result: Any, check: Dict[str, Any]) -> str:
     """The check's score for a message, or that it's still being analysed."""
     if analysis_pending(check):
         return "Automated check: under review (still reading the video or images)."
+    if ai_unavailable(check):
+        return "Automated check: no score, the AI review couldn't run."
     return f"Automated check: {result.score}/100."
 
 
 def _check_summary(result: Any, check: Dict[str, Any]) -> str:
     if analysis_pending(check):
         return "Automated rulebook check started; the score comes once the video and images have been read"
+    if ai_unavailable(check):
+        return "Automated rulebook check ran without the AI review, so there is no score yet"
     return f"Automated rulebook check: {result.violations_count} issue(s), score {result.score}/100"
 
 
@@ -2377,6 +2395,7 @@ async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
                 summary = (
                     f"Read {what}; still reading the rest of the post before scoring"
                     if analysis_pending(check)
+                    else f"Re-checked with {what}: the AI review couldn't run, so there is no score yet" if check["ai_unavailable"]
                     else f"Re-checked with {what}: {result.violations_count} issue(s), score {result.score}/100"
                 )
                 await _add_event(conn, sub["id"], "CHECK_COMPLETED", summary, None,

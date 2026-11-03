@@ -240,7 +240,7 @@ def score_after_dismissals(check: Optional[Dict[str, Any]], dismissed: Set[str])
     """The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
     points back, and the critical cap only holds while a critical flag is still open. None when there's no score
     yet (not checked, or still being analysed)."""
-    if not check or check.get("score") is None or check.get("analysis_pending"):
+    if not check or check.get("score") is None or check.get("analysis_pending") or check.get("ai_unavailable"):
         return None
     violations = check.get("violations") or []
     # Checks saved before findings carried their points can't be recounted; they keep their score.
