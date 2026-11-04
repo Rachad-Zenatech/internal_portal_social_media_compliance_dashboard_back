@@ -268,6 +268,16 @@ def _apply(c: Candidate, result: Optional[_Result], model: Optional[str], inject
             f"The wording matched ({quoted}) but it couldn't be read in context just now, because no model was "
             "available. A person needs to check whether the rule really applies."
         )
+        if str(c.rule.severity).upper() == "CRITICAL" or c.rule.traffic_light == "RED":
+            # A critical rule isn't let through because the AI is down: the match stays a violation, with its points and
+            # its block, until it can be read (it's re-checked automatically) or a reviewer dismisses it.
+            f.explanation = (
+                f"{reasoning} This is a critical rule, so it counts as a violation until it can be read in context."
+            )
+            f.evaluation = ContextEvaluation(
+                decision="VIOLATION", reasoning=f.explanation, rule_decision=rule_decision, source="UNAVAILABLE",
+            )
+            return
         f.status = "NEEDS_REVIEW"
         f.penalty, f.uncounted_penalty, f.counted_with = 0, 0, None
         f.traffic_light = "YELLOW"

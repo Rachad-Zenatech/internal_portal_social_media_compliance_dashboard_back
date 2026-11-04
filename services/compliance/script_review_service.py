@@ -401,6 +401,12 @@ async def decide(submission_id: UUID, user_id: UUID, req: ScriptDecisionRequest)
     note = (req.note or "").strip() or None
     if req.text is not None and not edited:
         raise HTTPException(status_code=422, detail="The script can't be empty")
+    if req.decision == "APPROVE" and (sent.check or {}).get("ai_unavailable"):
+        raise HTTPException(
+            status_code=422,
+            detail="The AI review couldn't run on this script, so it has no compliance score and can't be approved yet. "
+                   "It's re-checked automatically once the AI is back. You can still send it back.",
+        )
     if req.decision == "APPROVE" and has_edits:
         raise HTTPException(status_code=422,
                             detail="You changed the script, so it goes back to the creator to accept. Send it back instead.")

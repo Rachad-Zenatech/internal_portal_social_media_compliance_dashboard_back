@@ -99,7 +99,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `XIngestTopicInput` (class)
 - `XIngestRequest` (class)
 
-## models/compliance/script_review_model.py (118 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+## models/compliance/script_review_model.py (129 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class)
 - `ScriptStage` (class)
 - `ScriptDecisionRequest` (class) - The reviewer's call on the script.
@@ -129,7 +129,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (490 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (499 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -250,7 +250,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (555 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (557 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -280,7 +280,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `run_saved_case` (def)
 - `main` (def)
 
-## server.py (650 lines) - server
+## server.py (662 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -492,7 +492,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_check` (def)
 - `suggest` (def)
 
-## services/compliance/claim_checks.py (315 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
+## services/compliance/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
 - `ClaimCheck` (class)
     - `rule_id` (def)
     - `penalty` (def)
@@ -508,7 +508,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_quoted` (def) - a", "b"'.
 - `find_claims` (def) - The built-in claim checks that fire on this text, as findings.
 
-## services/compliance/compliance_service.py (1388 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/compliance_service.py (1390 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def)
 - `_ai_viability_enabled` (def)
 - `_row_to_rule` (def)
@@ -558,7 +558,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `self_test_all` (def)
 - `get_compliance_stats` (def) - Retrieve aggregate compliance metrics.
 
-## services/compliance/context_evaluator.py (350 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+## services/compliance/context_evaluator.py (360 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - `_Result` (class)
 - `_Response` (class)
 - `_enum` (def)
@@ -806,10 +806,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `run` (def)
 - `search` (def)
 
-## services/compliance/review_deadline_service.py (194 lines) - Review and revision deadlines.
+## services/compliance/review_deadline_service.py (234 lines) - Review and revision deadlines.
 - `_hours` (def)
 - `add_working_days` (def) - The same time of day, this many working days later (Saturdays and Sundays are skipped).
 - `due_date` (def) - When the next step is due: the date asked for (a creator's "need approval by"), else the working days a
+- `require_future` (def) - A deadline a reviewer picked has to still be ahead.
+- `revision_due` (def) - When the creator has to have the requested changes done: the date the reviewer picked, else their working days
+- `video_due` (def) - When the video is due once its script is approved: the date picked, or working days from now; None for no deadline.
 - `_when` (def) - e.g.
 - `_recipients` (def) - Reviews: every reviewer except the creator.
 - `_message` (def)
@@ -830,12 +833,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `query_text` (def) - The text a post is matched on: the same parts that are stored for past reviews.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/script_match.py (56 lines) - Script vs video.
+## services/compliance/script_match.py (92 lines) - Script vs video.
 - `_words` (def)
 - `_shown` (def)
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
+- `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/script_review_service.py (488 lines) - Script stage of a video post.
+## services/compliance/script_review_service.py (656 lines) - Script stage of a video post.
+- `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
 - `_status` (def)
@@ -849,8 +854,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_add_version` (def)
 - `_lock_status` (def) - Lock the post and make sure the script is still where the caller saw it (two people can act at once).
 - `_send_to_reviewers` (def)
-- `submit` (def) - Send the uploaded script file for review (its text as read).
+- `_missing_details` (def) - The required submission details still empty, by their names on the form.
+- `submit` (def) - Accept the uploaded script for review and answer at once.
+- `_fail_send` (def) - The background send couldn't finish: record which step failed and why, and tell the creator.
+- `resume_interrupted_sends` (def) - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
+- `_process_send` (def) - Read the uploaded script, calculate its compliance score and send it to the reviewers.
 - `_send` (def)
+- `_send_checked` (def)
 - `decide` (def) - The reviewer approves the script, sends it back with a note, or sends back their own edited version.
 - `accept` (def) - The creator accepts the reviewer's edited version: it's the approved script.
 - `revise` (def) - The creator edits the script in the platform (after edits or a change request) and sends it back.
@@ -947,7 +957,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 
-## services/compliance/submission_service.py (2405 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submission_service.py (2524 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -1021,7 +1031,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `add_comment` (def)
 - `set_comment_resolved` (def)
 - `delete_comment` (def)
+- `_recheck_one` (def) - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
 - `recheck_open_submissions` (def) - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
+    - `describe` (def)
+- `recheck_ai_unavailable` (def) - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    - `describe` (def)
+- `ai_recheck_loop` (def) - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
 - `recheck_outdated_on_start` (def) - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
 - `schedule_rulebook_recheck` (def) - Re-check open content shortly after a rule changes; a burst of edits leads to one pass.
     - `run` (def)
@@ -1271,8 +1286,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_progress_for_several_posts_in_one_query` (def)
     - `test_no_posts_no_query` (def)
 
-## tests/test_claim_checks.py (148 lines) - The text read from the "$25M contract" graphic, line breaks and all.
-- `fired` (def)
+## tests/test_claim_checks.py (166 lines) - The text read from the "$25M contract" graphic, line breaks and all.
+- `fired` (def) - The checks that fire, by key: a check's rule number can be shared with another check.
 - `ClaimCheckTests` (class)
     - `test_the_contract_graphic_trips_every_check` (def)
     - `test_measured_results_and_figures_need_a_source_but_cost_nothing` (def)
@@ -1281,6 +1296,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_the_words_forward_looking_alone_are_not_safe_harbor` (def)
     - `test_an_approval_that_names_its_issuer_is_fine` (def)
     - `test_each_check_keeps_the_same_id_so_dismissals_stick` (def)
+    - `test_each_check_is_labelled_with_its_rulebook_rule` (def)
 - `ScoreWithClaimChecksTests` (class)
     - `check` (def)
     - `test_the_contract_graphic_no_longer_scores_100` (def)
@@ -1358,6 +1374,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `queue` (def)
     - `test_reviewers_see_everyones_content_by_default` (def)
     - `test_creator_view_shows_only_the_users_own_content` (def)
+
+## tests/test_deadlines.py (56 lines) - test deadlines
+- `hours` (def)
+- `DeadlineTests` (class)
+    - `test_a_date_the_reviewer_picked_is_kept_even_past_the_publish_time` (def)
+    - `test_working_days_are_still_pulled_in_by_a_close_publish_time` (def)
+    - `test_a_date_in_the_past_is_refused` (def)
+    - `test_the_video_has_no_deadline_unless_one_is_given` (def)
+    - `test_a_script_deadline_shows_only_at_its_step` (def)
+    - `test_the_video_notices_read_naturally` (def)
 
 ## tests/test_document_text.py (81 lines) - test document text
 - `docx` (def) - A minimal .docx with these paragraphs ("\\t" and "\\n" become a tab and a line break).
@@ -1496,7 +1522,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_only_unread_or_abandoned_images_are_scheduled` (def)
     - `test_nothing_to_schedule_makes_no_query` (def)
 
-## tests/test_script_match.py (44 lines) - test script match
+## tests/test_script_match.py (73 lines) - test script match
 - `ScriptMatchTests` (class)
     - `test_same_words_match` (def)
     - `test_small_transcription_noise_still_matches` (def)
@@ -1504,6 +1530,33 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_dropped_passage_is_listed` (def)
     - `test_different_video_is_a_mismatch` (def)
     - `test_nothing_to_compare` (def)
+- `FlagMismatchTests` (class)
+    - `result` (def)
+    - `test_a_mismatch_becomes_a_needs_review_flag_without_points` (def)
+    - `test_a_red_check_stays_red` (def)
+    - `test_a_matching_or_partial_video_is_not_flagged` (def)
+
+## tests/test_script_send.py (125 lines) - test script send
+- `processing` (def)
+- `SendStateTests` (class)
+    - `test_nothing_in_progress` (def)
+    - `test_processing_then_timed_out` (def)
+    - `test_a_resumed_send_counts_from_when_it_was_picked_up` (def)
+    - `test_failed_keeps_its_reason` (def)
+- `RequiredDetailsTests` (class)
+    - `test_a_complete_post_has_nothing_missing` (def)
+    - `test_empty_details_are_listed_by_their_form_names` (def)
+    - `test_the_script_is_refused_until_they_are_filled_in` (def)
+- `FailSendTests` (class)
+    - `test_a_send_that_already_finished_is_not_marked_failed_or_announced` (def)
+    - `test_a_running_send_that_fails_tells_the_creator` (def)
+- `ProcessSendTests` (class)
+    - `patches` (def)
+    - `run_with` (def)
+    - `test_a_readable_script_is_scored_then_sent` (def)
+    - `test_an_unreadable_script_says_it_couldnt_be_read` (def)
+    - `test_a_scoring_error_says_the_score_couldnt_be_calculated` (def)
+    - `test_a_missing_file_fails_instead_of_hanging` (def)
 
 ## tests/test_security_fixes.py (127 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - `CaptionSanitizerTests` (class)

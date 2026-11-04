@@ -1944,6 +1944,20 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
         raise HTTPException(status_code=403, detail="You can't review your own content; another reviewer needs to")
     approval_score: Optional[int] = None
     if req.decision == "APPROVE":
+        # Nothing can be approved on a check that wasn't read in full: with the AI down every finding is only a
+        # "needs review", so there'd be no score to hold to the minimum.
+        saved = _json(row["latest_check"]) or {}
+        if analysis_pending(saved):
+            raise HTTPException(
+                status_code=422,
+                detail="The post is still being read, so it has no compliance score yet. Approve it once the check has finished.",
+            )
+        if ai_unavailable(saved):
+            raise HTTPException(
+                status_code=422,
+                detail="The AI review couldn't run, so this has no compliance score and can't be approved yet. It's "
+                       "re-checked automatically once the AI is back. You can still request changes.",
+            )
         standing = (await flag_review_service.approval_standing([row])).get(row["id"])
         open_critical = standing.open_critical if standing else 0
         if open_critical:
@@ -2295,6 +2309,31 @@ _rulebook_recheck: Optional["asyncio.Task[None]"] = None
 RULEBOOK_RECHECK_DELAY_SEC = 3
 
 
+async def _recheck_one(row: Dict[str, Any], describe) -> Tuple[Any, Dict[str, Any], bool]:
+    """Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
+    describe(before, result, check) returns (log line, details) to log on the item, or None to log nothing."""
+    before = _json(row["latest_check"]) or {}
+    result, check = await _run_check(row)
+    logged = describe(before, result, check)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1", row["id"], json.dumps(check)
+            )
+            await _mirror_to_script_version(conn, row["id"], check)
+            await conn.execute(
+                """
+                UPDATE content_review_jobs SET automated_check = $3::jsonb, score = $4, traffic_light = $5
+                WHERE submission_id = $1 AND version_number = $2 AND status = 'AWAITING_REVIEW'
+                """,
+                row["id"], row["current_version"], json.dumps(check), result.score, result.traffic_light,
+            )
+            if logged:
+                await _add_event(conn, row["id"], "CHECK_COMPLETED", logged[0], None, logged[1])
+    return result, check, bool(logged)
+
+
 async def recheck_open_submissions(reason: str) -> int:
     """Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
     Approved and draft content keep their check (drafts are checked again when they're sent). Only real changes
@@ -2302,39 +2341,81 @@ async def recheck_open_submissions(reason: str) -> int:
     rows = await fetch_all(
         "SELECT * FROM content_submissions WHERE status IN ('IN_REVIEW', 'CHANGES_REQUESTED') AND deleted_at IS NULL"
     )
-    changed = 0
-    for row in rows:
-        row = dict(row)
-        before = _json(row["latest_check"]) or {}
-        result, check = await _run_check(row)
+
+    def describe(before: Dict[str, Any], result: Any, check: Dict[str, Any]):
         moved = before.get("score") != result.score or sorted(
             v.get("rule_number", "") for v in before.get("violations") or []
         ) != sorted(v.rule_number for v in result.violations)
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute(
-                    "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1", row["id"], json.dumps(check)
-                )
-                await _mirror_to_script_version(conn, row["id"], check)
-                await conn.execute(
-                    """
-                    UPDATE content_review_jobs SET automated_check = $3::jsonb, score = $4, traffic_light = $5
-                    WHERE submission_id = $1 AND version_number = $2 AND status = 'AWAITING_REVIEW'
-                    """,
-                    row["id"], row["current_version"], json.dumps(check), result.score, result.traffic_light,
-                )
-                if moved:
-                    changed += 1
-                    await _add_event(
-                        conn, row["id"], "CHECK_COMPLETED",
-                        f"Re-checked after a rulebook change ({reason}): score {before.get('score', '?')} -> {result.score}"
-                        + (" (blocked: critical rule)" if result.blocked else ""),
-                        None, {"traffic_light": result.traffic_light, "score": result.score, "reason": "rulebook_change"},
-                    )
+        if not moved:
+            return None
+        return (
+            f"Re-checked after a rulebook change ({reason}): score {before.get('score', '?')} -> {result.score}"
+            + (" (blocked: critical rule)" if result.blocked else ""),
+            {"traffic_light": result.traffic_light, "score": result.score, "reason": "rulebook_change"},
+        )
+
+    changed = 0
+    for row in rows:
+        _, _, moved = await _recheck_one(dict(row), describe)
+        changed += moved
     if rows:
         logger.info("Re-checked %d open submission(s) after a rulebook change; %d changed", len(rows), changed)
     return changed
+
+
+# How often to look for checks the AI couldn't read, and how many to retry in one pass.
+AI_RECHECK_SEC = max(60.0, float(os.getenv("AI_RECHECK_MINUTES", "10")) * 60)
+AI_RECHECK_BATCH = int(os.getenv("AI_RECHECK_BATCH", "5"))
+
+
+async def recheck_ai_unavailable() -> int:
+    """Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    Stops at the first one that still can't be read, since the AI is then still down. Returns how many were read."""
+    rows = await fetch_all(
+        f"""
+        SELECT * FROM content_submissions s
+        WHERE s.deleted_at IS NULL AND {_unavailable_sql("s.latest_check")}
+          AND (s.status IN ('IN_REVIEW', 'CHANGES_REQUESTED')
+               OR (s.status = 'DRAFT' AND s.script_status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'EDITS_PROPOSED')))
+        ORDER BY s.updated_at
+        LIMIT {AI_RECHECK_BATCH}
+        """
+    )
+
+    def describe(before: Dict[str, Any], result: Any, check: Dict[str, Any]):
+        if check.get("ai_unavailable"):
+            return None  # still unread: nothing to report yet
+        return (
+            f"Re-checked now that the AI review is available: score {result.score}/100"
+            + (" (blocked: critical rule)" if result.blocked else ""),
+            {"traffic_light": result.traffic_light, "score": result.score, "reason": "ai_available"},
+        )
+
+    read = 0
+    for row in rows:
+        _, check, _ = await _recheck_one(dict(row), describe)
+        if ai_unavailable(check):
+            break
+        read += 1
+    return read
+
+
+async def ai_recheck_loop() -> None:
+    """Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it."""
+    import asyncio
+
+    logger.info("Re-checking AI-unavailable checks every %.0f s", AI_RECHECK_SEC)
+    await asyncio.sleep(60)
+    while True:
+        try:
+            read = await recheck_ai_unavailable()
+            if read:
+                logger.info("Re-checked %d submission(s) the AI couldn't read earlier", read)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Couldn't re-check the checks the AI couldn't read")
+        await asyncio.sleep(AI_RECHECK_SEC)
 
 
 async def recheck_outdated_on_start() -> None:
