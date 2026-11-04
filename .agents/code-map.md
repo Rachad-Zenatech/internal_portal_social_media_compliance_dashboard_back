@@ -125,7 +125,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (488 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (490 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -276,7 +276,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `run_saved_case` (def)
 - `main` (def)
 
-## server.py (642 lines) - server
+## server.py (650 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -939,7 +939,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 
-## services/compliance/submission_service.py (2386 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submission_service.py (2405 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -978,6 +978,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `remove_file` (def)
 - `get_file_for_download` (def)
 - `analysis_pending` (def) - Whether the post is still being analysed: its video transcript or the text in its images isn't read yet.
+- `ai_unavailable` (def) - Whether the AI couldn't read part of the post, so the check has no score to show.
+- `_unavailable_sql` (def)
 - `_pending_sql` (def) - SQL for analysis_pending() on a stored check (older checks only have the two parts).
 - `_check_text` (def)
 - `check_request` (def) - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms).

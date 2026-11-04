@@ -180,6 +180,8 @@ class SubmissionSummary(BaseModel):
     # How many rulebook issues the latest check found; None while it's still being analysed.
     issue_count: Optional[int] = None
     analysis_pending: bool = False
+    # The AI couldn't read part of the post (out of credits, quota or down): no score, a message instead.
+    ai_unavailable: bool = False
     # While analysis_pending: what's still being read and when the score is expected.
     analysis_progress: Optional[AnalysisProgress] = None
     # Video posts with a script stage: where the script is (see Submission.script_status); None otherwise.

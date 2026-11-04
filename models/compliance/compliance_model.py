@@ -176,6 +176,8 @@ class ComplianceViolation(BaseModel):
     penalty: int = 0
     # Set when every word it flagged was already counted for a stricter rule (the same words, counted once).
     counted_with: Optional[str] = None
+    # Separate claims beyond the first that the finding's penalty also covers (see EXTRA_CLAIM_PENALTY).
+    extra_claims: int = 0
     # When counted_with is set: the points this finding would have cost on its own. If a reviewer dismisses the
     # stricter finding, these count instead, so dismissing one rule doesn't make the shared words free.
     uncounted_penalty: int = 0
