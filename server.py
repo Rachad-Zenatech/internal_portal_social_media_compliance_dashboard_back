@@ -200,6 +200,12 @@ async def lifespan(app: FastAPI):
     recheck_task.add_done_callback(partial(log_background_task_result, task_name="outdated-check-recheck"))
     background_tasks.append(recheck_task)
 
+    # 3e2. A script being sent when the server last stopped is picked up again, not left "processing"
+    from services.compliance.script_review_service import resume_interrupted_sends
+    resume_task = asyncio.create_task(resume_interrupted_sends(), name="script-send-resume")
+    resume_task.add_done_callback(partial(log_background_task_result, task_name="script-send-resume"))
+    background_tasks.append(resume_task)
+
     # 3f. AI traces and prompt logs: written in batches as they arrive (waits on a queue, no polling)
     trace_task = asyncio.create_task(ai_observability.writer_loop(), name="ai-trace-writer")
     trace_task.add_done_callback(partial(log_background_task_result, task_name="ai-trace-writer"))

@@ -307,6 +307,12 @@ def _due(row: Dict[str, Any]) -> Dict[str, Any]:
     kind = row.get("due_kind")
     if row.get("due_at") and review_deadline_service.KIND_STATUS.get(kind) == row["status"]:
         return {"due_at": row["due_at"], "due_kind": kind}
+    # A video post's script: sent back with a deadline for the changes, or approved with a deadline for the video.
+    script = row.get("script_status")
+    if row.get("due_at") and row["status"] == "DRAFT" and (
+        (kind == "REVISION" and script in ("CHANGES_REQUESTED", "EDITS_PROPOSED")) or (kind == "VIDEO" and script == "APPROVED")
+    ):
+        return {"due_at": row["due_at"], "due_kind": kind}
     return {"due_at": None, "due_kind": None}
 
 
@@ -431,6 +437,12 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
                s.due_at, s.due_kind, s.rule_sets,
                CASE WHEN s.script_required AND s.content_type = 'VIDEO' THEN coalesce(s.script_status, 'DRAFT') END
                    AS script_status,
+               CASE WHEN s.script_send->>'status' = 'PROCESSING'
+                         AND (s.script_send->>'started_at')::timestamptz < NOW() - INTERVAL '10 minutes' THEN 'FAILED'
+                    ELSE s.script_send->>'status' END AS script_send_status,
+               CASE WHEN s.script_send->>'status' = 'PROCESSING'
+                         AND (s.script_send->>'started_at')::timestamptz < NOW() - INTERVAL '10 minutes'
+                    THEN 'Sending the script took too long. Send it again.' ELSE s.script_send->>'error' END AS script_send_error,
                left(s.caption_text, 600) AS caption_text,
                -- The script as the card's preview until a video is added: the uploaded file's text, else the last version sent.
                CASE WHEN s.script_required AND s.content_type = 'VIDEO' THEN coalesce(
@@ -1142,6 +1154,9 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         "\n\n".join(p for p in [_check_text(row), *document_texts, spoken, *image_texts] if p)
     ) or row["title"]
     result = await check_compliance(check_request(row, text, has_video=bool(video), has_images=bool(images)))
+    # Does the video say what the approved script says? Only once the script is approved and the transcript read.
+    match = script_match.compare(script, spoken) if script and segments else None
+    script_match.flag_mismatch(result, match)
     check = {
         **result.model_dump(mode="json"),
         "checked_at": datetime.now(timezone.utc).isoformat(),
@@ -1169,8 +1184,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         # A context rule matched but no AI model could read it (key out of credits, quota used up, service down):
         # the score would be a guess, so screens show a message instead of it (re-run the check once the AI is back).
         "ai_unavailable": any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in result.violations),
-        # Does the video say what the approved script says? Only once the script is approved and the transcript read.
-        "script_match": script_match.compare(script, spoken) if script and segments else None,
+        "script_match": match,
     }
     # No score until the whole post has been read; screens show "Under review" until then.
     check["analysis_pending"] = analysis_pending(check)
@@ -1518,7 +1532,7 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
     since = f"NOW() - INTERVAL '{DASHBOARD_DAYS} days'"
     args = (user_id, see_all, scope)
 
-    activity, decisions, scores, findings = await asyncio.gather(
+    activity, decisions, scores, findings, script_decisions = await asyncio.gather(
         fetch_all(
             f"""
             SELECT * FROM (
@@ -1569,6 +1583,17 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             """,
             *args,
         ),
+        # A reviewer's call on a script counts as a review too: approved, or sent back (with edits or a note).
+        fetch_one(
+            f"""
+            SELECT count(*) AS completed,
+                   count(*) FILTER (WHERE v.review_decision = 'APPROVED') AS approved,
+                   count(*) FILTER (WHERE v.review_decision IN ('EDITED', 'CHANGES_REQUESTED')) AS changes
+            FROM content_script_versions v JOIN content_submissions s ON s.id = v.submission_id
+            WHERE {visible} AND v.review_decision IS NOT NULL AND v.reviewed_at >= {since}
+            """,
+            *args,
+        ),
     )
     return DashboardSummary(
         activity=[
@@ -1578,9 +1603,9 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             )
             for r in activity
         ],
-        reviews_completed=decisions["completed"],
-        approved=decisions["approved"],
-        changes_requested=decisions["changes"],
+        reviews_completed=decisions["completed"] + script_decisions["completed"],
+        approved=decisions["approved"] + script_decisions["approved"],
+        changes_requested=decisions["changes"] + script_decisions["changes"],
         overdue_reviews=decisions["overdue"],
         average_score=scores["average"],
         common_findings=[DashboardFinding(rule_number=r["rule_number"], title=r["title"] or "", count=r["count"]) for r in findings],
@@ -1630,7 +1655,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         f"""
         SELECT s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
                s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
-               s.brand_code, s.audience, s.rule_sets, s.approval_needed_by,
+               s.brand_code, s.audience, s.rule_sets, s.approval_needed_by, s.script_required, s.script_status,
                {_DECIDED_AT} AS decided_at,
                u.full_name AS creator_name,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
@@ -1722,6 +1747,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             created_by=r["created_by"],
             can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
             decided_at=r["decided_at"],
+            script_status=(r["script_status"] or "DRAFT") if script_stage_on(r) else None,
         )
         for r in rows
     ]
@@ -2001,7 +2027,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                 json.dumps(manual_checks) if manual_checks is not None else None,
             )
             revision_due = (
-                review_deadline_service.due_date("REVISION", publish_at, days=req.revision_days)
+                review_deadline_service.revision_due(publish_at, req.revision_days, req.revision_due_at)
                 if new_status == "CHANGES_REQUESTED" else None
             )
             await conn.execute(
@@ -2065,7 +2091,7 @@ async def reopen_approved(submission_id: UUID, user_id: UUID, req: ReopenRequest
     notes = req.notes.strip()
     if not notes:
         raise HTTPException(status_code=422, detail="Say what needs to change")
-    revision_due = review_deadline_service.due_date("REVISION", row["publish_at"], days=req.revision_days)
+    revision_due = review_deadline_service.revision_due(row["publish_at"], req.revision_days, req.revision_due_at)
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -2376,6 +2402,9 @@ async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
         if not sub:
             return
         result, check = await _run_check(sub)
+        # Tell the creator the first time the video turns out not to match their approved script.
+        was_mismatch = ((_json(sub["latest_check"]) or {}).get("script_match") or {}).get("status") == "MISMATCH"
+        newly_mismatched = ((check.get("script_match") or {}).get("status") == "MISMATCH") and not was_mismatch
         pool = get_pool()
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -2400,5 +2429,14 @@ async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
                 )
                 await _add_event(conn, sub["id"], "CHECK_COMPLETED", summary, None,
                                  {"traffic_light": result.traffic_light, "score": result.score})
+        if newly_mismatched:
+            await _notify(
+                [sub["created_by"]],
+                f"{sub['reference_code']}: the video doesn't match your approved script",
+                f"\"{sub['title']}\" says something quite different from the script a reviewer approved "
+                f"({check['script_match']['similarity']}% alike). Check you uploaded the right video before sending it for review.",
+                f"/submissions/{sub['id']}",
+                sub["id"],
+            )
     except Exception:
         logger.exception("Couldn't re-check submission after reading %s of %s", what, file_id)

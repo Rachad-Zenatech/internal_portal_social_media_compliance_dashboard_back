@@ -193,6 +193,8 @@ async def setup():
             -- reviewer changed the wording; the creator accepts or edits), CHANGES_REQUESTED, APPROVED.
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_required BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_status VARCHAR(30);
+            -- While a sent script is being read and scored in the background: {status: PROCESSING|FAILED, started_at, error}.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_send JSONB;
             CREATE INDEX IF NOT EXISTS idx_content_submissions_script_status ON content_submissions(script_status)
                 WHERE script_status IS NOT NULL AND deleted_at IS NULL;
             -- Each version of the script's text: the creator's upload or edit, or the reviewer's edit. The reviewer's
