@@ -21,6 +21,8 @@ from uuid import UUID
 from fastapi import HTTPException
 
 from models.compliance.script_review_model import (
+    ScriptHighlight,
+    ScriptResolution,
     ScriptDecisionRequest,
     ScriptQueueItem,
     ScriptReviseRequest,
@@ -421,3 +423,65 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
             can_review=r["script_status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
         ))
     return items
+
+
+async def get_highlights(submission_id: UUID, user_id: UUID, version: int) -> List[ScriptHighlight]:
+    """The reviewer's highlights and notes on a script version, for anyone who can read the post."""
+    await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
+    row = await fetch_one(
+        "SELECT highlights FROM content_script_highlights WHERE submission_id = $1 AND version_number = $2",
+        submission_id, version,
+    )
+    items = row["highlights"] if row else []
+    if isinstance(items, str):
+        items = json.loads(items)
+    return [ScriptHighlight(**h) for h in items or []]
+
+
+async def save_highlights(submission_id: UUID, user_id: UUID, version: int, highlights: List[ScriptHighlight]) -> List[ScriptHighlight]:
+    """Replace the highlights on a script version. Reviewers only."""
+    row = await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
+    _require_stage(row)
+    if not await _reviewer_may_act(row, user_id):
+        raise HTTPException(status_code=403, detail="Only a reviewer can highlight the script")
+    exists = await fetch_one(
+        "SELECT 1 FROM content_script_versions WHERE submission_id = $1 AND version_number = $2", submission_id, version
+    )
+    if not exists:
+        raise HTTPException(status_code=404, detail="That script version doesn't exist")
+    await execute(
+        """
+        INSERT INTO content_script_highlights (submission_id, version_number, highlights, updated_by, updated_at)
+        VALUES ($1, $2, $3::jsonb, $4, NOW())
+        ON CONFLICT (submission_id, version_number)
+        DO UPDATE SET highlights = EXCLUDED.highlights, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+        """,
+        submission_id, version, json.dumps([h.model_dump() for h in highlights]), user_id,
+    )
+    return highlights
+
+
+async def resolve_highlights(submission_id: UUID, user_id: UUID, version: int, resolutions: List[ScriptResolution]) -> List[ScriptHighlight]:
+    """The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
+
+    Only those two fields change, and only on highlights that exist; the reviewer's own marks stay as they were."""
+    row = await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
+    _require_stage(row)
+    if row["created_by"] != user_id and not await subs._is_super_admin(user_id):
+        raise HTTPException(status_code=403, detail="Only the post's creator can mark highlights done")
+    current = await get_highlights(submission_id, user_id, version)
+    by_id = {r.id: r for r in resolutions}
+    merged = [
+        h.model_copy(update={"done": by_id[h.id].done, "updated": by_id[h.id].updated if by_id[h.id].done else None}) if h.id in by_id else h
+        for h in current
+    ]
+    await execute(
+        """
+        INSERT INTO content_script_highlights (submission_id, version_number, highlights, updated_by, updated_at)
+        VALUES ($1, $2, $3::jsonb, $4, NOW())
+        ON CONFLICT (submission_id, version_number)
+        DO UPDATE SET highlights = EXCLUDED.highlights, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+        """,
+        submission_id, version, json.dumps([h.model_dump() for h in merged]), user_id,
+    )
+    return merged

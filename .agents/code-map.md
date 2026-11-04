@@ -45,7 +45,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `CaptionSuggestion` (class)
 - `CaptionSuggestions` (class)
 
-## models/compliance/compliance_model.py (257 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (259 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class)
 - `ComplianceRuleCreate` (class)
 - `ComplianceRuleUpdate` (class)
@@ -99,13 +99,17 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `XIngestTopicInput` (class)
 - `XIngestRequest` (class)
 
-## models/compliance/script_review_model.py (89 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+## models/compliance/script_review_model.py (118 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class)
 - `ScriptStage` (class)
 - `ScriptDecisionRequest` (class) - The reviewer's call on the script.
 - `ScriptReviseRequest` (class)
 - `ScriptCheckRequest` (class)
 - `ScriptQueueItem` (class) - A script waiting for a reviewer, as the Content Screener's Scripts tab lists it.
+- `ScriptHighlight` (class) - A stretch of the script the reviewer highlighted, with an optional note on it.
+- `ScriptResolution` (class)
+- `ScriptResolutionsRequest` (class)
+- `ScriptHighlightsRequest` (class)
 
 ## models/compliance/sentiment_model.py (213 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - `Tone` (class)
@@ -246,7 +250,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (545 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (555 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -504,7 +508,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_quoted` (def) - a", "b"'.
 - `find_claims` (def) - The built-in claim checks that fire on this text, as findings.
 
-## services/compliance/compliance_service.py (1357 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/compliance_service.py (1388 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def)
 - `_ai_viability_enabled` (def)
 - `_row_to_rule` (def)
@@ -547,6 +551,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `flagged_tags` (def) - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
 - `_count_overlaps_once` (def) - When two rules flag the very same words (e.g.
     - `spans` (def)
+- `_count_extra_claims` (def) - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
 - `rulebook_version` (def) - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
 - `_examples` (def) - (example, quoted) pairs from a rule's example text.
 - `self_test` (def) - Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable
@@ -830,7 +835,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_shown` (def)
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 
-## services/compliance/script_review_service.py (424 lines) - Script stage of a video post.
+## services/compliance/script_review_service.py (488 lines) - Script stage of a video post.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
 - `_status` (def)
@@ -851,6 +856,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `revise` (def) - The creator edits the script in the platform (after edits or a change request) and sends it back.
 - `preview_check` (def) - Check wording being edited without saving it, so the score updates as the reviewer or creator works.
 - `queue` (def) - Scripts for one Content Screener tab, on the brands the viewer works on.
+- `get_highlights` (def) - The reviewer's highlights and notes on a script version, for anyone who can read the post.
+- `save_highlights` (def) - Replace the highlights on a script version.
+- `resolve_highlights` (def) - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
 
 ## services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 
@@ -1228,6 +1236,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `_scope_guard` (def)
 - `generate_scoped_outbound_token` (def) - Generates a minimal, scope-restricted token for sending requests to another application.
 
+## tests/test_ai_unavailable.py (45 lines) - test ai unavailable
+- `job` (def)
+- `AiUnavailableTests` (class)
+    - `test_flag_comes_from_the_stored_check` (def)
+    - `test_a_review_job_has_no_score_while_the_ai_is_unavailable` (def)
+    - `test_messages_say_there_is_no_score` (def)
+    - `test_listing_sql_hides_the_score` (def)
+
 ## tests/test_analysis_pending.py (50 lines) - test analysis pending
 - `job` (def)
 - `AnalysisPendingTests` (class)
@@ -1357,6 +1373,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_long_text_is_capped` (def)
 - `WhichFilesTests` (class)
     - `test_scripts_and_article_files_are_read` (def)
+
+## tests/test_extra_claims.py (46 lines) - test extra claims
+- `ExtraClaimTests` (class) - Uses the scoring tests' no-database check helper.
+    - `rules` (def)
+    - `test_one_claim_costs_the_rule_penalty_only` (def)
+    - `test_overlapping_phrases_are_one_claim` (def)
+    - `test_a_second_separate_claim_costs_five_more` (def)
+    - `test_extra_claims_add_a_little_each` (def)
+    - `test_extra_claims_are_capped` (def)
+    - `test_a_denied_phrase_is_not_a_claim` (def)
 
 ## tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
 - `rule` (def)
@@ -1630,7 +1656,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## tools/compliance/performance_router.py (32 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - `performance` (def) [GET ] - Live posts (one row per platform) with their numbers and health, problems first, plus totals.
 
-## tools/compliance/script_review_router.py (65 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+## tools/compliance/script_review_router.py (88 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `script_queue` (def) [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
 - `get_script` (def) [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
 - `submit_script` (def) [POST /{submission_id}/script/submit] - Send the uploaded script for review.
@@ -1638,6 +1664,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `accept_script_edits` (def) [POST /{submission_id}/script/accept] - Accept the reviewer's edits; the script is approved.
 - `revise_script` (def) [POST /{submission_id}/script/revise] - Send an edited script back to the reviewer.
 - `check_script` (def) [POST /{submission_id}/script/check] - Check wording being edited, without saving it.
+- `get_script_highlights` (def) [GET /{submission_id}/script/highlights] - The reviewer's highlights and notes on a script version (the creator sees them too).
+- `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
+- `resolve_script_highlights` (def) [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
 ## tools/compliance/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
 - `_reviewer` (def)
