@@ -10,10 +10,17 @@ USER = uuid4()
 
 
 class DashboardSummaryTests(unittest.IsolatedAsyncioTestCase):
-    async def summarise(self, *, see_all=True, brands=None, activity=(), decisions=None, average=None, findings=(), mine=False):
+    async def summarise(
+        self, *, see_all=True, brands=None, activity=(), decisions=None, average=None, findings=(), mine=False, script_decisions=None
+    ):
         fetch_all = AsyncMock(side_effect=[list(activity), list(findings)])
+        # In the order dashboard_summary asks: post decisions, the average score, then script decisions.
         fetch_one = AsyncMock(
-            side_effect=[decisions or {"completed": 0, "approved": 0, "changes": 0, "overdue": 0}, {"average": average}]
+            side_effect=[
+                decisions or {"completed": 0, "approved": 0, "changes": 0, "overdue": 0},
+                {"average": average},
+                script_decisions or {"completed": 0, "approved": 0, "changes": 0},
+            ]
         )
         with (
             patch(f"{SVC}._can_see_team_content", new=AsyncMock(return_value=see_all)),
@@ -69,6 +76,15 @@ class DashboardSummaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.average_score, 88)
         self.assertEqual(result.common_findings[0].count, 4)
         self.assertEqual(result.days, 30)
+
+    async def test_script_decisions_count_toward_the_review_totals(self):
+        result, _, _ = await self.summarise(
+            decisions={"completed": 5, "approved": 3, "changes": 2, "overdue": 1},
+            script_decisions={"completed": 4, "approved": 3, "changes": 1},
+        )
+        self.assertEqual((result.reviews_completed, result.approved, result.changes_requested), (9, 6, 3))
+        # The overdue count is for posts waiting now, so scripts don't change it.
+        self.assertEqual(result.overdue_reviews, 1)
 
     async def test_no_content_sent_for_review_has_no_average(self):
         result, _, _ = await self.summarise(average=None)
