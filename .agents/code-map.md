@@ -45,7 +45,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `CaptionSuggestion` (class)
 - `CaptionSuggestions` (class)
 
-## models/compliance/compliance_model.py (257 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (259 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class)
 - `ComplianceRuleCreate` (class)
 - `ComplianceRuleUpdate` (class)
@@ -125,10 +125,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (490 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (502 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
+- `ReviewerOption` (class) - Someone a creator can send content to for review.
 - `SubmissionCreate` (class)
 - `SubmissionUpdate` (class)
 - `TranscriptSegment` (class)
@@ -246,7 +247,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (545 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (548 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -488,7 +489,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_check` (def)
 - `suggest` (def)
 
-## services/compliance/claim_checks.py (315 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
+## services/compliance/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
 - `ClaimCheck` (class)
     - `rule_id` (def)
     - `penalty` (def)
@@ -504,7 +505,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_quoted` (def) - a", "b"'.
 - `find_claims` (def) - The built-in claim checks that fire on this text, as findings.
 
-## services/compliance/compliance_service.py (1357 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/compliance_service.py (1390 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def)
 - `_ai_viability_enabled` (def)
 - `_row_to_rule` (def)
@@ -547,6 +548,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `flagged_tags` (def) - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
 - `_count_overlaps_once` (def) - When two rules flag the very same words (e.g.
     - `spans` (def)
+- `_count_extra_claims` (def) - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
 - `rulebook_version` (def) - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
 - `_examples` (def) - (example, quoted) pairs from a rule's example text.
 - `self_test` (def) - Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable
@@ -801,7 +803,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `run` (def)
 - `search` (def)
 
-## services/compliance/review_deadline_service.py (194 lines) - Review and revision deadlines.
+## services/compliance/review_deadline_service.py (195 lines) - Review and revision deadlines.
 - `_hours` (def)
 - `add_working_days` (def) - The same time of day, this many working days later (Saturdays and Sundays are skipped).
 - `due_date` (def) - When the next step is due: the date asked for (a creator's "need approval by"), else the working days a
@@ -830,7 +832,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_shown` (def)
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 
-## services/compliance/script_review_service.py (424 lines) - Script stage of a video post.
+## services/compliance/script_review_service.py (428 lines) - Script stage of a video post.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
 - `_status` (def)
@@ -939,7 +941,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 
-## services/compliance/submission_service.py (2405 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submission_service.py (2466 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -951,6 +953,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_can_review` (def) - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
 - `_can_see_team_content` (def) - Content Managers and reviewers can read everyone's submissions.
 - `_brand_scope` (def) - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
+- `_sent_to` (def) - SQL: the content was sent to this user, or to no one in particular (every reviewer on its brand).
 - `_get_owned_row` (def) - Load a submission the user may access (creator or super admin; managers and reviewers too when
 - `_approvers` (def) - The named final approvers for a submission row (empty: any reviewer on its brand).
 - `_may_approve` (def)
@@ -999,6 +1002,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_version` (def) - A past (or the current) submitted version, for looking back at what it was and how it was decided.
 - `get_history` (def)
 - `_reviewer_ids` (def) - Active users who can review: super admins and roles with "Review & Publish Content".
+- `reviewer_options` (def) - The people a creator can send content to: reviewers and super admins (on the brand, when given), not themselves.
+- `_review_recipients` (def) - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
 - `_notify` (def)
 - `_score_line` (def) - The check's score for a message, or that it's still being analysed.
 - `_check_summary` (def)
@@ -1228,6 +1233,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `_scope_guard` (def)
 - `generate_scoped_outbound_token` (def) - Generates a minimal, scope-restricted token for sending requests to another application.
 
+## tests/test_ai_unavailable.py (45 lines) - test ai unavailable
+- `job` (def)
+- `AiUnavailableTests` (class)
+    - `test_flag_comes_from_the_stored_check` (def)
+    - `test_a_review_job_has_no_score_while_the_ai_is_unavailable` (def)
+    - `test_messages_say_there_is_no_score` (def)
+    - `test_listing_sql_hides_the_score` (def)
+
 ## tests/test_analysis_pending.py (50 lines) - test analysis pending
 - `job` (def)
 - `AnalysisPendingTests` (class)
@@ -1255,8 +1268,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_progress_for_several_posts_in_one_query` (def)
     - `test_no_posts_no_query` (def)
 
-## tests/test_claim_checks.py (148 lines) - The text read from the "$25M contract" graphic, line breaks and all.
-- `fired` (def)
+## tests/test_claim_checks.py (166 lines) - The text read from the "$25M contract" graphic, line breaks and all.
+- `fired` (def) - The checks that fire, by key: a check's rule number can be shared with another check.
 - `ClaimCheckTests` (class)
     - `test_the_contract_graphic_trips_every_check` (def)
     - `test_measured_results_and_figures_need_a_source_but_cost_nothing` (def)
@@ -1265,6 +1278,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_the_words_forward_looking_alone_are_not_safe_harbor` (def)
     - `test_an_approval_that_names_its_issuer_is_fine` (def)
     - `test_each_check_keeps_the_same_id_so_dismissals_stick` (def)
+    - `test_each_check_is_labelled_with_its_rulebook_rule` (def)
 - `ScoreWithClaimChecksTests` (class)
     - `check` (def)
     - `test_the_contract_graphic_no_longer_scores_100` (def)
@@ -1357,6 +1371,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_long_text_is_capped` (def)
 - `WhichFilesTests` (class)
     - `test_scripts_and_article_files_are_read` (def)
+
+## tests/test_extra_claims.py (46 lines) - test extra claims
+- `ExtraClaimTests` (class) - Uses the scoring tests' no-database check helper.
+    - `rules` (def)
+    - `test_one_claim_costs_the_rule_penalty_only` (def)
+    - `test_overlapping_phrases_are_one_claim` (def)
+    - `test_a_second_separate_claim_costs_five_more` (def)
+    - `test_extra_claims_add_a_little_each` (def)
+    - `test_extra_claims_are_capped` (def)
+    - `test_a_denied_phrase_is_not_a_claim` (def)
 
 ## tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
 - `rule` (def)
@@ -1540,7 +1564,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `QuotaResetTests` (class)
     - `test_the_daily_quota_resets_at_midnight_pacific` (def)
 
-## tests/test_submission_access.py (152 lines) - test submission access
+## tests/test_submission_access.py (154 lines) - test submission access
 - `submission_row` (def)
 - `OwnedRowAccessTests` (class)
     - `load` (def)
@@ -1646,8 +1670,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `create_eval_case` (def) [POST /eval-cases] - Save an analysed post as a test case, with the verdict the reviewer agrees is right.
 - `delete_eval_case` (def) [DELETE /eval-cases/{case_id}]
 
-## tools/compliance/submission_router.py (404 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submission_router.py (411 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
+- `list_reviewers` (def) [GET /reviewers] - Reviewers and super admins a creator can send content to (on the brand, when given).
 - `get_hashtag_library` (def) [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
 - `review_queue` (def) [GET /review-queue] - Submitted posts for one Content Screener tab (declared before /{submission_id} so it isn't parsed as an id).
 - `review_queue_counts` (def) [GET /review-queue/counts] - How many posts are in each Content Screener tab.
@@ -1713,12 +1738,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `api_notification_stream` (def) [GET /notifications/stream]
     - `event_generator` (def)
 
-## tools/shared/auth_router.py (348 lines) - auth router (shared)
+## tools/shared/auth_router.py (409 lines) - auth router (shared)
 - `_sha256` (def)
 - `microsoft_login` (def) [GET /auth/microsoft/login]
 - `microsoft_callback` (def) [GET /auth/microsoft/callback]
 - `LoginCodeExchange` (class)
 - `exchange_login_code` (def) [POST /auth/exchange] - Swap the one-time code from the sign-in redirect, with the nonce this browser made when it started signing
+- `_test_login_allowed` (def)
+- `TestLoginRequest` (class)
+- `test_login_status` (def) [GET /auth/test-login] - Whether the login page offers the test sign-in buttons.
+- `test_login` (def) [POST /auth/test-login] - Sign in as the test creator (Standard User) or test reviewer (Content Reviewer), creating them if needed.
 - `get_auth_bootstrap` (def) [GET /auth/bootstrap]
 - `get_all_navigation_items` (def)
 - `get_all_mcp_tools` (def)

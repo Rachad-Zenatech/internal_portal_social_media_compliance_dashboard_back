@@ -175,7 +175,7 @@ async def _lock_status(conn, submission_id: UUID, allowed: tuple) -> None:
 
 
 async def _send_to_reviewers(row: Dict[str, Any], version: int, check: Dict[str, Any], user_id: UUID) -> None:
-    reviewers = await subs._reviewer_ids(exclude=user_id, brand_code=row["brand_code"])
+    reviewers = await subs._review_recipients(row, exclude=user_id)
     issues = check.get("violations_count") or 0
     await subs._notify(
         reviewers,
@@ -194,6 +194,8 @@ async def submit(submission_id: UUID, user_id: UUID) -> ScriptStage:
     _require_stage(row)
     if _status(row) not in ("DRAFT", "CHANGES_REQUESTED"):
         raise HTTPException(status_code=409, detail="The script is already with a reviewer or approved")
+    if not row.get("reviewer_ids"):
+        raise HTTPException(status_code=422, detail="Pick the reviewers to send it to (Submission Details) first")
     file = await _script_file(submission_id)
     if not file:
         raise HTTPException(status_code=422, detail="Upload the script first (PDF, Word or text)")
@@ -393,10 +395,12 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
         LEFT JOIN users u ON u.id = s.created_by
         WHERE {where} AND s.script_required AND s.content_type = 'VIDEO'
           AND s.deleted_at IS NULL AND ($1::text[] IS NULL OR s.brand_code = ANY($1::text[]))
+          AND (s.created_by = $2 OR {subs._sent_to("$2")})
         ORDER BY {order}
         LIMIT 100
         """,
         await subs._brand_scope(user_id),
+        user_id,
     )
     current_rb = await rulebook_version() if tab in ("review", "sent_back") else None
     items = []

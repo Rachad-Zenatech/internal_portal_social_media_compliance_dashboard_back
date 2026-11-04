@@ -37,6 +37,7 @@ from models.compliance.submission_model import (
     AccountOption,
     BrandOption,
     ReviewJob,
+    ReviewerOption,
     VersionView,
     ReviewQueueCounts,
     ReviewQueueItem,
@@ -222,6 +223,11 @@ async def _brand_scope(user_id: UUID) -> Optional[List[str]]:
     return list(row["brands"])
 
 
+def _sent_to(user_param: str = "$1") -> str:
+    """SQL: the content was sent to this user, or to no one in particular (every reviewer on its brand)."""
+    return f"(cardinality(s.reviewer_ids) = 0 OR {user_param} = ANY(s.reviewer_ids))"
+
+
 async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: bool = False) -> Dict[str, Any]:
     """Load a submission the user may access (creator or super admin; managers and reviewers too when
     manager_can_read, for the brands they work on), with its account joined. Deleted submissions are never returned."""
@@ -245,6 +251,9 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
         scope = await _brand_scope(user_id)
         if scope is not None and row["brand_code"] not in scope:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+        # Sent to particular reviewers: only they (besides its creator and super admins) may open it.
+        if row.get("reviewer_ids") and user_id not in row["reviewer_ids"]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     return row
 
@@ -332,6 +341,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         caption_text=row["caption_text"],
         rule_sets=list(row["rule_sets"] or []),
         reviewer_route=list(row["reviewer_route"] or []),
+        reviewer_ids=list(row.get("reviewer_ids") or []),
         status=row["status"],
         current_version=row["current_version"],
         latest_check=_json(row["latest_check"]),
@@ -472,7 +482,8 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             ORDER BY (cf.kind = 'MAIN') DESC, cf.created_at ASC
             LIMIT 1
         ) cov ON true
-        WHERE (s.created_by = $1 OR ($3 AND ($4::text[] IS NULL OR s.brand_code = ANY($4::text[]))))
+        WHERE (s.created_by = $1 OR ($3 AND ($4::text[] IS NULL OR s.brand_code = ANY($4::text[]))
+                                     AND (cardinality(s.reviewer_ids) = 0 OR $1 = ANY(s.reviewer_ids))))
           AND s.deleted_at IS NULL AND ($2::text IS NULL OR s.status = $2)
         -- Work on a deadline comes first: changes to fix, then drafts to finish, then content waiting
         -- on reviewers, each by nearest publish date; finished content goes last.
@@ -619,6 +630,12 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         if bad:
             raise HTTPException(status_code=422, detail=f"Unknown reviewer route(s): {', '.join(bad)}")
         fields["reviewer_route"] = list(dict.fromkeys(payload["reviewer_route"]))
+    if payload.get("reviewer_ids") is not None:
+        picked = list(dict.fromkeys(payload["reviewer_ids"]))
+        allowed = set(await _reviewer_ids(exclude=row["created_by"], brand_code=fields.get("brand_code", row["brand_code"])))
+        if any(r not in allowed for r in picked):
+            raise HTTPException(status_code=422, detail="Some of those people can't review content on this brand")
+        fields["reviewer_ids"] = picked
     for name in data.clear_fields:
         fields[name] = None
         if name == "account_id":
@@ -1225,6 +1242,8 @@ async def _missing_for_submit(row: Dict[str, Any]) -> List[str]:
         missing.append("rule_sets")
     if not row.get("approval_needed_by"):
         missing.append("approval_needed_by")
+    if not row.get("reviewer_ids"):
+        missing.append("reviewer_ids")
     has_main = await fetch_one(
         "SELECT 1 AS ok FROM content_submission_files WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL LIMIT 1",
         row["id"],
@@ -1297,6 +1316,21 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
             "missing": sorted(set(missing)),
         })
 
+    # Sent to the reviewers picked (required, see _missing_for_submit) who can still review it, and its final
+    # approvers, who must see it to approve it.
+    reviewer_ids = list(row.get("reviewer_ids") or [])
+    if reviewer_ids:
+        eligible = set(await _reviewer_ids(exclude=row["created_by"], brand_code=row["brand_code"]))
+        reviewer_ids = [r for r in reviewer_ids if r in eligible]
+        if not reviewer_ids:
+            raise HTTPException(status_code=422, detail={
+                "message": "None of the reviewers you picked can review this brand any more. Pick reviewers again.",
+                "missing": ["reviewer_ids"],
+            })
+        approver_ids, _ = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
+        reviewer_ids +=[a for a in approver_ids if a not in reviewer_ids and a != row["created_by"]]
+    row = {**dict(row), "reviewer_ids": reviewer_ids}
+
     # Automated rulebook screening is the first step of the review job.
     result, check = await _run_check(row)
 
@@ -1328,6 +1362,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         "script_text": script_text,
         "rule_sets": list(row["rule_sets"] or []),
         "reviewer_route": list(row["reviewer_route"] or []),
+        "reviewer_ids": [str(r) for r in reviewer_ids],
         "files": [
             {"id": str(f["id"]), "kind": f["kind"], "original_name": f["original_name"],
              "mime_type": f["mime_type"], "size_bytes": f["size_bytes"],
@@ -1368,11 +1403,13 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
                 UPDATE content_submissions
                 SET status = 'IN_REVIEW', current_version = $2, latest_check = $3::jsonb,
                     submitted_at = NOW(), updated_at = NOW(), updated_by = $4,
-                    due_at = $5, due_kind = 'REVIEW', due_reminded_at = NULL, due_overdue_notified_at = NULL
+                    due_at = $5, due_kind = 'REVIEW', due_reminded_at = NULL, due_overdue_notified_at = NULL,
+                    reviewer_ids = $6::uuid[]
                 WHERE id = $1
                 """,
                 submission_id, version, json.dumps(check), user_id,
                 review_deadline_service.due_date("REVIEW", row["publish_at"], requested=needed_by),
+                reviewer_ids,
             )
             await _add_event(conn, submission_id, "SUBMITTED", f"Version {version} submitted for review", user_id,
                              {"version": version, "review_job_id": str(job["id"])})
@@ -1514,7 +1551,10 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
     mine=True limits it to the viewer's own content (a super admin viewing the app as a creator)."""
     see_all = not mine and await _can_see_team_content(user_id)
     scope = await _brand_scope(user_id)
-    visible = "s.deleted_at IS NULL AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))))"
+    visible = (
+        "s.deleted_at IS NULL AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))"
+        f" AND {_sent_to()}))"
+    )
     since = f"NOW() - INTERVAL '{DASHBOARD_DAYS} days'"
     args = (user_id, see_all, scope)
 
@@ -1605,7 +1645,7 @@ async def review_queue_counts(user_id: UUID, mine: bool = False) -> ReviewQueueC
                 AND s.content_type = 'VIDEO' AND s.updated_at > NOW() - INTERVAL '30 days') AS scripts_done
         FROM content_submissions s
         WHERE s.deleted_at IS NULL
-          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))))
+          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[])) AND {_sent_to()}))
         """,
         user_id,
         see_all,
@@ -1650,7 +1690,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         LEFT JOIN oauth_connections c ON c.id = s.account_id
         LEFT JOIN users u ON u.id = s.created_by
         WHERE {_queue_filter(tab)} AND s.deleted_at IS NULL
-          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))))
+          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[])) AND {_sent_to()}))
           AND ($4 = '' OR s.title ILIKE '%' || $4 || '%' OR s.reference_code ILIKE '%' || $4 || '%')
         ORDER BY {_QUEUE_ORDER[tab]}
         LIMIT 100
@@ -1847,6 +1887,27 @@ async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str
     return [r["id"] for r in rows]
 
 
+async def reviewer_options(user_id: UUID, brand_code: Optional[str] = None) -> List[ReviewerOption]:
+    """The people a creator can send content to: reviewers and super admins (on the brand, when given), not themselves."""
+    ids = await _reviewer_ids(exclude=user_id, brand_code=brand_code)
+    rows = await fetch_all(
+        "SELECT id, full_name, email, is_super_admin FROM users WHERE id = ANY($1::uuid[]) ORDER BY full_name, email",
+        ids,
+    )
+    return [
+        ReviewerOption(id=r["id"], name=r["full_name"] or r["email"], email=r["email"], is_super_admin=bool(r["is_super_admin"]))
+        for r in rows
+    ]
+
+
+async def _review_recipients(row: Dict[str, Any], exclude: Optional[UUID]) -> List[UUID]:
+    """Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
+    reviewer on its brand when it wasn't sent to anyone in particular."""
+    everyone = await _reviewer_ids(exclude=exclude, brand_code=row.get("brand_code"))
+    picked = list(row.get("reviewer_ids") or [])
+    return [r for r in picked if r in set(everyone)] if picked else everyone
+
+
 async def _notify(user_ids: List[UUID], title: str, message: str, link: str, submission_id: UUID) -> None:
     if not user_ids:
         return
@@ -1885,7 +1946,7 @@ async def _notify_reviewers(row: Dict[str, Any], version: int, score_line: str, 
     author = await fetch_one("SELECT full_name FROM users WHERE id = $1", submitter)
     again = " (resubmitted)" if version > 1 else ""
     who = author["full_name"] if author else "Someone"
-    reviewers = await _reviewer_ids(exclude=submitter, brand_code=row["brand_code"])
+    reviewers = await _review_recipients(row, exclude=submitter)
     approver_ids, _ = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
     approvers = [a for a in approver_ids if a != submitter]
     await _notify(

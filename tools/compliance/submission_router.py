@@ -23,6 +23,7 @@ from models.compliance.submission_model import (
     QueueTab,
     ReviewQueueCounts,
     ReviewQueueItem,
+    ReviewerOption,
     VersionView,
     Submission,
     SubmissionCreate,
@@ -50,6 +51,12 @@ CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 async def get_options(user_id: CurrentUser):
     """Brands, connected publishing accounts and the allowed values for each field."""
     return await svc.get_options(user_id)
+
+
+@router.get("/reviewers", response_model=List[ReviewerOption])
+async def list_reviewers(user_id: CurrentUser, brand_code: Optional[str] = Query(None, max_length=50)):
+    """Reviewers and super admins a creator can send content to (on the brand, when given)."""
+    return await svc.reviewer_options(user_id, brand_code)
 
 
 @router.get("/hashtags", response_model=HashtagLibrary)

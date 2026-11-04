@@ -84,7 +84,7 @@ async def _recipients(row: Dict[str, Any]) -> List[UUID]:
     from services.compliance import submission_service
 
     if row["due_kind"] == "REVIEW":
-        return await submission_service._reviewer_ids(exclude=row["created_by"], brand_code=row.get("brand_code"))
+        return await submission_service._review_recipients(row, exclude=row["created_by"])
     ids = [row["created_by"]]
     if row.get("stage") == "overdue" and row.get("requested_by") and row["requested_by"] != row["created_by"]:
         ids.append(row["requested_by"])
@@ -122,6 +122,7 @@ async def _claim(stage: str) -> List[Dict[str, Any]]:
           AND ((s.due_kind = 'REVIEW' AND s.status = 'IN_REVIEW')
                OR (s.due_kind = 'REVISION' AND s.status = 'CHANGES_REQUESTED'))
         RETURNING s.id, s.reference_code, s.title, s.created_by, s.due_at, s.due_kind, s.current_version, s.brand_code,
+                  s.reviewer_ids,
                   (SELECT j.decided_by FROM content_review_jobs j
                     WHERE j.submission_id = s.id AND j.version_number = s.current_version
                     ORDER BY j.created_at DESC LIMIT 1) AS requested_by

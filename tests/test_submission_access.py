@@ -82,6 +82,8 @@ class OwnedRowAccessTests(unittest.IsolatedAsyncioTestCase):
 
 class SubmitRequirementTests(unittest.IsolatedAsyncioTestCase):
     async def missing(self, row, has_main_file=False):
+        # A complete post has been sent to someone; tests that want none say reviewer_ids=[].
+        row = {"reviewer_ids": [OTHER], **row}
         with patch(f"{SVC}.fetch_one", new=AsyncMock(return_value={"ok": 1} if has_main_file else None)):
             return await submission_service._missing_for_submit(row)
 
@@ -91,12 +93,12 @@ class SubmitRequirementTests(unittest.IsolatedAsyncioTestCase):
     async def test_every_missing_field_is_reported(self):
         row = submission_row(
             title=" ", brand_code=None, audience=None, region=None, platforms=[], account_ids=[], rule_sets=[],
-            caption_text="", approval_needed_by=None,
+            caption_text="", approval_needed_by=None, reviewer_ids=[],
         )
         self.assertEqual(
             set(await self.missing(row)),
             {"title", "brand_code", "audience", "region", "platforms", "account_id", "rule_sets", "caption",
-             "approval_needed_by"},
+             "approval_needed_by", "reviewer_ids"},
         )
 
     async def test_image_posts_need_their_image(self):

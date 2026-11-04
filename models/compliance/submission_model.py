@@ -74,6 +74,14 @@ class SubmissionOptions(BaseModel):
     reviewer_routes: List[str] = REVIEWER_ROUTES
 
 
+class ReviewerOption(BaseModel):
+    """Someone a creator can send content to for review."""
+    id: UUID
+    name: str
+    email: str
+    is_super_admin: bool = False
+
+
 class SubmissionCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=300)
     content_type: ContentType
@@ -96,6 +104,8 @@ class SubmissionUpdate(BaseModel):
     caption_text: Optional[str] = Field(None, max_length=100_000)
     rule_sets: Optional[List[str]] = Field(None, max_length=len(RULE_SETS))
     reviewer_route: Optional[List[str]] = Field(None, max_length=len(REVIEWER_ROUTES))
+    # The reviewers to send it to; an empty list sends it to every reviewer on its brand.
+    reviewer_ids: Optional[List[UUID]] = Field(None, max_length=50)
     # Explicitly clear nullable fields (e.g. account_id, publish_at) by listing them here. account_id clears every account.
     clear_fields: List[Literal["account_id", "publish_at", "approval_needed_by", "brand_code", "audience", "region"]] = Field(
         default_factory=list
@@ -239,6 +249,8 @@ class Submission(BaseModel):
     caption_text: Optional[str] = None
     rule_sets: List[str] = Field(default_factory=list)
     reviewer_route: List[str] = Field(default_factory=list)
+    # The reviewers it's sent to (empty: every reviewer on its brand). Once submitted, its final approvers too.
+    reviewer_ids: List[UUID] = Field(default_factory=list)
     status: str
     current_version: int
     latest_check: Optional[Dict[str, Any]] = None

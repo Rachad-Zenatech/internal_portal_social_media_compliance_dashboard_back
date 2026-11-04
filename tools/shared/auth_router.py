@@ -209,6 +209,67 @@ async def exchange_login_code(data: LoginCodeExchange):
         raise HTTPException(status_code=400, detail="This sign-in link has expired or was already used. Sign in again.")
     return {"token": create_access_token(row["id"], bool(row["is_super_admin"]))}
 
+
+# Local testing only: sign in as a test creator or test reviewer without Microsoft, so both sides of a review can be
+# tried on one machine. Off unless DEV_TEST_LOGIN is set, never in production, and only when the API is called at
+# localhost (inside Docker the caller's address is the bridge gateway, so the host the browser asked for is checked).
+TEST_USERS = {
+    "creator": ("test.creator@example.com", "Test Creator", "USER"),
+    "reviewer": ("test.reviewer@example.com", "Test Reviewer", "REVIEWER"),
+}
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]"}
+
+
+def _test_login_allowed(request: Request) -> bool:
+    return (
+        os.getenv("DEV_TEST_LOGIN", "false").strip().lower() in ("1", "true", "yes")
+        and os.getenv("APP_ENV", "development").strip().lower() != "production"
+        and (request.url.hostname or "").lower() in _LOCAL_HOSTS
+    )
+
+
+class TestLoginRequest(BaseModel):
+    as_: str = Field(alias="as", pattern="^(creator|reviewer)$")
+
+
+@router.get("/auth/test-login")
+async def test_login_status(request: Request):
+    """Whether the login page offers the test sign-in buttons."""
+    return {"enabled": _test_login_allowed(request)}
+
+
+@router.post("/auth/test-login")
+async def test_login(data: TestLoginRequest, request: Request):
+    """Sign in as the test creator (Standard User) or test reviewer (Content Reviewer), creating them if needed.
+    Their @example.com addresses can never receive email."""
+    if not _test_login_allowed(request):
+        raise HTTPException(status_code=404, detail="Not found")
+    email, name, role = TEST_USERS[data.as_]
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            user = await conn.fetchrow(
+                """
+                INSERT INTO users (email, full_name, is_active, is_super_admin, auth_provider, sso_enabled, created_at)
+                VALUES ($1, $2, true, false, 'microsoft', true, now())
+                ON CONFLICT (email) DO UPDATE SET is_active = true, deleted_at = NULL, deleted_by = NULL
+                RETURNING id, is_super_admin
+                """,
+                email, name,
+            )
+            await conn.execute(
+                """
+                INSERT INTO user_roles (user_id, role_id, assigned_at, is_active)
+                SELECT $1, id, now(), true FROM roles WHERE code = $2
+                ON CONFLICT (user_id, role_id) DO UPDATE SET is_active = true
+                """,
+                user["id"], role,
+            )
+    logger.warning("Test sign-in as %s (%s)", data.as_, email, extra={"event": "test_login"})
+    await log_login_activity(email, user["id"], True, None, request.client.host if request.client else None,
+                             request.headers.get("user-agent"))
+    return {"token": create_access_token(user["id"], bool(user["is_super_admin"]))}
+
 @router.get("/auth/bootstrap")
 async def get_auth_bootstrap(user_id: UUID = Depends(get_current_user_id_dependency)):
     pool = get_pool()

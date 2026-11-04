@@ -13,14 +13,14 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - models/compliance/approval_path_model.py (38 lines) - Approval paths: who gives final approval for which content.
 - models/compliance/canva_model.py (41 lines) - Canva Integration Models Connecting a Canva account, picking a design and importing (or reimporting) its export into a submission.
 - models/compliance/caption_model.py (39 lines) - Caption suggestions: Gemini drafts a few captions from the post itself, checked against the rulebook.
-- models/compliance/compliance_model.py (257 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+- models/compliance/compliance_model.py (259 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - models/compliance/context_model.py (32 lines) - Messaging Context: reference material the content analysis is given.
 - models/compliance/flag_review_model.py (66 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
 - models/compliance/public_mood_model.py (197 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - models/compliance/script_review_model.py (89 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - models/compliance/sentiment_model.py (213 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
-- models/compliance/submission_model.py (490 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+- models/compliance/submission_model.py (502 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
 - models/shared/oauth_connection_model.py (127 lines) - Pydantic models for Organization, Company, and OAuth connections.
 - models/shared/rbac_model.py (146 lines) - rbac model (shared)
@@ -36,7 +36,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - postgresql_db/schemas/setup_pbac_schema.py (450 lines) - setup pbac schema (schemas)
 - postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
 - postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
-- postgresql_db/schemas/setup_submissions_schema.py (545 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+- postgresql_db/schemas/setup_submissions_schema.py (548 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - scripts/scrape_x_playwright.py (323 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
@@ -55,8 +55,8 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
 - services/compliance/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
 - services/compliance/caption_service.py (331 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
-- services/compliance/claim_checks.py (315 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
-- services/compliance/compliance_service.py (1357 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+- services/compliance/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
+- services/compliance/compliance_service.py (1390 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - services/compliance/context_evaluator.py (350 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/context_service.py (159 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/document_layout.py (419 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
@@ -72,10 +72,10 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/post_signals.py (204 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - services/compliance/public_mood_service.py (946 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - services/compliance/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
-- services/compliance/review_deadline_service.py (194 lines) - Review and revision deadlines.
+- services/compliance/review_deadline_service.py (195 lines) - Review and revision deadlines.
 - services/compliance/review_memory_service.py (190 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/script_match.py (56 lines) - Script vs video.
-- services/compliance/script_review_service.py (424 lines) - Script stage of a video post.
+- services/compliance/script_review_service.py (428 lines) - Script stage of a video post.
 - services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 - services/compliance/sentiment/config.py (348 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
 - services/compliance/sentiment/engine.py (313 lines) - Gemini execution and model failover chain for sentiment analysis.
@@ -85,7 +85,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/sentiment/jobs.py (467 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - services/compliance/sentiment/media.py (66 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
-- services/compliance/submission_service.py (2405 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submission_service.py (2466 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/transcription_service.py (257 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
 - services/compliance/video_job_service.py (182 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
@@ -102,12 +102,14 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/shared/oauth_connection_service.py (608 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
 - services/shared/rbac_service.py (757 lines) - Utility for audit logging
 - services/shared/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
+- tests/test_ai_unavailable.py (45 lines) - test ai unavailable
 - tests/test_analysis_pending.py (50 lines) - test analysis pending
 - tests/test_analysis_progress.py (112 lines) - test analysis progress
-- tests/test_claim_checks.py (148 lines) - The text read from the "$25M contract" graphic, line breaks and all.
+- tests/test_claim_checks.py (166 lines) - The text read from the "$25M contract" graphic, line breaks and all.
 - tests/test_compliance_scoring.py (405 lines) - These tests are about the wording-based rules, so the vector store and the model that match rules by meaning are
 - tests/test_dashboard_summary.py (107 lines) - test dashboard summary
 - tests/test_document_text.py (81 lines) - test document text
+- tests/test_extra_claims.py (46 lines) - test extra claims
 - tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
 - tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
 - tests/test_post_signals.py (93 lines) - test post signals
@@ -117,7 +119,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_security_fixes.py (127 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - tests/test_sentiment_strictness.py (70 lines) - test sentiment strictness
 - tests/test_sentiment_verification.py (147 lines) - test sentiment verification
-- tests/test_submission_access.py (152 lines) - test submission access
+- tests/test_submission_access.py (154 lines) - test submission access
 - tests/test_x_sentiment_listening.py (178 lines) - test x sentiment listening
 - tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - tools/compliance/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.
@@ -128,10 +130,10 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tools/compliance/performance_router.py (32 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - tools/compliance/script_review_router.py (65 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - tools/compliance/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
-- tools/compliance/submission_router.py (404 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+- tools/compliance/submission_router.py (411 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/notifications/notification_router.py (87 lines) - notification router (notifications)
-- tools/shared/auth_router.py (348 lines) - auth router (shared)
+- tools/shared/auth_router.py (409 lines) - auth router (shared)
 - tools/shared/log_router.py (74 lines) - log router (shared)
 - tools/shared/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
 - tools/shared/observability.py (117 lines) - observability (shared)

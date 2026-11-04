@@ -75,6 +75,9 @@ async def setup():
             CREATE INDEX IF NOT EXISTS idx_content_submissions_due ON content_submissions(due_at)
                 WHERE due_at IS NOT NULL AND deleted_at IS NULL;
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS deleted_by UUID REFERENCES users(id) ON DELETE SET NULL;
+            -- The reviewers the creator sent it to. Empty: every reviewer on its brand. Otherwise only they (and its
+            -- final approvers, added on submit) see it in the queue and get its notifications.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS reviewer_ids UUID[] NOT NULL DEFAULT '{}';
 
             -- Brands each user works on. A user with none listed (and every super admin) works on all brands.
             CREATE TABLE IF NOT EXISTS user_brands (
