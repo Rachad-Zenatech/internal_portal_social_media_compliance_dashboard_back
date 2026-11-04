@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 # The company's Nasdaq ticker as a cashtag.
 CASHTAG = "$ZENA"
+CASHTAG_SUGGESTED_NOTE = "This post is for investors, and $ZENA is the tag they follow. Investor-disclosure rules apply to the whole post."
 CASHTAG_NOTE = "Reaches investors following the stock. Investor-disclosure rules then apply to the whole post."
 
 # How many hashtags suit each platform. Reddit and websites don't use them.
@@ -130,7 +131,11 @@ def build(brand_codes: Sequence[str], audiences: Sequence[str], platforms: Seque
         label = AUDIENCE_LABELS.get(audiences[0], "this audience") if len(audiences) == 1 else "these audiences"
         groups.append(LibraryGroup(label=f"For {label}",
                                    tags=[LibraryTag(tag=t) for t in audience_tags]))
-    groups.append(LibraryGroup(label="Investors", tags=[LibraryTag(tag=CASHTAG, note=CASHTAG_NOTE)]))
+    if "INVESTORS" in audiences:
+        # The post is for investors, so the ticker they follow comes first rather than as an option at the end.
+        groups.insert(0, LibraryGroup(label="Suggested for investors", tags=[LibraryTag(tag=CASHTAG, note=CASHTAG_SUGGESTED_NOTE)]))
+    else:
+        groups.append(LibraryGroup(label="Investors", tags=[LibraryTag(tag=CASHTAG, note=CASHTAG_NOTE)]))
     return HashtagLibrary(
         groups=[g for g in groups if g.tags],
         max_hashtags=max_hashtags(platforms),

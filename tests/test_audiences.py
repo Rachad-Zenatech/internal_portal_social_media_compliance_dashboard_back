@@ -66,3 +66,15 @@ class AudiencesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CashtagSuggestionTests(unittest.TestCase):
+    def test_the_cashtag_is_suggested_first_when_the_post_is_for_investors(self):
+        lib = hl.build(["ZENATECH"], ["GENERAL", "INVESTORS"], ["LINKEDIN"])
+        self.assertEqual(lib.groups[0].label, "Suggested for investors")
+        self.assertEqual(lib.groups[0].tags[0].tag, hl.CASHTAG)
+        self.assertEqual([g.label for g in lib.groups].count("Investors"), 0)
+
+    def test_otherwise_the_cashtag_is_an_option_at_the_end(self):
+        lib = hl.build(["ZENATECH"], ["GENERAL"], ["LINKEDIN"])
+        self.assertEqual(lib.groups[-1].label, "Investors")
