@@ -24,8 +24,12 @@ A MAJOR DRIVER
 OF GROWTH FOR ZENATECH"""
 
 
+KEYS = {c.rule_id: c.key for c in claim_checks.CHECKS}
+
+
 def fired(text):
-    return {v.rule_number: v for v in claim_checks.find_claims(text)}
+    """The checks that fire, by key: a check's rule number can be shared with another check."""
+    return {KEYS[v.rule_id]: v for v in claim_checks.find_claims(text)}
 
 
 class ClaimCheckTests(unittest.TestCase):
@@ -33,22 +37,22 @@ class ClaimCheckTests(unittest.TestCase):
         found = fired(CONTRACT_GRAPHIC)
 
         # The performance-figure check looks for measured results, which the graphic doesn't carry.
-        self.assertEqual(set(found), {c.rule_number for c in claim_checks.CHECKS if c.key != "performance-figure"})
-        self.assertIn("$25m", found["Claim check 4"].flagged_terms)
-        self.assertIn("major global company", found["Claim check 5"].flagged_terms)
-        self.assertIn("officially approved", found["Claim check 3"].flagged_terms)
-        self.assertIn("already in deployment", found["Claim check 6"].flagged_terms)
+        self.assertEqual(set(found), {c.key for c in claim_checks.CHECKS if c.key != "performance-figure"})
+        self.assertIn("$25m", found["financial-figure"].flagged_terms)
+        self.assertIn("major global company", found["unnamed-counterparty"].flagged_terms)
+        self.assertIn("officially approved", found["unqualified-approval"].flagged_terms)
+        self.assertIn("already in deployment", found["deployment-status"].flagged_terms)
 
     def test_measured_results_and_figures_need_a_source_but_cost_nothing(self):
         for text, check in [
-            ("Our drone reduces inventory counting time by 60%.", "Claim check 7"),
-            ("It is 40% faster than manual counting.", "Claim check 7"),
-            ("Replaced a $38,000 handgrip with a $30 controller.", "Claim check 4"),
+            ("Our drone reduces inventory counting time by 60%.", "performance-figure"),
+            ("It is 40% faster than manual counting.", "performance-figure"),
+            ("Replaced a $38,000 handgrip with a $30 controller.", "financial-figure"),
         ]:
             with self.subTest(text=text):
                 finding = fired(text)[check]
                 self.assertEqual((finding.status, finding.penalty), ("EVIDENCE_REQUIRED", 0))
-        self.assertNotIn("Claim check 7", fired("Save 50% off today"))
+        self.assertNotIn("performance-figure", fired("Save 50% off today"))
 
     def test_ordinary_posts_are_left_alone(self):
         for text in [
@@ -61,23 +65,37 @@ class ClaimCheckTests(unittest.TestCase):
 
     def test_safe_harbor_wording_clears_the_forward_looking_check(self):
         text = "We expect revenue to grow next year. This post contains forward-looking statements; actual results may differ materially."
-        self.assertNotIn("Claim check 1", fired(text))
-        self.assertIn("Claim check 1", fired("We expect revenue to grow next year."))
+        self.assertNotIn("forward-looking-financial", fired(text))
+        self.assertIn("forward-looking-financial", fired("We expect revenue to grow next year."))
 
     def test_the_words_forward_looking_alone_are_not_safe_harbor(self):
-        self.assertIn("Claim check 1", fired("Revenue will double this year. We're a forward-looking team!"))
+        self.assertIn("forward-looking-financial", fired("Revenue will double this year. We're a forward-looking team!"))
         # Canada's term for it counts too.
-        self.assertNotIn("Claim check 1", fired(
+        self.assertNotIn("forward-looking-financial", fired(
             "Revenue will double this year. This post contains forward-looking information; results may differ."))
 
     def test_an_approval_that_names_its_issuer_is_fine(self):
-        self.assertNotIn("Claim check 3", fired("Approved by the FAA under a Part 107 waiver for beyond-line-of-sight flights."))
-        self.assertIn("Claim check 3", fired("Our drone is now fully certified."))
+        self.assertNotIn("unqualified-approval", fired("Approved by the FAA under a Part 107 waiver for beyond-line-of-sight flights."))
+        self.assertIn("unqualified-approval", fired("Our drone is now fully certified."))
 
     def test_each_check_keeps_the_same_id_so_dismissals_stick(self):
         ids = [c.rule_id for c in claim_checks.CHECKS]
         self.assertEqual(len(set(ids)), len(ids))
         self.assertEqual(claim_checks.CHECKS[0].rule_id, claim_checks.FORWARD_LOOKING_ID)
+
+    def test_each_check_is_labelled_with_its_rulebook_rule(self):
+        self.assertEqual(
+            {c.key: c.rule_number for c in claim_checks.CHECKS},
+            {
+                "forward-looking-financial": "Rule 25",
+                "contract-announcement": "Rule 6",
+                "unqualified-approval": "Rule 26",
+                "financial-figure": "Rule 18",
+                "performance-figure": "Rule 24",
+                "unnamed-counterparty": "Rule 18",
+                "deployment-status": "Rule 2",
+            },
+        )
 
 
 class ScoreWithClaimChecksTests(unittest.IsolatedAsyncioTestCase):

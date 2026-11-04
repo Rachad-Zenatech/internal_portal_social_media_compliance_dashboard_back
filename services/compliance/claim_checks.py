@@ -6,7 +6,8 @@ financial results paired with the future, unnamed customers, approvals with no i
 announcements. They run on every check (every brand belongs to the Nasdaq-listed company), cost no AI quota, and give
 the same answer every time.
 
-Each finding is reported like a rule's, with a fixed id so a reviewer can dismiss it the same way.
+Each finding is reported like a rule's, with a fixed id so a reviewer can dismiss it the same way, and under the
+number of the rulebook rule it enforces, so reviewers see that rule. Two checks can share a rule; the id tells them apart.
 """
 
 import re
@@ -17,7 +18,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from models.compliance.compliance_model import ComplianceViolation
 
 # Bump when the checks change, so open content is re-checked on the next start (see rulebook_version).
-VERSION = "claims-4"
+VERSION = "claims-5"
 
 PENALTY_HIGH = 20
 PENALTY_MEDIUM = 10
@@ -196,7 +197,7 @@ def _contract(text: str) -> List[str]:
 CHECKS: List[ClaimCheck] = [
     ClaimCheck(
         key="forward-looking-financial",
-        rule_number="Claim check 1",
+        rule_number="Rule 25",
         title="Forward-looking financial statement without safe-harbor wording",
         category="Financial Disclosure",
         severity="HIGH",
@@ -208,7 +209,7 @@ CHECKS: List[ClaimCheck] = [
     ),
     ClaimCheck(
         key="contract-announcement",
-        rule_number="Claim check 2",
+        rule_number="Rule 6",
         title="Contract or deal announcement",
         category="Financial Disclosure",
         severity="HIGH",
@@ -220,7 +221,7 @@ CHECKS: List[ClaimCheck] = [
     ),
     ClaimCheck(
         key="unqualified-approval",
-        rule_number="Claim check 3",
+        rule_number="Rule 26",
         title="Approval or certification with no issuer",
         category="Regulatory Claims",
         severity="HIGH",
@@ -232,7 +233,7 @@ CHECKS: List[ClaimCheck] = [
     ),
     ClaimCheck(
         key="financial-figure",
-        rule_number="Claim check 4",
+        rule_number="Rule 18",
         title="Financial figure",
         category="Financial Disclosure",
         severity="MEDIUM",
@@ -245,7 +246,7 @@ CHECKS: List[ClaimCheck] = [
     ),
     ClaimCheck(
         key="performance-figure",
-        rule_number="Claim check 7",
+        rule_number="Rule 24",
         title="Measured performance claim",
         category="Substantiation",
         severity="MEDIUM",
@@ -258,7 +259,7 @@ CHECKS: List[ClaimCheck] = [
     ),
     ClaimCheck(
         key="unnamed-counterparty",
-        rule_number="Claim check 5",
+        rule_number="Rule 18",
         title="Unnamed customer or partner",
         category="Substantiation",
         severity="MEDIUM",
@@ -270,7 +271,7 @@ CHECKS: List[ClaimCheck] = [
     ),
     ClaimCheck(
         key="deployment-status",
-        rule_number="Claim check 6",
+        rule_number="Rule 2",
         title="Deployment or operational status claim",
         category="Development Status",
         severity="MEDIUM",
@@ -283,6 +284,7 @@ CHECKS: List[ClaimCheck] = [
 
 
 FORWARD_LOOKING_ID = CHECKS[0].rule_id
+CHECK_IDS = {c.rule_id for c in CHECKS}
 
 
 def _quoted(items: List[str]) -> str:

@@ -200,7 +200,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `Config` (class)
 - `RolePermissionGroupsUpdate` (class)
 
-## postgresql_db/database.py (138 lines) - Optional dotenv import for loading .env and local overrides during development
+## postgresql_db/database.py (146 lines) - Optional dotenv import for loading .env and local overrides during development
 - `create_pool` (def) - Creates the connection pool if it doesn't exist yet, then returns it.
 - `close_pool` (def)
 - `reset_pool` (def) - Drop the current pool and create a fresh one after connection failures.
@@ -280,7 +280,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `run_saved_case` (def)
 - `main` (def)
 
-## server.py (642 lines) - server
+## server.py (650 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)

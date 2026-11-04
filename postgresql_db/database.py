@@ -39,14 +39,22 @@ async def create_pool():
                     dsn = os.getenv("DATABASE_URL", "")
                     ssl_mode = False if any(h in dsn for h in ("localhost", "127.0.0.1", "host.docker.internal")) else "require"
 
+                server_settings = {
+                    "tcp_keepalives_idle": "30",
+                    "tcp_keepalives_interval": "10",
+                    "tcp_keepalives_count": "3",
+                }
+
                 _pool = await asyncpg.create_pool(
                     dsn=os.environ["DATABASE_URL"],
                     ssl=ssl_mode,
                     min_size=min_size,
                     max_size=max_size,
                     max_queries=max_queries,
+                    timeout=float(os.getenv("DB_CONNECT_TIMEOUT", "15.0")),
                     command_timeout=cmd_timeout,
-                    max_inactive_connection_lifetime=max_inactive_lifetime,
+                    max_inactive_connection_lifetime=float(os.getenv("DB_POOL_MAX_INACTIVE_LIFETIME", "60.0")),
+                    server_settings=server_settings,
                 )
                 break
             except Exception as e:

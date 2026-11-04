@@ -24,7 +24,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
 - models/shared/oauth_connection_model.py (127 lines) - Pydantic models for Organization, Company, and OAuth connections.
 - models/shared/rbac_model.py (146 lines) - rbac model (shared)
-- postgresql_db/database.py (138 lines) - Optional dotenv import for loading .env and local overrides during development
+- postgresql_db/database.py (146 lines) - Optional dotenv import for loading .env and local overrides during development
 - postgresql_db/schema_metadata.py (328 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
@@ -40,7 +40,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - scripts/scrape_x_playwright.py (323 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
-- server.py (642 lines) - server
+- server.py (650 lines) - server
 - services/ai/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
 - services/ai/ai_observability.py (368 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - services/ai/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
