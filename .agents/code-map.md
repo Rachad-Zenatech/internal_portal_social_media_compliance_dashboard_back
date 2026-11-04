@@ -99,13 +99,17 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `XIngestTopicInput` (class)
 - `XIngestRequest` (class)
 
-## models/compliance/script_review_model.py (89 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+## models/compliance/script_review_model.py (118 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class)
 - `ScriptStage` (class)
 - `ScriptDecisionRequest` (class) - The reviewer's call on the script.
 - `ScriptReviseRequest` (class)
 - `ScriptCheckRequest` (class)
 - `ScriptQueueItem` (class) - A script waiting for a reviewer, as the Content Screener's Scripts tab lists it.
+- `ScriptHighlight` (class) - A stretch of the script the reviewer highlighted, with an optional note on it.
+- `ScriptResolution` (class)
+- `ScriptResolutionsRequest` (class)
+- `ScriptHighlightsRequest` (class)
 
 ## models/compliance/sentiment_model.py (213 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - `Tone` (class)
@@ -246,7 +250,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (545 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (555 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -831,7 +835,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_shown` (def)
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 
-## services/compliance/script_review_service.py (424 lines) - Script stage of a video post.
+## services/compliance/script_review_service.py (488 lines) - Script stage of a video post.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
 - `_status` (def)
@@ -852,6 +856,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `revise` (def) - The creator edits the script in the platform (after edits or a change request) and sends it back.
 - `preview_check` (def) - Check wording being edited without saving it, so the score updates as the reviewer or creator works.
 - `queue` (def) - Scripts for one Content Screener tab, on the brands the viewer works on.
+- `get_highlights` (def) - The reviewer's highlights and notes on a script version, for anyone who can read the post.
+- `save_highlights` (def) - Replace the highlights on a script version.
+- `resolve_highlights` (def) - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
 
 ## services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 
@@ -1649,7 +1656,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## tools/compliance/performance_router.py (32 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - `performance` (def) [GET ] - Live posts (one row per platform) with their numbers and health, problems first, plus totals.
 
-## tools/compliance/script_review_router.py (65 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+## tools/compliance/script_review_router.py (88 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `script_queue` (def) [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
 - `get_script` (def) [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
 - `submit_script` (def) [POST /{submission_id}/script/submit] - Send the uploaded script for review.
@@ -1657,6 +1664,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `accept_script_edits` (def) [POST /{submission_id}/script/accept] - Accept the reviewer's edits; the script is approved.
 - `revise_script` (def) [POST /{submission_id}/script/revise] - Send an edited script back to the reviewer.
 - `check_script` (def) [POST /{submission_id}/script/check] - Check wording being edited, without saving it.
+- `get_script_highlights` (def) [GET /{submission_id}/script/highlights] - The reviewer's highlights and notes on a script version (the creator sees them too).
+- `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
+- `resolve_script_highlights` (def) [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
 ## tools/compliance/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
 - `_reviewer` (def)

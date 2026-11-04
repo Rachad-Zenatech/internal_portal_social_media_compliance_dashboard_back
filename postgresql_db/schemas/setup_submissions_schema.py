@@ -225,6 +225,16 @@ async def setup():
             -- Rules the automated check can't test from text, which the approving reviewer confirmed by hand.
             ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS manual_checks JSONB;
 
+            -- Wording the reviewer highlighted or left a note on in a script version; the creator sees them too.
+            CREATE TABLE IF NOT EXISTS content_script_highlights (
+                submission_id UUID NOT NULL REFERENCES content_submissions(id) ON DELETE CASCADE,
+                version_number INT NOT NULL,
+                highlights JSONB NOT NULL DEFAULT '[]'::jsonb,
+                updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                PRIMARY KEY (submission_id, version_number)
+            );
+
             -- Reviewers' calls on automated compliance flags, per version: a dismissal with its reason.
             CREATE TABLE IF NOT EXISTS flag_reviews (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

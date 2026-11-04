@@ -97,3 +97,32 @@ class ScriptQueueItem(BaseModel):
     script_status: str = "IN_REVIEW"
     decided_at: Optional[datetime] = None
     can_review: bool = False
+
+
+class ScriptHighlight(BaseModel):
+    """A stretch of the script the reviewer highlighted, with an optional note on it."""
+
+    id: str = Field(min_length=1, max_length=40)
+    # Where the wording started in the script as shown, and the wording itself (to find it again if the text moved).
+    start: int = Field(ge=0)
+    text: str = Field(min_length=1, max_length=5000)
+    color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
+    note: str = Field(default="", max_length=2000)
+    # Set by the creator when they send the next version: they fixed this, and the wording now reads `updated`
+    # (None when the wording itself didn't change).
+    done: bool = False
+    updated: Optional[str] = Field(default=None, max_length=5000)
+
+
+class ScriptResolution(BaseModel):
+    id: str = Field(min_length=1, max_length=40)
+    done: bool
+    updated: Optional[str] = Field(default=None, max_length=5000)
+
+
+class ScriptResolutionsRequest(BaseModel):
+    resolutions: List[ScriptResolution] = Field(default_factory=list, max_length=500)
+
+
+class ScriptHighlightsRequest(BaseModel):
+    highlights: List[ScriptHighlight] = Field(default_factory=list, max_length=500)

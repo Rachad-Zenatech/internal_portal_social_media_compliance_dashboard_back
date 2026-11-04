@@ -8,6 +8,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from models.compliance.script_review_model import (
+    ScriptHighlight,
+    ScriptHighlightsRequest,
+    ScriptResolutionsRequest,
     ScriptCheckRequest,
     ScriptDecisionRequest,
     ScriptQueueItem,
@@ -62,3 +65,23 @@ async def revise_script(submission_id: UUID, req: ScriptReviseRequest, user_id: 
 async def check_script(submission_id: UUID, req: ScriptCheckRequest, user_id: CurrentUser):
     """Check wording being edited, without saving it."""
     return await svc.preview_check(submission_id, user_id, req.text)
+
+
+@router.get("/{submission_id}/script/highlights", response_model=List[ScriptHighlight])
+async def get_script_highlights(submission_id: UUID, user_id: CurrentUser, version: int = Query(..., ge=1)):
+    """The reviewer's highlights and notes on a script version (the creator sees them too)."""
+    return await svc.get_highlights(submission_id, user_id, version)
+
+
+@router.put("/{submission_id}/script/highlights", response_model=List[ScriptHighlight])
+async def save_script_highlights(submission_id: UUID, req: ScriptHighlightsRequest, user_id: CurrentUser, version: int = Query(..., ge=1)):
+    """Save the reviewer's highlights and notes on a script version."""
+    return await svc.save_highlights(submission_id, user_id, version, req.highlights)
+
+
+@router.post("/{submission_id}/script/highlights/resolve", response_model=List[ScriptHighlight])
+async def resolve_script_highlights(
+    submission_id: UUID, req: ScriptResolutionsRequest, user_id: CurrentUser, version: int = Query(..., ge=1)
+):
+    """The creator marks the reviewer's highlights they fixed, with the wording as it reads now."""
+    return await svc.resolve_highlights(submission_id, user_id, version, req.resolutions)
