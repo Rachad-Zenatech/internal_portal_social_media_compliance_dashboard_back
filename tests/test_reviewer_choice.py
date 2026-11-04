@@ -71,7 +71,7 @@ class WhoIsNotifiedTests(unittest.IsolatedAsyncioTestCase):
     async def test_every_reviewer_on_the_brand_when_nobody_was_picked(self):
         found, reviewer_ids = await self.recipients(submission_row(), [PICKED, OTHER_REVIEWER])
         self.assertEqual(found, [PICKED, OTHER_REVIEWER])
-        reviewer_ids.assert_awaited_once_with(exclude=CREATOR, brand_code="ZENADRONE")
+        reviewer_ids.assert_awaited_once_with(exclude=CREATOR, brand_codes=["ZENADRONE"])
 
     async def test_deadline_reminders_go_to_the_same_people(self):
         row = submission_row(due_kind="REVIEW", reviewer_ids=[PICKED])
@@ -112,7 +112,7 @@ class PickingReviewersTests(unittest.IsolatedAsyncioTestCase):
         sql, *params = conn.execute.await_args_list[0].args
         self.assertIn("reviewer_ids = $2", sql)
         self.assertEqual(params[1], [PICKED])
-        reviewer_ids.assert_awaited_once_with(exclude=CREATOR, brand_code="ZENADRONE")
+        reviewer_ids.assert_awaited_once_with(exclude=CREATOR, brand_codes=["ZENADRONE"])
 
     async def test_someone_who_cant_review_the_brand_cant_be_picked(self):
         with self.assertRaises(HTTPException) as caught:
@@ -138,16 +138,13 @@ class ReviewersAreRequiredTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("reviewer_ids", await self.missing())
         self.assertNotIn("reviewer_ids", await self.missing(reviewer_ids=[PICKED]))
 
-    async def test_a_script_cant_be_sent_without_picking_reviewers(self):
-        row = submission_row(content_type="VIDEO", script_required=True, script_status="DRAFT")
-        with (
-            patch(f"{SVC}._get_owned_row", new=AsyncMock(return_value=row)),
-            patch.object(script_review_service, "_require_stage"),
-        ):
-            with self.assertRaises(HTTPException) as caught:
-                await script_review_service.submit(row["id"], CREATOR)
-        self.assertEqual(caught.exception.status_code, 422)
-        self.assertIn("reviewers", caught.exception.detail)
+    def test_a_script_cant_be_sent_without_picking_reviewers(self):
+        row = submission_row(
+            title="Expo post", audience="GENERAL", region="Global", platforms=["LINKEDIN"], account_ids=[uuid4()],
+            rule_sets=["ZenaTech General"], approval_needed_by=datetime.now(timezone.utc) + timedelta(days=2),
+        )
+        self.assertEqual(script_review_service._missing_details(row), ["Send to reviewers"])
+        self.assertEqual(script_review_service._missing_details({**row, "reviewer_ids": [PICKED]}), [])
 
 
 class ReviewerOptionsTests(unittest.IsolatedAsyncioTestCase):
@@ -160,9 +157,9 @@ class ReviewerOptionsTests(unittest.IsolatedAsyncioTestCase):
             patch(f"{SVC}._reviewer_ids", new=AsyncMock(return_value=[PICKED, OTHER_REVIEWER])) as reviewer_ids,
             patch(f"{SVC}.fetch_all", new=AsyncMock(return_value=rows)),
         ):
-            options = await submission_service.reviewer_options(CREATOR, "ZENADRONE")
+            options = await submission_service.reviewer_options(CREATOR, ["ZENADRONE"])
 
-        reviewer_ids.assert_awaited_once_with(exclude=CREATOR, brand_code="ZENADRONE")
+        reviewer_ids.assert_awaited_once_with(exclude=CREATOR, brand_codes=["ZENADRONE"])
         self.assertEqual([(o.name, o.is_super_admin) for o in options], [("Abc Reviewer", False), ("boss@zenatech.com", True)])
 
 

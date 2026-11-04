@@ -38,18 +38,18 @@ class SendStateTests(unittest.TestCase):
 
 class RequiredDetailsTests(unittest.IsolatedAsyncioTestCase):
     FULL = {"title": "Test", "brand_code": "ZENADRONE", "audience": "GENERAL", "region": "GLOBAL", "platforms": ["FACEBOOK"],
-            "rule_sets": ["ZenaDrone Defense"], "approval_needed_by": datetime.now(timezone.utc)}
+            "rule_sets": ["ZenaDrone Defense"], "approval_needed_by": datetime.now(timezone.utc), "reviewer_ids": [uuid4()]}
 
     def test_a_complete_post_has_nothing_missing(self):
         with patch.object(srs.subs, "_account_ids", return_value=[uuid4()]):
             self.assertEqual(srs._missing_details(dict(self.FULL)), [])
 
     def test_empty_details_are_listed_by_their_form_names(self):
-        row = {**self.FULL, "title": " ", "brand_code": None, "platforms": [], "approval_needed_by": None}
+        row = {**self.FULL, "title": " ", "brand_code": None, "platforms": [], "approval_needed_by": None, "reviewer_ids": []}
         with patch.object(srs.subs, "_account_ids", return_value=[]):
             self.assertEqual(
                 srs._missing_details(row),
-                ["Title", "Brand", "Platform(s)", "Publishing account(s)", "Need approval by"],
+                ["Title", "Brand", "Platform(s)", "Publishing account(s)", "Need approval by", "Send to reviewers"],
             )
 
     async def test_the_script_is_refused_until_they_are_filled_in(self):

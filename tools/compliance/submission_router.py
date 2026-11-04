@@ -54,9 +54,10 @@ async def get_options(user_id: CurrentUser):
 
 
 @router.get("/reviewers", response_model=List[ReviewerOption])
-async def list_reviewers(user_id: CurrentUser, brand_code: Optional[str] = Query(None, max_length=50)):
-    """Reviewers and super admins a creator can send content to (on the brand, when given)."""
-    return await svc.reviewer_options(user_id, brand_code)
+async def list_reviewers(user_id: CurrentUser, brand_code: Annotated[List[str], Query(max_length=20)] = []):
+    """Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
+    brand_code for a post on several brands)."""
+    return await svc.reviewer_options(user_id, brand_code or None)
 
 
 @router.get("/hashtags", response_model=HashtagLibrary)
