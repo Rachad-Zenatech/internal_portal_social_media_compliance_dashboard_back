@@ -84,10 +84,10 @@ class LinkTokenTests(unittest.IsolatedAsyncioTestCase):
         self.user = {"id": self.user_id, "last_activity_at": None, "last_logout_at": None, "is_super_admin": False}
         auth_service._user_auth_cache.clear()
 
-    async def call(self, req, *, bearer=None, query=None):
+    async def call(self, req, *, bearer=None, query=None, cookie=None):
         with patch("services.shared.auth_service.fetch_one", new=AsyncMock(return_value=self.user)):
             return await auth_service.get_current_user_id_dependency(
-                authorization=f"Bearer {bearer}" if bearer else None, access_token=None, zenatech_token=None,
+                authorization=f"Bearer {bearer}" if bearer else None, access_token=cookie, zenatech_token=None,
                 query_token=query, request=req,
             )
 
@@ -95,6 +95,11 @@ class LinkTokenTests(unittest.IsolatedAsyncioTestCase):
         token, _ = auth_service.create_link_token(self.user_id)
         path = f"/api/submissions/{uuid4()}/files/{uuid4()}"
         self.assertEqual(await self.call(request("GET", path), query=token), self.user_id)
+
+    async def test_a_stale_cookie_does_not_stop_the_link_token_opening_media(self):
+        token, _ = auth_service.create_link_token(self.user_id)
+        path = f"/api/submissions/{uuid4()}/files/{uuid4()}"
+        self.assertEqual(await self.call(request("GET", path), query=token, cookie="stale.or.foreign.token"), self.user_id)
 
     async def test_link_token_cannot_call_the_api(self):
         token, _ = auth_service.create_link_token(self.user_id)

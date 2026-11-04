@@ -5,7 +5,7 @@ its final approvers. When paths match, only their approvers (or a super admin) c
 brand can still comment and send it back. Content no path matches can be approved by any of the brand's reviewers.
 """
 
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -132,12 +132,14 @@ class ApprovalRules:
     def __init__(self, paths: List[Dict[str, Any]]):
         self.paths = paths
 
-    def approvers(self, brand_code: Optional[str], audience: Optional[str], ceo_content: bool) -> Tuple[List[UUID], List[str]]:
+    def approvers(self, brand_codes: Sequence[str], audiences: Sequence[str], ceo_content: bool) -> Tuple[List[UUID], List[str]]:
+        """Approvers from every path that fits. With several brands or audiences a path for any one of them applies, so any one
+        approver from any of those paths can give the final approval."""
         ids: Dict[UUID, str] = {}
         for p in self.paths:
-            if p["brand_code"] and p["brand_code"] != brand_code:
+            if p["brand_code"] and p["brand_code"] not in brand_codes:
                 continue
-            if p["audience"] and p["audience"] != audience:
+            if p["audience"] and p["audience"] not in audiences:
                 continue
             if p["ceo_content"] and not ceo_content:
                 continue

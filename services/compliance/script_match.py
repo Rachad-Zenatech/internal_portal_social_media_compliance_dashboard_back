@@ -8,12 +8,18 @@ passages. The spoken words are rulebook-checked either way; this says whether th
 import re
 from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
+from uuid import NAMESPACE_URL, UUID, uuid5
+
+from models.compliance.compliance_model import ComplianceViolation
 
 MATCH_AT = 0.90      # this much alike or more: the video follows the script
 PARTIAL_AT = 0.70    # below MATCH_AT but here or more: some wording differs
 MIN_PASSAGE = 4      # fewer differing words in a row than this are transcription noise, not listed
 MAX_LISTED = 6       # passages listed per side
 MAX_WORDS_SHOWN = 30
+
+# A stable id, so a reviewer can dismiss this flag like any other.
+SCRIPT_MISMATCH_ID: UUID = uuid5(NAMESPACE_URL, "zenatech-script-check:video-matches-script")
 
 _DIRECTION = re.compile(r"\[[^\]]*\]|\([^)]*\)")  # [SCENE 2], (pause), (on screen: ...)
 
@@ -53,3 +59,33 @@ def compare(script: Optional[str], spoken: Optional[str]) -> Optional[Dict[str, 
         "added_more": max(0, len(added) - MAX_LISTED),
         "missing_more": max(0, len(missing) - MAX_LISTED),
     }
+
+
+def flag_mismatch(result: Any, match: Optional[Dict[str, Any]]) -> None:
+    """A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
+    spoken words are rule-checked either way), but the post can't read as ready, and a reviewer can dismiss it."""
+    if not match or match["status"] != "MISMATCH":
+        return
+    said = [" ".join(p.split()[:12]) for p in match["added"][:3]]
+    reasoning = (
+        f"The video's speech is only {match['similarity']}% like the approved script, so it may be the wrong video, "
+        "or wording that no reviewer approved has been added."
+    )
+    result.violations.append(ComplianceViolation(
+        rule_id=SCRIPT_MISMATCH_ID,
+        rule_number="Script",
+        title="Video doesn't match the approved script",
+        category="Script match",
+        severity="MEDIUM",
+        traffic_light="YELLOW",
+        flagged_terms=said,
+        explanation=reasoning,
+        remediation_guidance="Check the right video was uploaded. If the wording changed on purpose, send the new "
+                             "script back through script review.",
+        status="NEEDS_REVIEW",
+    ))
+    result.review_count += 1
+    result.is_compliant = False
+    if result.traffic_light == "GREEN":
+        result.traffic_light = "YELLOW"
+    result.recommendations.append("CHECK: the video doesn't match the approved script. Confirm it's the right video.")

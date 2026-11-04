@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 
 from services.compliance import script_match
 
@@ -37,6 +38,34 @@ class ScriptMatchTests(unittest.TestCase):
     def test_nothing_to_compare(self):
         self.assertIsNone(script_match.compare("", "hello there"))
         self.assertIsNone(script_match.compare(SCRIPT, "   "))
+
+
+class FlagMismatchTests(unittest.TestCase):
+    def result(self, light="GREEN"):
+        return SimpleNamespace(violations=[], review_count=0, is_compliant=True, traffic_light=light, recommendations=[])
+
+    def test_a_mismatch_becomes_a_needs_review_flag_without_points(self):
+        match = script_match.compare(SCRIPT, "Welcome back to the channel today we are unboxing the newest phone and testing the camera in low light.")
+        r = self.result()
+        script_match.flag_mismatch(r, match)
+        self.assertEqual(len(r.violations), 1)
+        v = r.violations[0]
+        self.assertEqual((v.status, v.penalty, v.rule_id), ("NEEDS_REVIEW", 0, script_match.SCRIPT_MISMATCH_ID))
+        self.assertEqual((r.review_count, r.is_compliant, r.traffic_light), (1, False, "YELLOW"))
+        self.assertTrue(r.recommendations)
+
+    def test_a_red_check_stays_red(self):
+        match = script_match.compare(SCRIPT, "Welcome back to the channel today we are unboxing the newest phone and testing the camera in low light.")
+        r = self.result("RED")
+        script_match.flag_mismatch(r, match)
+        self.assertEqual(r.traffic_light, "RED")
+
+    def test_a_matching_or_partial_video_is_not_flagged(self):
+        r = self.result()
+        script_match.flag_mismatch(r, script_match.compare(SCRIPT, SCRIPT))
+        script_match.flag_mismatch(r, {"status": "PARTIAL", "similarity": 80, "added": []})
+        script_match.flag_mismatch(r, None)
+        self.assertEqual((r.violations, r.review_count, r.is_compliant, r.traffic_light), ([], 0, True, "GREEN"))
 
 
 if __name__ == "__main__":

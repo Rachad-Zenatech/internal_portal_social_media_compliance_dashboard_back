@@ -57,7 +57,7 @@ from services.ai import ai_usage_service
 from services.compliance import approval_path_service, canva_service, flag_review_service, review_deadline_service, transcription_service
 from services.compliance import analysis_progress_service, document_layout, document_text_service, image_text_service, review_memory_service, script_match
 from services.ai.ai_usage_service import AiLimitExceeded
-from services.compliance.compliance_service import CEO_BRAND, check_compliance, flag_segments
+from services.compliance.compliance_service import CEO_BRAND, audiences_of, brands_of, check_compliance, flag_segments
 from services.compliance.compliance_service import parts_for as compliance_parts_for
 from services.compliance.compliance_service import rulebook_version as compliance_rulebook_version
 from services.compliance.html_sanitizer import sanitize_caption_html
@@ -250,7 +250,7 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
         if not (manager_can_read and await _can_see_team_content(user_id)):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
         scope = await _brand_scope(user_id)
-        if scope is not None and row["brand_code"] not in scope:
+        if scope is not None and not set(brands_of(row)) & set(scope):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
         # Sent to particular reviewers: only they (besides its creator and super admins) may open it.
         if row.get("reviewer_ids") and user_id not in row["reviewer_ids"]:
@@ -262,7 +262,7 @@ def _approvers(rules: "approval_path_service.ApprovalRules", row: Dict[str, Any]
     """The named final approvers for a submission row (empty: any reviewer on its brand)."""
     accts = accounts if accounts is not None else [_account_option(row, prefix="acc_")]
     ceo = approval_path_service.is_ceo_content(row.get("rule_sets") or [], accts)
-    return rules.approvers(row.get("brand_code"), row.get("audience"), ceo)
+    return rules.approvers(brands_of(row), audiences_of(row), ceo)
 
 
 def _may_approve(user_id: UUID, is_super: bool, approver_ids: List[UUID]) -> bool:
@@ -316,6 +316,12 @@ def _due(row: Dict[str, Any]) -> Dict[str, Any]:
     kind = row.get("due_kind")
     if row.get("due_at") and review_deadline_service.KIND_STATUS.get(kind) == row["status"]:
         return {"due_at": row["due_at"], "due_kind": kind}
+    # A video post's script: sent back with a deadline for the changes, or approved with a deadline for the video.
+    script = row.get("script_status")
+    if row.get("due_at") and row["status"] == "DRAFT" and (
+        (kind == "REVISION" and script in ("CHANGES_REQUESTED", "EDITS_PROPOSED")) or (kind == "VIDEO" and script == "APPROVED")
+    ):
+        return {"due_at": row["due_at"], "due_kind": kind}
     return {"due_at": None, "due_kind": None}
 
 
@@ -327,7 +333,9 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         title=row["title"],
         content_type=row["content_type"],
         brand_code=row["brand_code"],
+        brand_codes=brands_of(row),
         audience=row["audience"],
+        audiences=audiences_of(row),
         region=row["region"],
         platforms=list(row["platforms"] or []),
         account_id=row["account_id"],
@@ -436,11 +444,17 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only see your own content")
     rows = await fetch_all(
         """
-        SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.platforms, s.status,
-               s.current_version, s.publish_at, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience,
+        SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.brand_codes, s.platforms, s.status,
+               s.current_version, s.publish_at, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
                s.due_at, s.due_kind, s.rule_sets,
                CASE WHEN s.script_required AND s.content_type = 'VIDEO' THEN coalesce(s.script_status, 'DRAFT') END
                    AS script_status,
+               CASE WHEN s.script_send->>'status' = 'PROCESSING'
+                         AND (s.script_send->>'started_at')::timestamptz < NOW() - INTERVAL '10 minutes' THEN 'FAILED'
+                    ELSE s.script_send->>'status' END AS script_send_status,
+               CASE WHEN s.script_send->>'status' = 'PROCESSING'
+                         AND (s.script_send->>'started_at')::timestamptz < NOW() - INTERVAL '10 minutes'
+                    THEN 'Sending the script took too long. Send it again.' ELSE s.script_send->>'error' END AS script_send_error,
                left(s.caption_text, 600) AS caption_text,
                -- The script as the card's preview until a video is added: the uploaded file's text, else the last version sent.
                CASE WHEN s.script_required AND s.content_type = 'VIDEO' THEN coalesce(
@@ -482,18 +496,23 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             ORDER BY (cf.kind = 'MAIN') DESC, cf.created_at ASC
             LIMIT 1
         ) cov ON true
-        WHERE (s.created_by = $1 OR ($3 AND ($4::text[] IS NULL OR s.brand_code = ANY($4::text[]))
+        WHERE (s.created_by = $1 OR ($3 AND ($4::text[] IS NULL OR s.brand_codes && $4::text[])
                                      AND (cardinality(s.reviewer_ids) = 0 OR $1 = ANY(s.reviewer_ids))))
           AND s.deleted_at IS NULL AND ($2::text IS NULL OR s.status = $2)
-        -- Work on a deadline comes first: changes to fix, then drafts to finish, then content waiting
-        -- on reviewers, each by nearest publish date; finished content goes last.
-        ORDER BY CASE s.status
-                     WHEN 'CHANGES_REQUESTED' THEN 0
-                     WHEN 'DRAFT' THEN 1
-                     WHEN 'IN_REVIEW' THEN 2
+        -- What needs the creator comes first: changes to fix (a post's or its script's), then drafts to finish
+        -- (including an approved script waiting for its video). Then what's waiting on someone else: content in
+        -- review, and a script with a reviewer or being sent, which count the same however they're stored (a script
+        -- in review is a draft underneath). Finished content goes last. Within each group the soonest deadline
+        -- (its due date, else the date approval is needed by, else the publish date) is first.
+        ORDER BY CASE
+                     WHEN s.status = 'CHANGES_REQUESTED' OR s.script_status IN ('CHANGES_REQUESTED', 'EDITS_PROPOSED') THEN 0
+                     WHEN s.status = 'DRAFT' AND coalesce(s.script_status, '') <> 'IN_REVIEW'
+                          AND coalesce(s.script_send->>'status', '') <> 'PROCESSING' THEN 1
+                     WHEN s.status = 'IN_REVIEW' OR s.script_status = 'IN_REVIEW'
+                          OR s.script_send->>'status' = 'PROCESSING' THEN 2
                      ELSE 3
                  END,
-                 s.publish_at ASC NULLS LAST,
+                 coalesce(s.due_at, s.approval_needed_by, s.publish_at) ASC NULLS LAST,
                  s.updated_at DESC
         LIMIT 200
         """,
@@ -577,20 +596,30 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         # A draft switched to a video before it was ever sent goes through the script stage too.
         if payload["content_type"] == "VIDEO" and row["current_version"] == 0 and not row.get("script_required"):
             fields["script_required"] = True
-    if payload.get("brand_code"):
-        brand = await fetch_one("SELECT code FROM brands WHERE code = $1 AND is_active", payload["brand_code"])
-        if not brand:
+    brand_codes = payload.get("brand_codes")
+    if brand_codes is None and payload.get("brand_code"):
+        brand_codes = [payload["brand_code"]]
+    if brand_codes is not None:
+        brand_codes = list(dict.fromkeys(brand_codes))
+        found = await fetch_all("SELECT code FROM brands WHERE code = ANY($1::text[]) AND is_active", brand_codes)
+        if len(found) != len(brand_codes):
             raise HTTPException(status_code=422, detail="Unknown brand")
-        # Only checked when it changes, so an older draft on a brand someone has since left still saves.
-        if brand["code"] != row["brand_code"]:
-            scope = await _brand_scope(user_id)
-            if scope is not None and brand["code"] not in scope:
-                raise HTTPException(status_code=403, detail="You don't work on that brand")
-        fields["brand_code"] = brand["code"]
-    if payload.get("audience"):
-        if payload["audience"] not in AUDIENCES:
+        # Only checked for brands being added, so an older draft on a brand someone has since left still saves.
+        added = [b for b in brand_codes if b not in brands_of(row)]
+        scope = await _brand_scope(user_id)
+        if added and scope is not None and any(b not in scope for b in added):
+            raise HTTPException(status_code=403, detail="You don't work on that brand")
+        fields["brand_codes"] = brand_codes
+        fields["brand_code"] = brand_codes[0] if brand_codes else None
+    audiences = payload.get("audiences")
+    if audiences is None and payload.get("audience"):
+        audiences = [payload["audience"]]
+    if audiences is not None:
+        audiences = list(dict.fromkeys(audiences))
+        if any(a not in AUDIENCES for a in audiences):
             raise HTTPException(status_code=422, detail="Unknown target audience")
-        fields["audience"] = payload["audience"]
+        fields["audiences"] = audiences
+        fields["audience"] = audiences[0] if audiences else None
     if payload.get("region"):
         if payload["region"] not in REGIONS:
             raise HTTPException(status_code=422, detail="Unknown region")
@@ -632,7 +661,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["reviewer_route"] = list(dict.fromkeys(payload["reviewer_route"]))
     if payload.get("reviewer_ids") is not None:
         picked = list(dict.fromkeys(payload["reviewer_ids"]))
-        allowed = set(await _reviewer_ids(exclude=row["created_by"], brand_code=fields.get("brand_code", row["brand_code"])))
+        allowed = set(await _reviewer_ids(exclude=row["created_by"], brand_codes=fields.get("brand_codes", brands_of(row))))
         if any(r not in allowed for r in picked):
             raise HTTPException(status_code=422, detail="Some of those people can't review content on this brand")
         fields["reviewer_ids"] = picked
@@ -640,6 +669,10 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields[name] = None
         if name == "account_id":
             fields["account_ids"] = []
+        if name == "audience":
+            fields["audiences"] = []
+        if name == "brand_code":
+            fields["brand_codes"] = []
 
     if not fields:
         return await _to_submission(row)
@@ -1066,8 +1099,8 @@ def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: b
         video_title=row["title"],
         content_type=f"{row['content_type']}_{(row['platforms'] or ['GENERAL'])[0]}",
         rule_sets=list(row["rule_sets"] or []),
-        brand_code=row["brand_code"],
-        audience=row["audience"],
+        brand_codes=brands_of(row),
+        audiences=audiences_of(row),
         region=row["region"],
         platforms=list(row["platforms"] or []),
         # For rules limited by "applies to": its type, what's actually attached, and whether it's Shaun's own post.
@@ -1075,7 +1108,7 @@ def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: b
             row["content_type"],
             has_video=has_video,
             has_images=has_images,
-            is_ceo=row.get("brand_code") == CEO_BRAND
+            is_ceo=CEO_BRAND in brands_of(row)
             or approval_path_service.is_ceo_content(row.get("rule_sets") or [], _accounts(row)),
         ),
     )
@@ -1124,7 +1157,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         """,
         row["id"], list(image_text_service.IMAGE_KINDS),
     )
-    await image_text_service.schedule_missing([i["id"] for i in images if i["image_text_status"] is None])
+    await image_text_service.schedule_missing([i["id"] for i in images if i["image_text_status"] in (None, "PROCESSING")])
     image_texts = [
         f"Text in image {n}: {i['image_text']}"
         for n, i in enumerate(images, start=1)
@@ -1140,7 +1173,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         """,
         row["id"],
     )
-    await document_text_service.schedule_missing([d["id"] for d in documents if d["doc_text_status"] is None])
+    await document_text_service.schedule_missing([d["id"] for d in documents if d["doc_text_status"] in (None, "PROCESSING")])
     # Once the script is approved, the approved wording (which may include the reviewer's edits) is what's checked.
     script = await approved_script(row)
     # Once the video's speech is read, the video is scored on what it says: the script was already checked and
@@ -1159,6 +1192,9 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         "\n\n".join(p for p in [_check_text(row), *document_texts, spoken, *image_texts] if p)
     ) or row["title"]
     result = await check_compliance(check_request(row, text, has_video=bool(video), has_images=bool(images)))
+    # Does the video say what the approved script says? Only once the script is approved and the transcript read.
+    match = script_match.compare(script, spoken) if script and segments else None
+    script_match.flag_mismatch(result, match)
     check = {
         **result.model_dump(mode="json"),
         "checked_at": datetime.now(timezone.utc).isoformat(),
@@ -1186,8 +1222,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         # A context rule matched but no AI model could read it (key out of credits, quota used up, service down):
         # the score would be a guess, so screens show a message instead of it (re-run the check once the AI is back).
         "ai_unavailable": any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in result.violations),
-        # Does the video say what the approved script says? Only once the script is approved and the transcript read.
-        "script_match": script_match.compare(script, spoken) if script and segments else None,
+        "script_match": match,
     }
     # No score until the whole post has been read; screens show "Under review" until then.
     check["analysis_pending"] = analysis_pending(check)
@@ -1320,7 +1355,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
     # approvers, who must see it to approve it.
     reviewer_ids = list(row.get("reviewer_ids") or [])
     if reviewer_ids:
-        eligible = set(await _reviewer_ids(exclude=row["created_by"], brand_code=row["brand_code"]))
+        eligible = set(await _reviewer_ids(exclude=row["created_by"], brand_codes=brands_of(row)))
         reviewer_ids = [r for r in reviewer_ids if r in eligible]
         if not reviewer_ids:
             raise HTTPException(status_code=422, detail={
@@ -1350,7 +1385,9 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         "title": row["title"],
         "content_type": row["content_type"],
         "brand_code": row["brand_code"],
+        "brand_codes": brands_of(row),
         "audience": row["audience"],
+        "audiences": audiences_of(row),
         "region": row["region"],
         "platforms": list(row["platforms"] or []),
         "account": account.model_dump(mode="json") if account else None,
@@ -1552,13 +1589,13 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
     see_all = not mine and await _can_see_team_content(user_id)
     scope = await _brand_scope(user_id)
     visible = (
-        "s.deleted_at IS NULL AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))"
+        "s.deleted_at IS NULL AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_codes && $3::text[])"
         f" AND {_sent_to()}))"
     )
     since = f"NOW() - INTERVAL '{DASHBOARD_DAYS} days'"
     args = (user_id, see_all, scope)
 
-    activity, decisions, scores, findings = await asyncio.gather(
+    activity, decisions, scores, findings, script_decisions = await asyncio.gather(
         fetch_all(
             f"""
             SELECT * FROM (
@@ -1609,6 +1646,17 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             """,
             *args,
         ),
+        # A reviewer's call on a script counts as a review too: approved, or sent back (with edits or a note).
+        fetch_one(
+            f"""
+            SELECT count(*) AS completed,
+                   count(*) FILTER (WHERE v.review_decision = 'APPROVED') AS approved,
+                   count(*) FILTER (WHERE v.review_decision IN ('EDITED', 'CHANGES_REQUESTED')) AS changes
+            FROM content_script_versions v JOIN content_submissions s ON s.id = v.submission_id
+            WHERE {visible} AND v.review_decision IS NOT NULL AND v.reviewed_at >= {since}
+            """,
+            *args,
+        ),
     )
     return DashboardSummary(
         activity=[
@@ -1618,9 +1666,9 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             )
             for r in activity
         ],
-        reviews_completed=decisions["completed"],
-        approved=decisions["approved"],
-        changes_requested=decisions["changes"],
+        reviews_completed=decisions["completed"] + script_decisions["completed"],
+        approved=decisions["approved"] + script_decisions["approved"],
+        changes_requested=decisions["changes"] + script_decisions["changes"],
         overdue_reviews=decisions["overdue"],
         average_score=scores["average"],
         common_findings=[DashboardFinding(rule_number=r["rule_number"], title=r["title"] or "", count=r["count"]) for r in findings],
@@ -1645,7 +1693,7 @@ async def review_queue_counts(user_id: UUID, mine: bool = False) -> ReviewQueueC
                 AND s.content_type = 'VIDEO' AND s.updated_at > NOW() - INTERVAL '30 days') AS scripts_done
         FROM content_submissions s
         WHERE s.deleted_at IS NULL
-          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[])) AND {_sent_to()}))
+          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_codes && $3::text[]) AND {_sent_to()}))
         """,
         user_id,
         see_all,
@@ -1670,7 +1718,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         f"""
         SELECT s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
                s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
-               s.brand_code, s.audience, s.rule_sets, s.approval_needed_by,
+               s.brand_code, s.brand_codes, s.audience, s.audiences, s.rule_sets, s.approval_needed_by, s.script_required, s.script_status,
                {_DECIDED_AT} AS decided_at,
                u.full_name AS creator_name,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
@@ -1690,7 +1738,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         LEFT JOIN oauth_connections c ON c.id = s.account_id
         LEFT JOIN users u ON u.id = s.created_by
         WHERE {_queue_filter(tab)} AND s.deleted_at IS NULL
-          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[])) AND {_sent_to()}))
+          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_codes && $3::text[]) AND {_sent_to()}))
           AND ($4 = '' OR s.title ILIKE '%' || $4 || '%' OR s.reference_code ILIKE '%' || $4 || '%')
         ORDER BY {_QUEUE_ORDER[tab]}
         LIMIT 100
@@ -1721,7 +1769,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         images.setdefault(img["submission_id"], []).append(_file_out(img["submission_id"], dict(img)))
     # Images uploaded before their text was read (or whose read was abandoned) are read now; the check of
     # each open item updates when that's done.
-    await image_text_service.schedule_missing([img["id"] for img in image_rows if img["image_text_status"] is None])
+    await image_text_service.schedule_missing([img["id"] for img in image_rows if img["image_text_status"] in (None, "PROCESSING")])
     # Posts still being read: what's left and when their score should be ready.
     progress = await analysis_progress_service.for_submissions(
         [r["id"] for r in rows if analysis_pending(_json(r["latest_check"]))]
@@ -1756,12 +1804,15 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             min_approval_score=flag_review_service.MIN_APPROVAL_SCORE,
             publish_at=r["publish_at"],
             brand_code=r["brand_code"],
+            brand_codes=brands_of(r),
             audience=r["audience"],
+            audiences=audiences_of(r),
             approval_needed_by=r["approval_needed_by"],
             **_due(r),
             created_by=r["created_by"],
             can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
             decided_at=r["decided_at"],
+            script_status=(r["script_status"] or "DRAFT") if script_stage_on(r) else None,
         )
         for r in rows
     ]
@@ -1858,17 +1909,19 @@ async def get_history(submission_id: UUID, user_id: UUID) -> SubmissionHistory:
 REVIEW_GROUP = "CONTENT_REVIEW_PUBLISH"
 
 
-async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str] = None) -> List[UUID]:
-    """Active users who can review: super admins and roles with "Review & Publish Content". With a brand, only
-    reviewers who work on it (or on every brand)."""
+async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str] = None,
+                        brand_codes: Optional[List[str]] = None) -> List[UUID]:
+    """Active users who can review: super admins and roles with "Review & Publish Content". With brands, only
+    reviewers who work on at least one of them (or on every brand)."""
+    brands = list(brand_codes or ([brand_code] if brand_code else [])) or None
     rows = await fetch_all(
         """
         SELECT u.id FROM users u
         WHERE u.is_active AND u.deleted_at IS NULL AND ($1::uuid IS NULL OR u.id <> $1)
           AND (
-            $3::text IS NULL OR u.is_super_admin
+            $3::text[] IS NULL OR u.is_super_admin
             OR NOT EXISTS (SELECT 1 FROM user_brands ub WHERE ub.user_id = u.id)
-            OR EXISTS (SELECT 1 FROM user_brands ub WHERE ub.user_id = u.id AND ub.brand_code = $3)
+            OR EXISTS (SELECT 1 FROM user_brands ub WHERE ub.user_id = u.id AND ub.brand_code = ANY($3::text[]))
           )
           AND (
             u.is_super_admin
@@ -1882,14 +1935,15 @@ async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str
             )
           )
         """,
-        exclude, REVIEW_GROUP, brand_code,
+        exclude, REVIEW_GROUP, brands,
     )
     return [r["id"] for r in rows]
 
 
-async def reviewer_options(user_id: UUID, brand_code: Optional[str] = None) -> List[ReviewerOption]:
-    """The people a creator can send content to: reviewers and super admins (on the brand, when given), not themselves."""
-    ids = await _reviewer_ids(exclude=user_id, brand_code=brand_code)
+async def reviewer_options(user_id: UUID, brand_codes: Optional[List[str]] = None) -> List[ReviewerOption]:
+    """The people a creator can send content to: reviewers and super admins (on any of the brands, when given), not
+    themselves."""
+    ids = await _reviewer_ids(exclude=user_id, brand_codes=brand_codes)
     rows = await fetch_all(
         "SELECT id, full_name, email, is_super_admin FROM users WHERE id = ANY($1::uuid[]) ORDER BY full_name, email",
         ids,
@@ -1903,7 +1957,7 @@ async def reviewer_options(user_id: UUID, brand_code: Optional[str] = None) -> L
 async def _review_recipients(row: Dict[str, Any], exclude: Optional[UUID]) -> List[UUID]:
     """Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
     reviewer on its brand when it wasn't sent to anyone in particular."""
-    everyone = await _reviewer_ids(exclude=exclude, brand_code=row.get("brand_code"))
+    everyone = await _reviewer_ids(exclude=exclude, brand_codes=brands_of(row))
     picked = list(row.get("reviewer_ids") or [])
     return [r for r in picked if r in set(everyone)] if picked else everyone
 
@@ -1979,6 +2033,20 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
         raise HTTPException(status_code=403, detail="You can't review your own content; another reviewer needs to")
     approval_score: Optional[int] = None
     if req.decision == "APPROVE":
+        # Nothing can be approved on a check that wasn't read in full: with the AI down every finding is only a
+        # "needs review", so there'd be no score to hold to the minimum.
+        saved = _json(row["latest_check"]) or {}
+        if analysis_pending(saved):
+            raise HTTPException(
+                status_code=422,
+                detail="The post is still being read, so it has no compliance score yet. Approve it once the check has finished.",
+            )
+        if ai_unavailable(saved):
+            raise HTTPException(
+                status_code=422,
+                detail="The AI review couldn't run, so this has no compliance score and can't be approved yet. It's "
+                       "re-checked automatically once the AI is back. You can still request changes.",
+            )
         standing = (await flag_review_service.approval_standing([row])).get(row["id"])
         open_critical = standing.open_critical if standing else 0
         if open_critical:
@@ -2062,7 +2130,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                 json.dumps(manual_checks) if manual_checks is not None else None,
             )
             revision_due = (
-                review_deadline_service.due_date("REVISION", publish_at, days=req.revision_days)
+                review_deadline_service.revision_due(publish_at, req.revision_days, req.revision_due_at)
                 if new_status == "CHANGES_REQUESTED" else None
             )
             await conn.execute(
@@ -2126,7 +2194,7 @@ async def reopen_approved(submission_id: UUID, user_id: UUID, req: ReopenRequest
     notes = req.notes.strip()
     if not notes:
         raise HTTPException(status_code=422, detail="Say what needs to change")
-    revision_due = review_deadline_service.due_date("REVISION", row["publish_at"], days=req.revision_days)
+    revision_due = review_deadline_service.revision_due(row["publish_at"], req.revision_days, req.revision_due_at)
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -2330,6 +2398,31 @@ _rulebook_recheck: Optional["asyncio.Task[None]"] = None
 RULEBOOK_RECHECK_DELAY_SEC = 3
 
 
+async def _recheck_one(row: Dict[str, Any], describe) -> Tuple[Any, Dict[str, Any], bool]:
+    """Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
+    describe(before, result, check) returns (log line, details) to log on the item, or None to log nothing."""
+    before = _json(row["latest_check"]) or {}
+    result, check = await _run_check(row)
+    logged = describe(before, result, check)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1", row["id"], json.dumps(check)
+            )
+            await _mirror_to_script_version(conn, row["id"], check)
+            await conn.execute(
+                """
+                UPDATE content_review_jobs SET automated_check = $3::jsonb, score = $4, traffic_light = $5
+                WHERE submission_id = $1 AND version_number = $2 AND status = 'AWAITING_REVIEW'
+                """,
+                row["id"], row["current_version"], json.dumps(check), result.score, result.traffic_light,
+            )
+            if logged:
+                await _add_event(conn, row["id"], "CHECK_COMPLETED", logged[0], None, logged[1])
+    return result, check, bool(logged)
+
+
 async def recheck_open_submissions(reason: str) -> int:
     """Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
     Approved and draft content keep their check (drafts are checked again when they're sent). Only real changes
@@ -2337,39 +2430,81 @@ async def recheck_open_submissions(reason: str) -> int:
     rows = await fetch_all(
         "SELECT * FROM content_submissions WHERE status IN ('IN_REVIEW', 'CHANGES_REQUESTED') AND deleted_at IS NULL"
     )
-    changed = 0
-    for row in rows:
-        row = dict(row)
-        before = _json(row["latest_check"]) or {}
-        result, check = await _run_check(row)
+
+    def describe(before: Dict[str, Any], result: Any, check: Dict[str, Any]):
         moved = before.get("score") != result.score or sorted(
             v.get("rule_number", "") for v in before.get("violations") or []
         ) != sorted(v.rule_number for v in result.violations)
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute(
-                    "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1", row["id"], json.dumps(check)
-                )
-                await _mirror_to_script_version(conn, row["id"], check)
-                await conn.execute(
-                    """
-                    UPDATE content_review_jobs SET automated_check = $3::jsonb, score = $4, traffic_light = $5
-                    WHERE submission_id = $1 AND version_number = $2 AND status = 'AWAITING_REVIEW'
-                    """,
-                    row["id"], row["current_version"], json.dumps(check), result.score, result.traffic_light,
-                )
-                if moved:
-                    changed += 1
-                    await _add_event(
-                        conn, row["id"], "CHECK_COMPLETED",
-                        f"Re-checked after a rulebook change ({reason}): score {before.get('score', '?')} -> {result.score}"
-                        + (" (blocked: critical rule)" if result.blocked else ""),
-                        None, {"traffic_light": result.traffic_light, "score": result.score, "reason": "rulebook_change"},
-                    )
+        if not moved:
+            return None
+        return (
+            f"Re-checked after a rulebook change ({reason}): score {before.get('score', '?')} -> {result.score}"
+            + (" (blocked: critical rule)" if result.blocked else ""),
+            {"traffic_light": result.traffic_light, "score": result.score, "reason": "rulebook_change"},
+        )
+
+    changed = 0
+    for row in rows:
+        _, _, moved = await _recheck_one(dict(row), describe)
+        changed += moved
     if rows:
         logger.info("Re-checked %d open submission(s) after a rulebook change; %d changed", len(rows), changed)
     return changed
+
+
+# How often to look for checks the AI couldn't read, and how many to retry in one pass.
+AI_RECHECK_SEC = max(60.0, float(os.getenv("AI_RECHECK_MINUTES", "10")) * 60)
+AI_RECHECK_BATCH = int(os.getenv("AI_RECHECK_BATCH", "5"))
+
+
+async def recheck_ai_unavailable() -> int:
+    """Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    Stops at the first one that still can't be read, since the AI is then still down. Returns how many were read."""
+    rows = await fetch_all(
+        f"""
+        SELECT * FROM content_submissions s
+        WHERE s.deleted_at IS NULL AND {_unavailable_sql("s.latest_check")}
+          AND (s.status IN ('IN_REVIEW', 'CHANGES_REQUESTED')
+               OR (s.status = 'DRAFT' AND s.script_status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'EDITS_PROPOSED')))
+        ORDER BY s.updated_at
+        LIMIT {AI_RECHECK_BATCH}
+        """
+    )
+
+    def describe(before: Dict[str, Any], result: Any, check: Dict[str, Any]):
+        if check.get("ai_unavailable"):
+            return None  # still unread: nothing to report yet
+        return (
+            f"Re-checked now that the AI review is available: score {result.score}/100"
+            + (" (blocked: critical rule)" if result.blocked else ""),
+            {"traffic_light": result.traffic_light, "score": result.score, "reason": "ai_available"},
+        )
+
+    read = 0
+    for row in rows:
+        _, check, _ = await _recheck_one(dict(row), describe)
+        if ai_unavailable(check):
+            break
+        read += 1
+    return read
+
+
+async def ai_recheck_loop() -> None:
+    """Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it."""
+    import asyncio
+
+    logger.info("Re-checking AI-unavailable checks every %.0f s", AI_RECHECK_SEC)
+    await asyncio.sleep(60)
+    while True:
+        try:
+            read = await recheck_ai_unavailable()
+            if read:
+                logger.info("Re-checked %d submission(s) the AI couldn't read earlier", read)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Couldn't re-check the checks the AI couldn't read")
+        await asyncio.sleep(AI_RECHECK_SEC)
 
 
 async def recheck_outdated_on_start() -> None:
@@ -2437,6 +2572,9 @@ async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
         if not sub:
             return
         result, check = await _run_check(sub)
+        # Tell the creator the first time the video turns out not to match their approved script.
+        was_mismatch = ((_json(sub["latest_check"]) or {}).get("script_match") or {}).get("status") == "MISMATCH"
+        newly_mismatched = ((check.get("script_match") or {}).get("status") == "MISMATCH") and not was_mismatch
         pool = get_pool()
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -2461,5 +2599,14 @@ async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
                 )
                 await _add_event(conn, sub["id"], "CHECK_COMPLETED", summary, None,
                                  {"traffic_light": result.traffic_light, "score": result.score})
+        if newly_mismatched:
+            await _notify(
+                [sub["created_by"]],
+                f"{sub['reference_code']}: the video doesn't match your approved script",
+                f"\"{sub['title']}\" says something quite different from the script a reviewer approved "
+                f"({check['script_match']['similarity']}% alike). Check you uploaded the right video before sending it for review.",
+                f"/submissions/{sub['id']}",
+                sub["id"],
+            )
     except Exception:
         logger.exception("Couldn't re-check submission after reading %s of %s", what, file_id)

@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 # Files whose text is read: the script, and a blog's main file when it's a document.
 DOC_EXT = {".txt", ".md", ".docx", ".pdf", ".doc"}
 STALE_MINUTES = 10
+# On start, a read marked "reading" for this long is taken to have been cut off by the restart.
+RESUME_AFTER_MINUTES = 2
 MAX_CONCURRENT = int(os.getenv("DOC_TEXT_MAX_CONCURRENT", "2"))
 MAX_TEXT_CHARS = int(os.getenv("DOC_TEXT_MAX_CHARS", "30000"))
 # Gemini takes inline files up to 20 MB; leave room for the request around it.
@@ -201,6 +203,21 @@ def schedule(file_ids: Iterable[UUID]) -> None:
         task = asyncio.create_task(_run(file_id), name=f"doc-text-{file_id}")
         _tasks.add(task)
         task.add_done_callback(_tasks.discard)
+
+
+async def resume_interrupted() -> int:
+    """A read runs inside the server, so a restart leaves its document marked "reading" with nothing doing it. On start,
+    queue those again (see image_text_service.resume_interrupted)."""
+    rows = await fetch_all(
+        f"""
+        UPDATE content_submission_files SET doc_text_status = NULL
+        WHERE doc_text_status = 'PROCESSING' AND deleted_at IS NULL
+          AND doc_text_updated_at < NOW() - INTERVAL '{RESUME_AFTER_MINUTES} minutes'
+        RETURNING id
+        """
+    )
+    schedule(r["id"] for r in rows)
+    return len(rows)
 
 
 async def schedule_missing(file_ids: List[UUID]) -> None:

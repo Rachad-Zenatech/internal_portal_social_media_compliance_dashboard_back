@@ -15,12 +15,15 @@ import asyncio
 import json
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import HTTPException
 
 from models.compliance.script_review_model import (
+    ScriptHighlight,
+    ScriptResolution,
     ScriptDecisionRequest,
     ScriptQueueItem,
     ScriptReviseRequest,
@@ -28,7 +31,7 @@ from models.compliance.script_review_model import (
     ScriptVersion,
 )
 from postgresql_db.database import execute, fetch_all, fetch_one, get_pool
-from services.compliance import document_layout, document_text_service, submission_service as subs
+from services.compliance import document_layout, document_text_service, review_deadline_service, submission_service as subs
 from services.compliance.compliance_service import check_compliance, rulebook_version
 from services.shared.audit_service import log_audit_event
 
@@ -36,6 +39,29 @@ logger = logging.getLogger(__name__)
 
 # Where the creator can still change the script, and where it waits on the creator.
 CREATOR_TURN = ("EDITS_PROPOSED", "CHANGES_REQUESTED")
+
+# A sent script is read and scored in the background. Past this, a send that never finished counts as failed (the
+# server may have restarted), so the creator can send it again.
+PROCESSING_TIMEOUT_SEC = 600
+READ_WAIT_SEC = 180
+_background: set = set()  # keeps the running sends from being garbage collected
+
+
+def _send_state(row: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    """Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither."""
+    raw = row.get("script_send")
+    data = json.loads(raw) if isinstance(raw, str) else raw
+    if not data:
+        return {"status": None, "error": None}
+    if data.get("status") == "PROCESSING":
+        try:
+            # A send resumed after a restart counts from when it was picked up again.
+            started = max(datetime.fromisoformat(data[k].replace("Z", "+00:00")) for k in ("started_at", "claimed_at") if data.get(k))
+        except (KeyError, ValueError):
+            started = None
+        if started is None or (datetime.now(timezone.utc) - started).total_seconds() > PROCESSING_TIMEOUT_SEC:
+            return {"status": "FAILED", "error": "Sending the script took too long. Send it again."}
+    return {"status": data.get("status"), "error": data.get("error")}
 
 
 def _same(a: str, b: str) -> bool:
@@ -57,7 +83,10 @@ async def check_text(row: Dict[str, Any], text: str) -> Dict[str, Any]:
     will say and show, so rules for video apply."""
     body = "\n\n".join(p for p in [(row["title"] or "").strip(), document_layout.plain_text(text).strip()] if p)
     result = await check_compliance(subs.check_request(row, body, has_video=True, has_images=False))
-    return result.model_dump(mode="json")
+    check = result.model_dump(mode="json")
+    # Same flag as the post's own check: a context rule matched but no AI model could read it, so there's no score.
+    check["ai_unavailable"] = any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in result.violations)
+    return check
 
 
 async def _versions(submission_id: UUID) -> List[ScriptVersion]:
@@ -109,6 +138,7 @@ async def _reviewer_may_act(row: Dict[str, Any], user_id: UUID) -> bool:
 async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
     row = await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
     status = _status(row) if subs.script_stage_on(row) else None
+    send_state = _send_state(row)
     file = await _script_file(submission_id)
     is_creator = row["created_by"] == user_id or await subs._is_super_admin(user_id)
     editable = row["status"] in subs.EDITABLE_STATUSES
@@ -136,9 +166,12 @@ async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
         file_error=file["doc_text_error"] if file else None,
         file_text=_clean(file["doc_text"]) if file and file.get("doc_text") else None,
         file_url=f"/api/submissions/{submission_id}/files/{file['id']}" if file else None,
-        can_submit=bool(status) and is_creator and editable and status in ("DRAFT", "CHANGES_REQUESTED"),
+        can_submit=bool(status) and is_creator and editable and status in ("DRAFT", "CHANGES_REQUESTED")
+        and send_state["status"] != "PROCESSING",
         can_review=status == "IN_REVIEW" and await _reviewer_may_act(row, user_id),
         can_respond=bool(status) and is_creator and editable and status in CREATOR_TURN,
+        processing=send_state["status"] == "PROCESSING",
+        send_error=send_state["error"] if send_state["status"] == "FAILED" else None,
     )
 
 
@@ -177,61 +210,177 @@ async def _lock_status(conn, submission_id: UUID, allowed: tuple) -> None:
 async def _send_to_reviewers(row: Dict[str, Any], version: int, check: Dict[str, Any], user_id: UUID) -> None:
     reviewers = await subs._review_recipients(row, exclude=user_id)
     issues = check.get("violations_count") or 0
+    score = "no score yet (the AI review couldn't run)" if check.get("ai_unavailable") else f"score {check.get('score')}/100"
     await subs._notify(
         reviewers,
         f"Script to review: {row['reference_code']}",
-        f"\"{row['title']}\" script version {version}: score {check.get('score')}/100, "
+        f"\"{row['title']}\" script version {version}: {score}, "
         f"{issues} issue{'' if issues == 1 else 's'} found.",
         f"/compliance/scanner?script={row['id']}",
         row["id"],
     )
 
 
+# What a post needs filled in before its script can be sent (the video and caption come later).
+_DETAIL_LABELS = {
+    "title": "Title",
+    "brand_code": "Brand",
+    "account_id": "Publishing account(s)",
+    "audience": "Target audience",
+    "region": "Region",
+    "platforms": "Platform(s)",
+    "rule_sets": "Rule sets",
+    "approval_needed_by": "Need approval by",
+    "reviewer_ids": "Send to reviewers",
+}
+
+
+def _missing_details(row: Dict[str, Any]) -> List[str]:
+    """The required submission details still empty, by their names on the form."""
+    missing: List[str] = []
+    if not (row["title"] or "").strip():
+        missing.append("title")
+    for field in ("brand_code", "audience", "region"):
+        if not row[field]:
+            missing.append(field)
+    if not row["platforms"]:
+        missing.append("platforms")
+    if not subs._account_ids(row):
+        missing.append("account_id")
+    if not row["rule_sets"]:
+        missing.append("rule_sets")
+    if not row.get("approval_needed_by"):
+        missing.append("approval_needed_by")
+    if not row.get("reviewer_ids"):
+        missing.append("reviewer_ids")
+    return [_DETAIL_LABELS[m] for m in missing]
+
+
 async def submit(submission_id: UUID, user_id: UUID) -> ScriptStage:
-    """Send the uploaded script file for review (its text as read)."""
+    """Accept the uploaded script for review and answer at once. Reading it, calculating its compliance score and
+    telling the reviewers happen in the background (_process_send), so a long script doesn't keep the creator waiting.
+    The post shows it as processing until then, or says which step failed."""
     row = await subs._get_owned_row(submission_id, user_id)
     subs._require_editable(row)
     _require_stage(row)
     if _status(row) not in ("DRAFT", "CHANGES_REQUESTED"):
         raise HTTPException(status_code=409, detail="The script is already with a reviewer or approved")
-    if not row.get("reviewer_ids"):
-        raise HTTPException(status_code=422, detail="Pick the reviewers to send it to (Submission Details) first")
-    file = await _script_file(submission_id)
-    if not file:
+    if _send_state(row)["status"] == "PROCESSING":
+        raise HTTPException(status_code=409, detail="Your script is already being processed.")
+    missing = _missing_details(row)
+    if missing:
+        raise HTTPException(status_code=422, detail=f"Fill in the submission details first: {', '.join(missing)}.")
+    if not await _script_file(submission_id):
         raise HTTPException(status_code=422, detail="Upload the script first (PDF, Word or text)")
-    if file["doc_text_status"] in (None, "PENDING", "PROCESSING"):
-        await document_text_service.read_file(file["id"])
-        for _ in range(30):
-            file = await _script_file(submission_id)
-            if not file or file["doc_text_status"] not in (None, "PENDING", "PROCESSING"):
-                break
-            await asyncio.sleep(0.5)
-    if not file or file["doc_text_status"] in (None, "PENDING", "PROCESSING"):
-        raise HTTPException(status_code=409, detail="The script is still being read. Try again in a moment.")
-    if file["doc_text_status"] != "COMPLETED" or not (file["doc_text"] or "").strip():
-        raise HTTPException(status_code=422, detail=file["doc_text_error"] or "The script's text couldn't be read")
-    body = _clean(file["doc_text"])
-    previous = await _versions(submission_id)
-    if previous and _status(row) == "CHANGES_REQUESTED" and _same(previous[-1].body, body):
-        raise HTTPException(status_code=422, detail="This is the same script the reviewer sent back. Make the changes first.")
-    return await _send(row, body, "UPLOAD", user_id, file_id=file["id"])
+    await execute(
+        "UPDATE content_submissions SET script_send = $2::jsonb WHERE id = $1",
+        submission_id, json.dumps({"status": "PROCESSING", "started_at": datetime.now(timezone.utc).isoformat()}),
+    )
+    task = asyncio.create_task(_process_send(submission_id, user_id))
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+    return await get_stage(submission_id, user_id)
+
+
+async def _fail_send(submission_id: UUID, user_id: UUID, step: str, detail: Any) -> None:
+    """The background send couldn't finish: record which step failed and why, and tell the creator."""
+    message = f"Error {step}: {detail}"
+    logger.warning("Script send failed for %s: %s", submission_id, message)
+    row = await fetch_one(
+        """
+        UPDATE content_submissions SET script_send = $2::jsonb
+        WHERE id = $1 AND script_send->>'status' = 'PROCESSING'
+        RETURNING reference_code, title
+        """,
+        submission_id, json.dumps({"status": "FAILED", "error": message, "at": datetime.now(timezone.utc).isoformat()}),
+    )
+    if row:
+        await subs._notify(
+            [user_id], f"{row['reference_code']}: the script couldn't be sent", f"\"{row['title']}\": {message}",
+            f"/submissions/{submission_id}", submission_id,
+        )
+
+
+async def resume_interrupted_sends() -> None:
+    """A send runs inside the server, so a restart cuts it off and leaves the post "processing". On start, pick those
+    up again. Each is claimed first, so with several server processes only one of them resumes it."""
+    rows = await fetch_all(
+        """
+        UPDATE content_submissions
+        SET script_send = script_send || jsonb_build_object('claimed_at', to_char(NOW() AT TIME ZONE 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+        WHERE script_send->>'status' = 'PROCESSING' AND deleted_at IS NULL AND script_status IN ('DRAFT', 'CHANGES_REQUESTED')
+          AND (script_send->>'claimed_at' IS NULL OR (script_send->>'claimed_at')::timestamptz < NOW() - INTERVAL '2 minutes')
+        RETURNING id, created_by
+        """
+    )
+    for r in rows:
+        logger.info("Resuming the script send for %s that a restart interrupted", r["id"])
+        task = asyncio.create_task(_process_send(r["id"], r["created_by"]))
+        _background.add(task)
+        task.add_done_callback(_background.discard)
+
+
+async def _process_send(submission_id: UUID, user_id: UUID) -> None:
+    """Read the uploaded script, calculate its compliance score and send it to the reviewers."""
+    step = "reading the script"
+    try:
+        row = await subs._get_owned_row(submission_id, user_id)
+        file = await _script_file(submission_id)
+        if not file:
+            raise HTTPException(status_code=422, detail="Upload the script first (PDF, Word or text)")
+        if file["doc_text_status"] in (None, "PENDING", "PROCESSING"):
+            await document_text_service.read_file(file["id"])
+            for _ in range(READ_WAIT_SEC * 2):
+                file = await _script_file(submission_id)
+                if not file or file["doc_text_status"] not in (None, "PENDING", "PROCESSING"):
+                    break
+                await asyncio.sleep(0.5)
+        if not file or file["doc_text_status"] in (None, "PENDING", "PROCESSING"):
+            raise HTTPException(status_code=409, detail="The script is taking too long to read. Try sending it again.")
+        if file["doc_text_status"] != "COMPLETED" or not (file["doc_text"] or "").strip():
+            raise HTTPException(status_code=422, detail=file["doc_text_error"] or "The script's text couldn't be read")
+        body = _clean(file["doc_text"])
+        step = "sending the script"
+        previous = await _versions(submission_id)
+        if previous and _status(row) == "CHANGES_REQUESTED" and _same(previous[-1].body, body):
+            raise HTTPException(status_code=422, detail="This is the same script the reviewer sent back. Make the changes first.")
+        step = "calculating the compliance score"
+        check = await check_text(row, body)
+        step = "sending the script"
+        await _send_checked(row, body, "UPLOAD", user_id, check, file_id=file["id"])
+    except HTTPException as exc:
+        await _fail_send(submission_id, user_id, step, exc.detail)
+    except Exception as exc:  # noqa: BLE001 - whatever went wrong, the creator is told rather than left waiting
+        logger.exception("Script send crashed for %s", submission_id)
+        await _fail_send(submission_id, user_id, step, str(exc) or "something went wrong on our side")
 
 
 async def _send(row: Dict[str, Any], body: str, source: str, user_id: UUID, file_id: Optional[UUID] = None,
                 note: Optional[str] = None) -> ScriptStage:
     check = await check_text(row, body)
+    return await _send_checked(row, body, source, user_id, check, file_id, note)
+
+
+async def _send_checked(row: Dict[str, Any], body: str, source: str, user_id: UUID, check: Dict[str, Any],
+                        file_id: Optional[UUID] = None, note: Optional[str] = None) -> ScriptStage:
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             await _lock_status(conn, row["id"], ("DRAFT",) + CREATOR_TURN)
             version = await _add_version(conn, row, body, source, user_id, check, file_id)
             await conn.execute(
-                "UPDATE content_submissions SET script_status = 'IN_REVIEW', updated_at = NOW(), updated_by = $2 WHERE id = $1",
+                """
+                UPDATE content_submissions
+                SET script_status = 'IN_REVIEW', script_send = NULL, updated_at = NOW(), updated_by = $2,
+                    due_at = NULL, due_kind = NULL, due_reminded_at = NULL, due_overdue_notified_at = NULL
+                WHERE id = $1
+                """,
                 row["id"], user_id,
             )
+            score = "no score yet" if check.get("ai_unavailable") else f"score {check.get('score')}/100"
             await subs._add_event(
                 conn, row["id"], "SCRIPT_SUBMITTED",
-                f"Script version {version} sent for review (score {check.get('score')}/100)"
+                f"Script version {version} sent for review ({score})"
                 + (f": {note.strip()}" if note and note.strip() else ""),
                 user_id, {"script_version": version, "score": check.get("score")},
             )
@@ -258,6 +407,12 @@ async def decide(submission_id: UUID, user_id: UUID, req: ScriptDecisionRequest)
     note = (req.note or "").strip() or None
     if req.text is not None and not edited:
         raise HTTPException(status_code=422, detail="The script can't be empty")
+    if req.decision == "APPROVE" and (sent.check or {}).get("ai_unavailable"):
+        raise HTTPException(
+            status_code=422,
+            detail="The AI review couldn't run on this script, so it has no compliance score and can't be approved yet. "
+                   "It's re-checked automatically once the AI is back. You can still send it back.",
+        )
     if req.decision == "APPROVE" and has_edits:
         raise HTTPException(status_code=422,
                             detail="You changed the script, so it goes back to the creator to accept. Send it back instead.")
@@ -265,6 +420,11 @@ async def decide(submission_id: UUID, user_id: UUID, req: ScriptDecisionRequest)
         raise HTTPException(status_code=422, detail="Edit the script or say what needs to change")
 
     check = await check_text(row, edited) if has_edits else None
+    # The creator's next deadline: the video once it's approved, the changes if it goes back.
+    if req.decision == "APPROVE":
+        due_at, due_kind = review_deadline_service.video_due(row["publish_at"], req.due_days, req.due_at), "VIDEO"
+    else:
+        due_at, due_kind = review_deadline_service.revision_due(row["publish_at"], req.due_days, req.due_at), "REVISION"
     if req.decision == "APPROVE":
         decision, new_status, message = "APPROVED", "APPROVED", f"Script version {sent.version_number} approved"
     elif has_edits:
@@ -288,17 +448,25 @@ async def decide(submission_id: UUID, user_id: UUID, req: ScriptDecisionRequest)
             if has_edits:
                 new_version = await _add_version(conn, row, edited, "REVIEWER_EDIT", user_id, check)
             await conn.execute(
-                "UPDATE content_submissions SET script_status = $2, updated_at = NOW() WHERE id = $1",
-                submission_id, new_status,
+                """
+                UPDATE content_submissions
+                SET script_status = $2, updated_at = NOW(), due_at = $3,
+                    due_kind = CASE WHEN $3::timestamptz IS NULL THEN NULL ELSE $4 END,
+                    due_reminded_at = NULL, due_overdue_notified_at = NULL
+                WHERE id = $1
+                """,
+                submission_id, new_status, due_at, due_kind,
             )
             await subs._add_event(conn, submission_id, f"SCRIPT_{decision}", message + (f": {note}" if note else ""),
-                                  user_id, {"script_version": sent.version_number, "new_version": new_version})
+                                  user_id, {"script_version": sent.version_number, "new_version": new_version,
+                                            "due_at": due_at.isoformat() if due_at else None})
     await log_audit_event("content_submission", str(submission_id), f"SCRIPT_{decision}", user_id,
                           {"reference_code": row["reference_code"], "script_version": sent.version_number})
+    by = f" Due {review_deadline_service._when(due_at)}." if due_at else ""
     texts = {
-        "APPROVED": ("Script approved", "is approved. You can upload the video now."),
-        "EDITED": ("Script edited by your reviewer", "came back with edits. Compare the versions and accept or edit them."),
-        "CHANGES_REQUESTED": ("Script needs changes", "needs changes before filming. See the reviewer's note."),
+        "APPROVED": ("Script approved", "is approved. You can upload the video now." + (f" Upload it by {review_deadline_service._when(due_at)}." if due_at else "")),
+        "EDITED": ("Script edited by your reviewer", "came back with edits. Compare the versions and accept or edit them." + by),
+        "CHANGES_REQUESTED": ("Script needs changes", "needs changes before filming. See the reviewer's note." + by),
     }[decision]
     if row["created_by"] and row["created_by"] != user_id:
         await subs._notify([row["created_by"]], f"{texts[0]}: {row['reference_code']}", f"\"{row['title']}\" {texts[1]}",
@@ -318,7 +486,12 @@ async def accept(submission_id: UUID, user_id: UUID) -> ScriptStage:
         async with conn.transaction():
             await _lock_status(conn, submission_id, ("EDITS_PROPOSED",))
             await conn.execute(
-                "UPDATE content_submissions SET script_status = 'APPROVED', updated_at = NOW(), updated_by = $2 WHERE id = $1",
+                """
+                UPDATE content_submissions
+                SET script_status = 'APPROVED', updated_at = NOW(), updated_by = $2,
+                    due_at = NULL, due_kind = NULL, due_reminded_at = NULL, due_overdue_notified_at = NULL
+                WHERE id = $1
+                """,
                 submission_id, user_id,
             )
             await subs._add_event(conn, submission_id, "SCRIPT_EDITS_ACCEPTED",
@@ -373,6 +546,35 @@ _QUEUE_TABS = {
 }
 
 
+_refreshing: set = set()  # (post id, version) pairs being re-checked, so a busy list doesn't start the same one twice
+
+
+async def _refresh_stale_scripts(rows: List[Dict[str, Any]]) -> None:
+    """Re-check scripts that were checked against an older rulebook, one at a time, and save the result."""
+    for r in rows:
+        key = (r["id"], r["version_number"])
+        try:
+            check = await check_text(r, r["script_body"])
+            await execute(
+                "UPDATE content_script_versions SET check_result = $3::jsonb WHERE submission_id = $1 AND version_number = $2",
+                r["id"], r["version_number"], json.dumps(check),
+            )
+        except Exception as e:
+            logger.warning("Failed to re-check script version in the background: %s", e)
+        finally:
+            _refreshing.discard(key)
+
+
+def _refresh_in_background(rows: List[Dict[str, Any]]) -> None:
+    fresh = [r for r in rows if (r["id"], r["version_number"]) not in _refreshing]
+    if not fresh:
+        return
+    _refreshing.update((r["id"], r["version_number"]) for r in fresh)
+    task = asyncio.create_task(_refresh_stale_scripts(fresh))
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+
+
 async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
     """Scripts for one Content Screener tab, on the brands the viewer works on."""
     if tab not in _QUEUE_TABS:
@@ -384,7 +586,7 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
     where, order = _QUEUE_TABS[tab]
     rows = await fetch_all(
         f"""
-        SELECT s.id, s.reference_code, s.title, s.content_type, s.platforms, s.brand_code, s.audience, s.region,
+        SELECT s.id, s.reference_code, s.title, s.content_type, s.platforms, s.brand_code, s.brand_codes, s.audience, s.audiences, s.region,
                s.rule_sets, s.created_by, s.approval_needed_by, s.script_status, s.updated_at, u.full_name AS creator_name,
                v.version_number, v.created_at AS sent_at, v.body AS script_body, v.check_result, v.reviewed_at
         FROM content_submissions s
@@ -394,7 +596,7 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
         ) v ON true
         LEFT JOIN users u ON u.id = s.created_by
         WHERE {where} AND s.script_required AND s.content_type = 'VIDEO'
-          AND s.deleted_at IS NULL AND ($1::text[] IS NULL OR s.brand_code = ANY($1::text[]))
+          AND s.deleted_at IS NULL AND ($1::text[] IS NULL OR s.brand_codes && $1::text[])
           AND (s.created_by = $2 OR {subs._sent_to("$2")})
         ORDER BY {order}
         LIMIT 100
@@ -404,24 +606,84 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
     )
     current_rb = await rulebook_version() if tab in ("review", "sent_back") else None
     items = []
+    stale: List[Dict[str, Any]] = []
     for r in rows:
         check = subs._json(r["check_result"]) or {}
+        # Never re-check inside the request: after a rule change every script is outdated, and checking them one by one
+        # with the AI made this list take minutes (or never load). Show what's saved, refresh in the background.
         if current_rb and check.get("rulebook_version") != current_rb and r.get("script_body"):
-            try:
-                check = await check_text(r, r["script_body"])
-                await execute(
-                    "UPDATE content_script_versions SET check_result = $3::jsonb WHERE submission_id = $1 AND version_number = $2",
-                    r["id"], r["version_number"], json.dumps(check),
-                )
-            except Exception as e:
-                logger.warning("Failed to re-check script version on the fly: %s", e)
+            stale.append(dict(r))
         items.append(ScriptQueueItem(
             id=r["id"], reference_code=r["reference_code"], title=r["title"], platforms=list(r["platforms"] or []),
-            brand_code=r["brand_code"], audience=r["audience"], creator_name=r["creator_name"],
+            brand_code=r["brand_code"], brand_codes=subs.brands_of(r), audience=r["audience"], audiences=subs.audiences_of(r), creator_name=r["creator_name"],
             created_by=r["created_by"], version_number=r["version_number"], sent_at=r["sent_at"],
-            score=check.get("score"), traffic_light=check.get("traffic_light"),
+            score=None if check.get("ai_unavailable") else check.get("score"), ai_unavailable=bool(check.get("ai_unavailable")),
+            traffic_light=check.get("traffic_light"),
             approval_needed_by=r["approval_needed_by"], script_status=r["script_status"],
             decided_at=r["reviewed_at"] or (r["updated_at"] if r["script_status"] != "IN_REVIEW" else None),
             can_review=r["script_status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
         ))
+    _refresh_in_background(stale)
     return items
+
+
+async def get_highlights(submission_id: UUID, user_id: UUID, version: int) -> List[ScriptHighlight]:
+    """The reviewer's highlights and notes on a script version, for anyone who can read the post."""
+    await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
+    row = await fetch_one(
+        "SELECT highlights FROM content_script_highlights WHERE submission_id = $1 AND version_number = $2",
+        submission_id, version,
+    )
+    items = row["highlights"] if row else []
+    if isinstance(items, str):
+        items = json.loads(items)
+    return [ScriptHighlight(**h) for h in items or []]
+
+
+async def save_highlights(submission_id: UUID, user_id: UUID, version: int, highlights: List[ScriptHighlight]) -> List[ScriptHighlight]:
+    """Replace the highlights on a script version. Reviewers only."""
+    row = await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
+    _require_stage(row)
+    if not await _reviewer_may_act(row, user_id):
+        raise HTTPException(status_code=403, detail="Only a reviewer can highlight the script")
+    exists = await fetch_one(
+        "SELECT 1 FROM content_script_versions WHERE submission_id = $1 AND version_number = $2", submission_id, version
+    )
+    if not exists:
+        raise HTTPException(status_code=404, detail="That script version doesn't exist")
+    await execute(
+        """
+        INSERT INTO content_script_highlights (submission_id, version_number, highlights, updated_by, updated_at)
+        VALUES ($1, $2, $3::jsonb, $4, NOW())
+        ON CONFLICT (submission_id, version_number)
+        DO UPDATE SET highlights = EXCLUDED.highlights, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+        """,
+        submission_id, version, json.dumps([h.model_dump() for h in highlights]), user_id,
+    )
+    return highlights
+
+
+async def resolve_highlights(submission_id: UUID, user_id: UUID, version: int, resolutions: List[ScriptResolution]) -> List[ScriptHighlight]:
+    """The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
+
+    Only those two fields change, and only on highlights that exist; the reviewer's own marks stay as they were."""
+    row = await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
+    _require_stage(row)
+    if row["created_by"] != user_id and not await subs._is_super_admin(user_id):
+        raise HTTPException(status_code=403, detail="Only the post's creator can mark highlights done")
+    current = await get_highlights(submission_id, user_id, version)
+    by_id = {r.id: r for r in resolutions}
+    merged = [
+        h.model_copy(update={"done": by_id[h.id].done, "updated": by_id[h.id].updated if by_id[h.id].done else None}) if h.id in by_id else h
+        for h in current
+    ]
+    await execute(
+        """
+        INSERT INTO content_script_highlights (submission_id, version_number, highlights, updated_by, updated_at)
+        VALUES ($1, $2, $3::jsonb, $4, NOW())
+        ON CONFLICT (submission_id, version_number)
+        DO UPDATE SET highlights = EXCLUDED.highlights, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+        """,
+        submission_id, version, json.dumps([h.model_dump() for h in merged]), user_id,
+    )
+    return merged

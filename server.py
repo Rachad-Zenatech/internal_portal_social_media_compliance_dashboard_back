@@ -200,6 +200,31 @@ async def lifespan(app: FastAPI):
     recheck_task.add_done_callback(partial(log_background_task_result, task_name="outdated-check-recheck"))
     background_tasks.append(recheck_task)
 
+    # 3e1. Checks the AI couldn't read (key out of credits, quota, down) are retried until it can
+    from services.compliance.submission_service import ai_recheck_loop
+    ai_recheck_task = asyncio.create_task(ai_recheck_loop(), name="ai-unavailable-recheck")
+    ai_recheck_task.add_done_callback(partial(log_background_task_result, task_name="ai-unavailable-recheck"))
+    background_tasks.append(ai_recheck_task)
+
+    # 3e1b. Image and document reads that a restart cut off are started again
+    async def resume_reads() -> None:
+        from services.compliance import document_text_service, image_text_service
+
+        images = await image_text_service.resume_interrupted()
+        documents = await document_text_service.resume_interrupted()
+        if images or documents:
+            logger.info("Resumed %d image and %d document read(s) interrupted by a restart", images, documents)
+
+    resume_reads_task = asyncio.create_task(resume_reads(), name="resume-interrupted-reads")
+    resume_reads_task.add_done_callback(partial(log_background_task_result, task_name="resume-interrupted-reads"))
+    background_tasks.append(resume_reads_task)
+
+    # 3e2. A script being sent when the server last stopped is picked up again, not left "processing"
+    from services.compliance.script_review_service import resume_interrupted_sends
+    resume_task = asyncio.create_task(resume_interrupted_sends(), name="script-send-resume")
+    resume_task.add_done_callback(partial(log_background_task_result, task_name="script-send-resume"))
+    background_tasks.append(resume_task)
+
     # 3f. AI traces and prompt logs: written in batches as they arrive (waits on a queue, no polling)
     trace_task = asyncio.create_task(ai_observability.writer_loop(), name="ai-trace-writer")
     trace_task.add_done_callback(partial(log_background_task_result, task_name="ai-trace-writer"))

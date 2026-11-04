@@ -48,6 +48,10 @@ class ScriptStage(BaseModel):
     can_submit: bool = False
     can_review: bool = False
     can_respond: bool = False
+    # The creator sent the script and it's still being read and scored (it reaches the reviewers when that's done).
+    processing: bool = False
+    # Why the last send failed (which step), so the creator can fix it and send again.
+    send_error: Optional[str] = None
 
 
 class ScriptDecisionRequest(BaseModel):
@@ -56,6 +60,11 @@ class ScriptDecisionRequest(BaseModel):
     decision: Literal["APPROVE", "SEND_BACK"]
     text: Optional[str] = Field(None, max_length=MAX_SCRIPT_CHARS)
     note: Optional[str] = Field(None, max_length=4000)
+    # When the creator's next step is due: the changes if the script goes back, the video if it's approved. Working
+    # days from now, or an exact date and time; sent back with neither it gets the normal window, approved with
+    # neither the video has no deadline.
+    due_days: Optional[Literal[1, 2, 3, 5]] = None
+    due_at: Optional[datetime] = None
 
 
 class ScriptReviseRequest(BaseModel):
@@ -74,15 +83,48 @@ class ScriptQueueItem(BaseModel):
     title: str
     platforms: List[str] = Field(default_factory=list)
     brand_code: Optional[str] = None
+    brand_codes: List[str] = Field(default_factory=list)
     audience: Optional[str] = None
+    audiences: List[str] = Field(default_factory=list)
     creator_name: Optional[str] = None
     created_by: Optional[UUID] = None
     version_number: int
     sent_at: datetime
     score: Optional[int] = None
+    # The AI review couldn't run for this script: no score, a message instead.
+    ai_unavailable: bool = False
     traffic_light: Optional[str] = None
     approval_needed_by: Optional[datetime] = None
     # IN_REVIEW, CHANGES_REQUESTED, EDITS_PROPOSED or APPROVED, and when the reviewer decided (None while waiting).
     script_status: str = "IN_REVIEW"
     decided_at: Optional[datetime] = None
     can_review: bool = False
+
+
+class ScriptHighlight(BaseModel):
+    """A stretch of the script the reviewer highlighted, with an optional note on it."""
+
+    id: str = Field(min_length=1, max_length=40)
+    # Where the wording started in the script as shown, and the wording itself (to find it again if the text moved).
+    start: int = Field(ge=0)
+    text: str = Field(min_length=1, max_length=5000)
+    color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
+    note: str = Field(default="", max_length=2000)
+    # Set by the creator when they send the next version: they fixed this, and the wording now reads `updated`
+    # (None when the wording itself didn't change).
+    done: bool = False
+    updated: Optional[str] = Field(default=None, max_length=5000)
+
+
+class ScriptResolution(BaseModel):
+    id: str = Field(min_length=1, max_length=40)
+    done: bool
+    updated: Optional[str] = Field(default=None, max_length=5000)
+
+
+class ScriptResolutionsRequest(BaseModel):
+    resolutions: List[ScriptResolution] = Field(default_factory=list, max_length=500)
+
+
+class ScriptHighlightsRequest(BaseModel):
+    highlights: List[ScriptHighlight] = Field(default_factory=list, max_length=500)

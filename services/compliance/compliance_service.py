@@ -646,13 +646,25 @@ def implied_by_wording(text: str, signals: Optional[post_signals.PostSignals] = 
     return out
 
 
-def implied_audiences(audience: Optional[str], signals: post_signals.PostSignals, text: str = "") -> List[str]:
+def brands_of(row: Any) -> List[str]:
+    """Every brand a stored submission is for (brand_code alone for rows saved before there could be several)."""
+    brands = list(row.get("brand_codes") or [])
+    return brands or ([row["brand_code"]] if row.get("brand_code") else [])
+
+
+def audiences_of(row: Any) -> List[str]:
+    """Every audience a stored submission targets (audience alone for rows saved before there could be several)."""
+    audiences = list(row.get("audiences") or [])
+    return audiences or ([row["audience"]] if row.get("audience") else [])
+
+
+def implied_audiences(audiences: Sequence[str], signals: post_signals.PostSignals, text: str = "") -> List[str]:
     """Audiences a post reaches whatever it targets: investor wording ($ZENA, "shareholders") means investors read it,
     defense wording ("Pentagon", "program managers") means defense buyers do. Without the text, only cashtags count."""
     wording = implied_by_wording(text, signals) if text else (
         {DISCLOSURE_RULE_SET: signals.cashtags} if signals.cashtags else {}
     )
-    return [i.audience for i in IMPLIED_BY if i.rule_set in wording and i.audience != audience]
+    return [i.audience for i in IMPLIED_BY if i.rule_set in wording and i.audience not in audiences]
 
 
 @dataclass(frozen=True)
@@ -676,16 +688,17 @@ def check_scope(req: ComplianceCheckRequest, signals: Optional[post_signals.Post
     """Who the content reaches and what it's made of, for picking the rules that apply to it."""
     signals = signals or post_signals.extract(req.text)
     wording = implied_by_wording(req.text, signals)
-    implied = [i.audience for i in IMPLIED_BY if i.rule_set in wording and i.audience != req.audience]
-    # With no audience set every audience-limited rule already runs; adding one would narrow that.
-    audiences = [req.audience, *implied] if req.audience else []
+    implied = [i.audience for i in IMPLIED_BY if i.rule_set in wording and i.audience not in req.audiences]
+    # With no audience set every audience-limited rule already runs; adding one would narrow that. With several, a rule
+    # applies if it's for any of them.
+    audiences = [*req.audiences, *implied] if req.audiences else []
     # The same for rule sets: with none chosen every rule already runs, so nothing is added.
     added = {rs: w for rs, w in wording.items() if req.rule_sets and rs not in req.rule_sets}
     rule_sets = [*req.rule_sets, *added] if req.rule_sets else []
     if req.content_parts:
         parts = sorted({p.strip().lower() for p in req.content_parts if p and p.strip()})
     else:
-        parts = parts_for(req.content_type, is_ceo=req.brand_code == CEO_BRAND or CEO_RULE_SET in req.rule_sets)
+        parts = parts_for(req.content_type, is_ceo=CEO_BRAND in req.brand_codes or CEO_RULE_SET in req.rule_sets)
     return CheckScope(audiences=audiences, implied_audiences=implied, content_parts=parts, rule_sets=rule_sets,
                       added_rule_sets=added, wording=wording)
 
@@ -703,7 +716,7 @@ def _rule_applies(rule: ComplianceRule, req: ComplianceCheckRequest, scope: Opti
     rule_parts = [p for p in (v.strip().lower() for v in rule.applies_to or []) if p in CONTENT_PARTS]
     return (
         overlaps(rule.rule_sets, scope.rule_sets)
-        and overlaps(rule.brands, [req.brand_code] if req.brand_code else [])
+        and overlaps(rule.brands, req.brand_codes)
         and overlaps(rule.audiences, scope.audiences)
         and overlaps(rule.regions, region)
         and overlaps(rule.platforms, req.platforms)
@@ -831,8 +844,8 @@ async def _vector_context_for_check(
         rule_hits = await store.search(
             query,
             kinds=[reference_index_service.RULE_KIND],
-            brand=req.brand_code,
-            audience=req.audience,
+            brand=req.brand_codes,
+            audience=req.audiences,
             platforms=req.platforms,
             limit=8,
             min_score=0.68,
@@ -840,8 +853,8 @@ async def _vector_context_for_check(
         ctx_hits = await store.search(
             query,
             kinds=["FACT", "BRAND_VOICE", "REVIEW_DECISION"],
-            brand=req.brand_code,
-            audience=req.audience,
+            brand=req.brand_codes,
+            audience=req.audiences,
             platforms=req.platforms,
             limit=6,
             min_score=0.68,
@@ -924,8 +937,8 @@ async def _semantic_findings(
     cache_payload = {
         "v": SCOPE_VERSION,
         "text": (req.text or "").strip(),
-        "brand": req.brand_code,
-        "audience": req.audience,
+        "brand": req.brand_codes,
+        "audience": req.audiences,
         "rules": sorted(by_number),
         "notes": vector_notes,
     }
@@ -958,8 +971,8 @@ matched. Report a rule only if the content clearly breaches that rule's standard
 - Return an empty list when nothing clearly applies.
 
 CONTENT METADATA
-Brand: {req.brand_code or "unspecified"}
-Audience: {req.audience or "unspecified"}
+Brand: {", ".join(req.brand_codes) or "unspecified"}
+Audience: {", ".join(req.audiences) or "unspecified"}
 Content Type: {req.content_type or "unspecified"}
 Platforms: {", ".join(req.platforms) or "unspecified"}
 

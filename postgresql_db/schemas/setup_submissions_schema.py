@@ -126,6 +126,14 @@ async def setup():
 
             -- A post can go out through several connected accounts. account_id stays as the first (primary) one,
             -- which the calendar, screener and publish page use.
+            -- A post can be for several brands. brand_code stays as the first (primary) one.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS brand_codes TEXT[] NOT NULL DEFAULT '{}';
+            UPDATE content_submissions SET brand_codes = ARRAY[brand_code]
+            WHERE brand_code IS NOT NULL AND cardinality(brand_codes) = 0;
+            -- A post can target several audiences. audience stays as the first (primary) one.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS audiences TEXT[] NOT NULL DEFAULT '{}';
+            UPDATE content_submissions SET audiences = ARRAY[audience]
+            WHERE audience IS NOT NULL AND cardinality(audiences) = 0;
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS account_ids UUID[] NOT NULL DEFAULT '{}';
             UPDATE content_submissions SET account_ids = ARRAY[account_id]
             WHERE account_id IS NOT NULL AND cardinality(account_ids) = 0;
@@ -196,6 +204,8 @@ async def setup():
             -- reviewer changed the wording; the creator accepts or edits), CHANGES_REQUESTED, APPROVED.
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_required BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_status VARCHAR(30);
+            -- While a sent script is being read and scored in the background: {status: PROCESSING|FAILED, started_at, error}.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_send JSONB;
             CREATE INDEX IF NOT EXISTS idx_content_submissions_script_status ON content_submissions(script_status)
                 WHERE script_status IS NOT NULL AND deleted_at IS NULL;
             -- Each version of the script's text: the creator's upload or edit, or the reviewer's edit. The reviewer's
@@ -225,6 +235,16 @@ async def setup():
             ALTER TABLE content_review_jobs ALTER COLUMN status SET DEFAULT 'AWAITING_REVIEW';
             -- Rules the automated check can't test from text, which the approving reviewer confirmed by hand.
             ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS manual_checks JSONB;
+
+            -- Wording the reviewer highlighted or left a note on in a script version; the creator sees them too.
+            CREATE TABLE IF NOT EXISTS content_script_highlights (
+                submission_id UUID NOT NULL REFERENCES content_submissions(id) ON DELETE CASCADE,
+                version_number INT NOT NULL,
+                highlights JSONB NOT NULL DEFAULT '[]'::jsonb,
+                updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                PRIMARY KEY (submission_id, version_number)
+            );
 
             -- Reviewers' calls on automated compliance flags, per version: a dismissal with its reason.
             CREATE TABLE IF NOT EXISTS flag_reviews (

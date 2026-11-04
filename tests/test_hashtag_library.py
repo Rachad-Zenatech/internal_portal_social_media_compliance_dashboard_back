@@ -17,7 +17,7 @@ def rule(**fields):
 
 class LibraryTests(unittest.TestCase):
     def test_brand_and_audience_tags_with_the_cashtag_on_its_own(self):
-        lib = hl.build("ZENADRONE", "DEFENSE", ["LINKEDIN"])
+        lib = hl.build(["ZENADRONE"], ["DEFENSE"], ["LINKEDIN"])
         labels = [g.label for g in lib.groups]
         self.assertEqual(labels, ["Brand", "For Defense & Government", "Investors"])
         self.assertIn("#ZenaDrone", [t.tag for t in lib.groups[0].tags])
@@ -35,11 +35,11 @@ class LibraryTests(unittest.TestCase):
         self.assertEqual(hl.max_reason(["REDDIT"]), "No hashtags on Reddit")
 
     def test_only_allowed_tags_are_offered(self):
-        lib = hl.build("ZENATECH", None, [], allowed=["#ZenaTech"])
+        lib = hl.build(["ZENATECH"], [], [], allowed=["#ZenaTech"])
         self.assertEqual([t.tag for t in lib.groups[0].tags], ["#ZenaTech"])
 
     def test_an_unknown_brand_gets_the_company_tags(self):
-        self.assertIn("#ZenaTech", hl.candidates(None, None))
+        self.assertIn("#ZenaTech", hl.candidates([], []))
 
 
 class FlaggedTagTests(unittest.TestCase):

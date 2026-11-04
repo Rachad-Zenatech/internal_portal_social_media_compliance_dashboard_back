@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 # The company's Nasdaq ticker as a cashtag.
 CASHTAG = "$ZENA"
+CASHTAG_SUGGESTED_NOTE = "This post is for investors, and $ZENA is the tag they follow. Investor-disclosure rules apply to the whole post."
 CASHTAG_NOTE = "Reaches investors following the stock. Investor-disclosure rules then apply to the whole post."
 
 # How many hashtags suit each platform. Reddit and websites don't use them.
@@ -101,12 +102,21 @@ def _unique(tags: Iterable[str]) -> List[str]:
     return out
 
 
-def candidates(brand_code: Optional[str], audience: Optional[str]) -> List[str]:
-    """Every hashtag the library offers this brand and audience, brand tags first (no cashtag)."""
-    return _unique([*BRAND_TAGS.get(brand_code or "", FALLBACK_BRAND_TAGS), *AUDIENCE_TAGS.get(audience or "", [])])
+def _audience_tags(audiences: Sequence[str]) -> List[str]:
+    return _unique([t for a in audiences for t in AUDIENCE_TAGS.get(a, [])])
 
 
-def build(brand_code: Optional[str], audience: Optional[str], platforms: Sequence[str],
+def _brand_tags(brand_codes: Sequence[str]) -> List[str]:
+    known = [t for b in brand_codes for t in BRAND_TAGS.get(b, [])]
+    return _unique(known) or list(FALLBACK_BRAND_TAGS)
+
+
+def candidates(brand_codes: Sequence[str], audiences: Sequence[str]) -> List[str]:
+    """Every hashtag the library offers these brands and audiences, brand tags first (no cashtag)."""
+    return _unique([*_brand_tags(brand_codes), *_audience_tags(audiences)])
+
+
+def build(brand_codes: Sequence[str], audiences: Sequence[str], platforms: Sequence[str],
           allowed: Optional[Iterable[str]] = None) -> HashtagLibrary:
     """The library for one post. `allowed` (if given) is the subset of candidates the rulebook doesn't flag."""
     ok = {t.lower() for t in allowed} if allowed is not None else None
@@ -114,13 +124,18 @@ def build(brand_code: Optional[str], audience: Optional[str], platforms: Sequenc
     def keep(tags: List[str]) -> List[str]:
         return [t for t in tags if ok is None or t.lower() in ok]
 
-    brand_tags = keep(BRAND_TAGS.get(brand_code or "", FALLBACK_BRAND_TAGS))
-    audience_tags = [t for t in keep(AUDIENCE_TAGS.get(audience or "", [])) if t.lower() not in {b.lower() for b in brand_tags}]
+    brand_tags = keep(_brand_tags(brand_codes))
+    audience_tags = [t for t in keep(_audience_tags(audiences)) if t.lower() not in {b.lower() for b in brand_tags}]
     groups = [LibraryGroup(label="Brand", tags=[LibraryTag(tag=t) for t in brand_tags])]
     if audience_tags:
-        groups.append(LibraryGroup(label=f"For {AUDIENCE_LABELS.get(audience or '', 'this audience')}",
+        label = AUDIENCE_LABELS.get(audiences[0], "this audience") if len(audiences) == 1 else "these audiences"
+        groups.append(LibraryGroup(label=f"For {label}",
                                    tags=[LibraryTag(tag=t) for t in audience_tags]))
-    groups.append(LibraryGroup(label="Investors", tags=[LibraryTag(tag=CASHTAG, note=CASHTAG_NOTE)]))
+    if "INVESTORS" in audiences:
+        # The post is for investors, so the ticker they follow comes first rather than as an option at the end.
+        groups.insert(0, LibraryGroup(label="Suggested for investors", tags=[LibraryTag(tag=CASHTAG, note=CASHTAG_SUGGESTED_NOTE)]))
+    else:
+        groups.append(LibraryGroup(label="Investors", tags=[LibraryTag(tag=CASHTAG, note=CASHTAG_NOTE)]))
     return HashtagLibrary(
         groups=[g for g in groups if g.tags],
         max_hashtags=max_hashtags(platforms),

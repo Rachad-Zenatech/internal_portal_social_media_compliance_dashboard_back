@@ -45,7 +45,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `CaptionSuggestion` (class)
 - `CaptionSuggestions` (class)
 
-## models/compliance/compliance_model.py (259 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (273 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class)
 - `ComplianceRuleCreate` (class)
 - `ComplianceRuleUpdate` (class)
@@ -53,6 +53,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `RuleExampleResult` (class)
 - `RuleSelfTest` (class)
 - `ComplianceCheckRequest` (class)
+    - `_keep_audience_and_audiences_in_step` (def)
 - `ContextEvaluation` (class) - How the AI read a rule's trigger in context, kept beside the finding so the decision can be audited.
 - `ComplianceViolation` (class)
 - `ManualReviewRule` (class) - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
@@ -99,13 +100,17 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `XIngestTopicInput` (class)
 - `XIngestRequest` (class)
 
-## models/compliance/script_review_model.py (89 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+## models/compliance/script_review_model.py (131 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class)
 - `ScriptStage` (class)
 - `ScriptDecisionRequest` (class) - The reviewer's call on the script.
 - `ScriptReviseRequest` (class)
 - `ScriptCheckRequest` (class)
 - `ScriptQueueItem` (class) - A script waiting for a reviewer, as the Content Screener's Scripts tab lists it.
+- `ScriptHighlight` (class) - A stretch of the script the reviewer highlighted, with an optional note on it.
+- `ScriptResolution` (class)
+- `ScriptResolutionsRequest` (class)
+- `ScriptHighlightsRequest` (class)
 
 ## models/compliance/sentiment_model.py (213 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - `Tone` (class)
@@ -125,7 +130,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (502 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (520 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -197,7 +202,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `Config` (class)
 - `RolePermissionGroupsUpdate` (class)
 
-## postgresql_db/database.py (138 lines) - Optional dotenv import for loading .env and local overrides during development
+## postgresql_db/database.py (146 lines) - Optional dotenv import for loading .env and local overrides during development
 - `create_pool` (def) - Creates the connection pool if it doesn't exist yet, then returns it.
 - `close_pool` (def)
 - `reset_pool` (def) - Drop the current pool and create a fresh one after connection failures.
@@ -247,7 +252,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (548 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (568 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -277,10 +282,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `run_saved_case` (def)
 - `main` (def)
 
-## server.py (650 lines) - server
+## server.py (675 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
+    - `resume_reads` (def)
 - `MessageItem` (class)
 - `ChatRequest` (class)
 - `ai_chat` (def) [POST /ai/chat]
@@ -429,7 +435,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `build` (def) - The progress of one post from its files' reading states (the same parts _run_check waits on).
 - `for_submissions` (def) - Progress for each of these posts (only call with posts whose check is still pending).
 
-## services/compliance/approval_path_service.py (168 lines) - Approval paths: who gives final approval for which content.
+## services/compliance/approval_path_service.py (170 lines) - Approval paths: who gives final approval for which content.
 - `_out` (def)
 - `list_paths` (def)
 - `options` (def) - Who can be named an approver (anyone who can review) and what a path can match on.
@@ -439,7 +445,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `delete_path` (def)
 - `ApprovalRules` (class) - All paths, loaded once per request, matched to as many submissions as needed.
     - `__init__` (def)
-    - `approvers` (def)
+    - `approvers` (def) - Approvers from every path that fits.
 - `load_rules` (def)
 - `is_ceo_content` (def) - Shaun's own thought leadership: posted through his account or checked against his rule set.
 
@@ -505,7 +511,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_quoted` (def) - a", "b"'.
 - `find_claims` (def) - The built-in claim checks that fire on this text, as findings.
 
-## services/compliance/compliance_service.py (1390 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/compliance_service.py (1403 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def)
 - `_ai_viability_enabled` (def)
 - `_row_to_rule` (def)
@@ -530,6 +536,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ImpliedBy` (class)
 - `_wording_for` (def) - The wording in the post that brings in this rule set, as written where possible, at most 5.
 - `implied_by_wording` (def) - {rule set: the wording that brings it in} for every rule set the post's wording implies, whatever it was
+- `brands_of` (def) - Every brand a stored submission is for (brand_code alone for rows saved before there could be several).
+- `audiences_of` (def) - Every audience a stored submission targets (audience alone for rows saved before there could be several).
 - `implied_audiences` (def) - Audiences a post reaches whatever it targets: investor wording ($ZENA, "shareholders") means investors read it,
 - `CheckScope` (class)
 - `check_scope` (def) - Who the content reaches and what it's made of, for picking the rules that apply to it.
@@ -555,7 +563,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `self_test_all` (def)
 - `get_compliance_stats` (def) - Retrieve aggregate compliance metrics.
 
-## services/compliance/context_evaluator.py (350 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+## services/compliance/context_evaluator.py (360 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - `_Result` (class)
 - `_Response` (class)
 - `_enum` (def)
@@ -614,7 +622,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_block_lines` (def) - A text block as paragraphs: its visual lines joined, except where the style changes or a short line ends one.
 - `plain_text` (def) - The wording alone: page marks dropped, headings, bold and italics unmarked, list markers dropped, table cells
 
-## services/compliance/document_text_service.py (227 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
+## services/compliance/document_text_service.py (244 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - `UnreadableDocument` (class) - A document we can't read, with a message the creator can act on.
 - `is_document_file` (def) - Whether this file's text is read: any script, or a main file that's a document (a blog's article).
 - `_decode` (def) - Text file bytes as text: UTF-16 when it starts with that byte-order mark, else UTF-8, else Windows-1252.
@@ -627,6 +635,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `read_file` (def) - Read one document's text and save it, then re-check its submission if it's still open.
 - `_run` (def)
 - `schedule` (def) - Read each document in the background, unless this process is already reading it.
+- `resume_interrupted` (def) - A read runs inside the server, so a restart leaves its document marked "reading" with nothing doing it.
 - `schedule_missing` (def) - Read the documents among these that were never read, or whose read was abandoned (e.g.
 - `paragraphs` (def) - A read document's paragraphs, in order (one per line as stored).
 
@@ -661,14 +670,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `open_critical_counts` (def) - Per submission: critical (red) flags on its current version that nobody has dismissed.
 - `rule_stats` (def) - How often each rule flagged a submitted version, and how often reviewers dismissed it.
 
-## services/compliance/hashtag_library.py (129 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
+## services/compliance/hashtag_library.py (144 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - `LibraryTag` (class)
 - `LibraryGroup` (class)
 - `HashtagLibrary` (class)
 - `max_hashtags` (def) - The most hashtags the strictest selected platform suits (3 when none is selected).
 - `max_reason` (def)
 - `_unique` (def)
-- `candidates` (def) - Every hashtag the library offers this brand and audience, brand tags first (no cashtag).
+- `_audience_tags` (def)
+- `_brand_tags` (def)
+- `candidates` (def) - Every hashtag the library offers these brands and audiences, brand tags first (no cashtag).
 - `build` (def) - The library for one post.
     - `keep` (def)
 
@@ -683,7 +694,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `result` (def)
 - `sanitize_caption_html` (def) - The caption HTML with only safe formatting left.
 
-## services/compliance/image_text_service.py (184 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+## services/compliance/image_text_service.py (203 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def)
 - `_get_client` (def)
 - `_claim` (def) - Atomically mark an image as being read unless another worker already is.
@@ -693,6 +704,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `read_file` (def) - Read one image's text and save it, then re-check its submission if it's still open.
 - `_run` (def)
 - `schedule` (def) - Read each image in the background, unless this process is already reading it.
+- `resume_interrupted` (def) - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
 - `schedule_missing` (def) - Read the images among these that were never read, or whose read was abandoned (e.g.
 
 ## services/compliance/listening_providers.py (412 lines) - Social listening providers: where "public mood" data comes from.
@@ -803,10 +815,43 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `run` (def)
 - `search` (def)
 
-## services/compliance/review_deadline_service.py (195 lines) - Review and revision deadlines.
+## services/compliance/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - `_hours` (def)
 - `add_working_days` (def) - The same time of day, this many working days later (Saturdays and Sundays are skipped).
 - `due_date` (def) - When the next step is due: the date asked for (a creator's "need approval by"), else the working days a
+- `require_future` (def) - A deadline a reviewer picked has to still be ahead.
+- `revision_due` (def) - When the creator has to have the requested changes done: the date the reviewer picked, else their working days
+- `video_due` (def) - When the video is due once its script is approved: the date picked, or working days from now; None for no deadline.
+- `_when` (def) - e.g.
+- `_recipients` (def) - Reviews: every reviewer except the creator.
+- `_message` (def)
+- `_claim` (def) - Mark deadlines that need a notice as notified and return them, in one statement, so a notice goes out
+- `send_due_notices` (def) - One pass: "due soon" reminders, then overdue notices.
+- `backfill_missing` (def) - Give content that was already waiting when deadlines were introduced a deadline from now, as if it had just
+- `deadline_loop` (def)
+
+## services/compliance/review_deadline_service.py (235 lines) - Review and revision deadlines.
+- `_hours` (def)
+- `add_working_days` (def) - The same time of day, this many working days later (Saturdays and Sundays are skipped).
+- `due_date` (def) - When the next step is due: the date asked for (a creator's "need approval by"), else the working days a
+- `require_future` (def) - A deadline a reviewer picked has to still be ahead.
+- `revision_due` (def) - When the creator has to have the requested changes done: the date the reviewer picked, else their working days
+- `video_due` (def) - When the video is due once its script is approved: the date picked, or working days from now; None for no deadline.
+- `_when` (def) - e.g.
+- `_recipients` (def) - Reviews: every reviewer except the creator.
+- `_message` (def)
+- `_claim` (def) - Mark deadlines that need a notice as notified and return them, in one statement, so a notice goes out
+- `send_due_notices` (def) - One pass: "due soon" reminders, then overdue notices.
+- `backfill_missing` (def) - Give content that was already waiting when deadlines were introduced a deadline from now, as if it had just
+- `deadline_loop` (def)
+
+## services/compliance/review_deadline_service.py (235 lines) - Review and revision deadlines.
+- `_hours` (def)
+- `add_working_days` (def) - The same time of day, this many working days later (Saturdays and Sundays are skipped).
+- `due_date` (def) - When the next step is due: the date asked for (a creator's "need approval by"), else the working days a
+- `require_future` (def) - A deadline a reviewer picked has to still be ahead.
+- `revision_due` (def) - When the creator has to have the requested changes done: the date the reviewer picked, else their working days
+- `video_due` (def) - When the video is due once its script is approved: the date picked, or working days from now; None for no deadline.
 - `_when` (def) - e.g.
 - `_recipients` (def) - Reviews: every reviewer except the creator.
 - `_message` (def)
@@ -827,12 +872,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `query_text` (def) - The text a post is matched on: the same parts that are stored for past reviews.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/script_match.py (56 lines) - Script vs video.
+## services/compliance/script_match.py (92 lines) - Script vs video.
 - `_words` (def)
 - `_shown` (def)
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
+- `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/script_review_service.py (428 lines) - Script stage of a video post.
+## services/compliance/script_review_service.py (690 lines) - Script stage of a video post.
+- `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
 - `_status` (def)
@@ -846,13 +893,89 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_add_version` (def)
 - `_lock_status` (def) - Lock the post and make sure the script is still where the caller saw it (two people can act at once).
 - `_send_to_reviewers` (def)
-- `submit` (def) - Send the uploaded script file for review (its text as read).
+- `_missing_details` (def) - The required submission details still empty, by their names on the form.
+- `submit` (def) - Accept the uploaded script for review and answer at once.
+- `_fail_send` (def) - The background send couldn't finish: record which step failed and why, and tell the creator.
+- `resume_interrupted_sends` (def) - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
+- `_process_send` (def) - Read the uploaded script, calculate its compliance score and send it to the reviewers.
 - `_send` (def)
+- `_send_checked` (def)
 - `decide` (def) - The reviewer approves the script, sends it back with a note, or sends back their own edited version.
 - `accept` (def) - The creator accepts the reviewer's edited version: it's the approved script.
 - `revise` (def) - The creator edits the script in the platform (after edits or a change request) and sends it back.
 - `preview_check` (def) - Check wording being edited without saving it, so the score updates as the reviewer or creator works.
+- `_refresh_stale_scripts` (def) - Re-check scripts that were checked against an older rulebook, one at a time, and save the result.
+- `_refresh_in_background` (def)
 - `queue` (def) - Scripts for one Content Screener tab, on the brands the viewer works on.
+- `get_highlights` (def) - The reviewer's highlights and notes on a script version, for anyone who can read the post.
+- `save_highlights` (def) - Replace the highlights on a script version.
+- `resolve_highlights` (def) - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
+
+## services/compliance/script_review_service.py (690 lines) - Script stage of a video post.
+- `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
+- `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
+- `_clean` (def)
+- `_status` (def)
+- `check_text` (def) - The rulebook check of a script: the title and the script, scoped like the post.
+- `_versions` (def)
+- `_script_file` (def)
+- `_require_stage` (def)
+- `_reviewer_may_act` (def)
+- `get_stage` (def)
+- `_adopt_check` (def) - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
+- `_add_version` (def)
+- `_lock_status` (def) - Lock the post and make sure the script is still where the caller saw it (two people can act at once).
+- `_send_to_reviewers` (def)
+- `_missing_details` (def) - The required submission details still empty, by their names on the form.
+- `submit` (def) - Accept the uploaded script for review and answer at once.
+- `_fail_send` (def) - The background send couldn't finish: record which step failed and why, and tell the creator.
+- `resume_interrupted_sends` (def) - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
+- `_process_send` (def) - Read the uploaded script, calculate its compliance score and send it to the reviewers.
+- `_send` (def)
+- `_send_checked` (def)
+- `decide` (def) - The reviewer approves the script, sends it back with a note, or sends back their own edited version.
+- `accept` (def) - The creator accepts the reviewer's edited version: it's the approved script.
+- `revise` (def) - The creator edits the script in the platform (after edits or a change request) and sends it back.
+- `preview_check` (def) - Check wording being edited without saving it, so the score updates as the reviewer or creator works.
+- `_refresh_stale_scripts` (def) - Re-check scripts that were checked against an older rulebook, one at a time, and save the result.
+- `_refresh_in_background` (def)
+- `queue` (def) - Scripts for one Content Screener tab, on the brands the viewer works on.
+- `get_highlights` (def) - The reviewer's highlights and notes on a script version, for anyone who can read the post.
+- `save_highlights` (def) - Replace the highlights on a script version.
+- `resolve_highlights` (def) - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
+
+## services/compliance/script_review_service.py (690 lines) - Script stage of a video post.
+- `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
+- `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
+- `_clean` (def)
+- `_status` (def)
+- `check_text` (def) - The rulebook check of a script: the title and the script, scoped like the post.
+- `_versions` (def)
+- `_script_file` (def)
+- `_require_stage` (def)
+- `_reviewer_may_act` (def)
+- `get_stage` (def)
+- `_adopt_check` (def) - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
+- `_add_version` (def)
+- `_lock_status` (def) - Lock the post and make sure the script is still where the caller saw it (two people can act at once).
+- `_send_to_reviewers` (def)
+- `_missing_details` (def) - The required submission details still empty, by their names on the form.
+- `submit` (def) - Accept the uploaded script for review and answer at once.
+- `_fail_send` (def) - The background send couldn't finish: record which step failed and why, and tell the creator.
+- `resume_interrupted_sends` (def) - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
+- `_process_send` (def) - Read the uploaded script, calculate its compliance score and send it to the reviewers.
+- `_send` (def)
+- `_send_checked` (def)
+- `decide` (def) - The reviewer approves the script, sends it back with a note, or sends back their own edited version.
+- `accept` (def) - The creator accepts the reviewer's edited version: it's the approved script.
+- `revise` (def) - The creator edits the script in the platform (after edits or a change request) and sends it back.
+- `preview_check` (def) - Check wording being edited without saving it, so the score updates as the reviewer or creator works.
+- `_refresh_stale_scripts` (def) - Re-check scripts that were checked against an older rulebook, one at a time, and save the result.
+- `_refresh_in_background` (def)
+- `queue` (def) - Scripts for one Content Screener tab, on the brands the viewer works on.
+- `get_highlights` (def) - The reviewer's highlights and notes on a script version, for anyone who can read the post.
+- `save_highlights` (def) - Replace the highlights on a script version.
+- `resolve_highlights` (def) - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
 
 ## services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 
@@ -896,7 +1019,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_eval_cases` (def)
 - `delete_eval_case` (def)
 
-## services/compliance/sentiment/input_builder.py (344 lines) - Input building and prompt construction for sentiment analysis.
+## services/compliance/sentiment/input_builder.py (351 lines) - Input building and prompt construction for sentiment analysis.
 - `_load_submission` (def)
 - `_load_images` (def) - The post's images in order: the main ones (e.g.
 - `_json` (def)
@@ -941,7 +1064,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 
-## services/compliance/submission_service.py (2466 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submission_service.py (2613 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -1002,7 +1125,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_version` (def) - A past (or the current) submitted version, for looking back at what it was and how it was decided.
 - `get_history` (def)
 - `_reviewer_ids` (def) - Active users who can review: super admins and roles with "Review & Publish Content".
-- `reviewer_options` (def) - The people a creator can send content to: reviewers and super admins (on the brand, when given), not themselves.
+- `reviewer_options` (def) - The people a creator can send content to: reviewers and super admins (on any of the brands, when given), not
 - `_review_recipients` (def) - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
 - `_notify` (def)
 - `_score_line` (def) - The check's score for a message, or that it's still being analysed.
@@ -1018,7 +1141,194 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `add_comment` (def)
 - `set_comment_resolved` (def)
 - `delete_comment` (def)
+- `_recheck_one` (def) - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
 - `recheck_open_submissions` (def) - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
+    - `describe` (def)
+- `recheck_ai_unavailable` (def) - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    - `describe` (def)
+- `ai_recheck_loop` (def) - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
+- `recheck_outdated_on_start` (def) - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
+- `schedule_rulebook_recheck` (def) - Re-check open content shortly after a rule changes; a burst of edits leads to one pass.
+    - `run` (def)
+- `recheck_after_transcript` (def) - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
+- `recheck_after_image_text` (def) - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
+- `recheck_after_document_text` (def) - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
+- `_recheck_for_file` (def) - Re-run the check of the open submission a file belongs to, after something about the file was read.
+
+## services/compliance/submission_service.py (2613 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- `_json` (def)
+- `_account_option` (def)
+- `_accounts` (def)
+- `_account_ids` (def)
+- `_account_covers` (def) - Whether an account publishes to one of the platforms.
+- `_file_out` (def)
+- `_is_super_admin` (def)
+- `_can_manage_team_content` (def) - Super admins and roles with "Manage Team Drafts" (Content Manager, Administrator) see everyone's content
+- `_can_review` (def) - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
+- `_can_see_team_content` (def) - Content Managers and reviewers can read everyone's submissions.
+- `_brand_scope` (def) - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
+- `_sent_to` (def) - SQL: the content was sent to this user, or to no one in particular (every reviewer on its brand).
+- `_get_owned_row` (def) - Load a submission the user may access (creator or super admin; managers and reviewers too when
+- `_approvers` (def) - The named final approvers for a submission row (empty: any reviewer on its brand).
+- `_may_approve` (def)
+- `_approval_fields` (def)
+- `_require_editable` (def)
+- `_add_event` (def)
+- `_list_files` (def)
+- `_due` (def) - The open deadline, if the content is still at the step it belongs to.
+- `_to_submission` (def)
+- `_connected_accounts` (def) - Those of the given publishing accounts that are connected and not expired, in the order given.
+- `get_options` (def) - Choices for the submission form, limited to the brands the user works on (and those brands' accounts).
+- `create_submission` (def)
+- `list_submissions` (def) - The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers.
+- `get_submission` (def)
+- `update_submission` (def)
+- `delete_draft` (def) - Delete a draft.
+- `_safe_name` (def)
+- `add_file` (def)
+- `_require_script_stage_allows` (def) - On a post with a script stage, the video waits for the approved script.
+- `_record_file` (def) - Save a stored file to the submission (an upload or a Canva export): replace the main file or script it
+- `_store_canva_export` (def) - Write a Canva export into the submission's storage and record it as the main file.
+- `import_from_canva` (def) - Export a Canva design and add it as the submission's main file, like an upload.
+- `reimport_from_canva` (def) - Bring in the latest revision of the Canva design the main file came from, replacing it.
+- `retranscribe` (def) - Generate the speech transcript again, e.g.
+- `remove_file` (def)
+- `get_file_for_download` (def)
+- `analysis_pending` (def) - Whether the post is still being analysed: its video transcript or the text in its images isn't read yet.
+- `ai_unavailable` (def) - Whether the AI couldn't read part of the post, so the check has no score to show.
+- `_unavailable_sql` (def)
+- `_pending_sql` (def) - SQL for analysis_pending() on a stored check (older checks only have the two parts).
+- `_check_text` (def)
+- `check_request` (def) - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms).
+- `script_stage_on` (def) - Video posts created since the script stage existed have their script approved before the video.
+- `approved_script` (def) - The approved script's text, when the post went through the script stage and it was approved.
+- `_run_check` (def) - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
+- `_mirror_to_script_version` (def) - A check saved on the post while its script is with the reviewer is also the script version's check, so both
+- `run_initial_check` (def)
+- `_missing_for_submit` (def)
+- `_review_job` (def)
+- `submit_for_review` (def)
+- `withdraw` (def) - Pull a submission back to draft so the creator can edit and resubmit: from review, or after approval for a
+- `_queue_filter` (def)
+- `dashboard_summary` (def) - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
+- `review_queue_counts` (def) - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
+- `review_queue` (def) - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
+- `get_version` (def) - A past (or the current) submitted version, for looking back at what it was and how it was decided.
+- `get_history` (def)
+- `_reviewer_ids` (def) - Active users who can review: super admins and roles with "Review & Publish Content".
+- `reviewer_options` (def) - The people a creator can send content to: reviewers and super admins (on any of the brands, when given), not
+- `_review_recipients` (def) - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
+- `_notify` (def)
+- `_score_line` (def) - The check's score for a message, or that it's still being analysed.
+- `_check_summary` (def)
+- `_notify_reviewers` (def)
+- `decide_review` (def) - A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
+- `_approved_row_for_reviewer` (def) - An approved submission the user may manage as a reviewer (not their own upload, unless super admin).
+- `reopen_approved` (def) - A reviewer takes back an approval (for example a late legal concern) and sends the content to its creator
+- `reschedule_approved` (def) - A reviewer moves approved content to a new publish time.
+- `_comment_out` (def)
+- `list_comments` (def)
+- `_comment_access` (def) - Reviewers and the creator can comment and resolve comments.
+- `add_comment` (def)
+- `set_comment_resolved` (def)
+- `delete_comment` (def)
+- `_recheck_one` (def) - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
+- `recheck_open_submissions` (def) - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
+    - `describe` (def)
+- `recheck_ai_unavailable` (def) - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    - `describe` (def)
+- `ai_recheck_loop` (def) - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
+- `recheck_outdated_on_start` (def) - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
+- `schedule_rulebook_recheck` (def) - Re-check open content shortly after a rule changes; a burst of edits leads to one pass.
+    - `run` (def)
+- `recheck_after_transcript` (def) - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
+- `recheck_after_image_text` (def) - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
+- `recheck_after_document_text` (def) - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
+- `_recheck_for_file` (def) - Re-run the check of the open submission a file belongs to, after something about the file was read.
+
+## services/compliance/submission_service.py (2613 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- `_json` (def)
+- `_account_option` (def)
+- `_accounts` (def)
+- `_account_ids` (def)
+- `_account_covers` (def) - Whether an account publishes to one of the platforms.
+- `_file_out` (def)
+- `_is_super_admin` (def)
+- `_can_manage_team_content` (def) - Super admins and roles with "Manage Team Drafts" (Content Manager, Administrator) see everyone's content
+- `_can_review` (def) - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
+- `_can_see_team_content` (def) - Content Managers and reviewers can read everyone's submissions.
+- `_brand_scope` (def) - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
+- `_sent_to` (def) - SQL: the content was sent to this user, or to no one in particular (every reviewer on its brand).
+- `_get_owned_row` (def) - Load a submission the user may access (creator or super admin; managers and reviewers too when
+- `_approvers` (def) - The named final approvers for a submission row (empty: any reviewer on its brand).
+- `_may_approve` (def)
+- `_approval_fields` (def)
+- `_require_editable` (def)
+- `_add_event` (def)
+- `_list_files` (def)
+- `_due` (def) - The open deadline, if the content is still at the step it belongs to.
+- `_to_submission` (def)
+- `_connected_accounts` (def) - Those of the given publishing accounts that are connected and not expired, in the order given.
+- `get_options` (def) - Choices for the submission form, limited to the brands the user works on (and those brands' accounts).
+- `create_submission` (def)
+- `list_submissions` (def) - The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers.
+- `get_submission` (def)
+- `update_submission` (def)
+- `delete_draft` (def) - Delete a draft.
+- `_safe_name` (def)
+- `add_file` (def)
+- `_require_script_stage_allows` (def) - On a post with a script stage, the video waits for the approved script.
+- `_record_file` (def) - Save a stored file to the submission (an upload or a Canva export): replace the main file or script it
+- `_store_canva_export` (def) - Write a Canva export into the submission's storage and record it as the main file.
+- `import_from_canva` (def) - Export a Canva design and add it as the submission's main file, like an upload.
+- `reimport_from_canva` (def) - Bring in the latest revision of the Canva design the main file came from, replacing it.
+- `retranscribe` (def) - Generate the speech transcript again, e.g.
+- `remove_file` (def)
+- `get_file_for_download` (def)
+- `analysis_pending` (def) - Whether the post is still being analysed: its video transcript or the text in its images isn't read yet.
+- `ai_unavailable` (def) - Whether the AI couldn't read part of the post, so the check has no score to show.
+- `_unavailable_sql` (def)
+- `_pending_sql` (def) - SQL for analysis_pending() on a stored check (older checks only have the two parts).
+- `_check_text` (def)
+- `check_request` (def) - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms).
+- `script_stage_on` (def) - Video posts created since the script stage existed have their script approved before the video.
+- `approved_script` (def) - The approved script's text, when the post went through the script stage and it was approved.
+- `_run_check` (def) - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
+- `_mirror_to_script_version` (def) - A check saved on the post while its script is with the reviewer is also the script version's check, so both
+- `run_initial_check` (def)
+- `_missing_for_submit` (def)
+- `_review_job` (def)
+- `submit_for_review` (def)
+- `withdraw` (def) - Pull a submission back to draft so the creator can edit and resubmit: from review, or after approval for a
+- `_queue_filter` (def)
+- `dashboard_summary` (def) - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
+- `review_queue_counts` (def) - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
+- `review_queue` (def) - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
+- `get_version` (def) - A past (or the current) submitted version, for looking back at what it was and how it was decided.
+- `get_history` (def)
+- `_reviewer_ids` (def) - Active users who can review: super admins and roles with "Review & Publish Content".
+- `reviewer_options` (def) - The people a creator can send content to: reviewers and super admins (on any of the brands, when given), not
+- `_review_recipients` (def) - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
+- `_notify` (def)
+- `_score_line` (def) - The check's score for a message, or that it's still being analysed.
+- `_check_summary` (def)
+- `_notify_reviewers` (def)
+- `decide_review` (def) - A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
+- `_approved_row_for_reviewer` (def) - An approved submission the user may manage as a reviewer (not their own upload, unless super admin).
+- `reopen_approved` (def) - A reviewer takes back an approval (for example a late legal concern) and sends the content to its creator
+- `reschedule_approved` (def) - A reviewer moves approved content to a new publish time.
+- `_comment_out` (def)
+- `list_comments` (def)
+- `_comment_access` (def) - Reviewers and the creator can comment and resolve comments.
+- `add_comment` (def)
+- `set_comment_resolved` (def)
+- `delete_comment` (def)
+- `_recheck_one` (def) - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
+- `recheck_open_submissions` (def) - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
+    - `describe` (def)
+- `recheck_ai_unavailable` (def) - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    - `describe` (def)
+- `ai_recheck_loop` (def) - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
 - `recheck_outdated_on_start` (def) - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
 - `schedule_rulebook_recheck` (def) - Re-check open content shortly after a rule changes; a burst of edits leads to one pass.
     - `run` (def)
@@ -1136,7 +1446,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `log_audit_event` (def) - Records an event in the audit_logs table.
 - `get_audit_logs` (def)
 
-## services/shared/auth_service.py (610 lines) - auth service (shared)
+## services/shared/auth_service.py (617 lines) - auth service (shared)
 - `_update_last_activity_async` (def)
 - `create_access_token` (def)
 - `create_link_token` (def)
@@ -1233,6 +1543,24 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `_scope_guard` (def)
 - `generate_scoped_outbound_token` (def) - Generates a minimal, scope-restricted token for sending requests to another application.
 
+## tests/test_ai_down_approval.py (102 lines) - test ai down approval
+- `finding` (def)
+- `UnreadableFindingTests` (class)
+    - `test_a_critical_rule_stays_a_violation_when_no_model_can_read_it` (def)
+    - `test_other_rules_are_still_only_a_needs_review` (def)
+- `ApprovalGateTests` (class)
+    - `row` (def)
+    - `approve` (def)
+    - `test_no_approval_while_the_ai_review_could_not_run` (def)
+    - `test_no_approval_while_the_post_is_still_being_read` (def)
+- `ScriptApprovalGateTests` (class)
+    - `test_a_script_checked_without_the_ai_cannot_be_approved` (def)
+- `AiRecheckTests` (class)
+    - `run_pass` (def)
+    - `test_every_check_is_retried_once_the_ai_is_back` (def)
+    - `test_it_stops_at_the_first_one_that_still_cannot_be_read` (def)
+    - `test_nothing_to_retry_is_a_quiet_pass` (def)
+
 ## tests/test_ai_unavailable.py (45 lines) - test ai unavailable
 - `job` (def)
 - `AiUnavailableTests` (class)
@@ -1267,6 +1595,22 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_recent_reads_set_the_estimate_and_are_cached` (def)
     - `test_progress_for_several_posts_in_one_query` (def)
     - `test_no_posts_no_query` (def)
+
+## tests/test_audiences.py (81 lines) - test audiences
+- `AudiencesTests` (class)
+    - `test_a_post_can_target_several_audiences_and_the_first_is_the_primary` (def)
+    - `test_a_single_audience_still_works` (def)
+    - `test_rules_for_any_of_the_audiences_are_checked` (def)
+    - `test_no_audience_checks_every_rule` (def)
+    - `test_stored_rows_without_the_list_use_their_single_audience` (def)
+    - `test_a_path_for_any_audience_of_the_post_gives_its_approvers` (def)
+    - `test_hashtags_from_every_audience_are_offered` (def)
+    - `test_a_post_can_be_for_several_brands_and_the_first_is_the_primary` (def)
+    - `test_a_path_for_any_brand_of_the_post_gives_its_approvers` (def)
+    - `test_tags_from_every_brand_are_offered` (def)
+- `CashtagSuggestionTests` (class)
+    - `test_the_cashtag_is_suggested_first_when_the_post_is_for_investors` (def)
+    - `test_otherwise_the_cashtag_is_an_option_at_the_end` (def)
 
 ## tests/test_claim_checks.py (166 lines) - The text read from the "$25M contract" graphic, line breaks and all.
 - `fired` (def) - The checks that fire, by key: a check's rule number can be shared with another check.
@@ -1344,18 +1688,33 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_nothing_is_added_when_already_chosen_or_none_are_chosen` (def)
     - `test_both_reasons_are_given_investors_first` (def)
 
-## tests/test_dashboard_summary.py (107 lines) - test dashboard summary
+## tests/test_dashboard_summary.py (152 lines) - In the order dashboard_summary asks: post decisions, the average score, then script decisions.
 - `DashboardSummaryTests` (class)
     - `summarise` (def)
     - `test_every_query_is_limited_to_what_the_viewer_can_see` (def)
     - `test_creators_only_see_their_own_content` (def)
     - `test_creator_view_narrows_a_reviewer_to_their_own_content` (def)
     - `test_results_are_returned_as_the_dashboard_needs_them` (def)
+    - `test_script_decisions_count_toward_the_review_totals` (def)
     - `test_no_content_sent_for_review_has_no_average` (def)
+- `MyPostsOrderTests` (class)
+    - `order_clause` (def)
+    - `test_a_script_with_a_reviewer_waits_with_content_in_review_not_with_drafts` (def)
+    - `test_what_needs_the_creator_comes_first_then_the_soonest_deadline` (def)
 - `ReviewQueueScopeTests` (class)
     - `queue` (def)
     - `test_reviewers_see_everyones_content_by_default` (def)
     - `test_creator_view_shows_only_the_users_own_content` (def)
+
+## tests/test_deadlines.py (56 lines) - test deadlines
+- `hours` (def)
+- `DeadlineTests` (class)
+    - `test_a_date_the_reviewer_picked_is_kept_even_past_the_publish_time` (def)
+    - `test_working_days_are_still_pulled_in_by_a_close_publish_time` (def)
+    - `test_a_date_in_the_past_is_refused` (def)
+    - `test_the_video_has_no_deadline_unless_one_is_given` (def)
+    - `test_a_script_deadline_shows_only_at_its_step` (def)
+    - `test_the_video_notices_read_naturally` (def)
 
 ## tests/test_document_text.py (81 lines) - test document text
 - `docx` (def) - A minimal .docx with these paragraphs ("\\t" and "\\n" become a tab and a line break).
@@ -1435,6 +1794,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_not_only_is_not_a_disclaimer` (def)
     - `test_ordinary_posts_have_no_findings` (def)
 
+## tests/test_resume_reads.py (47 lines) - test resume reads
+- `ResumeInterruptedReadTests` (class)
+    - `test_images_cut_off_by_a_restart_are_read_again` (def)
+    - `test_documents_cut_off_by_a_restart_are_read_again` (def)
+    - `test_nothing_to_resume_is_quiet` (def)
+- `StuckReadRetriedTests` (class)
+    - `test_only_stuck_reads_older_than_the_limit_are_retried` (def)
+
 ## tests/test_review_decision.py (260 lines) - test review decision
 - `submission_row` (def)
 - `fake_pool` (def)
@@ -1472,6 +1839,34 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_dismissing_the_stricter_of_two_flags_on_the_same_words_doesnt_make_them_free` (def)
     - `test_no_score_yet_or_an_old_check_without_points` (def)
 
+## tests/test_reviewer_choice.py (168 lines) - test reviewer choice
+- `submission_row` (def)
+- `WhoMayOpenItTests` (class)
+    - `load` (def)
+    - `test_a_reviewer_it_was_sent_to_can_open_it` (def)
+    - `test_other_reviewers_cant_open_it` (def)
+    - `test_content_sent_to_no_one_in_particular_is_open_to_every_reviewer` (def)
+    - `test_its_creator_and_super_admins_can_still_open_it` (def)
+    - `test_lists_and_queues_use_the_same_rule` (def)
+- `WhoIsNotifiedTests` (class)
+    - `recipients` (def)
+    - `test_only_the_reviewers_it_was_sent_to` (def)
+    - `test_someone_who_can_no_longer_review_is_left_out` (def)
+    - `test_every_reviewer_on_the_brand_when_nobody_was_picked` (def)
+    - `test_deadline_reminders_go_to_the_same_people` (def)
+    - `test_a_script_goes_to_the_same_people` (def)
+- `PickingReviewersTests` (class)
+    - `update` (def)
+    - `test_picked_reviewers_are_saved_once_each` (def)
+    - `test_someone_who_cant_review_the_brand_cant_be_picked` (def)
+    - `test_clearing_the_choice_sends_it_to_every_reviewer_again` (def)
+- `ReviewersAreRequiredTests` (class)
+    - `missing` (def)
+    - `test_a_post_cant_be_sent_without_picking_reviewers` (def)
+    - `test_a_script_cant_be_sent_without_picking_reviewers` (def)
+- `ReviewerOptionsTests` (class)
+    - `test_reviewers_and_super_admins_are_offered_by_name` (def)
+
 ## tests/test_rulebook_check_coverage.py (164 lines) - test rulebook check coverage
 - `submission_row` (def)
 - `image` (def)
@@ -1494,7 +1889,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_only_unread_or_abandoned_images_are_scheduled` (def)
     - `test_nothing_to_schedule_makes_no_query` (def)
 
-## tests/test_script_match.py (44 lines) - test script match
+## tests/test_script_match.py (73 lines) - test script match
 - `ScriptMatchTests` (class)
     - `test_same_words_match` (def)
     - `test_small_transcription_noise_still_matches` (def)
@@ -1502,8 +1897,52 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_dropped_passage_is_listed` (def)
     - `test_different_video_is_a_mismatch` (def)
     - `test_nothing_to_compare` (def)
+- `FlagMismatchTests` (class)
+    - `result` (def)
+    - `test_a_mismatch_becomes_a_needs_review_flag_without_points` (def)
+    - `test_a_red_check_stays_red` (def)
+    - `test_a_matching_or_partial_video_is_not_flagged` (def)
 
-## tests/test_security_fixes.py (127 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
+## tests/test_script_queue.py (104 lines) - test script queue
+- `script_row` (def)
+- `QueueTests` (class)
+    - `setUp` (def)
+    - `run_queue` (def)
+    - `test_the_list_answers_from_what_is_saved_without_checking_inline` (def)
+    - `test_an_up_to_date_script_is_not_refreshed` (def)
+- `BackgroundRefreshTests` (class)
+    - `setUp` (def)
+    - `test_the_same_script_is_only_refreshed_once_at_a_time` (def)
+    - `test_a_refresh_saves_the_new_check` (def)
+    - `test_a_failed_refresh_does_not_stop_the_rest` (def)
+- `CheckTextFlagTests` (class)
+    - `check` (def)
+    - `test_a_script_the_ai_could_not_read_is_flagged` (def)
+    - `test_a_script_the_ai_read_is_not` (def)
+
+## tests/test_script_send.py (125 lines) - test script send
+- `processing` (def)
+- `SendStateTests` (class)
+    - `test_nothing_in_progress` (def)
+    - `test_processing_then_timed_out` (def)
+    - `test_a_resumed_send_counts_from_when_it_was_picked_up` (def)
+    - `test_failed_keeps_its_reason` (def)
+- `RequiredDetailsTests` (class)
+    - `test_a_complete_post_has_nothing_missing` (def)
+    - `test_empty_details_are_listed_by_their_form_names` (def)
+    - `test_the_script_is_refused_until_they_are_filled_in` (def)
+- `FailSendTests` (class)
+    - `test_a_send_that_already_finished_is_not_marked_failed_or_announced` (def)
+    - `test_a_running_send_that_fails_tells_the_creator` (def)
+- `ProcessSendTests` (class)
+    - `patches` (def)
+    - `run_with` (def)
+    - `test_a_readable_script_is_scored_then_sent` (def)
+    - `test_an_unreadable_script_says_it_couldnt_be_read` (def)
+    - `test_a_scoring_error_says_the_score_couldnt_be_calculated` (def)
+    - `test_a_missing_file_fails_instead_of_hanging` (def)
+
+## tests/test_security_fixes.py (132 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - `CaptionSanitizerTests` (class)
     - `test_keeps_editor_formatting` (def)
     - `test_drops_scripts_handlers_and_styles` (def)
@@ -1522,6 +1961,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `setUp` (def)
     - `call` (def)
     - `test_link_token_opens_media_by_url` (def)
+    - `test_a_stale_cookie_does_not_stop_the_link_token_opening_media` (def)
     - `test_link_token_cannot_call_the_api` (def)
     - `test_link_token_only_works_from_a_url` (def)
     - `test_session_token_is_refused_in_a_url` (def)
@@ -1591,6 +2031,17 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_flags_can_only_be_dismissed_while_in_review` (def)
     - `test_a_reason_of_other_needs_a_note` (def)
 
+## tests/test_test_login.py (52 lines) - test test login
+- `request` (def)
+- `TestLoginGuardTests` (class)
+    - `allowed` (def)
+    - `test_on_only_when_switched_on_in_development_at_localhost` (def)
+    - `test_off_unless_switched_on` (def)
+    - `test_never_in_production` (def)
+    - `test_never_from_a_real_address` (def)
+    - `test_signing_in_is_refused_while_off` (def)
+    - `test_only_the_two_test_users_can_be_asked_for` (def)
+
 ## tests/test_x_sentiment_listening.py (178 lines) - test x sentiment listening
 - `XSentimentAndPublicMoodTests` (class)
     - `test_comment_sentiment_classifies_positive_negative_and_neutral_with_vader_lexicon` (def)
@@ -1654,7 +2105,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## tools/compliance/performance_router.py (32 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - `performance` (def) [GET ] - Live posts (one row per platform) with their numbers and health, problems first, plus totals.
 
-## tools/compliance/script_review_router.py (65 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+## tools/compliance/script_review_router.py (88 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `script_queue` (def) [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
 - `get_script` (def) [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
 - `submit_script` (def) [POST /{submission_id}/script/submit] - Send the uploaded script for review.
@@ -1662,6 +2113,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `accept_script_edits` (def) [POST /{submission_id}/script/accept] - Accept the reviewer's edits; the script is approved.
 - `revise_script` (def) [POST /{submission_id}/script/revise] - Send an edited script back to the reviewer.
 - `check_script` (def) [POST /{submission_id}/script/check] - Check wording being edited, without saving it.
+- `get_script_highlights` (def) [GET /{submission_id}/script/highlights] - The reviewer's highlights and notes on a script version (the creator sees them too).
+- `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
+- `resolve_script_highlights` (def) [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
 ## tools/compliance/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
 - `_reviewer` (def)
@@ -1670,9 +2124,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `create_eval_case` (def) [POST /eval-cases] - Save an analysed post as a test case, with the verdict the reviewer agrees is right.
 - `delete_eval_case` (def) [DELETE /eval-cases/{case_id}]
 
-## tools/compliance/submission_router.py (411 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submission_router.py (412 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
-- `list_reviewers` (def) [GET /reviewers] - Reviewers and super admins a creator can send content to (on the brand, when given).
+- `list_reviewers` (def) [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
 - `get_hashtag_library` (def) [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
 - `review_queue` (def) [GET /review-queue] - Submitted posts for one Content Screener tab (declared before /{submission_id} so it isn't parsed as an id).
 - `review_queue_counts` (def) [GET /review-queue/counts] - How many posts are in each Content Screener tab.

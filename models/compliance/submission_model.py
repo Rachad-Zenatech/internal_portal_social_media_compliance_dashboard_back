@@ -90,7 +90,11 @@ class SubmissionCreate(BaseModel):
 class SubmissionUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=300)
     content_type: Optional[ContentType] = None
+    # Every brand it's for, primary first. brand_code alone still works and means just that one.
+    brand_codes: Optional[List[str]] = Field(None, max_length=20)
     brand_code: Optional[str] = Field(None, max_length=50)
+    # Every audience it's for, primary first. audience alone still works and means just that one.
+    audiences: Optional[List[str]] = Field(None, max_length=len(AUDIENCES))
     audience: Optional[str] = Field(None, max_length=50)
     region: Optional[str] = Field(None, max_length=100)
     platforms: Optional[List[str]] = Field(None, max_length=len(PLATFORMS))
@@ -183,7 +187,7 @@ class SubmissionSummary(BaseModel):
     approval_needed_by: Optional[datetime] = None
     # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
     due_at: Optional[datetime] = None
-    due_kind: Optional[Literal["REVIEW", "REVISION"]] = None
+    due_kind: Optional[Literal["REVIEW", "REVISION", "VIDEO"]] = None
     latest_traffic_light: Optional[str] = None
     # None while the post is still being analysed (analysis_pending): no score until it's been read in full.
     latest_score: Optional[int] = None
@@ -192,6 +196,9 @@ class SubmissionSummary(BaseModel):
     analysis_pending: bool = False
     # The AI couldn't read part of the post (out of credits, quota or down): no score, a message instead.
     ai_unavailable: bool = False
+    # A sent script still being read and scored (PROCESSING) or that couldn't be sent (FAILED, with the reason).
+    script_send_status: Optional[str] = None
+    script_send_error: Optional[str] = None
     # While analysis_pending: what's still being read and when the score is expected.
     analysis_progress: Optional[AnalysisProgress] = None
     # Video posts with a script stage: where the script is (see Submission.script_status); None otherwise.
@@ -204,6 +211,7 @@ class SubmissionSummary(BaseModel):
     updated_at: datetime
     # For the Content Portal cards: where it posts, a caption preview and the file to use as the thumbnail.
     audience: Optional[str] = None
+    audiences: List[str] = Field(default_factory=list)
     # The primary account (first picked), and every account it posts through.
     account: Optional[AccountOption] = None
     accounts: List[AccountOption] = Field(default_factory=list)
@@ -231,7 +239,9 @@ class Submission(BaseModel):
     title: str
     content_type: str
     brand_code: Optional[str] = None
+    brand_codes: List[str] = Field(default_factory=list)
     audience: Optional[str] = None
+    audiences: List[str] = Field(default_factory=list)
     region: Optional[str] = None
     platforms: List[str] = Field(default_factory=list)
     # account_id / account are the primary (first) of account_ids / accounts.
@@ -244,7 +254,7 @@ class Submission(BaseModel):
     approval_needed_by: Optional[datetime] = None
     # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
     due_at: Optional[datetime] = None
-    due_kind: Optional[Literal["REVIEW", "REVISION"]] = None
+    due_kind: Optional[Literal["REVIEW", "REVISION", "VIDEO"]] = None
     caption_html: Optional[str] = None
     caption_text: Optional[str] = None
     rule_sets: List[str] = Field(default_factory=list)
@@ -343,6 +353,8 @@ class ReviewDecisionRequest(BaseModel):
     # Request changes: working days the creator has to resubmit (1, 2, 3 or 5); the default window when left out.
     # Pulled in if the planned publish time is closer.
     revision_days: Optional[Literal[1, 2, 3, 5]] = None
+    # ...or an exact date and time the reviewer picked (kept as it is; it has to be ahead).
+    revision_due_at: Optional[datetime] = None
 
 
 class ReopenRequest(BaseModel):
@@ -350,6 +362,8 @@ class ReopenRequest(BaseModel):
     notes: str = Field(..., min_length=1, max_length=5000)
     # Working days the creator has to resubmit; the default window when left out.
     revision_days: Optional[Literal[1, 2, 3, 5]] = None
+    # ...or an exact date and time the reviewer picked.
+    revision_due_at: Optional[datetime] = None
 
 
 class RescheduleRequest(BaseModel):
@@ -437,16 +451,20 @@ class ReviewQueueItem(BaseModel):
     publish_at: Optional[datetime] = None
     # For the screener's filters and header.
     brand_code: Optional[str] = None
+    brand_codes: List[str] = Field(default_factory=list)
     audience: Optional[str] = None
+    audiences: List[str] = Field(default_factory=list)
     approval_needed_by: Optional[datetime] = None
     # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
     due_at: Optional[datetime] = None
-    due_kind: Optional[Literal["REVIEW", "REVISION"]] = None
+    due_kind: Optional[Literal["REVIEW", "REVISION", "VIDEO"]] = None
     created_by: Optional[UUID] = None
     # Approved content: the viewer is a reviewer who may reschedule it or reopen it for changes.
     can_manage_approval: bool = False
     # When the latest version was approved or sent back.
     decided_at: Optional[datetime] = None
+    # Video posts with a script stage: where the script is, so the post can link to it. None otherwise.
+    script_status: Optional[str] = None
 
 
 QueueTab = Literal["review", "sent_back", "done"]

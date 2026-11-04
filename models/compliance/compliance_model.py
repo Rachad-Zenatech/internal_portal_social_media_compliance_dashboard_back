@@ -5,7 +5,7 @@ Supports full CRUD ("build on it and remove") and live automated AI compliance s
 from datetime import datetime
 from typing import List, Literal, Optional
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ComplianceRuleBase(BaseModel):
@@ -122,13 +122,27 @@ class ComplianceCheckRequest(BaseModel):
     # Who and where the content is for. Only rules whose scope matches are run; anything left empty
     # (e.g. no rule sets chosen) doesn't narrow the check.
     rule_sets: List[str] = Field(default_factory=list)
+    # The brand(s) it's for. brand_code is the first of brand_codes; either one alone is enough.
     brand_code: Optional[str] = None
+    brand_codes: List[str] = Field(default_factory=list)
+    # The target audience(s). audience is the first of audiences; either one alone is enough.
     audience: Optional[str] = None
+    audiences: List[str] = Field(default_factory=list)
     region: Optional[str] = None
     platforms: List[str] = Field(default_factory=list)
     # What the content is made of, matched against each rule's applies_to (video, imagery, caption, ceo_post).
     # Empty: worked out from content_type; when that says nothing either, every rule's applies_to matches.
     content_parts: List[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _keep_audience_and_audiences_in_step(self):
+        merged = list(dict.fromkeys([*([self.audience] if self.audience else []), *self.audiences]))
+        self.audiences = merged
+        self.audience = merged[0] if merged else None
+        brands = list(dict.fromkeys([*([self.brand_code] if self.brand_code else []), *self.brand_codes]))
+        self.brand_codes = brands
+        self.brand_code = brands[0] if brands else None
+        return self
 
 
 # What a finding amounts to once its context is read:

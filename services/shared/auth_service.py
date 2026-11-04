@@ -485,13 +485,20 @@ async def get_current_user_id_dependency(
     bearer_token = None
     if authorization and authorization.startswith("Bearer "):
         bearer_token = authorization.removeprefix("Bearer ").strip()
-    token = bearer_token or access_token or zenatech_token or query_token
+    # A valid link token in the URL comes before any cookie: the browser sends cookies with every image and video
+    # request, and a stale one (another app on localhost, an old sign-in) would otherwise be picked and refuse them all.
+    link_token = None
+    if query_token and not bearer_token:
+        query_payload = verify_token(query_token)
+        if query_payload and query_payload.get("scope") == "link":
+            link_token = query_token
+    token = bearer_token or link_token or access_token or zenatech_token or query_token
     if not token:
         raise HTTPException(status_code=401, detail='Not authenticated')
     payload = verify_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail='Invalid token')
-    from_url = token is query_token and not (bearer_token or access_token or zenatech_token)
+    from_url = token is link_token or (token is query_token and not (bearer_token or access_token or zenatech_token))
     if payload.get("scope") == "link":
         # Only for loading media and the notification stream, and only from a URL.
         if not (from_url and request and request.method == "GET" and LINK_TOKEN_PATHS.match(request.url.path)):

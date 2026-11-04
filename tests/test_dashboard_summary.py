@@ -10,10 +10,17 @@ USER = uuid4()
 
 
 class DashboardSummaryTests(unittest.IsolatedAsyncioTestCase):
-    async def summarise(self, *, see_all=True, brands=None, activity=(), decisions=None, average=None, findings=(), mine=False):
+    async def summarise(
+        self, *, see_all=True, brands=None, activity=(), decisions=None, average=None, findings=(), mine=False, script_decisions=None
+    ):
         fetch_all = AsyncMock(side_effect=[list(activity), list(findings)])
+        # In the order dashboard_summary asks: post decisions, the average score, then script decisions.
         fetch_one = AsyncMock(
-            side_effect=[decisions or {"completed": 0, "approved": 0, "changes": 0, "overdue": 0}, {"average": average}]
+            side_effect=[
+                decisions or {"completed": 0, "approved": 0, "changes": 0, "overdue": 0},
+                {"average": average},
+                script_decisions or {"completed": 0, "approved": 0, "changes": 0},
+            ]
         )
         with (
             patch(f"{SVC}._can_see_team_content", new=AsyncMock(return_value=see_all)),
@@ -70,10 +77,48 @@ class DashboardSummaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.common_findings[0].count, 4)
         self.assertEqual(result.days, 30)
 
+    async def test_script_decisions_count_toward_the_review_totals(self):
+        result, _, _ = await self.summarise(
+            decisions={"completed": 5, "approved": 3, "changes": 2, "overdue": 1},
+            script_decisions={"completed": 4, "approved": 3, "changes": 1},
+        )
+        self.assertEqual((result.reviews_completed, result.approved, result.changes_requested), (9, 6, 3))
+        # The overdue count is for posts waiting now, so scripts don't change it.
+        self.assertEqual(result.overdue_reviews, 1)
+
     async def test_no_content_sent_for_review_has_no_average(self):
         result, _, _ = await self.summarise(average=None)
         self.assertIsNone(result.average_score)
         self.assertEqual(result.activity, [])
+
+
+class MyPostsOrderTests(unittest.IsolatedAsyncioTestCase):
+    async def order_clause(self):
+        fetch_all = AsyncMock(return_value=[])
+        with (
+            patch(f"{SVC}._can_manage_team_content", new=AsyncMock(return_value=False)),
+            patch(f"{SVC}._can_review", new=AsyncMock(return_value=False)),
+            patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=False)),
+            patch(f"{SVC}._brand_scope", new=AsyncMock(return_value=None)),
+            patch(f"{SVC}.fetch_all", new=fetch_all),
+            patch(f"{SVC}.approval_path_service.load_rules", new=AsyncMock()),
+            patch(f"{SVC}.analysis_progress_service.for_submissions", new=AsyncMock(return_value={})),
+        ):
+            await submission_service.list_submissions(USER)
+        return fetch_all.await_args.args[0].split("ORDER BY")[-1]
+
+    async def test_a_script_with_a_reviewer_waits_with_content_in_review_not_with_drafts(self):
+        order = await self.order_clause()
+        drafts, waiting = order.split("WHEN s.status = 'DRAFT'")[1].split("WHEN s.status = 'IN_REVIEW'")
+        self.assertIn("coalesce(s.script_status, '') <> 'IN_REVIEW'", drafts)  # not a draft to finish
+        self.assertIn("s.script_status = 'IN_REVIEW'", waiting)  # waiting on a reviewer, like content in review
+        self.assertIn("PROCESSING", waiting)  # and so is a script still being sent
+
+    async def test_what_needs_the_creator_comes_first_then_the_soonest_deadline(self):
+        order = await self.order_clause()
+        self.assertTrue(order.index("CHANGES_REQUESTED") < order.index("WHEN s.status = 'DRAFT'") < order.index("IN_REVIEW"))
+        self.assertIn("EDITS_PROPOSED", order.split("WHEN s.status = 'DRAFT'")[0])  # a script sent back is a change to fix
+        self.assertIn("coalesce(s.due_at, s.approval_needed_by, s.publish_at) ASC NULLS LAST", order)
 
 
 class ReviewQueueScopeTests(unittest.IsolatedAsyncioTestCase):
