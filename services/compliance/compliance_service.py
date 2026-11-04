@@ -1117,7 +1117,9 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     )
 
     # Rules the wording missed but the post matches in meaning (vector store): things to check, never violations.
-    violations.extend(await _semantic_findings(req, rules, {v.rule_number for v in violations}, padded_text))
+    # Claim checks carry their rule's number but don't stand in for the rule, so they don't take it off the list.
+    found = {v.rule_number for v in violations if v.rule_id not in claim_checks.CHECK_IDS}
+    violations.extend(await _semantic_findings(req, rules, found, padded_text))
 
     # A CONTEXT rule's match is only a candidate: a model reads it in its sentence and decides whether it's a violation,
     # something a person has to check, a claim that needs a source, or not a breach at all.
