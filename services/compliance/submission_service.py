@@ -1119,7 +1119,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         """,
         row["id"], list(image_text_service.IMAGE_KINDS),
     )
-    await image_text_service.schedule_missing([i["id"] for i in images if i["image_text_status"] is None])
+    await image_text_service.schedule_missing([i["id"] for i in images if i["image_text_status"] in (None, "PROCESSING")])
     image_texts = [
         f"Text in image {n}: {i['image_text']}"
         for n, i in enumerate(images, start=1)
@@ -1135,7 +1135,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         """,
         row["id"],
     )
-    await document_text_service.schedule_missing([d["id"] for d in documents if d["doc_text_status"] is None])
+    await document_text_service.schedule_missing([d["id"] for d in documents if d["doc_text_status"] in (None, "PROCESSING")])
     # Once the script is approved, the approved wording (which may include the reviewer's edits) is what's checked.
     script = await approved_script(row)
     # Once the video's speech is read, the video is scored on what it says: the script was already checked and
@@ -1706,7 +1706,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         images.setdefault(img["submission_id"], []).append(_file_out(img["submission_id"], dict(img)))
     # Images uploaded before their text was read (or whose read was abandoned) are read now; the check of
     # each open item updates when that's done.
-    await image_text_service.schedule_missing([img["id"] for img in image_rows if img["image_text_status"] is None])
+    await image_text_service.schedule_missing([img["id"] for img in image_rows if img["image_text_status"] in (None, "PROCESSING")])
     # Posts still being read: what's left and when their score should be ready.
     progress = await analysis_progress_service.for_submissions(
         [r["id"] for r in rows if analysis_pending(_json(r["latest_check"]))]

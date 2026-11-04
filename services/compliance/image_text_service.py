@@ -29,6 +29,8 @@ logger = logging.getLogger(__name__)
 IMAGE_KINDS = ("MAIN", "IMAGE")
 # A claim older than this is treated as abandoned (e.g. the server restarted mid-read).
 STALE_MINUTES = 10
+# On start, a read marked "reading" for this long is taken to have been cut off by the restart.
+RESUME_AFTER_MINUTES = 2
 MAX_CONCURRENT = int(os.getenv("IMAGE_TEXT_MAX_CONCURRENT", "3"))
 MAX_TEXT_CHARS = 5000
 # Reading text doesn't need a strong model, so this uses light models with their own daily allowance (on Gemini's
@@ -164,6 +166,23 @@ def schedule(file_ids: Iterable[UUID]) -> None:
         task = asyncio.create_task(_run(file_id), name=f"image-text-{file_id}")
         _tasks.add(task)
         task.add_done_callback(_tasks.discard)
+
+
+async def resume_interrupted() -> int:
+    """A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it. On start,
+    queue those again. One that began in the last couple of minutes may still be running in another process, so it's
+    left alone; the reset happens in one statement, so only one process picks each image up."""
+    rows = await fetch_all(
+        f"""
+        UPDATE content_submission_files SET image_text_status = NULL
+        WHERE image_text_status = 'PROCESSING' AND deleted_at IS NULL AND kind = ANY($1::text[])
+          AND image_text_updated_at < NOW() - INTERVAL '{RESUME_AFTER_MINUTES} minutes'
+        RETURNING id
+        """,
+        list(IMAGE_KINDS),
+    )
+    schedule(r["id"] for r in rows)
+    return len(rows)
 
 
 async def schedule_missing(file_ids: List[UUID]) -> None:

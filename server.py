@@ -206,6 +206,19 @@ async def lifespan(app: FastAPI):
     ai_recheck_task.add_done_callback(partial(log_background_task_result, task_name="ai-unavailable-recheck"))
     background_tasks.append(ai_recheck_task)
 
+    # 3e1b. Image and document reads that a restart cut off are started again
+    async def resume_reads() -> None:
+        from services.compliance import document_text_service, image_text_service
+
+        images = await image_text_service.resume_interrupted()
+        documents = await document_text_service.resume_interrupted()
+        if images or documents:
+            logger.info("Resumed %d image and %d document read(s) interrupted by a restart", images, documents)
+
+    resume_reads_task = asyncio.create_task(resume_reads(), name="resume-interrupted-reads")
+    resume_reads_task.add_done_callback(partial(log_background_task_result, task_name="resume-interrupted-reads"))
+    background_tasks.append(resume_reads_task)
+
     # 3e2. A script being sent when the server last stopped is picked up again, not left "processing"
     from services.compliance.script_review_service import resume_interrupted_sends
     resume_task = asyncio.create_task(resume_interrupted_sends(), name="script-send-resume")
