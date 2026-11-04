@@ -45,7 +45,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `CaptionSuggestion` (class)
 - `CaptionSuggestions` (class)
 
-## models/compliance/compliance_model.py (257 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (259 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class)
 - `ComplianceRuleCreate` (class)
 - `ComplianceRuleUpdate` (class)
@@ -196,7 +196,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `Config` (class)
 - `RolePermissionGroupsUpdate` (class)
 
-## postgresql_db/database.py (138 lines) - Optional dotenv import for loading .env and local overrides during development
+## postgresql_db/database.py (146 lines) - Optional dotenv import for loading .env and local overrides during development
 - `create_pool` (def) - Creates the connection pool if it doesn't exist yet, then returns it.
 - `close_pool` (def)
 - `reset_pool` (def) - Drop the current pool and create a fresh one after connection failures.
@@ -504,7 +504,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_quoted` (def) - a", "b"'.
 - `find_claims` (def) - The built-in claim checks that fire on this text, as findings.
 
-## services/compliance/compliance_service.py (1357 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/compliance_service.py (1388 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def)
 - `_ai_viability_enabled` (def)
 - `_row_to_rule` (def)
@@ -547,6 +547,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `flagged_tags` (def) - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
 - `_count_overlaps_once` (def) - When two rules flag the very same words (e.g.
     - `spans` (def)
+- `_count_extra_claims` (def) - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
 - `rulebook_version` (def) - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
 - `_examples` (def) - (example, quoted) pairs from a rule's example text.
 - `self_test` (def) - Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable
@@ -1228,6 +1229,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `_scope_guard` (def)
 - `generate_scoped_outbound_token` (def) - Generates a minimal, scope-restricted token for sending requests to another application.
 
+## tests/test_ai_unavailable.py (45 lines) - test ai unavailable
+- `job` (def)
+- `AiUnavailableTests` (class)
+    - `test_flag_comes_from_the_stored_check` (def)
+    - `test_a_review_job_has_no_score_while_the_ai_is_unavailable` (def)
+    - `test_messages_say_there_is_no_score` (def)
+    - `test_listing_sql_hides_the_score` (def)
+
 ## tests/test_analysis_pending.py (50 lines) - test analysis pending
 - `job` (def)
 - `AnalysisPendingTests` (class)
@@ -1357,6 +1366,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_long_text_is_capped` (def)
 - `WhichFilesTests` (class)
     - `test_scripts_and_article_files_are_read` (def)
+
+## tests/test_extra_claims.py (46 lines) - test extra claims
+- `ExtraClaimTests` (class) - Uses the scoring tests' no-database check helper.
+    - `rules` (def)
+    - `test_one_claim_costs_the_rule_penalty_only` (def)
+    - `test_overlapping_phrases_are_one_claim` (def)
+    - `test_a_second_separate_claim_costs_five_more` (def)
+    - `test_extra_claims_add_a_little_each` (def)
+    - `test_extra_claims_are_capped` (def)
+    - `test_a_denied_phrase_is_not_a_claim` (def)
 
 ## tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
 - `rule` (def)
