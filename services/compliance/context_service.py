@@ -116,7 +116,7 @@ def _applies(values: List[str], content: List[str]) -> bool:
     return not values or bool(set(values) & set(content))
 
 
-async def for_content(brand_code: Optional[str], audiences: Sequence[str], platforms: List[str]) -> List[Dict[str, Any]]:
+async def for_content(brand_codes: Sequence[str], audiences: Sequence[str], platforms: List[str]) -> List[Dict[str, Any]]:
     """The active entries that apply to this content, in prompt order, trimmed to a sensible total size. Platform
     norms and audience profiles only come in when they match; brand voice and facts can also apply to everything."""
     rows = await fetch_all(
@@ -124,7 +124,7 @@ async def for_content(brand_code: Optional[str], audiences: Sequence[str], platf
     )
     picked: List[Dict[str, Any]] = []
     for r in rows:
-        if not _applies(list(r["brands"] or []), [brand_code] if brand_code else []):
+        if not _applies(list(r["brands"] or []), list(brand_codes)):
             continue
         if not _applies(list(r["audiences"] or []), list(audiences)):
             continue

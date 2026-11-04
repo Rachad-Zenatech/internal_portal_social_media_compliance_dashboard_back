@@ -9,7 +9,7 @@ from uuid import UUID
 from models.compliance.compliance_model import ComplianceCheckRequest
 from postgresql_db.database import fetch_all, fetch_one
 from services.compliance import context_service, document_layout, post_signals, review_memory_service
-from services.compliance.compliance_service import applicable_rules, audiences_of, implied_audiences, implied_by_wording, parts_for
+from services.compliance.compliance_service import applicable_rules, audiences_of, brands_of, implied_audiences, implied_by_wording, parts_for
 from services.compliance.sentiment.config import (
     CEO_BRAND,
     CEO_RULE_SET,
@@ -36,7 +36,9 @@ logger = logging.getLogger(__name__)
 async def _load_submission(submission_id: UUID) -> Optional[Dict[str, Any]]:
     return await fetch_one(
         """
-        SELECT s.id, s.title, s.content_type, s.caption_text, s.brand_code, s.audience, s.audiences, s.region, s.platforms,
+        SELECT s.id, s.title, s.content_type, s.caption_text, s.brand_code, s.brand_codes, s.audience, s.audiences, s.region, s.platforms,
+               (SELECT string_agg(bn.name, ', ' ORDER BY array_position(s.brand_codes, bn.code)) FROM brands bn
+                 WHERE bn.code = ANY(s.brand_codes)) AS brand_names,
                s.rule_sets, s.current_version, b.name AS brand_name,
                c.account_name AS account_name, c.connection_metadata AS account_meta,
                v.id AS video_id, v.transcript_status, v.transcript,
@@ -101,25 +103,26 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
     post_text = "\n".join(p for p in (row["title"], row["caption_text"], spoken, script) if p)
     signals = post_signals.extract(post_text)
     audiences = audiences_of(row)
+    brands = brands_of(row)
     implied = implied_audiences(audiences, signals, post_text)
     # Rule sets the wording brings in (only when some are chosen; with none, every rule already applies).
     wording = implied_by_wording(post_text, signals)
     added_rule_sets = [rs for rs in wording if rule_sets and rs not in rule_sets]
     checked_rule_sets = [*rule_sets, *added_rule_sets]
     # Shaun's own posts and anything investors read carry the most risk, so they get the stronger model.
-    high_stakes = (is_ceo or row["brand_code"] == CEO_BRAND or CEO_RULE_SET in rule_sets
+    high_stakes = (is_ceo or CEO_BRAND in brands or CEO_RULE_SET in rule_sets
                    or "INVESTORS" in audiences or "INVESTORS" in implied)
     images = await _load_images(row["id"]) if row.get("id") else []
     rules = await applicable_rules(ComplianceCheckRequest(
         text=post_text or "-",
         rule_sets=rule_sets,
-        brand_code=row["brand_code"],
+        brand_codes=brands,
         audiences=audiences,
         region=row["region"],
         platforms=platforms,
         content_parts=parts_for(
             row["content_type"], has_video=bool(row["video_id"]), has_images=bool(images),
-            is_ceo=is_ceo or row["brand_code"] == CEO_BRAND or CEO_RULE_SET in rule_sets,
+            is_ceo=is_ceo or CEO_BRAND in brands or CEO_RULE_SET in rule_sets,
         ),
     ))
     transcript = None
@@ -135,7 +138,7 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
         "title": row["title"],
         "caption": (row["caption_text"] or "").strip()[:MAX_TEXT_CHARS],
         # Messaging Context that applies to this brand, audience and these platforms.
-        "context": await context_service.for_content(row["brand_code"], audiences, platforms),
+        "context": await context_service.for_content(brands, audiences, platforms),
         "transcript": transcript,
         # The video itself is attached when the analysis runs; a replaced video makes earlier results stale.
         "video_file_id": str(row["video_id"]) if row["video_id"] else None,
@@ -143,7 +146,7 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
         "images": images[:MAX_IMAGES],
         "images_left_out": max(0, len(images) - MAX_IMAGES),
         "content_type": row["content_type"],
-        "brand": row["brand_name"] or row["brand_code"],
+        "brand": (row.get("brand_names") if len(brands) > 1 else None) or row["brand_name"] or row["brand_code"],
         "audience": row["audience"],
         "region": row["region"],
         "platforms": platforms,

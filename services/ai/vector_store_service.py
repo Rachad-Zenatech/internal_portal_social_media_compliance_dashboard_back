@@ -192,7 +192,7 @@ async def search(
     query: str,
     *,
     kinds: Optional[List[str]] = None,
-    brand: Optional[str] = None,
+    brand: Optional[Union[str, Sequence[str]]] = None,
     audience: Optional[Union[str, Sequence[str]]] = None,
     platforms: Optional[List[str]] = None,
     limit: int = 5,
@@ -207,7 +207,7 @@ async def search(
     if kinds:
         filters.append({"kind": {"$in": kinds}})
     if brand:
-        filters.append({"brands": {"$in": [brand, ALL]}})
+        filters.append({"brands": {"$in": [*([brand] if isinstance(brand, str) else brand), ALL]}})
     if audience:
         filters.append({"audiences": {"$in": [*([audience] if isinstance(audience, str) else audience), ALL]}})
     if platforms:

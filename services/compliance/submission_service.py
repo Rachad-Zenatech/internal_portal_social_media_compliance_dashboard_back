@@ -56,7 +56,7 @@ from services.ai import ai_usage_service
 from services.compliance import approval_path_service, canva_service, flag_review_service, review_deadline_service, transcription_service
 from services.compliance import analysis_progress_service, document_layout, document_text_service, image_text_service, review_memory_service, script_match
 from services.ai.ai_usage_service import AiLimitExceeded
-from services.compliance.compliance_service import CEO_BRAND, audiences_of, check_compliance, flag_segments
+from services.compliance.compliance_service import CEO_BRAND, audiences_of, brands_of, check_compliance, flag_segments
 from services.compliance.compliance_service import parts_for as compliance_parts_for
 from services.compliance.compliance_service import rulebook_version as compliance_rulebook_version
 from services.compliance.html_sanitizer import sanitize_caption_html
@@ -244,7 +244,7 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
         if not (manager_can_read and await _can_see_team_content(user_id)):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
         scope = await _brand_scope(user_id)
-        if scope is not None and row["brand_code"] not in scope:
+        if scope is not None and not set(brands_of(row)) & set(scope):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     return row
 
@@ -253,7 +253,7 @@ def _approvers(rules: "approval_path_service.ApprovalRules", row: Dict[str, Any]
     """The named final approvers for a submission row (empty: any reviewer on its brand)."""
     accts = accounts if accounts is not None else [_account_option(row, prefix="acc_")]
     ceo = approval_path_service.is_ceo_content(row.get("rule_sets") or [], accts)
-    return rules.approvers(row.get("brand_code"), audiences_of(row), ceo)
+    return rules.approvers(brands_of(row), audiences_of(row), ceo)
 
 
 def _may_approve(user_id: UUID, is_super: bool, approver_ids: List[UUID]) -> bool:
@@ -324,6 +324,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         title=row["title"],
         content_type=row["content_type"],
         brand_code=row["brand_code"],
+        brand_codes=brands_of(row),
         audience=row["audience"],
         audiences=audiences_of(row),
         region=row["region"],
@@ -433,7 +434,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only see your own content")
     rows = await fetch_all(
         """
-        SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.platforms, s.status,
+        SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.brand_codes, s.platforms, s.status,
                s.current_version, s.publish_at, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
                s.due_at, s.due_kind, s.rule_sets,
                CASE WHEN s.script_required AND s.content_type = 'VIDEO' THEN coalesce(s.script_status, 'DRAFT') END
@@ -485,7 +486,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             ORDER BY (cf.kind = 'MAIN') DESC, cf.created_at ASC
             LIMIT 1
         ) cov ON true
-        WHERE (s.created_by = $1 OR ($3 AND ($4::text[] IS NULL OR s.brand_code = ANY($4::text[]))))
+        WHERE (s.created_by = $1 OR ($3 AND ($4::text[] IS NULL OR s.brand_codes && $4::text[])))
           AND s.deleted_at IS NULL AND ($2::text IS NULL OR s.status = $2)
         -- What needs the creator comes first: changes to fix (a post's or its script's), then drafts to finish
         -- (including an approved script waiting for its video). Then what's waiting on someone else: content in
@@ -584,16 +585,21 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         # A draft switched to a video before it was ever sent goes through the script stage too.
         if payload["content_type"] == "VIDEO" and row["current_version"] == 0 and not row.get("script_required"):
             fields["script_required"] = True
-    if payload.get("brand_code"):
-        brand = await fetch_one("SELECT code FROM brands WHERE code = $1 AND is_active", payload["brand_code"])
-        if not brand:
+    brand_codes = payload.get("brand_codes")
+    if brand_codes is None and payload.get("brand_code"):
+        brand_codes = [payload["brand_code"]]
+    if brand_codes is not None:
+        brand_codes = list(dict.fromkeys(brand_codes))
+        found = await fetch_all("SELECT code FROM brands WHERE code = ANY($1::text[]) AND is_active", brand_codes)
+        if len(found) != len(brand_codes):
             raise HTTPException(status_code=422, detail="Unknown brand")
-        # Only checked when it changes, so an older draft on a brand someone has since left still saves.
-        if brand["code"] != row["brand_code"]:
-            scope = await _brand_scope(user_id)
-            if scope is not None and brand["code"] not in scope:
-                raise HTTPException(status_code=403, detail="You don't work on that brand")
-        fields["brand_code"] = brand["code"]
+        # Only checked for brands being added, so an older draft on a brand someone has since left still saves.
+        added = [b for b in brand_codes if b not in brands_of(row)]
+        scope = await _brand_scope(user_id)
+        if added and scope is not None and any(b not in scope for b in added):
+            raise HTTPException(status_code=403, detail="You don't work on that brand")
+        fields["brand_codes"] = brand_codes
+        fields["brand_code"] = brand_codes[0] if brand_codes else None
     audiences = payload.get("audiences")
     if audiences is None and payload.get("audience"):
         audiences = [payload["audience"]]
@@ -648,6 +654,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
             fields["account_ids"] = []
         if name == "audience":
             fields["audiences"] = []
+        if name == "brand_code":
+            fields["brand_codes"] = []
 
     if not fields:
         return await _to_submission(row)
@@ -1074,7 +1082,7 @@ def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: b
         video_title=row["title"],
         content_type=f"{row['content_type']}_{(row['platforms'] or ['GENERAL'])[0]}",
         rule_sets=list(row["rule_sets"] or []),
-        brand_code=row["brand_code"],
+        brand_codes=brands_of(row),
         audiences=audiences_of(row),
         region=row["region"],
         platforms=list(row["platforms"] or []),
@@ -1083,7 +1091,7 @@ def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: b
             row["content_type"],
             has_video=has_video,
             has_images=has_images,
-            is_ceo=row.get("brand_code") == CEO_BRAND
+            is_ceo=CEO_BRAND in brands_of(row)
             or approval_path_service.is_ceo_content(row.get("rule_sets") or [], _accounts(row)),
         ),
     )
@@ -1343,6 +1351,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         "title": row["title"],
         "content_type": row["content_type"],
         "brand_code": row["brand_code"],
+        "brand_codes": brands_of(row),
         "audience": row["audience"],
         "audiences": audiences_of(row),
         "region": row["region"],
@@ -1542,7 +1551,7 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
     mine=True limits it to the viewer's own content (a super admin viewing the app as a creator)."""
     see_all = not mine and await _can_see_team_content(user_id)
     scope = await _brand_scope(user_id)
-    visible = "s.deleted_at IS NULL AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))))"
+    visible = "s.deleted_at IS NULL AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_codes && $3::text[])))"
     since = f"NOW() - INTERVAL '{DASHBOARD_DAYS} days'"
     args = (user_id, see_all, scope)
 
@@ -1644,7 +1653,7 @@ async def review_queue_counts(user_id: UUID, mine: bool = False) -> ReviewQueueC
                 AND s.content_type = 'VIDEO' AND s.updated_at > NOW() - INTERVAL '30 days') AS scripts_done
         FROM content_submissions s
         WHERE s.deleted_at IS NULL
-          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))))
+          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_codes && $3::text[])))
         """,
         user_id,
         see_all,
@@ -1669,7 +1678,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         f"""
         SELECT s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
                s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
-               s.brand_code, s.audience, s.audiences, s.rule_sets, s.approval_needed_by, s.script_required, s.script_status,
+               s.brand_code, s.brand_codes, s.audience, s.audiences, s.rule_sets, s.approval_needed_by, s.script_required, s.script_status,
                {_DECIDED_AT} AS decided_at,
                u.full_name AS creator_name,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
@@ -1689,7 +1698,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         LEFT JOIN oauth_connections c ON c.id = s.account_id
         LEFT JOIN users u ON u.id = s.created_by
         WHERE {_queue_filter(tab)} AND s.deleted_at IS NULL
-          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_code = ANY($3::text[]))))
+          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_codes && $3::text[])))
           AND ($4 = '' OR s.title ILIKE '%' || $4 || '%' OR s.reference_code ILIKE '%' || $4 || '%')
         ORDER BY {_QUEUE_ORDER[tab]}
         LIMIT 100
@@ -1755,6 +1764,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             min_approval_score=flag_review_service.MIN_APPROVAL_SCORE,
             publish_at=r["publish_at"],
             brand_code=r["brand_code"],
+            brand_codes=brands_of(r),
             audience=r["audience"],
             audiences=audiences_of(r),
             approval_needed_by=r["approval_needed_by"],
@@ -1859,17 +1869,19 @@ async def get_history(submission_id: UUID, user_id: UUID) -> SubmissionHistory:
 REVIEW_GROUP = "CONTENT_REVIEW_PUBLISH"
 
 
-async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str] = None) -> List[UUID]:
-    """Active users who can review: super admins and roles with "Review & Publish Content". With a brand, only
-    reviewers who work on it (or on every brand)."""
+async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str] = None,
+                        brand_codes: Optional[List[str]] = None) -> List[UUID]:
+    """Active users who can review: super admins and roles with "Review & Publish Content". With brands, only
+    reviewers who work on at least one of them (or on every brand)."""
+    brands = list(brand_codes or ([brand_code] if brand_code else [])) or None
     rows = await fetch_all(
         """
         SELECT u.id FROM users u
         WHERE u.is_active AND u.deleted_at IS NULL AND ($1::uuid IS NULL OR u.id <> $1)
           AND (
-            $3::text IS NULL OR u.is_super_admin
+            $3::text[] IS NULL OR u.is_super_admin
             OR NOT EXISTS (SELECT 1 FROM user_brands ub WHERE ub.user_id = u.id)
-            OR EXISTS (SELECT 1 FROM user_brands ub WHERE ub.user_id = u.id AND ub.brand_code = $3)
+            OR EXISTS (SELECT 1 FROM user_brands ub WHERE ub.user_id = u.id AND ub.brand_code = ANY($3::text[]))
           )
           AND (
             u.is_super_admin
@@ -1883,7 +1895,7 @@ async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str
             )
           )
         """,
-        exclude, REVIEW_GROUP, brand_code,
+        exclude, REVIEW_GROUP, brands,
     )
     return [r["id"] for r in rows]
 
@@ -1926,7 +1938,7 @@ async def _notify_reviewers(row: Dict[str, Any], version: int, score_line: str, 
     author = await fetch_one("SELECT full_name FROM users WHERE id = $1", submitter)
     again = " (resubmitted)" if version > 1 else ""
     who = author["full_name"] if author else "Someone"
-    reviewers = await _reviewer_ids(exclude=submitter, brand_code=row["brand_code"])
+    reviewers = await _reviewer_ids(exclude=submitter, brand_codes=brands_of(row))
     approver_ids, _ = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
     approvers = [a for a in approver_ids if a != submitter]
     await _notify(

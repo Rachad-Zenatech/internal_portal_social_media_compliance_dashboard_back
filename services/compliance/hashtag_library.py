@@ -105,12 +105,17 @@ def _audience_tags(audiences: Sequence[str]) -> List[str]:
     return _unique([t for a in audiences for t in AUDIENCE_TAGS.get(a, [])])
 
 
-def candidates(brand_code: Optional[str], audiences: Sequence[str]) -> List[str]:
-    """Every hashtag the library offers this brand and these audiences, brand tags first (no cashtag)."""
-    return _unique([*BRAND_TAGS.get(brand_code or "", FALLBACK_BRAND_TAGS), *_audience_tags(audiences)])
+def _brand_tags(brand_codes: Sequence[str]) -> List[str]:
+    known = [t for b in brand_codes for t in BRAND_TAGS.get(b, [])]
+    return _unique(known) or list(FALLBACK_BRAND_TAGS)
 
 
-def build(brand_code: Optional[str], audiences: Sequence[str], platforms: Sequence[str],
+def candidates(brand_codes: Sequence[str], audiences: Sequence[str]) -> List[str]:
+    """Every hashtag the library offers these brands and audiences, brand tags first (no cashtag)."""
+    return _unique([*_brand_tags(brand_codes), *_audience_tags(audiences)])
+
+
+def build(brand_codes: Sequence[str], audiences: Sequence[str], platforms: Sequence[str],
           allowed: Optional[Iterable[str]] = None) -> HashtagLibrary:
     """The library for one post. `allowed` (if given) is the subset of candidates the rulebook doesn't flag."""
     ok = {t.lower() for t in allowed} if allowed is not None else None
@@ -118,7 +123,7 @@ def build(brand_code: Optional[str], audiences: Sequence[str], platforms: Sequen
     def keep(tags: List[str]) -> List[str]:
         return [t for t in tags if ok is None or t.lower() in ok]
 
-    brand_tags = keep(BRAND_TAGS.get(brand_code or "", FALLBACK_BRAND_TAGS))
+    brand_tags = keep(_brand_tags(brand_codes))
     audience_tags = [t for t in keep(_audience_tags(audiences)) if t.lower() not in {b.lower() for b in brand_tags}]
     groups = [LibraryGroup(label="Brand", tags=[LibraryTag(tag=t) for t in brand_tags])]
     if audience_tags:

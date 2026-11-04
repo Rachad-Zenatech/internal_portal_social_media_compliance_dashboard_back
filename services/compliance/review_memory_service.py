@@ -87,7 +87,7 @@ def _doc(row: Dict[str, Any]) -> Optional[store.VectorDoc]:
         source_id=f"{row['submission_id']}:{row['version_number']}",
         title=title,
         text=text,
-        brands=[snap["brand_code"]] if snap.get("brand_code") else [],
+        brands=snap.get("brand_codes") or ([snap["brand_code"]] if snap.get("brand_code") else []),
         audiences=snap.get("audiences") or ([snap["audience"]] if snap.get("audience") else []),
         platforms=list(snap.get("platforms") or []),
         meta={

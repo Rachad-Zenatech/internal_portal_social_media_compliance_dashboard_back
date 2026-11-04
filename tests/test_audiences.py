@@ -34,15 +34,34 @@ class AudiencesTests(unittest.TestCase):
             {"brand_code": None, "audience": "DEFENSE", "ceo_content": False, "approver_ids": [a], "approver_names": ["Ann"]},
             {"brand_code": None, "audience": "INVESTORS", "ceo_content": False, "approver_ids": [b], "approver_names": ["Bo"]},
         ])
-        ids, names = rules.approvers("ZENATECH", ["GENERAL", "DEFENSE"], False)
+        ids, names = rules.approvers(["ZENATECH"], ["GENERAL", "DEFENSE"], False)
         self.assertEqual((ids, names), ([a], ["Ann"]))
-        ids, _ = rules.approvers("ZENATECH", ["DEFENSE", "INVESTORS"], False)
+        ids, _ = rules.approvers(["ZENATECH"], ["DEFENSE", "INVESTORS"], False)
         self.assertEqual(set(ids), {a, b})
 
     def test_hashtags_from_every_audience_are_offered(self):
-        both = set(hl.candidates("ZENATECH", ["DEFENSE", "INVESTORS"]))
-        self.assertTrue(set(hl.candidates("ZENATECH", ["DEFENSE"])) <= both)
-        self.assertTrue(set(hl.candidates("ZENATECH", ["INVESTORS"])) <= both)
+        both = set(hl.candidates(["ZENATECH"], ["DEFENSE", "INVESTORS"]))
+        self.assertTrue(set(hl.candidates(["ZENATECH"], ["DEFENSE"])) <= both)
+        self.assertTrue(set(hl.candidates(["ZENATECH"], ["INVESTORS"])) <= both)
+
+    def test_a_post_can_be_for_several_brands_and_the_first_is_the_primary(self):
+        req = ComplianceCheckRequest(text="x", brand_codes=["ZENATECH", "ZENADRONE"])
+        self.assertEqual((req.brand_code, req.brand_codes), ("ZENATECH", ["ZENATECH", "ZENADRONE"]))
+        self.assertEqual(ComplianceCheckRequest(text="x", brand_code="SOFTWARE").brand_codes, ["SOFTWARE"])
+
+    def test_a_path_for_any_brand_of_the_post_gives_its_approvers(self):
+        a, b = uuid4(), uuid4()
+        rules = ApprovalRules([
+            {"brand_code": "ZENADRONE", "audience": None, "ceo_content": False, "approver_ids": [a], "approver_names": ["Ann"]},
+            {"brand_code": "SOFTWARE", "audience": None, "ceo_content": False, "approver_ids": [b], "approver_names": ["Bo"]},
+        ])
+        self.assertEqual(rules.approvers(["ZENATECH", "ZENADRONE"], [], False)[0], [a])
+        self.assertEqual(set(rules.approvers(["ZENADRONE", "SOFTWARE"], [], False)[0]), {a, b})
+
+    def test_tags_from_every_brand_are_offered(self):
+        both = set(hl.candidates(["ZENATECH", "ZENADRONE"], []))
+        self.assertTrue(set(hl.candidates(["ZENATECH"], [])) <= both)
+        self.assertTrue(set(hl.candidates(["ZENADRONE"], [])) <= both)
 
 
 if __name__ == "__main__":

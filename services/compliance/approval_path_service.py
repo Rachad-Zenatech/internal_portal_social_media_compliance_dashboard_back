@@ -132,12 +132,12 @@ class ApprovalRules:
     def __init__(self, paths: List[Dict[str, Any]]):
         self.paths = paths
 
-    def approvers(self, brand_code: Optional[str], audiences: Sequence[str], ceo_content: bool) -> Tuple[List[UUID], List[str]]:
-        """Approvers from every path that fits. With several audiences a path for any one of them applies, so any one
+    def approvers(self, brand_codes: Sequence[str], audiences: Sequence[str], ceo_content: bool) -> Tuple[List[UUID], List[str]]:
+        """Approvers from every path that fits. With several brands or audiences a path for any one of them applies, so any one
         approver from any of those paths can give the final approval."""
         ids: Dict[UUID, str] = {}
         for p in self.paths:
-            if p["brand_code"] and p["brand_code"] != brand_code:
+            if p["brand_code"] and p["brand_code"] not in brand_codes:
                 continue
             if p["audience"] and p["audience"] not in audiences:
                 continue

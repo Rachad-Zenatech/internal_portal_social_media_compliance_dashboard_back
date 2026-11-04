@@ -82,6 +82,8 @@ class SubmissionCreate(BaseModel):
 class SubmissionUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=300)
     content_type: Optional[ContentType] = None
+    # Every brand it's for, primary first. brand_code alone still works and means just that one.
+    brand_codes: Optional[List[str]] = Field(None, max_length=20)
     brand_code: Optional[str] = Field(None, max_length=50)
     # Every audience it's for, primary first. audience alone still works and means just that one.
     audiences: Optional[List[str]] = Field(None, max_length=len(AUDIENCES))
@@ -227,6 +229,7 @@ class Submission(BaseModel):
     title: str
     content_type: str
     brand_code: Optional[str] = None
+    brand_codes: List[str] = Field(default_factory=list)
     audience: Optional[str] = None
     audiences: List[str] = Field(default_factory=list)
     region: Optional[str] = None
@@ -436,6 +439,7 @@ class ReviewQueueItem(BaseModel):
     publish_at: Optional[datetime] = None
     # For the screener's filters and header.
     brand_code: Optional[str] = None
+    brand_codes: List[str] = Field(default_factory=list)
     audience: Optional[str] = None
     audiences: List[str] = Field(default_factory=list)
     approval_needed_by: Optional[datetime] = None

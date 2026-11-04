@@ -123,6 +123,10 @@ async def setup():
 
             -- A post can go out through several connected accounts. account_id stays as the first (primary) one,
             -- which the calendar, screener and publish page use.
+            -- A post can be for several brands. brand_code stays as the first (primary) one.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS brand_codes TEXT[] NOT NULL DEFAULT '{}';
+            UPDATE content_submissions SET brand_codes = ARRAY[brand_code]
+            WHERE brand_code IS NOT NULL AND cardinality(brand_codes) = 0;
             -- A post can target several audiences. audience stays as the first (primary) one.
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS audiences TEXT[] NOT NULL DEFAULT '{}';
             UPDATE content_submissions SET audiences = ARRAY[audience]

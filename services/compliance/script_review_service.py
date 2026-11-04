@@ -208,7 +208,7 @@ async def _lock_status(conn, submission_id: UUID, allowed: tuple) -> None:
 
 
 async def _send_to_reviewers(row: Dict[str, Any], version: int, check: Dict[str, Any], user_id: UUID) -> None:
-    reviewers = await subs._reviewer_ids(exclude=user_id, brand_code=row["brand_code"])
+    reviewers = await subs._reviewer_ids(exclude=user_id, brand_codes=subs.brands_of(row))
     issues = check.get("violations_count") or 0
     score = "no score yet (the AI review couldn't run)" if check.get("ai_unavailable") else f"score {check.get('score')}/100"
     await subs._notify(
@@ -583,7 +583,7 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
     where, order = _QUEUE_TABS[tab]
     rows = await fetch_all(
         f"""
-        SELECT s.id, s.reference_code, s.title, s.content_type, s.platforms, s.brand_code, s.audience, s.audiences, s.region,
+        SELECT s.id, s.reference_code, s.title, s.content_type, s.platforms, s.brand_code, s.brand_codes, s.audience, s.audiences, s.region,
                s.rule_sets, s.created_by, s.approval_needed_by, s.script_status, s.updated_at, u.full_name AS creator_name,
                v.version_number, v.created_at AS sent_at, v.body AS script_body, v.check_result, v.reviewed_at
         FROM content_submissions s
@@ -593,7 +593,7 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
         ) v ON true
         LEFT JOIN users u ON u.id = s.created_by
         WHERE {where} AND s.script_required AND s.content_type = 'VIDEO'
-          AND s.deleted_at IS NULL AND ($1::text[] IS NULL OR s.brand_code = ANY($1::text[]))
+          AND s.deleted_at IS NULL AND ($1::text[] IS NULL OR s.brand_codes && $1::text[])
         ORDER BY {order}
         LIMIT 100
         """,
@@ -610,7 +610,7 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
             stale.append(dict(r))
         items.append(ScriptQueueItem(
             id=r["id"], reference_code=r["reference_code"], title=r["title"], platforms=list(r["platforms"] or []),
-            brand_code=r["brand_code"], audience=r["audience"], audiences=subs.audiences_of(r), creator_name=r["creator_name"],
+            brand_code=r["brand_code"], brand_codes=subs.brands_of(r), audience=r["audience"], audiences=subs.audiences_of(r), creator_name=r["creator_name"],
             created_by=r["created_by"], version_number=r["version_number"], sent_at=r["sent_at"],
             score=None if check.get("ai_unavailable") else check.get("score"), ai_unavailable=bool(check.get("ai_unavailable")),
             traffic_light=check.get("traffic_light"),
