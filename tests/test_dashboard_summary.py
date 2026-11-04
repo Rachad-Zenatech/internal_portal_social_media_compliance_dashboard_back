@@ -92,6 +92,35 @@ class DashboardSummaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.activity, [])
 
 
+class MyPostsOrderTests(unittest.IsolatedAsyncioTestCase):
+    async def order_clause(self):
+        fetch_all = AsyncMock(return_value=[])
+        with (
+            patch(f"{SVC}._can_manage_team_content", new=AsyncMock(return_value=False)),
+            patch(f"{SVC}._can_review", new=AsyncMock(return_value=False)),
+            patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=False)),
+            patch(f"{SVC}._brand_scope", new=AsyncMock(return_value=None)),
+            patch(f"{SVC}.fetch_all", new=fetch_all),
+            patch(f"{SVC}.approval_path_service.load_rules", new=AsyncMock()),
+            patch(f"{SVC}.analysis_progress_service.for_submissions", new=AsyncMock(return_value={})),
+        ):
+            await submission_service.list_submissions(USER)
+        return fetch_all.await_args.args[0].split("ORDER BY")[-1]
+
+    async def test_a_script_with_a_reviewer_waits_with_content_in_review_not_with_drafts(self):
+        order = await self.order_clause()
+        drafts, waiting = order.split("WHEN s.status = 'DRAFT'")[1].split("WHEN s.status = 'IN_REVIEW'")
+        self.assertIn("coalesce(s.script_status, '') <> 'IN_REVIEW'", drafts)  # not a draft to finish
+        self.assertIn("s.script_status = 'IN_REVIEW'", waiting)  # waiting on a reviewer, like content in review
+        self.assertIn("PROCESSING", waiting)  # and so is a script still being sent
+
+    async def test_what_needs_the_creator_comes_first_then_the_soonest_deadline(self):
+        order = await self.order_clause()
+        self.assertTrue(order.index("CHANGES_REQUESTED") < order.index("WHEN s.status = 'DRAFT'") < order.index("IN_REVIEW"))
+        self.assertIn("EDITS_PROPOSED", order.split("WHEN s.status = 'DRAFT'")[0])  # a script sent back is a change to fix
+        self.assertIn("coalesce(s.due_at, s.approval_needed_by, s.publish_at) ASC NULLS LAST", order)
+
+
 class ReviewQueueScopeTests(unittest.IsolatedAsyncioTestCase):
     async def queue(self, mine):
         fetch_all = AsyncMock(return_value=[])

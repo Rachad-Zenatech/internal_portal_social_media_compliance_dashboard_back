@@ -486,15 +486,20 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         ) cov ON true
         WHERE (s.created_by = $1 OR ($3 AND ($4::text[] IS NULL OR s.brand_code = ANY($4::text[]))))
           AND s.deleted_at IS NULL AND ($2::text IS NULL OR s.status = $2)
-        -- Work on a deadline comes first: changes to fix, then drafts to finish, then content waiting
-        -- on reviewers, each by nearest publish date; finished content goes last.
-        ORDER BY CASE s.status
-                     WHEN 'CHANGES_REQUESTED' THEN 0
-                     WHEN 'DRAFT' THEN 1
-                     WHEN 'IN_REVIEW' THEN 2
+        -- What needs the creator comes first: changes to fix (a post's or its script's), then drafts to finish
+        -- (including an approved script waiting for its video). Then what's waiting on someone else: content in
+        -- review, and a script with a reviewer or being sent, which count the same however they're stored (a script
+        -- in review is a draft underneath). Finished content goes last. Within each group the soonest deadline
+        -- (its due date, else the date approval is needed by, else the publish date) is first.
+        ORDER BY CASE
+                     WHEN s.status = 'CHANGES_REQUESTED' OR s.script_status IN ('CHANGES_REQUESTED', 'EDITS_PROPOSED') THEN 0
+                     WHEN s.status = 'DRAFT' AND coalesce(s.script_status, '') <> 'IN_REVIEW'
+                          AND coalesce(s.script_send->>'status', '') <> 'PROCESSING' THEN 1
+                     WHEN s.status = 'IN_REVIEW' OR s.script_status = 'IN_REVIEW'
+                          OR s.script_send->>'status' = 'PROCESSING' THEN 2
                      ELSE 3
                  END,
-                 s.publish_at ASC NULLS LAST,
+                 coalesce(s.due_at, s.approval_needed_by, s.publish_at) ASC NULLS LAST,
                  s.updated_at DESC
         LIMIT 200
         """,
