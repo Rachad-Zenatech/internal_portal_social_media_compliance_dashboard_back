@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from fastapi import HTTPException
+
 from postgresql_db.database import execute, fetch_all
 
 logger = logging.getLogger(__name__)
@@ -56,9 +58,10 @@ def add_working_days(start: datetime, days: int) -> datetime:
 
 
 def due_date(kind: str, publish_at: Optional[datetime], now: Optional[datetime] = None,
-             days: Optional[int] = None, requested: Optional[datetime] = None) -> datetime:
+             days: Optional[int] = None, requested: Optional[datetime] = None, exact: bool = False) -> datetime:
     """When the next step is due: the date asked for (a creator's "need approval by"), else the working days a
-    reviewer chose, else the normal window; pulled in if the publish time is close."""
+    reviewer chose, else the normal window; pulled in if the publish time is close. exact: a date a reviewer picked
+    by hand is kept as it is, not pulled in."""
     now = now or datetime.now(timezone.utc)
     window, before_publish = (
         (REVIEW_HOURS, REVIEW_BEFORE_PUBLISH_HOURS) if kind == "REVIEW" else (REVISION_HOURS, REVISION_BEFORE_PUBLISH_HOURS)
@@ -67,9 +70,35 @@ def due_date(kind: str, publish_at: Optional[datetime], now: Optional[datetime] 
         due = requested
     else:
         due = add_working_days(now, days) if days else now + timedelta(hours=window)
+    if exact and requested:
+        return requested
     if publish_at:
         due = min(due, publish_at - timedelta(hours=before_publish))
     return max(due, now + timedelta(hours=MIN_HOURS))
+
+
+def require_future(when: Optional[datetime]) -> None:
+    """A deadline a reviewer picked has to still be ahead."""
+    if when is not None:
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        if when <= datetime.now(timezone.utc):
+            raise HTTPException(status_code=422, detail="Pick a deadline that's still ahead")
+
+
+def revision_due(publish_at: Optional[datetime], days: Optional[int], at: Optional[datetime]) -> datetime:
+    """When the creator has to have the requested changes done: the date the reviewer picked, else their working days
+    (pulled in if the publish time is close), else the normal window."""
+    require_future(at)
+    return due_date("REVISION", publish_at, days=days, requested=at, exact=True)
+
+
+def video_due(publish_at: Optional[datetime], days: Optional[int], at: Optional[datetime]) -> Optional[datetime]:
+    """When the video is due once its script is approved: the date picked, or working days from now; None for no deadline."""
+    require_future(at)
+    if at:
+        return due_date("REVISION", publish_at, requested=at, exact=True)
+    return due_date("REVISION", publish_at, days=days) if days else None
 
 
 def _when(dt: datetime) -> str:
@@ -99,6 +128,12 @@ def _message(row: Dict[str, Any], stage: str) -> Dict[str, str]:
                     "message": f"\"{title}\" is waiting for review, due {_when(due)}."}
         return {"title": f"{ref} review is overdue",
                 "message": f"\"{title}\" was due for review {_when(due)} and is still waiting."}
+    if row["due_kind"] == "VIDEO":
+        if stage == "soon":
+            return {"title": f"{ref} video due soon",
+                    "message": f"The script for \"{title}\" is approved. Upload the video by {_when(due)}."}
+        return {"title": f"{ref} video is overdue",
+                "message": f"The video for \"{title}\" was due {_when(due)}. Upload it so it can be reviewed in time."}
     if stage == "soon":
         return {"title": f"{ref} changes due soon",
                 "message": f"Please make the requested changes to \"{title}\" and resubmit by {_when(due)}."}
@@ -120,7 +155,12 @@ async def _claim(stage: str) -> List[Dict[str, Any]]:
         UPDATE content_submissions s SET {col} = NOW()
         WHERE s.deleted_at IS NULL AND s.due_at IS NOT NULL AND {cond}
           AND ((s.due_kind = 'REVIEW' AND s.status = 'IN_REVIEW')
-               OR (s.due_kind = 'REVISION' AND s.status = 'CHANGES_REQUESTED'))
+               OR (s.due_kind = 'REVISION' AND s.status = 'CHANGES_REQUESTED')
+               -- A script sent back, or approved and waiting for its video
+               OR (s.due_kind = 'REVISION' AND s.status = 'DRAFT' AND s.script_status IN ('CHANGES_REQUESTED', 'EDITS_PROPOSED'))
+               OR (s.due_kind = 'VIDEO' AND s.status = 'DRAFT' AND s.script_status = 'APPROVED'
+                   AND NOT EXISTS (SELECT 1 FROM content_submission_files f
+                                   WHERE f.submission_id = s.id AND f.kind = 'MAIN' AND f.deleted_at IS NULL)))
         RETURNING s.id, s.reference_code, s.title, s.created_by, s.due_at, s.due_kind, s.current_version, s.brand_code,
                   (SELECT j.decided_by FROM content_review_jobs j
                     WHERE j.submission_id = s.id AND j.version_number = s.current_version
