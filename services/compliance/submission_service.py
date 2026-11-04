@@ -56,7 +56,7 @@ from services.ai import ai_usage_service
 from services.compliance import approval_path_service, canva_service, flag_review_service, review_deadline_service, transcription_service
 from services.compliance import analysis_progress_service, document_layout, document_text_service, image_text_service, review_memory_service, script_match
 from services.ai.ai_usage_service import AiLimitExceeded
-from services.compliance.compliance_service import CEO_BRAND, check_compliance, flag_segments
+from services.compliance.compliance_service import CEO_BRAND, audiences_of, check_compliance, flag_segments
 from services.compliance.compliance_service import parts_for as compliance_parts_for
 from services.compliance.compliance_service import rulebook_version as compliance_rulebook_version
 from services.compliance.html_sanitizer import sanitize_caption_html
@@ -253,7 +253,7 @@ def _approvers(rules: "approval_path_service.ApprovalRules", row: Dict[str, Any]
     """The named final approvers for a submission row (empty: any reviewer on its brand)."""
     accts = accounts if accounts is not None else [_account_option(row, prefix="acc_")]
     ceo = approval_path_service.is_ceo_content(row.get("rule_sets") or [], accts)
-    return rules.approvers(row.get("brand_code"), row.get("audience"), ceo)
+    return rules.approvers(row.get("brand_code"), audiences_of(row), ceo)
 
 
 def _may_approve(user_id: UUID, is_super: bool, approver_ids: List[UUID]) -> bool:
@@ -325,6 +325,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         content_type=row["content_type"],
         brand_code=row["brand_code"],
         audience=row["audience"],
+        audiences=audiences_of(row),
         region=row["region"],
         platforms=list(row["platforms"] or []),
         account_id=row["account_id"],
@@ -433,7 +434,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
     rows = await fetch_all(
         """
         SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.platforms, s.status,
-               s.current_version, s.publish_at, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience,
+               s.current_version, s.publish_at, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
                s.due_at, s.due_kind, s.rule_sets,
                CASE WHEN s.script_required AND s.content_type = 'VIDEO' THEN coalesce(s.script_status, 'DRAFT') END
                    AS script_status,
@@ -593,10 +594,15 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
             if scope is not None and brand["code"] not in scope:
                 raise HTTPException(status_code=403, detail="You don't work on that brand")
         fields["brand_code"] = brand["code"]
-    if payload.get("audience"):
-        if payload["audience"] not in AUDIENCES:
+    audiences = payload.get("audiences")
+    if audiences is None and payload.get("audience"):
+        audiences = [payload["audience"]]
+    if audiences is not None:
+        audiences = list(dict.fromkeys(audiences))
+        if any(a not in AUDIENCES for a in audiences):
             raise HTTPException(status_code=422, detail="Unknown target audience")
-        fields["audience"] = payload["audience"]
+        fields["audiences"] = audiences
+        fields["audience"] = audiences[0] if audiences else None
     if payload.get("region"):
         if payload["region"] not in REGIONS:
             raise HTTPException(status_code=422, detail="Unknown region")
@@ -640,6 +646,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields[name] = None
         if name == "account_id":
             fields["account_ids"] = []
+        if name == "audience":
+            fields["audiences"] = []
 
     if not fields:
         return await _to_submission(row)
@@ -1067,7 +1075,7 @@ def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: b
         content_type=f"{row['content_type']}_{(row['platforms'] or ['GENERAL'])[0]}",
         rule_sets=list(row["rule_sets"] or []),
         brand_code=row["brand_code"],
-        audience=row["audience"],
+        audiences=audiences_of(row),
         region=row["region"],
         platforms=list(row["platforms"] or []),
         # For rules limited by "applies to": its type, what's actually attached, and whether it's Shaun's own post.
@@ -1336,6 +1344,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
         "content_type": row["content_type"],
         "brand_code": row["brand_code"],
         "audience": row["audience"],
+        "audiences": audiences_of(row),
         "region": row["region"],
         "platforms": list(row["platforms"] or []),
         "account": account.model_dump(mode="json") if account else None,
@@ -1660,7 +1669,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         f"""
         SELECT s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
                s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
-               s.brand_code, s.audience, s.rule_sets, s.approval_needed_by, s.script_required, s.script_status,
+               s.brand_code, s.audience, s.audiences, s.rule_sets, s.approval_needed_by, s.script_required, s.script_status,
                {_DECIDED_AT} AS decided_at,
                u.full_name AS creator_name,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
@@ -1747,6 +1756,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             publish_at=r["publish_at"],
             brand_code=r["brand_code"],
             audience=r["audience"],
+            audiences=audiences_of(r),
             approval_needed_by=r["approval_needed_by"],
             **_due(r),
             created_by=r["created_by"],

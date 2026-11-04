@@ -101,12 +101,16 @@ def _unique(tags: Iterable[str]) -> List[str]:
     return out
 
 
-def candidates(brand_code: Optional[str], audience: Optional[str]) -> List[str]:
-    """Every hashtag the library offers this brand and audience, brand tags first (no cashtag)."""
-    return _unique([*BRAND_TAGS.get(brand_code or "", FALLBACK_BRAND_TAGS), *AUDIENCE_TAGS.get(audience or "", [])])
+def _audience_tags(audiences: Sequence[str]) -> List[str]:
+    return _unique([t for a in audiences for t in AUDIENCE_TAGS.get(a, [])])
 
 
-def build(brand_code: Optional[str], audience: Optional[str], platforms: Sequence[str],
+def candidates(brand_code: Optional[str], audiences: Sequence[str]) -> List[str]:
+    """Every hashtag the library offers this brand and these audiences, brand tags first (no cashtag)."""
+    return _unique([*BRAND_TAGS.get(brand_code or "", FALLBACK_BRAND_TAGS), *_audience_tags(audiences)])
+
+
+def build(brand_code: Optional[str], audiences: Sequence[str], platforms: Sequence[str],
           allowed: Optional[Iterable[str]] = None) -> HashtagLibrary:
     """The library for one post. `allowed` (if given) is the subset of candidates the rulebook doesn't flag."""
     ok = {t.lower() for t in allowed} if allowed is not None else None
@@ -115,10 +119,11 @@ def build(brand_code: Optional[str], audience: Optional[str], platforms: Sequenc
         return [t for t in tags if ok is None or t.lower() in ok]
 
     brand_tags = keep(BRAND_TAGS.get(brand_code or "", FALLBACK_BRAND_TAGS))
-    audience_tags = [t for t in keep(AUDIENCE_TAGS.get(audience or "", [])) if t.lower() not in {b.lower() for b in brand_tags}]
+    audience_tags = [t for t in keep(_audience_tags(audiences)) if t.lower() not in {b.lower() for b in brand_tags}]
     groups = [LibraryGroup(label="Brand", tags=[LibraryTag(tag=t) for t in brand_tags])]
     if audience_tags:
-        groups.append(LibraryGroup(label=f"For {AUDIENCE_LABELS.get(audience or '', 'this audience')}",
+        label = AUDIENCE_LABELS.get(audiences[0], "this audience") if len(audiences) == 1 else "these audiences"
+        groups.append(LibraryGroup(label=f"For {label}",
                                    tags=[LibraryTag(tag=t) for t in audience_tags]))
     groups.append(LibraryGroup(label="Investors", tags=[LibraryTag(tag=CASHTAG, note=CASHTAG_NOTE)]))
     return HashtagLibrary(

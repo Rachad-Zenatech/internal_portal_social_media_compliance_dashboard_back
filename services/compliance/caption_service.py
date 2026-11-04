@@ -23,7 +23,7 @@ from models.compliance.compliance_model import ComplianceCheckRequest
 from services.ai import ai_usage_service
 from services.compliance import context_service, hashtag_library
 from services.compliance import sentiment_service as sentiment
-from services.compliance.compliance_service import applicable_rules, check_compliance, flagged_tags
+from services.compliance.compliance_service import applicable_rules, audiences_of, check_compliance, flagged_tags
 from services.ai.gemini_service import generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
@@ -40,21 +40,21 @@ _VALID_TAG = re.compile(r"^#[A-Za-z][A-Za-z0-9_]{1,60}$")
 _WANTS_CASHTAG = re.compile(r"\$zena|cashtag|\binvestors?\b|\bshareholders?\b", re.IGNORECASE)
 
 
-async def get_hashtag_library(brand_code: Optional[str], audience: Optional[str], region: Optional[str],
+async def get_hashtag_library(brand_code: Optional[str], audiences: Sequence[str], region: Optional[str],
                               platforms: Sequence[str], rule_sets: Sequence[str]) -> hashtag_library.HashtagLibrary:
     """The hashtag library for a post, minus any tag the rules that apply to it would flag."""
     rules = await applicable_rules(ComplianceCheckRequest(
-        text="-", rule_sets=list(rule_sets), brand_code=brand_code, audience=audience, region=region,
+        text="-", rule_sets=list(rule_sets), brand_code=brand_code, audiences=list(audiences), region=region,
         platforms=list(platforms),
     ))
-    tags = hashtag_library.candidates(brand_code, audience)
+    tags = hashtag_library.candidates(brand_code, audiences)
     flagged = flagged_tags(tags, rules)
-    return hashtag_library.build(brand_code, audience, platforms, allowed=[t for t in tags if t not in flagged])
+    return hashtag_library.build(brand_code, audiences, platforms, allowed=[t for t in tags if t not in flagged])
 
 
 def _wants_cashtag(row: Dict[str, Any], req: CaptionSuggestRequest) -> bool:
     """The cashtag goes on investor posts, or when the writer asks for it."""
-    return row["audience"] == "INVESTORS" or bool(req.hint and _WANTS_CASHTAG.search(req.hint))
+    return "INVESTORS" in audiences_of(row) or bool(req.hint and _WANTS_CASHTAG.search(req.hint))
 
 
 def _lower_first(text: str) -> str:
@@ -178,7 +178,7 @@ POST
 Title: {row["title"] or "(none)"}
 Content type: {row["content_type"]}
 Brand: {row["brand_name"] or row["brand_code"] or "unknown"}
-Audience: {row["audience"] or "general"}
+Audience: {", ".join(audiences_of(row)) or "general"}
 Platforms: {", ".join(row["platforms"] or []) or "unspecified"}
 Publishing channel: {row["account_name"] or "unknown"}
 Images attached above: {images}
@@ -201,7 +201,7 @@ async def _check(text: str, row: Dict[str, Any]) -> CaptionCheck:
         content_type="social_post",
         rule_sets=list(row["rule_sets"] or []),
         brand_code=row["brand_code"],
-        audience=row["audience"],
+        audiences=audiences_of(row),
         region=row["region"],
         platforms=list(row["platforms"] or []),
     ))
@@ -232,13 +232,13 @@ async def suggest(submission_id: UUID, user_id: UUID, req: CaptionSuggestRequest
     await ai_usage_service.reserve("CAPTION", user_id, submission_id)
     images = await sentiment._image_parts(image_refs)
     platforms = list(row["platforms"] or [])
-    context = await context_service.for_content(row["brand_code"], row["audience"], platforms)
+    context = await context_service.for_content(row["brand_code"], audiences_of(row), platforms)
     rules = await applicable_rules(ComplianceCheckRequest(
-        text="-", rule_sets=list(row["rule_sets"] or []), brand_code=row["brand_code"], audience=row["audience"],
+        text="-", rule_sets=list(row["rule_sets"] or []), brand_code=row["brand_code"], audiences=audiences_of(row),
         region=row["region"], platforms=platforms,
     ))
     # The same hashtags the picker offers, minus any the rules flag.
-    candidates = hashtag_library.candidates(row["brand_code"], row["audience"])
+    candidates = hashtag_library.candidates(row["brand_code"], audiences_of(row))
     rejected = flagged_tags(candidates, rules)
     library = [t for t in candidates if t not in rejected]
     client = sentiment._get_client()

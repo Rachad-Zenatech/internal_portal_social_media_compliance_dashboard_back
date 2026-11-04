@@ -56,14 +56,14 @@ async def get_options(user_id: CurrentUser):
 async def get_hashtag_library(
     user_id: CurrentUser,
     brand_code: Optional[str] = Query(None, max_length=50),
-    audience: Optional[str] = Query(None, max_length=50),
+    audiences: Annotated[List[str], Query()] = [],
     region: Optional[str] = Query(None, max_length=50),
     platforms: Annotated[List[str], Query()] = [],
     rule_sets: Annotated[List[str], Query()] = [],
 ):
     """Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
     rules that apply would flag, and how many the strictest platform suits. Drafts can call it before they're saved."""
-    return await caption_service.get_hashtag_library(brand_code, audience, region, platforms[:20], rule_sets[:10])
+    return await caption_service.get_hashtag_library(brand_code, audiences[:10], region, platforms[:20], rule_sets[:10])
 
 
 # scope=mine: only the user's own content, seen as its creator (a super admin viewing the app as a creator). It only

@@ -84,6 +84,7 @@ class ScriptQueueItem(BaseModel):
     platforms: List[str] = Field(default_factory=list)
     brand_code: Optional[str] = None
     audience: Optional[str] = None
+    audiences: List[str] = Field(default_factory=list)
     creator_name: Optional[str] = None
     created_by: Optional[UUID] = None
     version_number: int

@@ -4,7 +4,7 @@ Entries are scoped like compliance rules (an empty list means every brand / audi
 content only gets the entries that apply to it.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -116,7 +116,7 @@ def _applies(values: List[str], content: List[str]) -> bool:
     return not values or bool(set(values) & set(content))
 
 
-async def for_content(brand_code: Optional[str], audience: Optional[str], platforms: List[str]) -> List[Dict[str, Any]]:
+async def for_content(brand_code: Optional[str], audiences: Sequence[str], platforms: List[str]) -> List[Dict[str, Any]]:
     """The active entries that apply to this content, in prompt order, trimmed to a sensible total size. Platform
     norms and audience profiles only come in when they match; brand voice and facts can also apply to everything."""
     rows = await fetch_all(
@@ -126,7 +126,7 @@ async def for_content(brand_code: Optional[str], audience: Optional[str], platfo
     for r in rows:
         if not _applies(list(r["brands"] or []), [brand_code] if brand_code else []):
             continue
-        if not _applies(list(r["audiences"] or []), [audience] if audience else []):
+        if not _applies(list(r["audiences"] or []), list(audiences)):
             continue
         if not _applies(list(r["platforms"] or []), platforms):
             continue

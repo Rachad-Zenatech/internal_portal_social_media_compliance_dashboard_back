@@ -25,7 +25,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
 
 from google import genai
 from google.genai import types
@@ -193,7 +193,7 @@ async def search(
     *,
     kinds: Optional[List[str]] = None,
     brand: Optional[str] = None,
-    audience: Optional[str] = None,
+    audience: Optional[Union[str, Sequence[str]]] = None,
     platforms: Optional[List[str]] = None,
     limit: int = 5,
     min_score: float = 0.0,
@@ -209,7 +209,7 @@ async def search(
     if brand:
         filters.append({"brands": {"$in": [brand, ALL]}})
     if audience:
-        filters.append({"audiences": {"$in": [audience, ALL]}})
+        filters.append({"audiences": {"$in": [*([audience] if isinstance(audience, str) else audience), ALL]}})
     if platforms:
         filters.append({"platforms": {"$in": [*platforms, ALL]}})
     try:

@@ -646,13 +646,19 @@ def implied_by_wording(text: str, signals: Optional[post_signals.PostSignals] = 
     return out
 
 
-def implied_audiences(audience: Optional[str], signals: post_signals.PostSignals, text: str = "") -> List[str]:
+def audiences_of(row: Any) -> List[str]:
+    """Every audience a stored submission targets (audience alone for rows saved before there could be several)."""
+    audiences = list(row.get("audiences") or [])
+    return audiences or ([row["audience"]] if row.get("audience") else [])
+
+
+def implied_audiences(audiences: Sequence[str], signals: post_signals.PostSignals, text: str = "") -> List[str]:
     """Audiences a post reaches whatever it targets: investor wording ($ZENA, "shareholders") means investors read it,
     defense wording ("Pentagon", "program managers") means defense buyers do. Without the text, only cashtags count."""
     wording = implied_by_wording(text, signals) if text else (
         {DISCLOSURE_RULE_SET: signals.cashtags} if signals.cashtags else {}
     )
-    return [i.audience for i in IMPLIED_BY if i.rule_set in wording and i.audience != audience]
+    return [i.audience for i in IMPLIED_BY if i.rule_set in wording and i.audience not in audiences]
 
 
 @dataclass(frozen=True)
@@ -676,9 +682,10 @@ def check_scope(req: ComplianceCheckRequest, signals: Optional[post_signals.Post
     """Who the content reaches and what it's made of, for picking the rules that apply to it."""
     signals = signals or post_signals.extract(req.text)
     wording = implied_by_wording(req.text, signals)
-    implied = [i.audience for i in IMPLIED_BY if i.rule_set in wording and i.audience != req.audience]
-    # With no audience set every audience-limited rule already runs; adding one would narrow that.
-    audiences = [req.audience, *implied] if req.audience else []
+    implied = [i.audience for i in IMPLIED_BY if i.rule_set in wording and i.audience not in req.audiences]
+    # With no audience set every audience-limited rule already runs; adding one would narrow that. With several, a rule
+    # applies if it's for any of them.
+    audiences = [*req.audiences, *implied] if req.audiences else []
     # The same for rule sets: with none chosen every rule already runs, so nothing is added.
     added = {rs: w for rs, w in wording.items() if req.rule_sets and rs not in req.rule_sets}
     rule_sets = [*req.rule_sets, *added] if req.rule_sets else []
@@ -832,7 +839,7 @@ async def _vector_context_for_check(
             query,
             kinds=[reference_index_service.RULE_KIND],
             brand=req.brand_code,
-            audience=req.audience,
+            audience=req.audiences,
             platforms=req.platforms,
             limit=8,
             min_score=0.68,
@@ -841,7 +848,7 @@ async def _vector_context_for_check(
             query,
             kinds=["FACT", "BRAND_VOICE", "REVIEW_DECISION"],
             brand=req.brand_code,
-            audience=req.audience,
+            audience=req.audiences,
             platforms=req.platforms,
             limit=6,
             min_score=0.68,
@@ -925,7 +932,7 @@ async def _semantic_findings(
         "v": SCOPE_VERSION,
         "text": (req.text or "").strip(),
         "brand": req.brand_code,
-        "audience": req.audience,
+        "audience": req.audiences,
         "rules": sorted(by_number),
         "notes": vector_notes,
     }
@@ -959,7 +966,7 @@ matched. Report a rule only if the content clearly breaches that rule's standard
 
 CONTENT METADATA
 Brand: {req.brand_code or "unspecified"}
-Audience: {req.audience or "unspecified"}
+Audience: {", ".join(req.audiences) or "unspecified"}
 Content Type: {req.content_type or "unspecified"}
 Platforms: {", ".join(req.platforms) or "unspecified"}
 
