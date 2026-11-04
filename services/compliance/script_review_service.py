@@ -83,7 +83,10 @@ async def check_text(row: Dict[str, Any], text: str) -> Dict[str, Any]:
     will say and show, so rules for video apply."""
     body = "\n\n".join(p for p in [(row["title"] or "").strip(), document_layout.plain_text(text).strip()] if p)
     result = await check_compliance(subs.check_request(row, body, has_video=True, has_images=False))
-    return result.model_dump(mode="json")
+    check = result.model_dump(mode="json")
+    # Same flag as the post's own check: a context rule matched but no AI model could read it, so there's no score.
+    check["ai_unavailable"] = any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in result.violations)
+    return check
 
 
 async def _versions(submission_id: UUID) -> List[ScriptVersion]:
@@ -540,6 +543,35 @@ _QUEUE_TABS = {
 }
 
 
+_refreshing: set = set()  # (post id, version) pairs being re-checked, so a busy list doesn't start the same one twice
+
+
+async def _refresh_stale_scripts(rows: List[Dict[str, Any]]) -> None:
+    """Re-check scripts that were checked against an older rulebook, one at a time, and save the result."""
+    for r in rows:
+        key = (r["id"], r["version_number"])
+        try:
+            check = await check_text(r, r["script_body"])
+            await execute(
+                "UPDATE content_script_versions SET check_result = $3::jsonb WHERE submission_id = $1 AND version_number = $2",
+                r["id"], r["version_number"], json.dumps(check),
+            )
+        except Exception as e:
+            logger.warning("Failed to re-check script version in the background: %s", e)
+        finally:
+            _refreshing.discard(key)
+
+
+def _refresh_in_background(rows: List[Dict[str, Any]]) -> None:
+    fresh = [r for r in rows if (r["id"], r["version_number"]) not in _refreshing]
+    if not fresh:
+        return
+    _refreshing.update((r["id"], r["version_number"]) for r in fresh)
+    task = asyncio.create_task(_refresh_stale_scripts(fresh))
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+
+
 async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
     """Scripts for one Content Screener tab, on the brands the viewer works on."""
     if tab not in _QUEUE_TABS:
@@ -569,17 +601,13 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
     )
     current_rb = await rulebook_version() if tab in ("review", "sent_back") else None
     items = []
+    stale: List[Dict[str, Any]] = []
     for r in rows:
         check = subs._json(r["check_result"]) or {}
+        # Never re-check inside the request: after a rule change every script is outdated, and checking them one by one
+        # with the AI made this list take minutes (or never load). Show what's saved, refresh in the background.
         if current_rb and check.get("rulebook_version") != current_rb and r.get("script_body"):
-            try:
-                check = await check_text(r, r["script_body"])
-                await execute(
-                    "UPDATE content_script_versions SET check_result = $3::jsonb WHERE submission_id = $1 AND version_number = $2",
-                    r["id"], r["version_number"], json.dumps(check),
-                )
-            except Exception as e:
-                logger.warning("Failed to re-check script version on the fly: %s", e)
+            stale.append(dict(r))
         items.append(ScriptQueueItem(
             id=r["id"], reference_code=r["reference_code"], title=r["title"], platforms=list(r["platforms"] or []),
             brand_code=r["brand_code"], audience=r["audience"], creator_name=r["creator_name"],
@@ -590,6 +618,7 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
             decided_at=r["reviewed_at"] or (r["updated_at"] if r["script_status"] != "IN_REVIEW" else None),
             can_review=r["script_status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
         ))
+    _refresh_in_background(stale)
     return items
 
 
