@@ -123,7 +123,8 @@ class ScoreWithClaimChecksTests(unittest.IsolatedAsyncioTestCase):
         result = await self.check("A typical battery swap costs $30 while older sensors cost $38,000.")
 
         self.assertEqual((result.violations_count, result.evidence_count), (0, 1))
-        self.assertEqual(result.score, 100)
+        # Not a violation, but a figure with no source costs a few points until a reviewer confirms the evidence.
+        self.assertEqual(result.score, 100 - compliance_service.EVIDENCE_PENALTY)
         # Something still needs a look, so it isn't green, and it can't be approved by accident as "no issues".
         self.assertEqual(result.traffic_light, "YELLOW")
         self.assertFalse(result.is_compliant)

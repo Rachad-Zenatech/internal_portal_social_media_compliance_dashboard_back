@@ -82,6 +82,8 @@ async def dismiss(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagDi
     note = (req.note or "").strip() or None
     if req.reason == "OTHER" and not note:
         raise HTTPException(status_code=422, detail="Say why the flag doesn't apply")
+    if req.reason == "EVIDENCE_ON_FILE" and not note:
+        raise HTTPException(status_code=422, detail="Say where the evidence is (a document, link or who holds it)")
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -96,7 +98,9 @@ async def dismiss(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagDi
                 submission_id, row["current_version"], rule_id, v.get("rule_number"), list(v.get("flagged_terms") or []),
                 v.get("traffic_light") or "YELLOW", req.reason, note, user_id,
             )
-            verdict_id = await _save_verdict(conn, submission_id, row["current_version"], rule_id, v, "OVER_FLAGGED",
+            # "The evidence is on file" means the flag was right to ask, so it's kept as a correct flag, not a false alarm.
+            verdict = "CORRECT" if req.reason == "EVIDENCE_ON_FILE" else "OVER_FLAGGED"
+            verdict_id = await _save_verdict(conn, submission_id, row["current_version"], rule_id, v, verdict,
                                              req.reason, note, user_id)
             from services.compliance import submission_service
 

@@ -244,6 +244,8 @@ class ComplianceCheckResponse(BaseModel):
     score: int = 100  # 0 to 100
     # A critical (red) finding blocks publication; the score is then capped so it can't look like a pass.
     blocked: bool = False
+    # Part of the check needed the AI and it wasn't working (key, quota, outage): the score is a guess, not a result.
+    ai_unavailable: bool = False
     score_cap: Optional[int] = None
     # The score before the cap: 100 minus every finding's penalty.
     raw_score: int = 100

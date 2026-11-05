@@ -2,6 +2,7 @@
 Rule CRUD and rulebook screening of captions, scripts and transcripts.
 """
 
+import contextvars
 import hashlib
 import json
 import logging
@@ -61,7 +62,7 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-7"
+SCOPE_VERSION = "scope-8"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
@@ -76,6 +77,16 @@ def _get_gemini_client() -> Optional[genai.Client]:
     if _gemini_client is None:
         _gemini_client = genai.Client(api_key=api_key)
     return _gemini_client
+
+
+# Set when a step that needs the AI could not run because the AI isn't working (no key, key refused, quota, outage), so
+# the check can say its result is incomplete instead of looking like a clean pass. Read after the check's steps ran.
+_ai_incomplete: contextvars.ContextVar[bool] = contextvars.ContextVar("compliance_ai_incomplete", default=False)
+
+
+def _ai_switched_off() -> bool:
+    """The AI meaning check was turned off on purpose (not a failure)."""
+    return os.getenv("COMPLIANCE_AI_VIABILITY_ENABLED", "true").strip().lower() in {"0", "false", "no", "off"}
 
 
 def _ai_viability_enabled() -> bool:
@@ -742,6 +753,11 @@ CRITICAL_SCORE_CAP = 40
 EXTRA_CLAIM_PENALTY = 5
 EXTRA_CLAIM_CAP = 10
 
+# A claim that needs a source and has none costs a few points, until a reviewer confirms the evidence is on file (by
+# dismissing the flag with that reason). Two rules flagging the same words cost once; the total is capped.
+EVIDENCE_PENALTY = 5
+EVIDENCE_CAP = 10
+
 
 def _quoted(items: Sequence[str]) -> str:
     """'"a", "b"'. A helper rather than inline, since Python before 3.12 allows no backslash inside an f-string's {}."""
@@ -924,10 +940,15 @@ async def _semantic_findings(
     They come back as NEEDS_REVIEW findings (nothing in the wording triggered them, so they never cost points or
     block), each with a quote that has to be in the content. Contextual false-positive handling is done per rule by
     the contextual evaluator, not here."""
-    if not _ai_viability_enabled() or not (req.text or "").strip():
+    if not (req.text or "").strip():
+        return []
+    if not _ai_viability_enabled():
+        if not _ai_switched_off():
+            _ai_incomplete.set(True)  # on, but there's no key
         return []
     client = _get_gemini_client()
     if client is None:
+        _ai_incomplete.set(True)
         return []
     semantic_rules, vector_notes = await _vector_context_for_check(req, rules, found_rule_numbers)
     if not semantic_rules:
@@ -995,6 +1016,9 @@ CONTENT TO EVALUATE
         parsed = json.loads(response.text or "{}")
     except Exception as e:
         logger.warning("Semantic rule matching failed (the wording-based findings stand): %s", e)
+        # The model answered badly: not the AI being down. Anything else (key, quota, models, outage) is.
+        if not isinstance(e, json.JSONDecodeError):
+            _ai_incomplete.set(True)
         return []
 
     out: List[ComplianceViolation] = []
@@ -1136,6 +1160,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # Rules the wording missed but the post matches in meaning (vector store): things to check, never violations.
     # Claim checks carry their rule's number but don't stand in for the rule, so they don't take it off the list.
     found = {v.rule_number for v in violations if v.rule_id not in claim_checks.CHECK_IDS}
+    _ai_incomplete.set(False)
     violations.extend(await _semantic_findings(req, rules, found, padded_text))
 
     # A CONTEXT rule's match is only a candidate: a model reads it in its sentence and decides whether it's a violation,
@@ -1148,10 +1173,13 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         req.text,
         brand=req.brand_code,
     )
+    # The check is incomplete when a context rule couldn't be read, or the meaning check couldn't run at all.
+    ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations)
     # Only violations cost points and block; the other findings are warnings that stay on the list.
     breaches = [v for v in violations if v.status == "VIOLATION"]
     _count_overlaps_once(breaches, padded_text)
     _count_extra_claims(breaches, rules, padded_text)
+    unsupported = _charge_unsupported_claims(violations)
     blocked = any(v.traffic_light == "RED" for v in breaches)
     needs_review = sum(1 for v in violations if v.status == "NEEDS_REVIEW")
     needs_evidence = sum(1 for v in violations if v.status == "EVIDENCE_REQUIRED")
@@ -1160,7 +1188,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # GREEN means nothing needs a look. Any open finding makes it at least YELLOW, so the light, the score and
     # "compliant" always agree; a cleared trigger doesn't count.
     overall_traffic_light = "RED" if blocked else "YELLOW" if (breaches or open_warnings) else "GREEN"
-    raw_score = max(0, 100 - sum(v.penalty for v in breaches))
+    raw_score = max(0, 100 - sum(v.penalty for v in breaches) - sum(v.penalty for v in unsupported))
     score = min(raw_score, CRITICAL_SCORE_CAP) if blocked else raw_score
 
     recommendations: List[str] = []
@@ -1177,9 +1205,12 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
             parts.append(f"{needs_review} to check by a person (what the final visuals show, for example)")
         if needs_evidence:
             parts.append(f"{needs_evidence} claim{'s' if needs_evidence != 1 else ''} that need{'' if needs_evidence != 1 else 's'} a source")
+        note = "Confirm them before publishing."
+        if needs_evidence:
+            note = ("Checks by a person don't lower the score; a claim that needs a source costs a few points until a reviewer "
+                    "confirms the evidence is on file. Confirm them before publishing.")
         recommendations.append(
-            ("No rule breaches found, but " if not breaches else "Also: ") + " and ".join(parts)
-            + ". These don't lower the score or stop approval; confirm them before publishing."
+            ("No rule breaches found, but " if not breaches else "Also: ") + " and ".join(parts) + ". " + note
         )
     if not recommendations:
         if not rules:
@@ -1223,6 +1254,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         score=score,
         raw_score=raw_score,
         blocked=blocked,
+        ai_unavailable=ai_unavailable,
         score_cap=CRITICAL_SCORE_CAP if blocked and raw_score > CRITICAL_SCORE_CAP else None,
         violations_count=len(breaches),
         review_count=needs_review,
@@ -1278,6 +1310,37 @@ def _count_overlaps_once(violations: List[ComplianceViolation], padded_text: str
             v.penalty = 0
             continue
         counted.extend((sp, v.rule_number) for sp in mine)
+
+
+def _charge_unsupported_claims(violations: List[ComplianceViolation]) -> List[ComplianceViolation]:
+    """Give each claim that needs a source its small penalty. The same words flagged under two rules are one claim, and
+    the stricter rule carries it (the other shows 0 points but gets its own back if that flag is dismissed). Returns
+    the findings that now cost points."""
+    rank = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+
+    def claim(v: ComplianceViolation) -> str:
+        said = (v.evaluation.matched_text if v.evaluation and v.evaluation.matched_text else "") or v.passage or ", ".join(v.flagged_terms)
+        return re.sub(r"[\W_]+", " ", said.lower()).strip()
+
+    first: Dict[str, ComplianceViolation] = {}
+    charged = 0
+    costing: List[ComplianceViolation] = []
+    needing = [v for v in violations if v.status == "EVIDENCE_REQUIRED"]
+    for v in sorted(needing, key=lambda v: rank.get(str(v.severity).upper(), 4)):
+        key = claim(v)
+        owner = first.get(key) if key else None
+        if owner is not None:
+            v.counted_with = owner.rule_number
+            v.uncounted_penalty = EVIDENCE_PENALTY
+            v.penalty = 0
+            continue
+        if key:
+            first[key] = v
+        v.penalty = max(0, min(EVIDENCE_PENALTY, EVIDENCE_CAP - charged))
+        charged += v.penalty
+        if v.penalty:
+            costing.append(v)
+    return costing
 
 
 def _count_extra_claims(violations: List[ComplianceViolation], rules: Sequence[ComplianceRule], padded_text: str) -> None:

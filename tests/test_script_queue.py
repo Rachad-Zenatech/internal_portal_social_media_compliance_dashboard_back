@@ -86,7 +86,10 @@ class BackgroundRefreshTests(unittest.IsolatedAsyncioTestCase):
 class CheckTextFlagTests(unittest.IsolatedAsyncioTestCase):
     async def check(self, source):
         evaluation = SimpleNamespace(source=source) if source else None
-        result = SimpleNamespace(violations=[SimpleNamespace(evaluation=evaluation)], model_dump=lambda mode="json": {"score": 100})
+        result = SimpleNamespace(
+            violations=[SimpleNamespace(evaluation=evaluation)], ai_unavailable=source == "UNAVAILABLE",
+            model_dump=lambda mode="json": {"score": 100},
+        )
         with patch.object(srs, "check_compliance", new=AsyncMock(return_value=result)), \
              patch.object(srs.subs, "check_request", return_value=None):
             return await srs.check_text({"title": "T"}, "Hello.")
