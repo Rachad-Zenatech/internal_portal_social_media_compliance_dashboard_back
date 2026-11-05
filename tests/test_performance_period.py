@@ -1,5 +1,9 @@
+import os
 import unittest
 from datetime import date, datetime, timedelta, timezone
+
+# The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
+os.environ.setdefault("JWT_SECRET", "test-only-secret-for-unit-tests-0123456789")
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
