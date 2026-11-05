@@ -52,6 +52,7 @@ from tools.compliance.submission_router import router as submission_router
 from tools.compliance.script_review_router import router as script_review_router
 from tools.compliance.canva_router import router as canva_router
 from tools.ai.vector_store_router import router as vector_store_router
+from tools.ai.ai_status_router import router as ai_status_router
 from tools.compliance.sentiment_router import router as sentiment_router
 
 # MCP tools & AI functions
@@ -426,6 +427,7 @@ app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"])
 app.include_router(compliance_router, prefix="/api", tags=["Compliance Rules & Governance"])
 app.include_router(script_review_router, prefix="/api", tags=["Script Review"])
 app.include_router(submission_router, prefix="/api", tags=["Content Submissions"])
+app.include_router(ai_status_router, prefix="/api", tags=["AI Status"], dependencies=authenticated)
 app.include_router(approval_path_router, prefix="/api", tags=["Approval Paths"])
 app.include_router(context_router, prefix="/api", tags=["Messaging Context"])
 app.include_router(listening_router, prefix="/api", tags=["Listening Topics"])

@@ -539,7 +539,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             account=_account_option(r, prefix="acc_"),
             accounts=_accounts(r),
             cover=_file_out(r["id"], cover) if cover["id"] else None,
-            can_delete=r["status"] == "DRAFT" and (r["created_by"] == user_id or is_manager),
+            can_delete=_can_delete(r, r["created_by"] == user_id or is_manager),
             can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
             **_approval_fields(rules, r, user_id, is_reviewer, is_super, _accounts(r)),
             can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
@@ -557,7 +557,7 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
     is_creator = row["created_by"] == user_id
     # Managers can read and delete someone else's draft but not edit it.
     sub.can_edit = sub.can_edit and (is_creator or await _is_super_admin(user_id))
-    sub.can_delete = row["status"] == "DRAFT" and (is_creator or await _can_manage_team_content(user_id))
+    sub.can_delete = _can_delete(row, is_creator or await _can_manage_team_content(user_id))
     approver_ids, sub.approver_names = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
     if row["status"] in ("IN_REVIEW", "APPROVED"):
         is_super = await _is_super_admin(user_id)
@@ -661,7 +661,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["reviewer_route"] = list(dict.fromkeys(payload["reviewer_route"]))
     if payload.get("reviewer_ids") is not None:
         picked = list(dict.fromkeys(payload["reviewer_ids"]))
-        allowed = set(await _reviewer_ids(exclude=row["created_by"], brand_codes=fields.get("brand_codes", brands_of(row))))
+        allowed = set(await _reviewer_ids(exclude=await _creator_exclusion(row["created_by"]),
+                                          brand_codes=fields.get("brand_codes", brands_of(row))))
         if any(r not in allowed for r in picked):
             raise HTTPException(status_code=422, detail="Some of those people can't review content on this brand")
         fields["reviewer_ids"] = picked
@@ -703,6 +704,23 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
     return await get_submission(submission_id, user_id)
 
 
+def _script_with_reviewer(row: Dict[str, Any]) -> bool:
+    """A video post's script is with a reviewer, or being sent to them: the post is still a draft, but it has been sent
+    for review, so it can't be deleted from under them."""
+    if row.get("script_status") == "IN_REVIEW" or row.get("script_send_status") == "PROCESSING":
+        return True
+    if row.get("script_send"):
+        from services.compliance import script_review_service
+
+        return script_review_service._send_state(row)["status"] == "PROCESSING"
+    return False
+
+
+def _can_delete(row: Dict[str, Any], allowed: bool) -> bool:
+    """Only a draft that hasn't gone to a reviewer: not in review, not approved, and no script out with a reviewer."""
+    return allowed and row["status"] == "DRAFT" and not _script_with_reviewer(row)
+
+
 async def delete_draft(submission_id: UUID, user_id: UUID) -> None:
     """Delete a draft. Allowed for its creator, super admins and Content Managers.
     A draft that was never submitted is removed with its files; one withdrawn after review is hidden instead,
@@ -710,6 +728,8 @@ async def delete_draft(submission_id: UUID, user_id: UUID) -> None:
     row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
     if row["status"] != "DRAFT":
         raise HTTPException(status_code=409, detail="Only drafts can be deleted. Withdraw it from review first.")
+    if _script_with_reviewer(row):
+        raise HTTPException(status_code=409, detail="Its script is with a reviewer, so it can't be deleted until they reply.")
     is_creator = row["created_by"] == user_id
     if not is_creator and not await _can_manage_team_content(user_id):
         raise HTTPException(status_code=403, detail="Only the person who created this draft, a manager or a super admin can delete it")
@@ -1221,7 +1241,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         "segment_flags": flag_segments(segments, result.violations),
         # A context rule matched but no AI model could read it (key out of credits, quota used up, service down):
         # the score would be a guess, so screens show a message instead of it (re-run the check once the AI is back).
-        "ai_unavailable": any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in result.violations),
+        "ai_unavailable": result.ai_unavailable,
         "script_match": match,
     }
     # No score until the whole post has been read; screens show "Under review" until then.
@@ -1355,7 +1375,8 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
     # approvers, who must see it to approve it.
     reviewer_ids = list(row.get("reviewer_ids") or [])
     if reviewer_ids:
-        eligible = set(await _reviewer_ids(exclude=row["created_by"], brand_codes=brands_of(row)))
+        creator_out = await _creator_exclusion(row["created_by"])
+        eligible = set(await _reviewer_ids(exclude=creator_out, brand_codes=brands_of(row)))
         reviewer_ids = [r for r in reviewer_ids if r in eligible]
         if not reviewer_ids:
             raise HTTPException(status_code=422, detail={
@@ -1363,7 +1384,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
                 "missing": ["reviewer_ids"],
             })
         approver_ids, _ = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
-        reviewer_ids +=[a for a in approver_ids if a not in reviewer_ids and a != row["created_by"]]
+        reviewer_ids += [a for a in approver_ids if a not in reviewer_ids and a != creator_out]
     row = {**dict(row), "reviewer_ids": reviewer_ids}
 
     # Automated rulebook screening is the first step of the review job.
@@ -1940,10 +1961,16 @@ async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str
     return [r["id"] for r in rows]
 
 
+async def _creator_exclusion(creator_id: UUID) -> Optional[UUID]:
+    """Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
+    their own posts (see the review checks) and so can pick themselves, e.g. to test the review flow."""
+    return None if await _is_super_admin(creator_id) else creator_id
+
+
 async def reviewer_options(user_id: UUID, brand_codes: Optional[List[str]] = None) -> List[ReviewerOption]:
-    """The people a creator can send content to: reviewers and super admins (on any of the brands, when given), not
-    themselves."""
-    ids = await _reviewer_ids(exclude=user_id, brand_codes=brand_codes)
+    """The people a creator can send content to: reviewers and super admins (on any of the brands, when given). Not
+    themselves, unless they're a super admin."""
+    ids = await _reviewer_ids(exclude=await _creator_exclusion(user_id), brand_codes=brand_codes)
     rows = await fetch_all(
         "SELECT id, full_name, email, is_super_admin FROM users WHERE id = ANY($1::uuid[]) ORDER BY full_name, email",
         ids,

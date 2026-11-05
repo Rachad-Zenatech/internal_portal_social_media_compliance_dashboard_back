@@ -6,13 +6,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-FlagDismissReason = Literal["NEGATED", "DIFFERENT_MEANING", "ACCEPTABLE_IN_CONTEXT", "RULE_TOO_BROAD", "OTHER"]
+FlagDismissReason = Literal["NEGATED", "DIFFERENT_MEANING", "ACCEPTABLE_IN_CONTEXT", "RULE_TOO_BROAD", "EVIDENCE_ON_FILE", "OTHER"]
 
 REASON_LABELS = {
     "NEGATED": "Says the opposite (negated)",
     "DIFFERENT_MEANING": "Word used in a different sense",
     "ACCEPTABLE_IN_CONTEXT": "Acceptable in this context",
     "RULE_TOO_BROAD": "The rule's phrase is too broad",
+    "EVIDENCE_ON_FILE": "The evidence for this claim is on file",
     "OTHER": "Other",
 }
 

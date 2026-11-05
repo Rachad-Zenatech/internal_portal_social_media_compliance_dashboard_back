@@ -85,7 +85,7 @@ async def check_text(row: Dict[str, Any], text: str) -> Dict[str, Any]:
     result = await check_compliance(subs.check_request(row, body, has_video=True, has_images=False))
     check = result.model_dump(mode="json")
     # Same flag as the post's own check: a context rule matched but no AI model could read it, so there's no score.
-    check["ai_unavailable"] = any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in result.violations)
+    check["ai_unavailable"] = result.ai_unavailable
     return check
 
 
