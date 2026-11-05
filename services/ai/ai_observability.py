@@ -247,6 +247,22 @@ def log_prompt(
     ))
 
 
+def classify_error(e: BaseException) -> str:
+    """What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
+    revoked key), QUOTA (rate or daily limit), MODEL (retired or unknown model), BUSY (overloaded or timing out)."""
+    code = getattr(e, "code", None)
+    msg = str(e).lower()
+    if code in (401, 403) or any(k in msg for k in ("api key", "api_key", "permission_denied", "unauthenticated", "key expired")):
+        return "KEY"
+    if code == 429 or any(k in msg for k in ("resource_exhausted", "quota", "too many requests")):
+        return "QUOTA"
+    if code == 404 or any(k in msg for k in ("no longer available", "not found", "is not supported", "invalid model")):
+        return "MODEL"
+    if code in (500, 503, 504) or any(k in msg for k in ("unavailable", "high demand", "deadline", "timeout", "timed out")) or "timeout" in type(e).__name__.lower():
+        return "BUSY"
+    return "OTHER"
+
+
 async def generate(client: Any, *, model: str, contents: Any, config: Any = None, feature: str = "GENERAL",
                    submission_id: Optional[UUID] = None, guard: Optional[GuardResult] = None,
                    **attributes: Any) -> Any:
@@ -265,6 +281,7 @@ async def generate(client: Any, *, model: str, contents: Any, config: Any = None
         try:
             response = await asyncio.to_thread(client.models.generate_content, model=model, contents=contents, config=config)
         except Exception as e:
+            s.attributes["error_kind"] = classify_error(e)
             log_prompt(**logged, response=None, status="ERROR", error_type=type(e).__name__,
                        latency_ms=round((time.perf_counter() - started) * 1000, 2))
             raise
