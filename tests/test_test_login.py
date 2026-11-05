@@ -1,5 +1,9 @@
+import os
 import unittest
 from types import SimpleNamespace
+
+# auth_router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
+os.environ.setdefault("JWT_SECRET", "test-only-secret-for-unit-tests-0123456789")
 from unittest.mock import patch
 
 from fastapi import HTTPException
