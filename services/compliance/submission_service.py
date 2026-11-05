@@ -661,7 +661,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["reviewer_route"] = list(dict.fromkeys(payload["reviewer_route"]))
     if payload.get("reviewer_ids") is not None:
         picked = list(dict.fromkeys(payload["reviewer_ids"]))
-        allowed = set(await _reviewer_ids(exclude=row["created_by"], brand_codes=fields.get("brand_codes", brands_of(row))))
+        allowed = set(await _reviewer_ids(exclude=await _creator_exclusion(row["created_by"]),
+                                          brand_codes=fields.get("brand_codes", brands_of(row))))
         if any(r not in allowed for r in picked):
             raise HTTPException(status_code=422, detail="Some of those people can't review content on this brand")
         fields["reviewer_ids"] = picked
@@ -1221,7 +1222,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         "segment_flags": flag_segments(segments, result.violations),
         # A context rule matched but no AI model could read it (key out of credits, quota used up, service down):
         # the score would be a guess, so screens show a message instead of it (re-run the check once the AI is back).
-        "ai_unavailable": any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in result.violations),
+        "ai_unavailable": result.ai_unavailable,
         "script_match": match,
     }
     # No score until the whole post has been read; screens show "Under review" until then.
@@ -1355,7 +1356,8 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
     # approvers, who must see it to approve it.
     reviewer_ids = list(row.get("reviewer_ids") or [])
     if reviewer_ids:
-        eligible = set(await _reviewer_ids(exclude=row["created_by"], brand_codes=brands_of(row)))
+        creator_out = await _creator_exclusion(row["created_by"])
+        eligible = set(await _reviewer_ids(exclude=creator_out, brand_codes=brands_of(row)))
         reviewer_ids = [r for r in reviewer_ids if r in eligible]
         if not reviewer_ids:
             raise HTTPException(status_code=422, detail={
@@ -1363,7 +1365,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
                 "missing": ["reviewer_ids"],
             })
         approver_ids, _ = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
-        reviewer_ids +=[a for a in approver_ids if a not in reviewer_ids and a != row["created_by"]]
+        reviewer_ids += [a for a in approver_ids if a not in reviewer_ids and a != creator_out]
     row = {**dict(row), "reviewer_ids": reviewer_ids}
 
     # Automated rulebook screening is the first step of the review job.
@@ -1940,10 +1942,16 @@ async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str
     return [r["id"] for r in rows]
 
 
+async def _creator_exclusion(creator_id: UUID) -> Optional[UUID]:
+    """Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
+    their own posts (see the review checks) and so can pick themselves, e.g. to test the review flow."""
+    return None if await _is_super_admin(creator_id) else creator_id
+
+
 async def reviewer_options(user_id: UUID, brand_codes: Optional[List[str]] = None) -> List[ReviewerOption]:
-    """The people a creator can send content to: reviewers and super admins (on any of the brands, when given), not
-    themselves."""
-    ids = await _reviewer_ids(exclude=user_id, brand_codes=brand_codes)
+    """The people a creator can send content to: reviewers and super admins (on any of the brands, when given). Not
+    themselves, unless they're a super admin."""
+    ids = await _reviewer_ids(exclude=await _creator_exclusion(user_id), brand_codes=brand_codes)
     rows = await fetch_all(
         "SELECT id, full_name, email, is_super_admin FROM users WHERE id = ANY($1::uuid[]) ORDER BY full_name, email",
         ids,

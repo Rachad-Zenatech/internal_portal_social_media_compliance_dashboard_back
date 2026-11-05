@@ -90,7 +90,7 @@ class WhoIsNotifiedTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PickingReviewersTests(unittest.IsolatedAsyncioTestCase):
-    async def update(self, picked, eligible):
+    async def update(self, picked, eligible, super_admin=False):
         conn = MagicMock()
         conn.execute = AsyncMock()
         transaction = MagicMock(__aenter__=AsyncMock(), __aexit__=AsyncMock(return_value=False))
@@ -100,6 +100,7 @@ class PickingReviewersTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch(f"{SVC}._get_owned_row", new=AsyncMock(return_value=submission_row())),
             patch(f"{SVC}._reviewer_ids", new=AsyncMock(return_value=eligible)) as reviewer_ids,
+            patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=super_admin)),
             patch(f"{SVC}.get_pool", return_value=pool),
             patch(f"{SVC}.get_submission", new=AsyncMock(return_value="updated")),
         ):
@@ -113,6 +114,11 @@ class PickingReviewersTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("reviewer_ids = $2", sql)
         self.assertEqual(params[1], [PICKED])
         reviewer_ids.assert_awaited_once_with(exclude=CREATOR, brand_codes=["ZENADRONE"])
+
+    async def test_a_super_admin_can_pick_themselves(self):
+        _, reviewer_ids = await self.update([CREATOR], [CREATOR, PICKED], super_admin=True)
+        # Nobody is left out for being the creator.
+        reviewer_ids.assert_awaited_once_with(exclude=None, brand_codes=["ZENADRONE"])
 
     async def test_someone_who_cant_review_the_brand_cant_be_picked(self):
         with self.assertRaises(HTTPException) as caught:
@@ -155,12 +161,22 @@ class ReviewerOptionsTests(unittest.IsolatedAsyncioTestCase):
         ]
         with (
             patch(f"{SVC}._reviewer_ids", new=AsyncMock(return_value=[PICKED, OTHER_REVIEWER])) as reviewer_ids,
+            patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=False)),
             patch(f"{SVC}.fetch_all", new=AsyncMock(return_value=rows)),
         ):
             options = await submission_service.reviewer_options(CREATOR, ["ZENADRONE"])
 
         reviewer_ids.assert_awaited_once_with(exclude=CREATOR, brand_codes=["ZENADRONE"])
         self.assertEqual([(o.name, o.is_super_admin) for o in options], [("Abc Reviewer", False), ("boss@zenatech.com", True)])
+
+    async def test_a_super_admin_is_offered_to_themselves_too(self):
+        with (
+            patch(f"{SVC}._reviewer_ids", new=AsyncMock(return_value=[CREATOR])) as reviewer_ids,
+            patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=True)),
+            patch(f"{SVC}.fetch_all", new=AsyncMock(return_value=[])),
+        ):
+            await submission_service.reviewer_options(CREATOR, None)
+        reviewer_ids.assert_awaited_once_with(exclude=None, brand_codes=None)
 
 
 if __name__ == "__main__":
