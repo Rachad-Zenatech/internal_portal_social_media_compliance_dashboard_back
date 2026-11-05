@@ -494,31 +494,117 @@ async def _retire_product_brands(conn):
         await conn.execute("UPDATE approval_paths SET brand_code = 'SOFTWARE' WHERE brand_code = ANY($1::text[])", retired)
 
 
+# Zenatech's real social accounts, as listed by the team: provider, account name, handle (when it has one), brand code,
+# company code, and whether it's Shaun's own. Nothing here is OAuth-connected yet: they exist so posts can be written
+# for them (sends to Sprout are simulated), and a real connection replaces the placeholder token later.
+_ZT, _ZD, _DAAS, _SW, _CEO = "ZENATECH", "ZENADRONE", "DAAS", "SOFTWARE", "CEO_THOUGHT_LEADERSHIP"
+SOCIAL_ACCOUNTS = [
+    # Facebook pages
+    ("FACEBOOK_PAGE", "Augmum Inc", None, _SW, "ZTG", False),
+    ("FACEBOOK_PAGE", "DeskFlex", None, _SW, "ZTG", False),
+    ("FACEBOOK_PAGE", "DeskFlex Brazil", None, _SW, "ZTG", False),
+    ("FACEBOOK_PAGE", "Drone as a Service", None, _DAAS, "ZDR", False),
+    ("FACEBOOK_PAGE", "ESM Software", None, _SW, "ZTG", False),
+    ("FACEBOOK_PAGE", "FlexFridge", None, _SW, "ZTG", False),
+    ("FACEBOOK_PAGE", "Jadian Inc", None, _SW, "ZTG", False),
+    ("FACEBOOK_PAGE", "Provitrac", None, _SW, "ZTG", False),
+    ("FACEBOOK_PAGE", "PsPortals Inc", None, _SW, "ZTG", False),
+    ("FACEBOOK_PAGE", "Shaun Passley, PhD", None, _CEO, "ZTG", True),
+    ("FACEBOOK_PAGE", "TillerStack", None, _SW, "ZTG", False),
+    ("FACEBOOK_PAGE", "ZenaDrone", None, _ZD, "ZDR", False),
+    ("FACEBOOK_PAGE", "ZenaTech Inc.", None, _ZT, "ZTG", False),
+    # Instagram
+    ("INSTAGRAM", "zenatech", "zenatech", _ZT, "ZTG", False),
+    ("INSTAGRAM", "daasplatform", "daasplatform", _DAAS, "ZDR", False),
+    ("INSTAGRAM", "deskflex_software", "deskflex_software", _SW, "ZTG", False),
+    ("INSTAGRAM", "deskflexbr", "deskflexbr", _SW, "ZTG", False),
+    ("INSTAGRAM", "flex_fridge", "flex_fridge", _SW, "ZTG", False),
+    ("INSTAGRAM", "tillerstack", "tillerstack", _SW, "ZTG", False),
+    ("INSTAGRAM", "zenadrone_inc", "zenadrone_inc", _ZD, "ZDR", False),
+    # LinkedIn company pages
+    ("LINKEDIN_PAGE", "DeskFlex Inc.", None, _SW, "ZTG", False),
+    ("LINKEDIN_PAGE", "Drone as a Service", None, _DAAS, "ZDR", False),
+    ("LINKEDIN_PAGE", "Othership", None, _SW, "ZTG", False),
+    ("LINKEDIN_PAGE", "WorkAware", None, _SW, "ZTG", False),
+    ("LINKEDIN_PAGE", "ZenaDrone Inc.", None, _ZD, "ZDR", False),
+    ("LINKEDIN_PAGE", "ZenaTech Inc.", None, _ZT, "ZTG", False),
+    # LinkedIn personal profile
+    ("LINKEDIN_PROFILE", "Shaun Passley, PhD", None, _CEO, "ZTG", True),
+    # YouTube
+    ("YOUTUBE", "Drone as a Service", None, _DAAS, "ZDR", False),
+    ("YOUTUBE", "Drone as the Future Podcast", None, _DAAS, "ZDR", False),
+    ("YOUTUBE", "ZenaDrone Inc.", None, _ZD, "ZDR", False),
+    ("YOUTUBE", "ZenaTech Inc.", None, _ZT, "ZTG", False),
+    # TikTok
+    ("TIKTOK", "DroneAsAService", "DroneAsAService", _DAAS, "ZDR", False),
+]
+
+
+def _account_key(provider: str, name: str, handle=None) -> str:
+    """The stable id a listed account is matched by (so the list can grow without duplicating earlier ones)."""
+    import re
+
+    slug = re.sub(r"[^a-z0-9]+", "-", (handle or name).lower()).strip("-")
+    return f"listed-{provider.lower()}-{slug}"
+
+
+# The earlier demo accounts, and where each one's posts move to. An account with no counterpart is just removed.
+_DEMO_TO_LISTED = {
+    "demo-facebook_page-dronesasaservice": ("FACEBOOK_PAGE", "Drone as a Service", None),
+    "demo-facebook_page-ZenaDroneOfficial": ("FACEBOOK_PAGE", "ZenaDrone", None),
+    "demo-facebook_page-ZenaTechInc": ("FACEBOOK_PAGE", "ZenaTech Inc.", None),
+    "demo-instagram-@zenadrone": ("INSTAGRAM", "zenadrone_inc", "zenadrone_inc"),
+    "demo-instagram-@zenatechinc": ("INSTAGRAM", "zenatech", "zenatech"),
+    "demo-linkedin_page-drone-as-a-service": ("LINKEDIN_PAGE", "Drone as a Service", None),
+    "demo-linkedin_page-zenadrone": ("LINKEDIN_PAGE", "ZenaDrone Inc.", None),
+    "demo-linkedin_page-zenatech": ("LINKEDIN_PAGE", "ZenaTech Inc.", None),
+    "demo-linkedin_profile-shaun-ceo": ("LINKEDIN_PROFILE", "Shaun Passley, PhD", None),
+    "demo-youtube-@ZenaDrone": ("YOUTUBE", "ZenaDrone Inc.", None),
+    "demo-youtube-@ZenaTech": ("YOUTUBE", "ZenaTech Inc.", None),
+}
+
+
+async def _retire_demo_social_accounts(conn):
+    """Remove the earlier demo accounts. Posts that used one move to the matching listed account first, so none loses
+    its account. Safe to run on every start: once they're gone it finds nothing."""
+    old = await conn.fetch(
+        "SELECT id, provider_account_id FROM oauth_connections WHERE provider_account_id LIKE 'demo-%' "
+        "AND (connection_metadata->>'demo_seed')::boolean"
+    )
+    if not old:
+        return
+    listed = {r["provider_account_id"]: r["id"] for r in await conn.fetch(
+        "SELECT id, provider_account_id FROM oauth_connections WHERE provider_account_id LIKE 'listed-%'"
+    )}
+    new_for = {}
+    for o in old:
+        target = _DEMO_TO_LISTED.get(o["provider_account_id"])
+        if target and _account_key(*target) in listed:
+            new_for[o["id"]] = listed[_account_key(*target)]
+    old_ids = [o["id"] for o in old]
+    posts = await conn.fetch(
+        "SELECT id, account_id, account_ids FROM content_submissions WHERE account_id = ANY($1::uuid[]) OR account_ids && $1::uuid[]",
+        old_ids,
+    )
+    for p in posts:
+        ids = [new_for.get(i, i) for i in (p["account_ids"] or ([p["account_id"]] if p["account_id"] else []))]
+        ids = [i for i in dict.fromkeys(ids) if i not in old_ids]
+        await conn.execute(
+            "UPDATE content_submissions SET account_ids = $2::uuid[], account_id = $3 WHERE id = $1",
+            p["id"], ids, ids[0] if ids else None,
+        )
+    await conn.execute("DELETE FROM oauth_connections WHERE id = ANY($1::uuid[])", old_ids)
+    logger.info("Replaced %d demo social accounts with the listed ones (%d posts moved).", len(old_ids), len(posts))
+
+
 async def _seed_demo_social_accounts(conn):
-    """Insert the demo organic social accounts that aren't there yet, flagged demo_seed in their metadata. Each is
-    matched by its provider account id, so accounts added to this list later reach databases seeded earlier."""
+    """Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
+    to SOCIAL_ACCOUNTS later reach databases seeded earlier. Then retire the earlier demo accounts."""
     org_id = await conn.fetchval("SELECT id FROM organizations ORDER BY created_at ASC LIMIT 1")
     if not org_id:
         return
 
-    accounts = [
-        # provider, account name, handle, brand code, company code, is_ceo
-        ("LINKEDIN_PAGE", "ZenaTech", "zenatech", "ZENATECH", "ZTG", False),
-        ("X_TWITTER", "ZenaTech", "@ZenaTechInc", "ZENATECH", "ZTG", False),
-        ("YOUTUBE", "ZenaTech", "@ZenaTech", "ZENATECH", "ZTG", False),
-        ("TIKTOK", "ZenaTech", "@zenatech", "ZENATECH", "ZTG", False),
-        ("FACEBOOK_PAGE", "ZenaTech", "ZenaTechInc", "ZENATECH", "ZTG", False),
-        ("INSTAGRAM", "ZenaTech", "@zenatechinc", "ZENATECH", "ZTG", False),
-        ("LINKEDIN_PAGE", "ZenaDrone", "zenadrone", "ZENADRONE", "ZDR", False),
-        ("YOUTUBE", "ZenaDrone", "@ZenaDrone", "ZENADRONE", "ZDR", False),
-        ("INSTAGRAM", "ZenaDrone", "@zenadrone", "ZENADRONE", "ZDR", False),
-        ("FACEBOOK_PAGE", "ZenaDrone", "ZenaDroneOfficial", "ZENADRONE", "ZDR", False),
-        ("FACEBOOK_PAGE", "Drone as a Service", "dronesasaservice", "DAAS", "ZDR", False),
-        ("LINKEDIN_PAGE", "Drone as a Service", "drone-as-a-service", "DAAS", "ZDR", False),
-        ("LINKEDIN_PAGE", "ZenaTech Software", "zenatech-software", "SOFTWARE", "ZTG", False),
-        ("LINKEDIN_PROFILE", "Shaun – CEO", "shaun-ceo", "CEO_THOUGHT_LEADERSHIP", "ZTG", True),
-        ("X_TWITTER", "Shaun – CEO", "@ShaunCEO", "CEO_THOUGHT_LEADERSHIP", "ZTG", True),
-    ]
+    keys = [_account_key(a[0], a[1], a[2]) for a in SOCIAL_ACCOUNTS]
     result = await conn.execute(
         """
         INSERT INTO oauth_connections (
@@ -529,29 +615,29 @@ async def _seed_demo_social_accounts(conn):
             $1,
             (SELECT id FROM companies WHERE organization_id = $1 AND code = a.company_code LIMIT 1),
             a.provider,
-            'demo-' || lower(a.provider) || '-' || a.handle,
+            a.key,
             a.account_name,
-            'demo-token-not-a-real-credential',
+            'not-connected-placeholder-token',
             'CONNECTED',
             NOW() + INTERVAL '365 days',
-            jsonb_build_object('demo_seed', true, 'handle', a.handle, 'brand_code', a.brand_code, 'is_ceo', a.is_ceo)
-        FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::bool[])
-            AS a(provider, account_name, handle, brand_code, company_code, is_ceo)
-        WHERE NOT EXISTS (
-            SELECT 1 FROM oauth_connections c WHERE c.provider_account_id = 'demo-' || lower(a.provider) || '-' || a.handle
-        )
+            jsonb_strip_nulls(jsonb_build_object('listed', true, 'handle', a.handle, 'brand_code', a.brand_code, 'is_ceo', a.is_ceo))
+        FROM unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::bool[], $8::text[])
+            AS a(provider, account_name, handle, brand_code, company_code, is_ceo, key)
+        WHERE NOT EXISTS (SELECT 1 FROM oauth_connections c WHERE c.provider_account_id = a.key)
         """,
         org_id,
-        [a[0] for a in accounts],
-        [a[1] for a in accounts],
-        [a[2] for a in accounts],
-        [a[3] for a in accounts],
-        [a[4] for a in accounts],
-        [a[5] for a in accounts],
+        [a[0] for a in SOCIAL_ACCOUNTS],
+        [a[1] for a in SOCIAL_ACCOUNTS],
+        [a[2] for a in SOCIAL_ACCOUNTS],
+        [a[3] for a in SOCIAL_ACCOUNTS],
+        [a[4] for a in SOCIAL_ACCOUNTS],
+        [a[5] for a in SOCIAL_ACCOUNTS],
+        keys,
     )
     added = int(result.split()[-1])
     if added:
-        logger.info("Seeded %d demo social accounts for development.", added)
+        logger.info("Added %d listed social accounts.", added)
+    await _retire_demo_social_accounts(conn)
 
 
 async def _main():
