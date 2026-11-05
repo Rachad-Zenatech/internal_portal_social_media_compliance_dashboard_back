@@ -67,18 +67,14 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
 - services/compliance/image_text_service.py (203 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/listening_providers.py (412 lines) - Social listening providers: where "public mood" data comes from.
-- services/compliance/performance_service.py (308 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
+- services/compliance/performance_service.py (322 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
 - services/compliance/post_metrics_providers.py (303 lines) - Where published posts' numbers come from, and what each platform's API can actually give us.
 - services/compliance/post_signals.py (204 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - services/compliance/public_mood_service.py (946 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - services/compliance/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - services/compliance/review_deadline_service.py (235 lines) - Review and revision deadlines.
-- services/compliance/review_deadline_service.py (235 lines) - Review and revision deadlines.
-- services/compliance/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - services/compliance/review_memory_service.py (190 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/script_match.py (92 lines) - Script vs video.
-- services/compliance/script_review_service.py (690 lines) - Script stage of a video post.
-- services/compliance/script_review_service.py (690 lines) - Script stage of a video post.
 - services/compliance/script_review_service.py (690 lines) - Script stage of a video post.
 - services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 - services/compliance/sentiment/config.py (348 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
@@ -89,8 +85,6 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/sentiment/jobs.py (467 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - services/compliance/sentiment/media.py (66 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
-- services/compliance/submission_service.py (2613 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
-- services/compliance/submission_service.py (2613 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submission_service.py (2613 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/transcription_service.py (257 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
 - services/compliance/video_job_service.py (182 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
@@ -141,13 +135,13 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tools/compliance/compliance_router.py (172 lines) - Compliance Rules & Governance Router Endpoints for managing ("build on it and remove") and checking compliance rules.
 - tools/compliance/context_router.py (38 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
 - tools/compliance/listening_router.py (91 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
-- tools/compliance/performance_router.py (32 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
+- tools/compliance/performance_router.py (45 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - tools/compliance/script_review_router.py (88 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - tools/compliance/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
 - tools/compliance/submission_router.py (412 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/notifications/notification_router.py (87 lines) - notification router (notifications)
-- tools/shared/auth_router.py (409 lines) - auth router (shared)
+- tools/shared/auth_router.py (412 lines) - auth router (shared)
 - tools/shared/log_router.py (74 lines) - log router (shared)
 - tools/shared/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
 - tools/shared/observability.py (117 lines) - observability (shared)

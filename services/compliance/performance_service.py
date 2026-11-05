@@ -18,7 +18,7 @@ import json
 import os
 import statistics
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -30,7 +30,7 @@ from models.compliance.performance_model import (
     PlatformApi,
 )
 from postgresql_db.database import fetch_all, get_pool
-from services.compliance import submission_service
+from services.compliance import review_deadline_service, submission_service
 from services.compliance.post_metrics_providers import PLATFORM_APIS, MetricsUnavailable, api_for, get_provider
 
 
@@ -62,9 +62,21 @@ MIN_REACTIONS = 30
 ENGAGEMENT_METRICS = ("likes", "comments", "shares", "saves", "quotes")
 
 
-async def _live_posts(user_id: UUID, team: bool, days: int) -> List[Dict[str, Any]]:
-    """Approved posts whose publish time has passed, one row per platform: everyone's for reviewers and managers,
-    otherwise the viewer's own."""
+def period(days: int = 30, start: Optional[date] = None, end: Optional[date] = None) -> Tuple[datetime, datetime]:
+    """The publish times shown: the last `days` days up to now, or whole days from start to end (both included),
+    counted in the team's time zone so a day means the same as on the calendar."""
+    if start and end:
+        tz = review_deadline_service.WORK_TZ
+        since = datetime.combine(start, time.min, tzinfo=tz).astimezone(timezone.utc)
+        until = datetime.combine(end + timedelta(days=1), time.min, tzinfo=tz).astimezone(timezone.utc)
+        return since, until
+    now = datetime.now(timezone.utc)
+    return now - timedelta(days=days), now
+
+
+async def _live_posts(user_id: UUID, team: bool, since: datetime, until: datetime) -> List[Dict[str, Any]]:
+    """Approved posts published in [since, until) whose publish time has passed, one row per platform: everyone's for
+    reviewers and managers, otherwise the viewer's own."""
     rows = await fetch_all(
         """
         SELECT s.id, s.reference_code, s.title, s.brand_code, s.platforms, s.publish_at,
@@ -77,10 +89,10 @@ async def _live_posts(user_id: UUID, team: bool, days: int) -> List[Dict[str, An
         LEFT JOIN brands b ON b.code = s.brand_code
         LEFT JOIN users u ON u.id = s.created_by
         WHERE s.status = 'APPROVED' AND s.deleted_at IS NULL
-          AND s.publish_at IS NOT NULL AND s.publish_at <= NOW() AND s.publish_at > NOW() - $1::interval
+          AND s.publish_at IS NOT NULL AND s.publish_at <= NOW() AND s.publish_at >= $1 AND s.publish_at < $4
           AND ($2::boolean OR s.created_by = $3)
         """,
-        timedelta(days=days), team, user_id,
+        since, team, user_id, until,
     )
     return [
         {
@@ -241,19 +253,21 @@ def _to_post(p: Dict[str, Any], snaps: List[Dict[str, Any]]) -> PerformancePost:
     return post
 
 
-async def report(user_id: UUID, *, days: int = 30, platform: Optional[str] = None, brand: Optional[str] = None,
+async def report(user_id: UUID, *, days: int = 30, start: Optional[date] = None, end: Optional[date] = None,
+                 platform: Optional[str] = None, brand: Optional[str] = None,
                  mine: Optional[bool] = None) -> PerformanceReport:
-    """Every live post (one per platform) with its numbers and health, plus totals. Anyone can look at the whole
-    team's posts (it's read-only); reviewers and managers start there, creators start with their own."""
+    """Every live post (one per platform) with its numbers and health, plus totals, for the last `days` days or
+    from start to end. Anyone can look at the whole team's posts (it's read-only); reviewers and managers start
+    there, creators start with their own."""
     provider = get_provider()
     team = not mine if mine is not None else await submission_service._can_see_team_content(user_id)
-    posts = await _live_posts(user_id, team, days)
+    since, until = period(days, start, end)
+    posts = await _live_posts(user_id, team, since, until)
     if provider.is_mock:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         posts += [
             {**s, "submission_id": None, "reference_code": None, "brand_name": None, "creator_name": None,
              "platform": pl, "is_sample": True}
-            for s in await provider.sample_posts() if s["published_at"] > cutoff for pl in s["platforms"]
+            for s in await provider.sample_posts() if since <= s["published_at"] < until for pl in s["platforms"]
         ]
     if platform:
         posts = [p for p in posts if p["platform"] == platform]

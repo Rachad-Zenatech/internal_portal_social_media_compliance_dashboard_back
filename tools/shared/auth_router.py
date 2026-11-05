@@ -250,9 +250,12 @@ async def test_login(data: TestLoginRequest, request: Request):
         async with conn.transaction():
             user = await conn.fetchrow(
                 """
-                INSERT INTO users (email, full_name, is_active, is_super_admin, auth_provider, sso_enabled, created_at)
-                VALUES ($1, $2, true, false, 'microsoft', true, now())
-                ON CONFLICT (email) DO UPDATE SET is_active = true, deleted_at = NULL, deleted_by = NULL
+                INSERT INTO users (email, full_name, is_active, is_super_admin, auth_provider, sso_enabled, created_at,
+                                   last_login_at, last_activity_at)
+                VALUES ($1, $2, true, false, 'microsoft', true, now(), now(), now())
+                -- Signing in counts as activity, as with Microsoft, or the idle timeout rejects the new token.
+                ON CONFLICT (email) DO UPDATE SET is_active = true, deleted_at = NULL, deleted_by = NULL,
+                                                  last_login_at = now(), last_activity_at = now()
                 RETURNING id, is_super_admin
                 """,
                 email, name,
