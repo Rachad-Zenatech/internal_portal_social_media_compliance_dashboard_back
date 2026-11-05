@@ -161,6 +161,39 @@ class ScoreWithClaimChecksTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.violations[0].flagged_terms, ["our drones already guard every border"])
         self.assertIn("by meaning", result.violations[0].explanation)
 
+    async def test_a_claim_the_meaning_check_says_only_needs_a_source_costs_the_evidence_penalty(self):
+        now = datetime.now(timezone.utc)
+        rules = [
+            ComplianceRule(
+                id=uuid4(), rule_number=number, category="Claims", title=title, summary="s", created_at=now,
+                updated_at=now, severity=severity, traffic_light="YELLOW",
+            )
+            for number, title, severity in (("Rule 18", "Substantiate Every Claim", "MEDIUM"), ("Rule 24", "No Unprovable Claims", "HIGH"))
+        ]
+        # The same words flagged under both rules, both because the figure has no source.
+        flags = ",".join(
+            '{"rule_number": "%s", "quote": "up to 3,000 hours", "explanation": "A figure with no source.", '
+            '"confidence": 0.9, "needs_source": true}' % r.rule_number
+            for r in rules
+        )
+        answer = type("Resp", (), {"text": '{"semantic_violations": [' + flags + "]}"})()
+        await compliance_service._ai_check_cache.clear()
+        with (
+            patch.object(compliance_service, "applicable_rules", new=AsyncMock(return_value=rules)),
+            patch.object(compliance_service, "rulebook_version", new=AsyncMock(return_value=None)),
+            patch.object(compliance_service, "_vector_context_for_check", new=AsyncMock(return_value=(rules, []))),
+            patch.object(compliance_service, "generate_content_with_fallback", new=AsyncMock(return_value=answer)),
+            patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}),
+        ):
+            result = await compliance_service.check_compliance(
+                ComplianceCheckRequest(text="Reclaim up to 3,000 hours of manual work.")
+            )
+
+        self.assertEqual(sorted(v.status for v in result.violations), ["EVIDENCE_REQUIRED", "EVIDENCE_REQUIRED"])
+        # Two rules, one claim: it costs once.
+        self.assertEqual(result.score, 100 - compliance_service.EVIDENCE_PENALTY)
+        self.assertEqual(sum(v.penalty for v in result.violations), compliance_service.EVIDENCE_PENALTY)
+
 
 if __name__ == "__main__":
     unittest.main()
