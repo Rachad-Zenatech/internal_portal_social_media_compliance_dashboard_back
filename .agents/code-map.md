@@ -252,11 +252,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (568 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (654 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
-- `_seed_demo_social_accounts` (def) - Insert the demo organic social accounts that aren't there yet, flagged demo_seed in their metadata.
+- `_account_key` (def) - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
+- `_retire_demo_social_accounts` (def) - Remove the earlier demo accounts.
+- `_seed_demo_social_accounts` (def) - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
 - `_main` (def)
 
 ## scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
@@ -849,7 +851,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 - `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/script_review_service.py (690 lines) - Script stage of a video post.
+## services/compliance/script_review_service.py (701 lines) - Script stage of a video post.
 - `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
@@ -863,7 +865,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_adopt_check` (def) - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
 - `_add_version` (def)
 - `_lock_status` (def) - Lock the post and make sure the script is still where the caller saw it (two people can act at once).
-- `_send_to_reviewers` (def)
+- `_send_to_reviewers` (def) - Tell the reviewers it was sent to; returns who was told.
 - `_missing_details` (def) - The required submission details still empty, by their names on the form.
 - `submit` (def) - Accept the uploaded script for review and answer at once.
 - `_fail_send` (def) - The background send couldn't finish: record which step failed and why, and tell the creator.
@@ -1498,6 +1500,22 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ImageTextModelChainTests` (class)
     - `test_the_next_light_model_is_tried_when_one_is_out_of_quota` (def)
 
+## tests/test_performance_period.py (85 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
+- `PeriodTests` (class)
+    - `test_last_n_days_ends_now` (def)
+    - `test_a_custom_range_covers_whole_days_in_the_team_time_zone` (def)
+    - `test_a_one_day_range_is_that_whole_day` (def)
+- `RangeRequestTests` (class)
+    - `call` (def)
+    - `test_a_custom_range_is_passed_on` (def)
+    - `test_last_n_days_still_works` (def)
+    - `assert_refused` (def)
+    - `test_both_dates_are_needed` (def)
+    - `test_start_cant_be_after_end` (def)
+    - `test_a_range_is_at_most_a_year` (def)
+- `LivePostsWindowTests` (class)
+    - `test_the_query_uses_the_window` (def)
+
 ## tests/test_post_signals.py (93 lines) - test post signals
 - `ExtractTests` (class)
     - `test_cashtags_hashtags_mentions_and_links_are_read` (def)
@@ -1643,7 +1661,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_script_the_ai_could_not_read_is_flagged` (def)
     - `test_a_script_the_ai_read_is_not` (def)
 
-## tests/test_script_send.py (125 lines) - test script send
+## tests/test_script_send.py (160 lines) - test script send
 - `processing` (def)
 - `SendStateTests` (class)
     - `test_nothing_in_progress` (def)
@@ -1664,6 +1682,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_an_unreadable_script_says_it_couldnt_be_read` (def)
     - `test_a_scoring_error_says_the_score_couldnt_be_calculated` (def)
     - `test_a_missing_file_fails_instead_of_hanging` (def)
+- `ScriptSentNoticeTests` (class)
+    - `send` (def)
+    - `test_the_reviewers_and_the_creator_are_both_told` (def)
+    - `test_the_confirmation_counts_several_reviewers` (def)
 
 ## tests/test_security_fixes.py (132 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - `CaptionSanitizerTests` (class)
@@ -1754,7 +1776,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_flags_can_only_be_dismissed_while_in_review` (def)
     - `test_a_reason_of_other_needs_a_note` (def)
 
-## tests/test_test_login.py (52 lines) - test test login
+## tests/test_test_login.py (56 lines) - auth_router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
 - `request` (def)
 - `TestLoginGuardTests` (class)
     - `allowed` (def)

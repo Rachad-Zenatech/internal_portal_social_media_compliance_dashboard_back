@@ -36,7 +36,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - postgresql_db/schemas/setup_pbac_schema.py (450 lines) - setup pbac schema (schemas)
 - postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
 - postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
-- postgresql_db/schemas/setup_submissions_schema.py (568 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+- postgresql_db/schemas/setup_submissions_schema.py (654 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - scripts/scrape_x_playwright.py (323 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
@@ -75,7 +75,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - services/compliance/review_memory_service.py (190 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/script_match.py (92 lines) - Script vs video.
-- services/compliance/script_review_service.py (690 lines) - Script stage of a video post.
+- services/compliance/script_review_service.py (701 lines) - Script stage of a video post.
 - services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 - services/compliance/sentiment/config.py (348 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
 - services/compliance/sentiment/engine.py (313 lines) - Gemini execution and model failover chain for sentiment analysis.
@@ -115,6 +115,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_extra_claims.py (46 lines) - test extra claims
 - tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
 - tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
+- tests/test_performance_period.py (85 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
 - tests/test_post_signals.py (93 lines) - test post signals
 - tests/test_resume_reads.py (47 lines) - test resume reads
 - tests/test_review_decision.py (260 lines) - test review decision
@@ -122,12 +123,12 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_rulebook_check_coverage.py (164 lines) - test rulebook check coverage
 - tests/test_script_match.py (73 lines) - test script match
 - tests/test_script_queue.py (104 lines) - test script queue
-- tests/test_script_send.py (125 lines) - test script send
+- tests/test_script_send.py (160 lines) - test script send
 - tests/test_security_fixes.py (132 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - tests/test_sentiment_strictness.py (70 lines) - test sentiment strictness
 - tests/test_sentiment_verification.py (147 lines) - test sentiment verification
 - tests/test_submission_access.py (154 lines) - test submission access
-- tests/test_test_login.py (52 lines) - test test login
+- tests/test_test_login.py (56 lines) - auth_router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
 - tests/test_x_sentiment_listening.py (178 lines) - test x sentiment listening
 - tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - tools/compliance/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.

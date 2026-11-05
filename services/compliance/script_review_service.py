@@ -207,7 +207,8 @@ async def _lock_status(conn, submission_id: UUID, allowed: tuple) -> None:
         raise HTTPException(status_code=409, detail="The script's status just changed; refresh to see it")
 
 
-async def _send_to_reviewers(row: Dict[str, Any], version: int, check: Dict[str, Any], user_id: UUID) -> None:
+async def _send_to_reviewers(row: Dict[str, Any], version: int, check: Dict[str, Any], user_id: UUID) -> List[UUID]:
+    """Tell the reviewers it was sent to; returns who was told."""
     reviewers = await subs._review_recipients(row, exclude=user_id)
     issues = check.get("violations_count") or 0
     score = "no score yet (the AI review couldn't run)" if check.get("ai_unavailable") else f"score {check.get('score')}/100"
@@ -219,6 +220,7 @@ async def _send_to_reviewers(row: Dict[str, Any], version: int, check: Dict[str,
         f"/compliance/scanner?script={row['id']}",
         row["id"],
     )
+    return reviewers
 
 
 # What a post needs filled in before its script can be sent (the video and caption come later).
@@ -386,7 +388,16 @@ async def _send_checked(row: Dict[str, Any], body: str, source: str, user_id: UU
             )
     await log_audit_event("content_submission", str(row["id"]), "SUBMIT_SCRIPT", user_id,
                           {"reference_code": row["reference_code"], "script_version": version})
-    await _send_to_reviewers(row, version, check, user_id)
+    reviewers = await _send_to_reviewers(row, version, check, user_id)
+    # The creator's own confirmation, as a post gets "submitted for review" (sent once the send has gone through).
+    who = f"{len(reviewers)} reviewer{'' if len(reviewers) == 1 else 's'}" if reviewers else "the reviewers"
+    await subs._notify(
+        [user_id],
+        f"Script sent for review: {row['reference_code']}",
+        f"\"{row['title']}\" script version {version} is with {who}: {score}.",
+        f"/submissions/{row['id']}",
+        row["id"],
+    )
     return await get_stage(row["id"], user_id)
 
 

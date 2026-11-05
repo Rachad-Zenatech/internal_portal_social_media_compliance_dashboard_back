@@ -1,7 +1,7 @@
 import json
 import unittest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 from services.compliance import script_review_service as srs
@@ -122,3 +122,38 @@ class ProcessSendTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScriptSentNoticeTests(unittest.IsolatedAsyncioTestCase):
+    async def send(self, reviewers):
+        conn = MagicMock(execute=AsyncMock())
+        conn.transaction.return_value = MagicMock(__aenter__=AsyncMock(), __aexit__=AsyncMock(return_value=False))
+        pool = MagicMock()
+        pool.acquire.return_value = MagicMock(__aenter__=AsyncMock(return_value=conn), __aexit__=AsyncMock(return_value=False))
+        row = {"id": SUB, "reference_code": "SUB-1040", "title": "Launch video", "created_by": USER}
+        with (
+            patch.object(srs, "get_pool", return_value=pool),
+            patch.object(srs, "_lock_status", new=AsyncMock()),
+            patch.object(srs, "_add_version", new=AsyncMock(return_value=2)),
+            patch.object(srs.subs, "_add_event", new=AsyncMock()),
+            patch.object(srs, "log_audit_event", new=AsyncMock()),
+            patch.object(srs, "_send_to_reviewers", new=AsyncMock(return_value=reviewers)) as to_reviewers,
+            patch.object(srs.subs, "_notify", new=AsyncMock()) as notify,
+            patch.object(srs, "get_stage", new=AsyncMock(return_value="stage")),
+        ):
+            await srs._send_checked(row, "Script text", "UPLOAD", USER, {"score": 88})
+        return to_reviewers, notify
+
+    async def test_the_reviewers_and_the_creator_are_both_told(self):
+        picked = [uuid4()]
+        to_reviewers, notify = await self.send(picked)
+
+        to_reviewers.assert_awaited_once()
+        recipients, title, message = notify.await_args.args[:3]
+        self.assertEqual(recipients, [USER])
+        self.assertEqual(title, "Script sent for review: SUB-1040")
+        self.assertIn("version 2 is with 1 reviewer: score 88/100", message)
+
+    async def test_the_confirmation_counts_several_reviewers(self):
+        _, notify = await self.send([uuid4(), uuid4()])
+        self.assertIn("is with 2 reviewers", notify.await_args.args[2])
