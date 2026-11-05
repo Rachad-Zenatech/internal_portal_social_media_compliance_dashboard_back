@@ -539,7 +539,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             account=_account_option(r, prefix="acc_"),
             accounts=_accounts(r),
             cover=_file_out(r["id"], cover) if cover["id"] else None,
-            can_delete=r["status"] == "DRAFT" and (r["created_by"] == user_id or is_manager),
+            can_delete=_can_delete(r, r["created_by"] == user_id or is_manager),
             can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
             **_approval_fields(rules, r, user_id, is_reviewer, is_super, _accounts(r)),
             can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
@@ -557,7 +557,7 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
     is_creator = row["created_by"] == user_id
     # Managers can read and delete someone else's draft but not edit it.
     sub.can_edit = sub.can_edit and (is_creator or await _is_super_admin(user_id))
-    sub.can_delete = row["status"] == "DRAFT" and (is_creator or await _can_manage_team_content(user_id))
+    sub.can_delete = _can_delete(row, is_creator or await _can_manage_team_content(user_id))
     approver_ids, sub.approver_names = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
     if row["status"] in ("IN_REVIEW", "APPROVED"):
         is_super = await _is_super_admin(user_id)
@@ -704,6 +704,23 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
     return await get_submission(submission_id, user_id)
 
 
+def _script_with_reviewer(row: Dict[str, Any]) -> bool:
+    """A video post's script is with a reviewer, or being sent to them: the post is still a draft, but it has been sent
+    for review, so it can't be deleted from under them."""
+    if row.get("script_status") == "IN_REVIEW" or row.get("script_send_status") == "PROCESSING":
+        return True
+    if row.get("script_send"):
+        from services.compliance import script_review_service
+
+        return script_review_service._send_state(row)["status"] == "PROCESSING"
+    return False
+
+
+def _can_delete(row: Dict[str, Any], allowed: bool) -> bool:
+    """Only a draft that hasn't gone to a reviewer: not in review, not approved, and no script out with a reviewer."""
+    return allowed and row["status"] == "DRAFT" and not _script_with_reviewer(row)
+
+
 async def delete_draft(submission_id: UUID, user_id: UUID) -> None:
     """Delete a draft. Allowed for its creator, super admins and Content Managers.
     A draft that was never submitted is removed with its files; one withdrawn after review is hidden instead,
@@ -711,6 +728,8 @@ async def delete_draft(submission_id: UUID, user_id: UUID) -> None:
     row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
     if row["status"] != "DRAFT":
         raise HTTPException(status_code=409, detail="Only drafts can be deleted. Withdraw it from review first.")
+    if _script_with_reviewer(row):
+        raise HTTPException(status_code=409, detail="Its script is with a reviewer, so it can't be deleted until they reply.")
     is_creator = row["created_by"] == user_id
     if not is_creator and not await _can_manage_team_content(user_id):
         raise HTTPException(status_code=403, detail="Only the person who created this draft, a manager or a super admin can delete it")
