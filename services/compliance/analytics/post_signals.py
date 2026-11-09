@@ -38,6 +38,8 @@ _URL = re.compile(
     r"(?:/[^\s<>\"'()\[\]]*)?(?![\w-])",
     re.IGNORECASE,
 )
+# The same pattern, for code that needs each link in full (path included), not only its domain (see citation_finder).
+URL_PATTERN = _URL
 # CamelCase words inside a hashtag: "CombatProven" -> "Combat", "Proven"; capital runs stay together
 # ("UAVTech" -> "UAV", "Tech").
 _CAMEL = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")

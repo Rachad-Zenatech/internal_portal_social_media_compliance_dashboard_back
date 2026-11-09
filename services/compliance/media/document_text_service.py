@@ -60,9 +60,10 @@ class UnreadableDocument(Exception):
 
 
 def is_document_file(kind: str, name_or_path: str) -> bool:
-    """Whether this file's text is read: any script, or a main file that's a document (a blog's article)."""
+    """Whether this file's text is read: any script, a main file that's a document (a blog's article), or a document
+    attached as evidence (its text is what the post's claims are checked against: see source_check_service)."""
     ext = Path(name_or_path or "").suffix.lower()
-    return ext in DOC_EXT and kind in ("SCRIPT", "MAIN")
+    return ext in DOC_EXT and kind in ("SCRIPT", "MAIN", "SUPPORTING")
 
 
 # --- Reading each format -----------------------------------------------------------------------------------------

@@ -115,6 +115,12 @@ class RuleSelfTest(BaseModel):
     results: List[RuleExampleResult] = Field(default_factory=list)
 
 
+class ProvidedSource(BaseModel):
+    """A document the author attached as evidence (a supporting file), already read as text, to check claims against."""
+    name: str
+    text: str
+
+
 class ComplianceCheckRequest(BaseModel):
     text: str = Field(..., description="Script, caption, claim, transcript, or video description to evaluate")
     video_title: Optional[str] = None
@@ -133,6 +139,9 @@ class ComplianceCheckRequest(BaseModel):
     # What the content is made of, matched against each rule's applies_to (video, imagery, caption, ceo_post).
     # Empty: worked out from content_type; when that says nothing either, every rule's applies_to matches.
     content_parts: List[str] = Field(default_factory=list)
+    # Documents attached as evidence, read as text: what the post's claims are checked against, together with the links
+    # the post itself cites (see source_check_service).
+    sources: List[ProvidedSource] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _keep_audience_and_audiences_in_step(self):
@@ -232,6 +241,39 @@ class CheckSignals(BaseModel):
     notes: List[str] = Field(default_factory=list)
 
 
+class SourceClaim(BaseModel):
+    """One claim the post makes, and whether the source it cites backs it up."""
+    claim: str
+    # SUPPORTED: the source says it. CONTRADICTED: the source says something different, or less. NOT_FOUND: the source
+    # covers the subject but not this. UNCLEAR: could be read either way, so a person decides.
+    verdict: Literal["SUPPORTED", "CONTRADICTED", "NOT_FOUND", "UNCLEAR"]
+    where: Literal["caption", "image"] = "caption"
+    # What the source says about it, in the model's words or a short quote: not always word for word.
+    evidence: Optional[str] = None
+    # What to change or check, when the verdict isn't SUPPORTED.
+    note: Optional[str] = None
+    confidence: float = 0.0
+
+
+class SourceCheck(BaseModel):
+    """A source the post cites (or that was attached), and what reading it showed."""
+    reference: str
+    kind: Literal["URL", "NAMED", "DOCUMENT"]
+    where: Literal["caption", "image", "attached"] = "caption"
+    cue: Optional[str] = None
+    # READ: opened and checked. UNREADABLE: couldn't be opened or read (see message). NOT_PROVIDED: cited by name only.
+    status: Literal["READ", "UNREADABLE", "NOT_PROVIDED"]
+    title: Optional[str] = None
+    url: Optional[str] = None
+    published: Optional[str] = None
+    # OFFICIAL: government or a regulator's filing. COMPANY: the company's own site. NEWS: a news outlet. OTHER.
+    authority: Optional[Literal["OFFICIAL", "COMPANY", "NEWS", "OTHER"]] = None
+    message: Optional[str] = None
+    claims: List[SourceClaim] = Field(default_factory=list)
+    # The model that read it, or None when none was needed or none was available.
+    model: Optional[str] = None
+
+
 class AddedRuleSet(BaseModel):
     """A rule set checked because of what the post says, not because it was chosen."""
     rule_set: str
@@ -272,3 +314,5 @@ class ComplianceCheckResponse(BaseModel):
     added_rule_sets: List[AddedRuleSet] = Field(default_factory=list)
     # Missing on checks saved before signals were read.
     signals: Optional[CheckSignals] = None
+    # The sources the post cites, opened and compared with its claims. Empty when it cites none.
+    source_checks: List[SourceCheck] = Field(default_factory=list)

@@ -41,6 +41,7 @@ from services.compliance.evaluation import claim_checks
 from services.compliance.evaluation import context_evaluator
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
+from services.compliance.evaluation import source_check_service
 from services.shared.core.audit_service import log_audit_event
 from services.shared.core.cache_service import AsyncInMemoryCache, emit_cache_invalidation, rules_cache
 
@@ -1257,6 +1258,14 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     _ai_incomplete.set(False)
     violations.extend(await _semantic_findings(req, rules, found, padded_text))
 
+    # The sources the post cites (links, "Source:" lines, attached documents) are opened and compared with its claims. A
+    # claim that contradicts its source costs points; one the source doesn't settle is for a person; one it supports
+    # clears that claim's "needs a source" cost, below. A source no model could compare leaves the check incomplete.
+    source_result = await source_check_service.run(req.text, req.sources)
+    if source_result.ai_failed:
+        _ai_incomplete.set(True)
+    violations.extend(source_check_service.findings(source_result.checks))
+
     # A CONTEXT rule's match is only a candidate: a model reads it in its sentence and decides whether it's a violation,
     # something a person has to check, a claim that needs a source, or not a breach at all.
     # Where each finding sits, kept on it so a reviewer's call can be saved as a labelled example.
@@ -1267,6 +1276,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         req.text,
         brand=req.brand_code,
     )
+    source_check_service.clear_supported(violations, source_result.checks)
     # The check is incomplete when a context rule couldn't be read, or the meaning check couldn't run at all.
     ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations)
     # Only violations cost points and block; the other findings are warnings that stay on the list.
@@ -1367,6 +1377,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
             implied_audiences=scope.implied_audiences,
             notes=notes,
         ),
+        source_checks=source_result.checks,
     )
 
 

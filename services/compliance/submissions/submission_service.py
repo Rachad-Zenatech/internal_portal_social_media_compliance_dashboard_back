@@ -11,13 +11,13 @@ import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
 import aiofiles
 from fastapi import HTTPException, UploadFile, status
 
-from models.compliance.compliance_model import ComplianceCheckRequest
+from models.compliance.compliance_model import ComplianceCheckRequest, ProvidedSource
 from models.notifications.notification_model import NotificationCreate
 from models.compliance.submission_model import (
     DashboardActivity,
@@ -1122,10 +1122,13 @@ def _check_text(row: Dict[str, Any]) -> str:
     return "\n\n".join(p for p in [row["title"], row["caption_text"]] if p and p.strip())
 
 
-def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: bool) -> ComplianceCheckRequest:
-    """The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms)."""
+def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: bool,
+                  sources: Sequence[ProvidedSource] = ()) -> ComplianceCheckRequest:
+    """The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
+    documents attached as evidence for the source check."""
     return ComplianceCheckRequest(
         text=text,
+        sources=list(sources),
         video_title=row["title"],
         content_type=f"{row['content_type']}_{(row['platforms'] or ['GENERAL'])[0]}",
         rule_sets=list(row["rule_sets"] or []),
@@ -1221,7 +1224,25 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     text = document_layout.plain_text(
         "\n\n".join(p for p in [_check_text(row), *document_texts, spoken, *image_texts] if p)
     ) or row["title"]
-    result = await check_compliance(check_request(row, text, has_video=bool(video), has_images=bool(images)))
+    # Documents attached as evidence (Supporting documents): what the post's claims are checked against, with the links it
+    # cites. Read in the background like the script, and re-checked when done.
+    evidence = await fetch_all(
+        """
+        SELECT id, original_name, doc_text, doc_text_status FROM content_submission_files
+        WHERE submission_id = $1 AND kind = 'SUPPORTING' AND deleted_at IS NULL
+          AND lower(original_name) ~ '\\.(txt|md|docx|pdf)$'
+        ORDER BY created_at
+        """,
+        row["id"],
+    )
+    await document_text_service.schedule_missing([d["id"] for d in evidence if d["doc_text_status"] in (None, "PROCESSING")])
+    sources = [
+        ProvidedSource(name=d["original_name"], text=d["doc_text"])
+        for d in evidence if d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
+    ]
+    result = await check_compliance(
+        check_request(row, text, has_video=bool(video), has_images=bool(images), sources=sources)
+    )
     # Does the video say what the approved script says? Only once the script is approved and the transcript read.
     match = script_match.compare(script, spoken) if script and segments else None
     script_match.flag_mismatch(result, match)
@@ -2598,7 +2619,7 @@ async def recheck_after_image_text(file_id: UUID) -> None:
 
 async def recheck_after_document_text(file_id: UUID) -> None:
     """When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it."""
-    await _recheck_for_file(file_id, ["SCRIPT", "MAIN"], "the script")
+    await _recheck_for_file(file_id, ["SCRIPT", "MAIN", "SUPPORTING"], "the script")
 
 
 async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:

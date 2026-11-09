@@ -72,7 +72,9 @@ class WhichFilesTests(unittest.TestCase):
     def test_scripts_and_article_files_are_read(self):
         self.assertTrue(dts.is_document_file("SCRIPT", "Thanksgiving script.docx"))
         self.assertTrue(dts.is_document_file("MAIN", "article.PDF"))
-        self.assertFalse(dts.is_document_file("SUPPORTING", "brief.docx"))
+        # A document attached as evidence is read too: the post's claims are checked against it.
+        self.assertTrue(dts.is_document_file("SUPPORTING", "brief.docx"))
+        self.assertFalse(dts.is_document_file("SUPPORTING", "photo.jpg"))
         self.assertFalse(dts.is_document_file("MAIN", "video.mp4"))
 
 
