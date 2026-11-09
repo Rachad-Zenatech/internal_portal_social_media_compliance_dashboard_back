@@ -49,9 +49,12 @@ _client: Optional[genai.Client] = None
 
 PROMPT = """This image is part of a social media post that is screened for compliance, so we need every word it shows.
 Transcribe all readable text in the image exactly as written: headlines, body text, figures and amounts, dates,
-labels, logos' wording, and fine print or disclaimers (fine print matters). Keep the reading order, one line per
-line of text. Do not describe the image, translate, correct or summarise anything. Skip text too small or
-blurred to read. If there is no readable text, return an empty string."""
+labels, logos' wording, and fine print or disclaimers (fine print matters). Also transcribe text that is part of a
+photo rather than the design: licence plates, signs, stickers, clothing, packaging and product labels, screens,
+vehicles, posters, graffiti and tattoos, even when it is small, in the background or at an angle (an offensive word
+on a licence plate or a T-shirt matters as much as the headline). Keep the reading order, one line per line of text,
+with text in the photo after the design's own text. Do not describe the image, translate, correct or summarise
+anything. Skip only text that is too blurred to read. If there is no readable text, return an empty string."""
 
 RESPONSE_SCHEMA = {"type": "OBJECT", "properties": {"text": {"type": "STRING"}}, "required": ["text"]}
 

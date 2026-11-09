@@ -47,7 +47,7 @@ from services.shared.core.cache_service import AsyncInMemoryCache
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v1"
+PROMPT_VERSION = "source-v2"
 VERSION = f"sources-1|{citation_finder.VERSION}|{PROMPT_VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 MODELS = context_evaluator.MODELS
@@ -97,6 +97,10 @@ For each claim return:
 - confidence: 0 to 1.
 
 How to judge:
+- Only claims about the source's subject count. Ignore the post's own labels: the date a post or graphic was made or posted,
+  badges like "Recently announced", "New", "Update" or "Today", handles, logos and tickers. Never compare a date in the post
+  with the date the source was published, unless the post says that is when the source was published. The "Published" line
+  is context for you, not something to check the post against.
 - Judge meaning, not wording. Do not mark a claim CONTRADICTED because it is phrased differently.
 - Overstatement counts. If the post is stronger than the source (more certain, more complete, more current), it is not SUPPORTED.
 - The post may be about the source's subject (for example a government memo) and not about the company: check it the same way.

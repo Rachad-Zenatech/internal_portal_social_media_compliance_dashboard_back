@@ -638,6 +638,107 @@ BASE_RULES = [
         "remediation_guidance": "Name the exact approval (issuer, type, aircraft, operation, date) and attach it to the evidence file, or remove the claim. Have Legal/Compliance confirm the wording.",
         "sort_order": 260,
     },
+    # Words that are never acceptable in any brand's content, wherever they show up: the caption, the script, a video
+    # transcript, or text read from an image (a licence plate, a sign, a T-shirt). Rule 29 is read in context.
+    {
+        "rule_number": "Rule 27",
+        "category": "Offensive & Harmful Content",
+        "title": "No Hate, Extremist or Sexual Content",
+        "summary": "Hate symbols and groups, extremist slogans and sexual content are never acceptable in any post, including text that appears in an image or video.",
+        "severity": "CRITICAL",
+        "traffic_light": "RED",
+        "prohibited_terms": [
+            "nazi", "nazis", "neo nazi", "neo nazis", "swastika", "kkk", "ku klux klan", "white power", "white pride",
+            "white supremacy", "white supremacist", "heil hitler", "sieg heil", "1488", "isis", "jihad", "jihadist",
+            "jihadists", "porn", "porno", "pornography", "xxx", "nsfw", "onlyfans", "nude", "nudes", "nudity",
+            "naked", "escort service", "escorts", "hentai", "sex tape",
+        ],
+        "required_disclaimers": [],
+        "allowed_examples": "A post about drone mapping with a plain background.",
+        "prohibited_examples": "A product photo with a swastika sticker or an NSFW slogan visible on equipment.",
+        "remediation_guidance": "Remove the wording or image (crop, blur or reshoot it). Do not publish until Legal/Compliance has cleared the post.",
+        "sort_order": 270,
+    },
+    {
+        "rule_number": "Rule 28",
+        "category": "Offensive & Harmful Content",
+        "title": "No Crime or Organized Crime References",
+        "summary": "The company must not be associated with crime or organized crime. Words such as 'mafia', 'cartel' or 'gangster' must not appear anywhere in a post, including a licence plate, sign or clothing in an image.",
+        "severity": "HIGH",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [
+            "mafia", "m4fia", "maf1a", "m4f1a", "m a f i a", "mafias", "mafioso", "mafiosi", "mob boss", "mobster",
+            "mobsters", "cartel", "cartels", "gang", "gangs", "gangster", "gangsters", "gangsta", "cosa nostra",
+            "yakuza", "narco", "narcos", "hitman", "hit man", "extortion", "racketeering", "smuggler", "smugglers",
+            "smuggling", "trafficker", "traffickers", "human trafficking", "drug trafficking", "money laundering",
+            "heist", "robbery", "ponzi", "ponzi scheme", "bribe", "bribes", "bribery", "contraband", "stolen goods",
+        ],
+        "required_disclaimers": [],
+        "allowed_examples": "\"FlexFridge keeps supplies cold on the move.\" with a plain or blurred licence plate.",
+        "prohibited_examples": "A vehicle shown with a 'MAFIA' licence plate, or a caption like 'the cold-storage mafia'.",
+        "remediation_guidance": "Remove the wording. For an image, blur or crop the plate, sign or clothing, or use another photo.",
+        "sort_order": 280,
+    },
+    {
+        "rule_number": "Rule 29",
+        "category": "Offensive & Harmful Content",
+        "title": "No Violence, Death, Weapons or Self-Harm",
+        "summary": "Posts must not show or refer to death, killing, violence, terrorism, weapons or self-harm. Ordinary figures of speech ('killer app', 'kill switch') and defense posts that describe threats factually are read in context.",
+        "severity": "HIGH",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [
+            "death", "deaths", "deadly", "kill", "kills", "killed", "killer", "killers", "killing", "k1ll",
+            "murder", "murders", "murdered", "murderer", "homicide", "massacre", "slaughter", "execution",
+            "executions", "assassin", "assassinate", "assassination", "corpse", "corpses", "body bag", "body bags",
+            "bloodbath", "bloodshed", "gore", "torture", "stabbing", "mass shooting", "shooter", "gunfire",
+            "bomb", "bombs", "bomber", "bombing", "terror", "terrorist", "terrorists", "terrorism", "hostage",
+            "hostages", "kidnap", "kidnapping", "riot", "riots", "genocide", "war crime", "war crimes", "gun",
+            "guns", "rifle", "rifles", "pistol", "pistols", "firearm", "firearms", "ak 47", "ar 15", "sniper",
+            "grenade", "grenades", "machete", "suicide", "suicidal", "self harm", "overdose", "noose",
+        ],
+        "required_disclaimers": [],
+        "allowed_examples": "\"Real-time detection helps operators respond to threats sooner.\"",
+        "prohibited_examples": "\"Our drones are deadly.\" or an image with a slogan like 'KILL' or a visible firearm.",
+        "remediation_guidance": "Remove or reword the violent wording, or crop/blur it from the image. Describe what the product does without death, killing or weapons.",
+        "sort_order": 290,
+    },
+    {
+        "rule_number": "Rule 30",
+        "category": "Offensive & Harmful Content",
+        "title": "No Drug, Alcohol Abuse or Gambling References",
+        "summary": "Posts must not refer to illegal drugs, drug use, drunkenness or gambling, including text visible in an image or video.",
+        "severity": "MEDIUM",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [
+            "cocaine", "heroin", "meth", "methamphetamine", "crack cocaine", "fentanyl", "narcotics", "drug dealer",
+            "drug dealers", "drug dealing", "marijuana", "cannabis", "stoned", "420", "lsd", "ecstasy", "mdma",
+            "booze", "drunk", "get wasted", "casino", "casinos", "gambling", "gamble", "jackpot", "slot machine",
+            "slot machines", "poker", "sports betting",
+        ],
+        "required_disclaimers": [],
+        "allowed_examples": "\"Keep temperature-sensitive supplies cold during transport.\"",
+        "prohibited_examples": "A background poster reading 'CASINO' or a caption joking about getting drunk.",
+        "remediation_guidance": "Remove the wording, or crop/blur it from the image.",
+        "sort_order": 300,
+    },
+    {
+        "rule_number": "Rule 31",
+        "category": "Offensive & Harmful Content",
+        "title": "No Profanity",
+        "summary": "Posts must not contain profanity or crude insults, including censored spellings and text visible in an image or video.",
+        "severity": "HIGH",
+        "traffic_light": "YELLOW",
+        "prohibited_terms": [
+            "fuck", "fucking", "fucked", "fucker", "motherfucker", "f ck", "fck", "fk", "wtf", "stfu", "shit",
+            "shitty", "bullshit", "sh t", "bitch", "bitches", "asshole", "assholes", "bastard", "bastards", "dickhead",
+            "piss", "pissed", "crap", "damn", "goddamn", "cunt", "whore", "slut",
+        ],
+        "required_disclaimers": [],
+        "allowed_examples": "\"Built for tough conditions.\"",
+        "prohibited_examples": "\"This sh*t just works.\" or a sticker with profanity visible in a photo.",
+        "remediation_guidance": "Remove the wording, or crop/blur it from the image.",
+        "sort_order": 310,
+    },
 ]
 
 
@@ -666,6 +767,12 @@ BASE_RULE_SETS = {
     "Rule 24": [],
     "Rule 25": [DISCLOSURE, CEO],
     "Rule 26": [],
+    # Offensive and harmful wording is off-limits on every post, whatever its rule sets.
+    "Rule 27": [],
+    "Rule 28": [],
+    "Rule 29": [],
+    "Rule 30": [],
+    "Rule 31": [],
 }
 
 _DOD_CONTEXT = [
@@ -692,6 +799,11 @@ BASE_EXCEPTIONS = {
     "Rule 4": ["army of", "salvation army", "swiss army", "navy blue"],
     "Rule 13": ["army of", "salvation army", "swiss army", "navy blue"],
     "Rule 24": ["not risk free", "no guarantee", "not guaranteed", "never fails to", "not the only"],
+    "Rule 28": ["anti money laundering", "anti smuggling", "anti trafficking", "counter trafficking"],
+    "Rule 29": [
+        "killer app", "killer feature", "killer features", "kill switch", "kill chain", "photo bomb", "bath bomb",
+        "counter terrorism", "counterterrorism", "anti terrorism", "suicide prevention", "death valley", "price war",
+    ],
     "Rule 26": ["not faa approved", "not yet faa approved", "not faa certified", "not fully certified", "not fully approved"],
 }
 
@@ -751,6 +863,15 @@ _BASE_RULES_SELECT = """
 # isn't final), so the AI reads the context first. Hard bans and required disclaimers stay plain rule matches. Applied
 # once per rule, while its guidance is empty, so editing or clearing it in the Rulebook is never undone.
 _CONTEXTUAL_BASELINE = {
+    "Rule 29": (
+        "Decide whether the passage shows or promotes death, killing, violence, terrorism, weapons or self-harm. "
+        "VIOLATION: violent, threatening or graphic wording or imagery (a slogan like 'KILL' or 'DEATH' on a vehicle, "
+        "clothing or sign; a weapon shown or named as part of the post; joking about killing, death or suicide). "
+        "NEEDS_REVIEW: a defense or security post that names threats, weapons or terrorism factually (for example "
+        "'detects threats before they reach the base'), since the wording has to be checked against the defense "
+        "rulebook. NO_VIOLATION: an ordinary figure of speech or a technical term ('killer app', 'kill switch', "
+        "'battery is dead', 'deadline'), or a news or safety context that doesn't glorify harm."
+    ),
     "Rule 4": (
         "Decide whether the post actually uses cleared U.S. Department of Defense visual information, a service's seal, "
         "mark or personnel, or implies endorsement by a defense agency. VIOLATION: it says or shows endorsement, "
