@@ -86,7 +86,8 @@ MAIN_EXT_BY_TYPE = {
     "VIDEO": VIDEO_EXT,
     "IMAGE": IMAGE_EXT,
     "CAROUSEL": IMAGE_EXT,
-    "SOCIAL_POST": IMAGE_EXT | VIDEO_EXT,
+    # Images and text only: a video goes in a Video post, which has the script step and the video review.
+    "SOCIAL_POST": IMAGE_EXT,
     "BLOG": DOC_EXT,
     "AD": IMAGE_EXT | VIDEO_EXT,
 }
@@ -1305,6 +1306,13 @@ async def _missing_for_submit(row: Dict[str, Any]) -> List[str]:
     )
     has_text = bool((row["caption_text"] or "").strip())
     if row["content_type"] in MAIN_FILE_REQUIRED and not has_main:
+        missing.append("main_file")
+    # A social post can't carry a video (one attached before this was a rule has to come off, or the type changes).
+    if row["content_type"] == "SOCIAL_POST" and await fetch_one(
+        "SELECT 1 AS ok FROM content_submission_files WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL "
+        "AND mime_type LIKE 'video/%' LIMIT 1",
+        row["id"],
+    ):
         missing.append("main_file")
     # Every post needs its caption (the copy, for text posts): it's what the score and the sentiment analysis read
     # first, so the check never runs on an image alone.

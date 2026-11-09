@@ -42,7 +42,7 @@ from models.compliance.compliance_model import ComplianceRule, ComplianceViolati
 from models.compliance.flag_review_model import REASON_LABELS
 from services.ai import ai_observability
 from services.ai.ai_guardrails import screen_input
-from services.ai.gemini_service import is_rotatable_model_error
+from services.ai.gemini_service import is_rotatable_model_error, without_retired
 from services.compliance import finding_precedent_service
 from services.shared.cache_service import AsyncInMemoryCache
 
@@ -50,9 +50,9 @@ logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused.
 PROMPT_VERSION = "context-v2"
-MODELS = [m.strip() for m in os.getenv(
-    "CONTEXT_EVAL_MODELS", os.getenv("SENTIMENT_MODELS", "gemini-2.5-flash,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite")
-).split(",") if m.strip()]
+MODELS = without_retired([m.strip() for m in os.getenv(
+    "CONTEXT_EVAL_MODELS", os.getenv("SENTIMENT_MODELS", "gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite")
+).split(",") if m.strip()])
 TIMEOUT_SEC = int(os.getenv("CONTEXT_EVAL_TIMEOUT_SEC", "40"))
 # Pause before the second pass over the models when none could answer the first time.
 RETRY_PAUSE_SEC = float(os.getenv("CONTEXT_EVAL_RETRY_PAUSE_SEC", "3"))
