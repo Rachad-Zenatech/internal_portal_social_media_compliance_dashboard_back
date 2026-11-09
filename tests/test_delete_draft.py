@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timezone
 
-from services.compliance import submission_service as subs
+from services.compliance.submissions import submission_service as subs
 
 
 class WhoCanBeDeletedTests(unittest.TestCase):

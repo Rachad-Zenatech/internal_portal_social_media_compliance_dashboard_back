@@ -22,42 +22,43 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from postgresql_db.database import close_pool, create_pool, fetch_one
-from services.shared.logging_service import (
+from services.shared.core.logging_service import (
     asyncio_exception_handler,
     configure_logging,
     log_background_task_result,
     request_id_ctx,
 )
-from services.shared.cache_service import start_cache_invalidation_listener
-from services.shared.auth_service import (
+from services.shared.core.cache_service import start_cache_invalidation_listener
+from services.shared.auth.auth_service import (
     current_user_id_ctx,
     get_current_user_id_dependency,
 )
 
 # FastAPI routers
-from tools.shared.search import router as search_router
-from tools.shared.rbac_router import router as rbac_router, get_current_user_id
-from tools.compliance.approval_path_router import router as approval_path_router
-from tools.compliance.context_router import router as context_router
-from tools.compliance.listening_router import router as listening_router
-from tools.compliance.performance_router import router as performance_router
-from tools.shared.auth_router import router as auth_router
+from tools.shared.core.search import router as search_router
+from tools.shared.auth.rbac_router import router as rbac_router, get_current_user_id
+from tools.compliance.submissions.approval_path_router import router as approval_path_router
+from tools.compliance.submissions.context_router import router as context_router
+from tools.compliance.analytics.listening_router import router as listening_router
+from tools.compliance.analytics.performance_router import router as performance_router
+from tools.shared.auth.auth_router import router as auth_router
 from tools.notifications.notification_router import notification_router
-from tools.shared.observability import router as observability_router
-from tools.shared.log_router import router as log_router
+from tools.shared.core.observability import router as observability_router
+from tools.shared.core.log_router import router as log_router
 from tools.microsoft_graph.graph_router import router as graph_router
-from tools.shared.oauth_router import router as oauth_router
-from tools.compliance.compliance_router import router as compliance_router
-from tools.compliance.submission_router import router as submission_router
-from tools.compliance.script_review_router import router as script_review_router
-from tools.compliance.canva_router import router as canva_router
+from tools.shared.auth.oauth_router import router as oauth_router
+from tools.compliance.submissions.compliance_router import router as compliance_router
+from tools.compliance.submissions.submission_router import router as submission_router
+from tools.compliance.submissions.script_review_router import router as script_review_router
+from tools.compliance.analytics.canva_router import router as canva_router
 from tools.ai.vector_store_router import router as vector_store_router
 from tools.ai.ai_status_router import router as ai_status_router
-from tools.compliance.sentiment_router import router as sentiment_router
+from tools.compliance.analytics.sentiment_router import router as sentiment_router
 
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools, sync_mcp_tools_to_vector_db
-from services.ai import ai_observability, assistant_chat_service
+from services.ai.observability import ai_observability
+from services.ai.core import assistant_chat_service
 from services.microsoft_graph.graph_sync_job import graph_sync_loop
 
 configure_logging()
@@ -168,7 +169,7 @@ async def lifespan(app: FastAPI):
         )
 
     # 3b. Review and revision deadline reminders
-    from services.compliance.review_deadline_service import deadline_loop
+    from services.compliance.submissions.review_deadline_service import deadline_loop
     deadline_task = asyncio.create_task(deadline_loop(), name="review-deadlines")
     deadline_task.add_done_callback(
         partial(log_background_task_result, task_name="review-deadlines")
@@ -176,7 +177,7 @@ async def lifespan(app: FastAPI):
     background_tasks.append(deadline_task)
 
     # 3c. Sentiment analyses scheduled to run once Gemini's daily limit resets
-    from services.compliance.sentiment_service import scheduled_runs_loop
+    from services.compliance.analytics.sentiment_service import scheduled_runs_loop
     sentiment_task = asyncio.create_task(scheduled_runs_loop(), name="sentiment-scheduled-runs")
     sentiment_task.add_done_callback(
         partial(log_background_task_result, task_name="sentiment-scheduled-runs")
@@ -184,32 +185,33 @@ async def lifespan(app: FastAPI):
     background_tasks.append(sentiment_task)
 
     # 3d. Review memory: past review decisions as precedent for sentiment analysis (catches up on anything new)
-    from services.compliance.review_memory_service import remember_all_in_background
+    from services.compliance.submissions.review_memory_service import remember_all_in_background
     memory_task = asyncio.create_task(remember_all_in_background(), name="review-memory-sync")
     memory_task.add_done_callback(partial(log_background_task_result, task_name="review-memory-sync"))
     background_tasks.append(memory_task)
 
     # 3d'. Reviewers' verdicts on flags, as examples for the contextual check (indexes any given while it was off)
-    from services.compliance.finding_precedent_service import remember_all_in_background as remember_verdicts
+    from services.compliance.submissions.finding_precedent_service import remember_all_in_background as remember_verdicts
     verdict_task = asyncio.create_task(remember_verdicts(), name="finding-precedent-sync")
     verdict_task.add_done_callback(partial(log_background_task_result, task_name="finding-precedent-sync"))
     background_tasks.append(verdict_task)
 
     # 3e. Open content checked against an older rulebook or older built-in claim checks is re-checked
-    from services.compliance.submission_service import recheck_outdated_on_start
+    from services.compliance.submissions.submission_service import recheck_outdated_on_start
     recheck_task = asyncio.create_task(recheck_outdated_on_start(), name="outdated-check-recheck")
     recheck_task.add_done_callback(partial(log_background_task_result, task_name="outdated-check-recheck"))
     background_tasks.append(recheck_task)
 
     # 3e1. Checks the AI couldn't read (key out of credits, quota, down) are retried until it can
-    from services.compliance.submission_service import ai_recheck_loop
+    from services.compliance.submissions.submission_service import ai_recheck_loop
     ai_recheck_task = asyncio.create_task(ai_recheck_loop(), name="ai-unavailable-recheck")
     ai_recheck_task.add_done_callback(partial(log_background_task_result, task_name="ai-unavailable-recheck"))
     background_tasks.append(ai_recheck_task)
 
     # 3e1b. Image and document reads that a restart cut off are started again
     async def resume_reads() -> None:
-        from services.compliance import document_text_service, image_text_service
+        from services.compliance.media import document_text_service
+        from services.compliance.media import image_text_service
 
         images = await image_text_service.resume_interrupted()
         documents = await document_text_service.resume_interrupted()
@@ -221,7 +223,7 @@ async def lifespan(app: FastAPI):
     background_tasks.append(resume_reads_task)
 
     # 3e2. A script being sent when the server last stopped is picked up again, not left "processing"
-    from services.compliance.script_review_service import resume_interrupted_sends
+    from services.compliance.evaluation.script_review_service import resume_interrupted_sends
     resume_task = asyncio.create_task(resume_interrupted_sends(), name="script-send-resume")
     resume_task.add_done_callback(partial(log_background_task_result, task_name="script-send-resume"))
     background_tasks.append(resume_task)
@@ -232,7 +234,7 @@ async def lifespan(app: FastAPI):
     background_tasks.append(trace_task)
 
     # 3g. Reference index: rulebook and Messaging Context in the vector store for the assistant's search
-    from services.compliance.reference_index_service import sync_soon as sync_reference_index
+    from services.compliance.evaluation.reference_index_service import sync_soon as sync_reference_index
     sync_reference_index()
 
     # 4. Initialize Event-Driven MQTT Service Presence & Bus
@@ -332,7 +334,7 @@ async def ai_chat(req: ChatRequest, user_id: UUID = Depends(get_current_user_id)
         )
     if not prepared.blocked and prepared.cached_answer is None:
         # Counts toward the same daily AI limits as the other Gemini features (429 with when it frees up).
-        from services.ai import ai_usage_service
+        from services.ai.observability import ai_usage_service
         await ai_usage_service.reserve("CHAT", user_id)
     try:
         async def stream_generator():
@@ -481,7 +483,7 @@ def _session_identity(request: Request) -> Optional[str]:
     if auth_header[:7].lower() == "bearer ":
         token = auth_header[7:].strip()
     if not token:
-        from services.shared.auth_service import AUTH_COOKIE_NAME
+        from services.shared.auth.auth_service import AUTH_COOKIE_NAME
         token = request.cookies.get(AUTH_COOKIE_NAME, "") or request.cookies.get("zenatech_access_token", "")
     if not token:
         return None

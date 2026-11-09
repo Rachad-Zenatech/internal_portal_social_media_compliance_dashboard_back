@@ -5,8 +5,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-from services.compliance import listening_providers as lp
-from services.compliance import public_mood_service as pms
+from services.compliance.analytics import listening_providers as lp
+from services.compliance.analytics import public_mood_service as pms
 
 
 class XSentimentAndPublicMoodTests(unittest.IsolatedAsyncioTestCase):

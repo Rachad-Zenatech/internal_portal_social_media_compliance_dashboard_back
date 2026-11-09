@@ -7,7 +7,7 @@ from fastapi import HTTPException
 
 from models.compliance.sentiment_model import EvalCase, EvalCaseIn, FeedbackSummaryRow, FindingFeedback, FindingFeedbackIn
 from postgresql_db.database import fetch_all, fetch_one
-from services.compliance import review_memory_service
+from services.compliance.submissions import review_memory_service
 from services.compliance.sentiment.config import PROMPT_VERSION
 from services.compliance.sentiment.input_builder import _json
 

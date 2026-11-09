@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from services.compliance import script_review_service as srs
+from services.compliance.evaluation import script_review_service as srs
 
 SUB = uuid4()
 USER = uuid4()

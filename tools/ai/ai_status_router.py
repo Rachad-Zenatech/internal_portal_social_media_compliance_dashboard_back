@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from services.ai import ai_health
+from services.ai.observability import ai_health
 
 router = APIRouter()
 

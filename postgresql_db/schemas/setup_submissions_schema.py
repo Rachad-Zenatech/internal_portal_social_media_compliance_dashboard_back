@@ -138,19 +138,19 @@ async def setup():
             UPDATE content_submissions SET account_ids = ARRAY[account_id]
             WHERE account_id IS NOT NULL AND cardinality(account_ids) = 0;
 
-            -- Auto-generated speech transcript for video files (see services/compliance/transcription_service.py)
+            -- Auto-generated speech transcript for video files (see services/compliance/media/transcription_service.py)
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript JSONB;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript_status VARCHAR(20);
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript_error TEXT;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS transcript_updated_at TIMESTAMP WITH TIME ZONE;
             -- Text shown in an image (a headline on a graphic, figures, fine print), read once so the rulebook
-            -- check can screen it like the caption (see services/compliance/image_text_service.py).
+            -- check can screen it like the caption (see services/compliance/media/image_text_service.py).
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text TEXT;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_status VARCHAR(20);
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_error TEXT;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_updated_at TIMESTAMP WITH TIME ZONE;
             -- Text of a script (or a blog's article file), read once so the rulebook check screens it like the
-            -- caption (see services/compliance/document_text_service.py).
+            -- caption (see services/compliance/media/document_text_service.py).
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text TEXT;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_status VARCHAR(20);
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS doc_text_error TEXT;
@@ -198,7 +198,7 @@ async def setup():
             );
             CREATE INDEX IF NOT EXISTS idx_content_submission_events_submission ON content_submission_events(submission_id, created_at DESC);
 
-            -- Script stage (see services/compliance/script_review_service.py): a video post's script is reviewed and
+            -- Script stage (see services/compliance/evaluation/script_review_service.py): a video post's script is reviewed and
             -- approved before the video is uploaded. Only posts created as videos since this existed need it, so
             -- drafts already in progress aren't blocked. script_status: DRAFT, IN_REVIEW, EDITS_PROPOSED (the
             -- reviewer changed the wording; the creator accepts or edits), CHANGES_REQUESTED, APPROVED.
@@ -309,7 +309,7 @@ async def setup():
             -- Whether the author wrote it as the reviewer (a super admin can review their own upload)
             ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS from_reviewer BOOLEAN;
 
-            -- Gemini sentiment analysis (see services/compliance/sentiment_service.py). Advisory only.
+            -- Gemini sentiment analysis (see services/compliance/analytics/sentiment_service.py). Advisory only.
             -- input is exactly what was analysed; content_hash lets an unchanged draft reuse its result.
             CREATE TABLE IF NOT EXISTS content_sentiment_analyses (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -369,7 +369,7 @@ async def setup():
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
             );
 
-            -- One row per Gemini call actually made, for usage limits (see services/ai/ai_usage_service.py).
+            -- One row per Gemini call actually made, for usage limits (see services/ai/observability/ai_usage_service.py).
             CREATE TABLE IF NOT EXISTS ai_usage_events (
                 id BIGSERIAL PRIMARY KEY,
                 feature VARCHAR(30) NOT NULL,

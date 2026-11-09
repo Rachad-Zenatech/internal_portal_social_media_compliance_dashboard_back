@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from services.compliance import script_match
+from services.compliance.evaluation import script_match
 
 SCRIPT = (
     "[SCENE 1] Our drone flies for forty five minutes on a single charge. "

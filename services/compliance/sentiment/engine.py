@@ -17,10 +17,10 @@ from pydantic import ValidationError
 
 from models.compliance.sentiment_model import Precedent, SentimentResult
 from postgresql_db.database import fetch_all, fetch_one
-from services.ai import ai_observability
-from services.ai.ai_guardrails import screen_input
-from services.ai.gemini_service import is_rotatable_model_error
-from services.compliance import review_memory_service
+from services.ai.observability import ai_observability
+from services.ai.observability.ai_guardrails import screen_input
+from services.ai.core.gemini_service import is_rotatable_model_error
+from services.compliance.submissions import review_memory_service
 from services.compliance.sentiment.config import (
     API_RETRIES,
     MAX_IMAGES,
@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 async def _upload_video(client: genai.Client, file_id: str) -> Optional[types.File]:
     """Upload the submission's video to Gemini so the analysis can watch it. None if it can't be attached
     (missing file, upload or processing failure); the analysis then goes ahead on the text alone."""
-    from services.compliance.transcription_service import STORAGE_ROOT  # local import, as transcription imports this module
+    from services.compliance.media.transcription_service import STORAGE_ROOT  # local import, as transcription imports this module
 
     row = await fetch_one(
         "SELECT storage_path, mime_type FROM content_submission_files WHERE id = $1 AND deleted_at IS NULL",
@@ -92,7 +92,7 @@ async def _delete_upload(client: genai.Client, uploaded: types.File) -> None:
 def _image_bytes(path: Any, mime_type: str) -> Tuple[bytes, str]:
     """An image ready to send: as is when Gemini reads it and it's small, otherwise a smaller JPEG (first frame of
     a GIF)."""
-    from services.compliance.canva_mock_render import _ffmpeg
+    from services.compliance.media.canva_mock_render import _ffmpeg
     import subprocess
 
     if mime_type in GEMINI_IMAGE_TYPES and path.stat().st_size <= IMAGE_INLINE_MAX_BYTES:
@@ -110,7 +110,7 @@ def _image_bytes(path: Any, mime_type: str) -> Tuple[bytes, str]:
 async def _image_parts(images: List[Dict[str, Any]]) -> List[types.Part]:
     """The post's images as prompt parts, in order. Stops at the first one that can't be read, so the numbers
     Gemini sees (IMAGE 1, 2, ...) always match the post's order."""
-    from services.compliance.transcription_service import STORAGE_ROOT  # local import, as transcription imports this module
+    from services.compliance.media.transcription_service import STORAGE_ROOT  # local import, as transcription imports this module
 
     if not images:
         return []

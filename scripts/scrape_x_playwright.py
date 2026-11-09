@@ -33,7 +33,7 @@ _LOCAL_LIBS = "/home/rachad/.local/pw_libs/usr/lib/x86_64-linux-gnu"
 if os.path.isdir(_LOCAL_LIBS) and _LOCAL_LIBS not in os.environ.get("LD_LIBRARY_PATH", ""):
     os.environ["LD_LIBRARY_PATH"] = f"{_LOCAL_LIBS}:{os.environ.get('LD_LIBRARY_PATH', '')}"
 
-from services.compliance.listening_providers import (
+from services.compliance.analytics.listening_providers import (
     DEFAULT_X_JSON_PATH,
     analyze_raw_x_topic,
     classify_comment_sentiment,

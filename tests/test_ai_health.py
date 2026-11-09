@@ -1,8 +1,8 @@
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from services.ai import ai_health
-from services.ai.ai_observability import classify_error
+from services.ai.observability import ai_health
+from services.ai.observability.ai_observability import classify_error
 
 NOW = datetime(2026, 11, 5, 15, 0, tzinfo=timezone.utc)
 
@@ -71,7 +71,7 @@ class CheckWithoutTheAiTests(unittest.IsolatedAsyncioTestCase):
         from unittest.mock import AsyncMock, patch
 
         from models.compliance.compliance_model import ComplianceCheckRequest
-        from services.compliance import compliance_service
+        from services.compliance.evaluation import compliance_service
 
         with (
             patch.dict(os.environ, env, clear=False),

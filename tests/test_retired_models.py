@@ -2,7 +2,8 @@ import os
 import unittest
 from unittest.mock import patch
 
-from services.ai import gemini_service, model_router
+from services.ai.core import gemini_service
+from services.ai.core import model_router
 
 
 class RetiredModelTests(unittest.TestCase):

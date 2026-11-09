@@ -222,8 +222,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
 - `setup` (def)
 
-## postgresql_db/schemas/setup_compliance_schema.py (1067 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
+## postgresql_db/schemas/setup_compliance_schema.py (1105 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
 - `_base_rules_json` (def)
+- `_add_baseline_guidance` (def)
 - `_add_baseline_terms` (def)
 - `_mark_contextual_rules` (def)
 - `setup` (def) - Create the tables and add any missing baseline rules.
@@ -284,7 +285,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `run_saved_case` (def)
 - `main` (def)
 
-## server.py (677 lines) - server
+## server.py (679 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -305,7 +306,67 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_should_log_request_completion` (def)
 - `request_observability` (def)
 
-## services/ai/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
+## services/ai/core/assistant_chat_service.py (258 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
+- `_get_client` (def)
+- `_sse` (def)
+- `PreparedChat` (class)
+    - `blocked` (def)
+    - `cached_answer` (def)
+- `_scope` (def) - Who can share a cached answer: same tools allowed, same rulebook version.
+- `prepare` (def) - Screen the input and look for a cached answer (no Gemini quota is used here).
+- `_contents` (def)
+- `_stream_round` (def) - One model turn, streamed.
+- `stream` (def) - The SSE events for a prepared chat.
+
+## services/ai/core/gemini_service.py (147 lines) - gemini service (ai core)
+- `_normalize_ai_model_name` (def) - Normalizes a model name from the environment variable list
+- `without_retired` (def) - The models that can still be called, in the same order.
+- `get_gemini_fallback_models` (def) - Retrieves and normalizes the list of available Gemini models
+- `is_rotatable_model_error` (def) - Determines if a given exception represents a rate limit, quota exhaustion,
+- `generate_content_with_fallback` (def) - A robust wrapper around client.models.generate_content that automatically
+
+## services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
+- `Route` (class)
+- `enabled` (def)
+- `tier_models` (def)
+- `base_tier` (def)
+- `route` (def) - The models to try, in order, for this request, and why that tier was chosen.
+
+## services/ai/core/semantic_cache.py (197 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
+- `_env_float` (def)
+- `is_enabled` (def)
+- `Hit` (class)
+- `Lookup` (class) - What a lookup learned, so storing the answer afterwards doesn't embed the question again.
+- `normalise` (def)
+- `numbers` (def)
+- `_embed` (def)
+- `lookup` (def) - A cached answer to the question, if any.
+- `_lookup` (def)
+- `store` (def) - Cache an answer for the question of an earlier lookup.
+- `clear` (def) - Drop cached answers (one feature's, or all) when what they were built from has changed.
+
+## services/ai/core/vector_store_service.py (282 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+- `_setting` (def)
+- `database_name` (def)
+- `collection_name` (def)
+- `index_name` (def)
+- `embedding_model` (def)
+- `is_enabled` (def)
+- `_collection` (def) - The project's collection, or None when MONGODB_URI isn't set.
+- `_gemini_client` (def)
+- `embed` (def) - Gemini embeddings for the texts, in order, batched to keep requests few.
+- `_scope` (def) - An empty scope means every value.
+- `_hash` (def)
+- `VectorDoc` (class)
+    - `doc_id` (def)
+- `upsert` (def) - Add or update documents.
+- `delete` (def)
+- `_reference_changed` (def) - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
+- `search` (def) - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
+- `ensure_index` (def) - Create the Atlas vector search index on the collection if it doesn't exist.
+- `status` (def) - Whether the store is configured and reachable, and what's in it (no credentials).
+
+## services/ai/observability/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
 - `_threshold` (def)
 - `GuardResult` (class)
     - `blocked` (def)
@@ -324,12 +385,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `feed` (def)
     - `flush` (def)
 
-## services/ai/ai_health.py (100 lines) - Whether the AI (Gemini) is working right now, for the banner every signed-in user sees when it isn't.
+## services/ai/observability/ai_health.py (100 lines) - Whether the AI (Gemini) is working right now, for the banner every signed-in user sees when it isn't.
 - `AiStatus` (class)
 - `summarize` (def) - rows: the AI calls in the window, newest first, each with status, kind (the failure kind) and started_at.
 - `status` (def)
 
-## services/ai/ai_observability.py (410 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+## services/ai/observability/ai_observability.py (410 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - `_env_int` (def)
 - `Span` (class)
 - `_get_queue` (def)
@@ -354,7 +415,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `flush` (def) - Write whatever is still queued (on shutdown, before the pool closes).
 - `writer_loop` (def) - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
 
-## services/ai/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
+## services/ai/observability/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - `_attrs` (def)
 - `usage_summary` (def)
 - `summary` (def)
@@ -362,7 +423,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_trace` (def)
 - `list_prompt_logs` (def)
 
-## services/ai/ai_usage_service.py (164 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
+## services/ai/observability/ai_usage_service.py (164 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - `_env_int` (def)
 - `limit` (def)
 - `per_user_minute` (def)
@@ -374,137 +435,109 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `reserve` (def) - Record one Gemini call, or raise AiLimitExceeded (HTTP 429) with a message saying when it frees up.
 - `usage_for` (def) - What a person has left, per feature (and for one submission when given), for showing in the UI.
 
-## services/ai/assistant_chat_service.py (256 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
-- `_get_client` (def)
-- `_sse` (def)
-- `PreparedChat` (class)
-    - `blocked` (def)
-    - `cached_answer` (def)
-- `_scope` (def) - Who can share a cached answer: same tools allowed, same rulebook version.
-- `prepare` (def) - Screen the input and look for a cached answer (no Gemini quota is used here).
-- `_contents` (def)
-- `_stream_round` (def) - One model turn, streamed.
-- `stream` (def) - The SSE events for a prepared chat.
+## services/compliance/analytics/listening_providers.py (412 lines) - Social listening providers: where "public mood" data comes from.
+- `classify_comment_sentiment` (def) - Classify an individual X comment/post as POSITIVE, NEGATIVE, or NEUTRAL with confidence (0-100%)
+- `evaluate_publishing_decision` (def) - Decide whether the team should POST, WAIT (review), or HOLD (escalate to human reviewer)
+- `ListeningUnavailable` (class) - The listening source can't be reached or isn't configured.
+- `ListeningProvider` (class)
+    - `list_topics` (def) - Topics the account tracks: [{external_id, name, description, keywords}].
+    - `snapshot` (def) - Recent sentiment for a topic: positive/neutral/negative percentages, mention volume and change,
+- `MockSproutProvider` (class) - Plausible, made-up Sprout Listening data.
+    - `list_topics` (def)
+    - `snapshot` (def)
+- `analyze_raw_x_topic` (def) - Score every comment in an X topic payload using VADER, compute aggregate
+- `XJsonListeningProvider` (class) - Reads scraped or API-collected X (Twitter) comments & trends from a JSON file
+    - `__init__` (def)
+    - `_load_feed` (def)
+    - `list_topics` (def)
+    - `snapshot` (def)
+- `SproutProvider` (class) - Sprout Social Listening over its API.
+    - `__init__` (def)
+    - `list_topics` (def)
+    - `snapshot` (def)
+- `reset_provider_cache` (def)
+- `get_provider` (def)
 
-## services/ai/gemini_service.py (135 lines) - gemini service (ai)
-- `_normalize_ai_model_name` (def) - Normalizes a model name from the environment variable list
-- `get_gemini_fallback_models` (def) - Retrieves and normalizes the list of available Gemini models
-- `is_rotatable_model_error` (def) - Determines if a given exception represents a rate limit, quota exhaustion,
-- `generate_content_with_fallback` (def) - A robust wrapper around client.models.generate_content that automatically
-
-## services/ai/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
-- `Route` (class)
-- `enabled` (def)
-- `tier_models` (def)
-- `base_tier` (def)
-- `route` (def) - The models to try, in order, for this request, and why that tier was chosen.
-
-## services/ai/semantic_cache.py (197 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
+## services/compliance/analytics/performance_service.py (323 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
 - `_env_float` (def)
-- `is_enabled` (def)
-- `Hit` (class)
-- `Lookup` (class) - What a lookup learned, so storing the answer afterwards doesn't embed the question again.
-- `normalise` (def)
-- `numbers` (def)
-- `_embed` (def)
-- `lookup` (def) - A cached answer to the question, if any.
-- `_lookup` (def)
-- `store` (def) - Cache an answer for the question of an earlier lookup.
-- `clear` (def) - Drop cached answers (one feature's, or all) when what they were built from has changed.
+- `period` (def) - The publish times shown: the last `days` days up to now, or whole days from start to end (both included),
+- `_live_posts` (def) - Approved posts published in [since, until) whose publish time has passed, one row per platform: everyone's for
+- `_snapshots` (def) - The latest two snapshots per post and platform (the second one is for the trend).
+- `_refresh` (def) - Fetch new numbers for posts whose latest snapshot is older than FRESH_HOURS.
+- `_share` (def)
+- `_health` (def) - Sets health, the reasons for it, and what its sentiment is based on.
+- `_to_post` (def)
+- `report` (def) - Every live post (one per platform) with its numbers and health, plus totals, for the last `days` days or
 
-## services/ai/vector_store_service.py (282 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
-- `_setting` (def)
-- `database_name` (def)
-- `collection_name` (def)
-- `index_name` (def)
-- `embedding_model` (def)
-- `is_enabled` (def)
-- `_collection` (def) - The project's collection, or None when MONGODB_URI isn't set.
-- `_gemini_client` (def)
-- `embed` (def) - Gemini embeddings for the texts, in order, batched to keep requests few.
-- `_scope` (def) - An empty scope means every value.
-- `_hash` (def)
-- `VectorDoc` (class)
-    - `doc_id` (def)
-- `upsert` (def) - Add or update documents.
-- `delete` (def)
-- `_reference_changed` (def) - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
-- `search` (def) - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
-- `ensure_index` (def) - Create the Atlas vector search index on the collection if it doesn't exist.
-- `status` (def) - Whether the store is configured and reachable, and what's in it (no credentials).
+## services/compliance/analytics/post_metrics_providers.py (303 lines) - Where published posts' numbers come from, and what each platform's API can actually give us.
+- `MetricsUnavailable` (class) - The metrics source can't be reached or isn't configured.
+- `api_for` (def) - The PLATFORM_APIS key for a post: LinkedIn posts from a personal profile use a different API than pages.
+- `MetricsProvider` (class)
+    - `metrics` (def) - Lifetime numbers for one post, as its platform's API reports them (only the keys in that platform's
+    - `sample_posts` (def) - Example posts to show while there's no real data (only the sample provider has any).
+- `_rnd` (def)
+- `SampleMetricsProvider` (class) - Made-up but plausible numbers: stable for a post, growing with its age the way real posts do (fast at first,
+    - `metrics` (def)
+    - `sample_posts` (def)
+- `LiveMetricsProvider` (class) - Each platform's own API (or Sprout Social post analytics), once posts are published through connected
+    - `metrics` (def)
+- `get_provider` (def)
 
-## services/compliance/analysis_progress_service.py (194 lines) - How long a post's rulebook check has left.
-- `Timings` (class)
-- `timings` (def) - Median durations of recent finished reads, by kind (cached for a few minutes).
-    - `learned` (def)
-- `video_seconds` (def)
-- `_batched` (def) - n reads of `each` seconds, `concurrent` at a time.
-- `_started` (def)
-- `_step` (def)
-- `build` (def) - The progress of one post from its files' reading states (the same parts _run_check waits on).
-- `for_submissions` (def) - Progress for each of these posts (only call with posts whose check is still pending).
+## services/compliance/analytics/post_signals.py (204 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
+- `_key` (def)
+- `is_government_handle` (def)
+- `_domain` (def)
+- `is_government_domain` (def)
+- `is_own_domain` (def)
+- `hashtag_words` (def) - CombatProven' -> 'combat proven'.
+- `_unique` (def)
+- `PostSignals` (class)
+    - `hashtag_keys` (def) - Hashtags as the matcher sees them: lowercase, no '#' or '_' ("#Combat_Proven" -> "combatproven").
+    - `hashtag_phrases` (def) - Hashtags with their CamelCase words split out ("#CombatProven" -> "combat proven"), for phrase rules.
+    - `notes` (def) - Things a reviewer should look at that aren't rule breaches, so they cost no points.
+- `extract` (def) - Cashtags, hashtags, mentions and links in the post, each once, in the order they appear.
+- `SignalFinding` (class)
+- `findings` (def) - Rule-like findings from the signals.
 
-## services/compliance/approval_path_service.py (170 lines) - Approval paths: who gives final approval for which content.
-- `_out` (def)
-- `list_paths` (def)
-- `options` (def) - Who can be named an approver (anyone who can review) and what a path can match on.
-- `_validate` (def)
-- `create_path` (def)
-- `update_path` (def)
-- `delete_path` (def)
-- `ApprovalRules` (class) - All paths, loaded once per request, matched to as many submissions as needed.
-    - `__init__` (def)
-    - `approvers` (def) - Approvers from every path that fits.
-- `load_rules` (def)
-- `is_ceo_content` (def) - Shaun's own thought leadership: posted through his account or checked against his rule set.
-
-## services/compliance/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
-- `Frame` (class) - An RGB frame being drawn.
-    - `__init__` (def)
-    - `rect` (def)
-    - `text` (def)
-- `_wrap` (def)
-- `draw_scene` (def) - One frame: the text block centred vertically, an accent bar above it and a small footer.
-    - `gap` (def)
-- `_ffmpeg` (def)
-- `_run` (def)
-- `encode_png` (def)
-- `encode_mp4` (def) - H.264 MP4 showing each frame for seconds_per_frame (silent), playable in browsers.
-
-## services/compliance/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
-- `mode` (def)
-- `DesignExport` (class) - A design exported from Canva, ready to store as a submission file.
-    - `file_name` (def)
-- `MockDesign` (class)
-    - `scenes` (def)
-- `_footer` (def)
-- `_mock_design` (def)
-- `_mock_revisions` (def)
-- `_to_design` (def)
-- `_require_mock` (def)
-- `get_connection` (def)
-- `connect` (def) - Mock: connects straight away.
-- `disconnect` (def)
-- `_require_connection` (def)
-- `list_designs` (def)
-- `get_design` (def)
-- `simulate_edit` (def) - Mock only: stands in for the creator editing the design in Canva, so its next export is a new revision.
-- `export_design` (def) - The design's latest revision as a file: MP4 for videos, PNG for images.
-- `thumbnail` (def) - A small PNG of the design's first scene, for the picker.
-- `design_kind_ok` (def) - Whether an export of this kind can be the main file of a submission that takes these extensions.
-
-## services/compliance/caption_service.py (331 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
-- `get_hashtag_library` (def) - The hashtag library for a post, minus any tag the rules that apply to it would flag.
-- `_wants_cashtag` (def) - The cashtag goes on investor posts, or when the writer asks for it.
-- `_lower_first` (def)
-- `_hashtag_guide` (def) - The hashtag instructions for the prompt: how many, which to prefer, and when the cashtag belongs.
-- `_clean_tags` (def) - The model's hashtags as usable tags: '#' added, invalid ones and duplicates dropped, the cashtag only when
-- `_transcript_text` (def) - (spoken words, on-screen text) from the video's transcript, if it's ready.
+## services/compliance/analytics/public_mood_service.py (946 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+- `_env_float` (def)
+- `_get_client` (def)
+- `_source_label` (def)
+- `_x_json_mtime` (def)
+- `_sync_topics` (def) - Refresh the topic list from the listening source when it's older than a day (or empty, or asked to, or
+- `_sync_topic_vectors` (def) - Keep one vector document per live topic (only new or changed text is embedded), and none for removed ones.
+- `_effective_keywords` (def) - The source's keywords minus the ones the team switched off, plus the team's own.
+- `_load_topics` (def) - Live topics from the current source, with the keywords that count for matching.
+- `_meaning_scores` (def) - How close the post is in meaning to each topic: the raw score, and its margin over the post's median score
+- `_unambiguous` (def) - A phrase ("drone delivery") or a coined name ("ZenaDrone") rarely means anything else; a single everyday
+- `_match` (def) - Topics the post is about, strongest first: (topic, keywords found, similarity, close in meaning).
+- `_is_fresh` (def)
+- `_latest_snapshots` (def)
+- `_fresh_snapshots` (def) - The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale.
+- `_snapshot_model` (def)
+- `_overall_post_recommendation` (def) - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
+- `_load` (def)
+- `_gather` (def) - The post, its matched topics and their current snapshots.
+- `_input_hash` (def)
+- `_summary_model` (def)
+- `_with_feedback` (def)
+- `get_public_mood` (def)
+- `dismiss_topic` (def) - Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones).
+- `restore_topic` (def)
+- `rate_summary` (def) - Say whether a summary helped (or take the vote back with no data).
+- `list_topics` (def) - Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly.
+- `list_trend_opportunities` (def) - See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
+- `ingest_x_json` (def) - Save scraped/collected X (Twitter) topics and raw comments to `.data/x_listening_feed.json`,
+- `_clean_words` (def)
+- `update_topic` (def)
+- `match_test` (def) - Which topics a piece of text would match and why, with the near misses, for tuning keywords.
+- `_enum` (def)
 - `_prompt` (def)
-- `_check` (def)
-- `suggest` (def)
+- `summarise` (def) - Write (or reuse) the summary for the post's current version against the current moods.
 
-## services/compliance/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
+## services/compliance/analytics/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
+
+## services/compliance/evaluation/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
 - `ClaimCheck` (class)
     - `rule_id` (def)
     - `penalty` (def)
@@ -520,7 +553,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_quoted` (def) - a", "b"'.
 - `find_claims` (def) - The built-in claim checks that fire on this text, as findings.
 
-## services/compliance/compliance_service.py (1474 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/evaluation/compliance_service.py (1560 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def)
 - `_ai_switched_off` (def) - The AI meaning check was turned off on purpose (not a failure).
 - `_ai_viability_enabled` (def)
@@ -558,7 +591,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_penalty_and_light` (def)
 - `_evaluate_rule` (def) - One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
     - `found` (def)
+- `_sentences` (def) - The post's sentences worth searching on: long enough to say something, each once, in order, at most `limit`.
 - `_vector_context_for_check` (def) - Query the MongoDB Atlas vector store for:
+- `_full_rule_mode` (def) - off (default): the trigger phrases and the sentence-by-sentence search pick what the AI reads; auto: also read the post
+- `_looks_like_claims` (def)
 - `_semantic_findings` (def) - Rules the exact wording missed but the vector store says the post is close to in meaning, confirmed by Gemini.
 - `_passage` (def) - The sentence a finding's wording sits in, and the sentences around it, for judging it in context.
 - `plain_text_lines` (def)
@@ -575,7 +611,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `self_test_all` (def)
 - `get_compliance_stats` (def) - Retrieve aggregate compliance metrics.
 
-## services/compliance/context_evaluator.py (360 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+## services/compliance/evaluation/context_evaluator.py (360 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - `_Result` (class)
 - `_Response` (class)
 - `_enum` (def)
@@ -590,7 +626,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_apply` (def) - Put the model's answer on the finding, through the safeguards.
 - `evaluate` (def) - Read each candidate in context and set its status (in place).
 
-## services/compliance/context_service.py (159 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
+## services/compliance/evaluation/context_service.py (159 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - `_out` (def)
 - `list_entries` (def)
 - `_clean` (def)
@@ -600,7 +636,101 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_applies` (def)
 - `for_content` (def) - The active entries that apply to this content, in prompt order, trimmed to a sensible total size.
 
-## services/compliance/document_layout.py (419 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
+## services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
+- `_lines` (def)
+- `_context_doc` (def)
+- `_rule_doc` (def)
+- `sync_all` (def)
+- `sync_soon` (def) - Re-sync in the background after a change (a change made while a sync is running triggers one more).
+    - `run` (def)
+- `search` (def)
+
+## services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
+- `_words` (def)
+- `_shown` (def)
+- `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
+- `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
+
+## services/compliance/evaluation/script_review_service.py (704 lines) - Script stage of a video post.
+- `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
+- `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
+- `_clean` (def)
+- `_status` (def)
+- `check_text` (def) - The rulebook check of a script: the title and the script, scoped like the post.
+- `_versions` (def)
+- `_script_file` (def)
+- `_require_stage` (def)
+- `_reviewer_may_act` (def)
+- `get_stage` (def)
+- `_adopt_check` (def) - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
+- `_add_version` (def)
+- `_lock_status` (def) - Lock the post and make sure the script is still where the caller saw it (two people can act at once).
+- `_send_to_reviewers` (def) - Tell the reviewers it was sent to; returns who was told.
+- `_missing_details` (def) - The required submission details still empty, by their names on the form.
+- `submit` (def) - Accept the uploaded script for review and answer at once.
+- `_fail_send` (def) - The background send couldn't finish: record which step failed and why, and tell the creator.
+- `resume_interrupted_sends` (def) - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
+- `_process_send` (def) - Read the uploaded script, calculate its compliance score and send it to the reviewers.
+- `_send` (def)
+- `_send_checked` (def)
+- `decide` (def) - The reviewer approves the script, sends it back with a note, or sends back their own edited version.
+- `accept` (def) - The creator accepts the reviewer's edited version: it's the approved script.
+- `revise` (def) - The creator edits the script in the platform (after edits or a change request) and sends it back.
+- `preview_check` (def) - Check wording being edited without saving it, so the score updates as the reviewer or creator works.
+- `_refresh_stale_scripts` (def) - Re-check scripts that were checked against an older rulebook, one at a time, and save the result.
+- `_refresh_in_background` (def)
+- `queue` (def) - Scripts for one Content Screener tab, on the brands the viewer works on.
+- `get_highlights` (def) - The reviewer's highlights and notes on a script version, for anyone who can read the post.
+- `save_highlights` (def) - Replace the highlights on a script version.
+- `resolve_highlights` (def) - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
+
+## services/compliance/media/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
+- `Frame` (class) - An RGB frame being drawn.
+    - `__init__` (def)
+    - `rect` (def)
+    - `text` (def)
+- `_wrap` (def)
+- `draw_scene` (def) - One frame: the text block centred vertically, an accent bar above it and a small footer.
+    - `gap` (def)
+- `_ffmpeg` (def)
+- `_run` (def)
+- `encode_png` (def)
+- `encode_mp4` (def) - H.264 MP4 showing each frame for seconds_per_frame (silent), playable in browsers.
+
+## services/compliance/media/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
+- `mode` (def)
+- `DesignExport` (class) - A design exported from Canva, ready to store as a submission file.
+    - `file_name` (def)
+- `MockDesign` (class)
+    - `scenes` (def)
+- `_footer` (def)
+- `_mock_design` (def)
+- `_mock_revisions` (def)
+- `_to_design` (def)
+- `_require_mock` (def)
+- `get_connection` (def)
+- `connect` (def) - Mock: connects straight away.
+- `disconnect` (def)
+- `_require_connection` (def)
+- `list_designs` (def)
+- `get_design` (def)
+- `simulate_edit` (def) - Mock only: stands in for the creator editing the design in Canva, so its next export is a new revision.
+- `export_design` (def) - The design's latest revision as a file: MP4 for videos, PNG for images.
+- `thumbnail` (def) - A small PNG of the design's first scene, for the picker.
+- `design_kind_ok` (def) - Whether an export of this kind can be the main file of a submission that takes these extensions.
+
+## services/compliance/media/caption_service.py (332 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
+- `get_hashtag_library` (def) - The hashtag library for a post, minus any tag the rules that apply to it would flag.
+- `_wants_cashtag` (def) - The cashtag goes on investor posts, or when the writer asks for it.
+- `_lower_first` (def)
+- `_hashtag_guide` (def) - The hashtag instructions for the prompt: how many, which to prefer, and when the cashtag belongs.
+- `_clean_tags` (def) - The model's hashtags as usable tags: '#' added, invalid ones and duplicates dropped, the cashtag only when
+- `_transcript_text` (def) - (spoken words, on-screen text) from the video's transcript, if it's ready.
+- `_prompt` (def)
+- `_check` (def)
+- `suggest` (def)
+
+## services/compliance/media/document_layout.py (419 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
 - `page_marker` (def)
 - `_format_runs` (def) - Runs of (text, bold) as one line, each bold stretch wrapped in ** (spacing kept outside the marks).
 - `_cell` (def)
@@ -634,7 +764,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_block_lines` (def) - A text block as paragraphs: its visual lines joined, except where the style changes or a short line ends one.
 - `plain_text` (def) - The wording alone: page marks dropped, headings, bold and italics unmarked, list markers dropped, table cells
 
-## services/compliance/document_text_service.py (244 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
+## services/compliance/media/document_text_service.py (244 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - `UnreadableDocument` (class) - A document we can't read, with a message the creator can act on.
 - `is_document_file` (def) - Whether this file's text is read: any script, or a main file that's a document (a blog's article).
 - `_decode` (def) - Text file bytes as text: UTF-16 when it starts with that byte-order mark, else UTF-8, else Windows-1252.
@@ -651,38 +781,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `schedule_missing` (def) - Read the documents among these that were never read, or whose read was abandoned (e.g.
 - `paragraphs` (def) - A read document's paragraphs, in order (one per line as stored).
 
-## services/compliance/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
-- `_doc` (def)
-- `_remember` (def)
-- `remember` (def) - Index (or refresh) one verdict.
-- `remember_all` (def)
-- `_background` (def)
-    - `run` (def)
-- `remember_soon` (def) - remember() in the background, so the request that triggered it doesn't wait on embedding.
-- `forget_soon` (def) - Take a verdict back out of the index (it was undone).
-- `remember_all_in_background` (def) - Startup: index verdicts given while the vector store was off or the server was down.
-- `similar` (def) - Past verdicts on this rule for wording like `text`, closest first, as {score, verdict, reason, note, passage}.
-
-## services/compliance/flag_review_service.py (346 lines) - Reviewers' calls on automated compliance flags.
-- `_json` (def)
-- `_out` (def)
-- `list_for` (def)
-- `_reviewable` (def) - The submission, if this user may make calls on its flags now: a reviewer, while it's in review.
-- `dismiss` (def)
-- `_save_verdict` (def) - Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag.
-- `undo` (def)
-- `_verdict_out` (def)
-- `verdicts_for` (def) - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
-- `confirm` (def) - A reviewer says a flag is right.
-- `unconfirm` (def)
-- `score_after_dismissals` (def) - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
-- `ApprovalStanding` (class)
-    - `score_too_low` (def)
-- `approval_standing` (def) - Per submission, what stands between its current version and approval: open critical flags and the score
-- `open_critical_counts` (def) - Per submission: critical (red) flags on its current version that nobody has dismissed.
-- `rule_stats` (def) - How often each rule flagged a submitted version, and how often reviewers dismissed it.
-
-## services/compliance/hashtag_library.py (144 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
+## services/compliance/media/hashtag_library.py (144 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - `LibraryTag` (class)
 - `LibraryGroup` (class)
 - `HashtagLibrary` (class)
@@ -695,7 +794,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `build` (def) - The library for one post.
     - `keep` (def)
 
-## services/compliance/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
+## services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
 - `_safe_href` (def)
 - `_Sanitizer` (class)
     - `__init__` (def)
@@ -706,7 +805,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `result` (def)
 - `sanitize_caption_html` (def) - The caption HTML with only safe formatting left.
 
-## services/compliance/image_text_service.py (203 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+## services/compliance/media/image_text_service.py (203 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def)
 - `_get_client` (def)
 - `_claim` (def) - Atomically mark an image as being read unless another worker already is.
@@ -719,184 +818,27 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `resume_interrupted` (def) - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
 - `schedule_missing` (def) - Read the images among these that were never read, or whose read was abandoned (e.g.
 
-## services/compliance/listening_providers.py (412 lines) - Social listening providers: where "public mood" data comes from.
-- `classify_comment_sentiment` (def) - Classify an individual X comment/post as POSITIVE, NEGATIVE, or NEUTRAL with confidence (0-100%)
-- `evaluate_publishing_decision` (def) - Decide whether the team should POST, WAIT (review), or HOLD (escalate to human reviewer)
-- `ListeningUnavailable` (class) - The listening source can't be reached or isn't configured.
-- `ListeningProvider` (class)
-    - `list_topics` (def) - Topics the account tracks: [{external_id, name, description, keywords}].
-    - `snapshot` (def) - Recent sentiment for a topic: positive/neutral/negative percentages, mention volume and change,
-- `MockSproutProvider` (class) - Plausible, made-up Sprout Listening data.
-    - `list_topics` (def)
-    - `snapshot` (def)
-- `analyze_raw_x_topic` (def) - Score every comment in an X topic payload using VADER, compute aggregate
-- `XJsonListeningProvider` (class) - Reads scraped or API-collected X (Twitter) comments & trends from a JSON file
-    - `__init__` (def)
-    - `_load_feed` (def)
-    - `list_topics` (def)
-    - `snapshot` (def)
-- `SproutProvider` (class) - Sprout Social Listening over its API.
-    - `__init__` (def)
-    - `list_topics` (def)
-    - `snapshot` (def)
-- `reset_provider_cache` (def)
-- `get_provider` (def)
-
-## services/compliance/performance_service.py (322 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
-- `_env_float` (def)
-- `period` (def) - The publish times shown: the last `days` days up to now, or whole days from start to end (both included),
-- `_live_posts` (def) - Approved posts published in [since, until) whose publish time has passed, one row per platform: everyone's for
-- `_snapshots` (def) - The latest two snapshots per post and platform (the second one is for the trend).
-- `_refresh` (def) - Fetch new numbers for posts whose latest snapshot is older than FRESH_HOURS.
-- `_share` (def)
-- `_health` (def) - Sets health, the reasons for it, and what its sentiment is based on.
-- `_to_post` (def)
-- `report` (def) - Every live post (one per platform) with its numbers and health, plus totals, for the last `days` days or
-
-## services/compliance/post_metrics_providers.py (303 lines) - Where published posts' numbers come from, and what each platform's API can actually give us.
-- `MetricsUnavailable` (class) - The metrics source can't be reached or isn't configured.
-- `api_for` (def) - The PLATFORM_APIS key for a post: LinkedIn posts from a personal profile use a different API than pages.
-- `MetricsProvider` (class)
-    - `metrics` (def) - Lifetime numbers for one post, as its platform's API reports them (only the keys in that platform's
-    - `sample_posts` (def) - Example posts to show while there's no real data (only the sample provider has any).
-- `_rnd` (def)
-- `SampleMetricsProvider` (class) - Made-up but plausible numbers: stable for a post, growing with its age the way real posts do (fast at first,
-    - `metrics` (def)
-    - `sample_posts` (def)
-- `LiveMetricsProvider` (class) - Each platform's own API (or Sprout Social post analytics), once posts are published through connected
-    - `metrics` (def)
-- `get_provider` (def)
-
-## services/compliance/post_signals.py (204 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
-- `_key` (def)
-- `is_government_handle` (def)
-- `_domain` (def)
-- `is_government_domain` (def)
-- `is_own_domain` (def)
-- `hashtag_words` (def) - CombatProven' -> 'combat proven'.
-- `_unique` (def)
-- `PostSignals` (class)
-    - `hashtag_keys` (def) - Hashtags as the matcher sees them: lowercase, no '#' or '_' ("#Combat_Proven" -> "combatproven").
-    - `hashtag_phrases` (def) - Hashtags with their CamelCase words split out ("#CombatProven" -> "combat proven"), for phrase rules.
-    - `notes` (def) - Things a reviewer should look at that aren't rule breaches, so they cost no points.
-- `extract` (def) - Cashtags, hashtags, mentions and links in the post, each once, in the order they appear.
-- `SignalFinding` (class)
-- `findings` (def) - Rule-like findings from the signals.
-
-## services/compliance/public_mood_service.py (946 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
-- `_env_float` (def)
+## services/compliance/media/transcription_service.py (258 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
 - `_get_client` (def)
-- `_source_label` (def)
-- `_x_json_mtime` (def)
-- `_sync_topics` (def) - Refresh the topic list from the listening source when it's older than a day (or empty, or asked to, or
-- `_sync_topic_vectors` (def) - Keep one vector document per live topic (only new or changed text is embedded), and none for removed ones.
-- `_effective_keywords` (def) - The source's keywords minus the ones the team switched off, plus the team's own.
-- `_load_topics` (def) - Live topics from the current source, with the keywords that count for matching.
-- `_meaning_scores` (def) - How close the post is in meaning to each topic: the raw score, and its margin over the post's median score
-- `_unambiguous` (def) - A phrase ("drone delivery") or a coined name ("ZenaDrone") rarely means anything else; a single everyday
-- `_match` (def) - Topics the post is about, strongest first: (topic, keywords found, similarity, close in meaning).
-- `_is_fresh` (def)
-- `_latest_snapshots` (def)
-- `_fresh_snapshots` (def) - The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale.
-- `_snapshot_model` (def)
-- `_overall_post_recommendation` (def) - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
-- `_load` (def)
-- `_gather` (def) - The post, its matched topics and their current snapshots.
-- `_input_hash` (def)
-- `_summary_model` (def)
-- `_with_feedback` (def)
-- `get_public_mood` (def)
-- `dismiss_topic` (def) - Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones).
-- `restore_topic` (def)
-- `rate_summary` (def) - Say whether a summary helped (or take the vote back with no data).
-- `list_topics` (def) - Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly.
-- `list_trend_opportunities` (def) - See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
-- `ingest_x_json` (def) - Save scraped/collected X (Twitter) topics and raw comments to `.data/x_listening_feed.json`,
-- `_clean_words` (def)
-- `update_topic` (def)
-- `match_test` (def) - Which topics a piece of text would match and why, with the near misses, for tuning keywords.
-- `_enum` (def)
-- `_prompt` (def)
-- `summarise` (def) - Write (or reuse) the summary for the post's current version against the current moods.
+- `_to_seconds` (def) - Accept numbers or "MM:SS(.s)" / "HH:MM:SS" strings, which models sometimes return anyway.
+- `_normalize` (def)
+- `_wait_until_active` (def) - Gemini processes uploaded videos before they can be referenced in a prompt.
+- `_claim` (def) - Atomically move a video to PROCESSING unless another worker is already transcribing it.
+- `_save` (def)
+- `transcribe_file` (def)
+- `_run` (def)
+- `schedule` (def) - Start background transcription for each video not already being transcribed by this process.
+- `schedule_missing` (def) - Queue videos that were never transcribed, or whose previous attempt was abandoned.
 
-## services/compliance/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
-- `_lines` (def)
-- `_context_doc` (def)
-- `_rule_doc` (def)
-- `sync_all` (def)
-- `sync_soon` (def) - Re-sync in the background after a change (a change made while a sync is running triggers one more).
-    - `run` (def)
-- `search` (def)
-
-## services/compliance/review_deadline_service.py (235 lines) - Review and revision deadlines.
-- `_hours` (def)
-- `add_working_days` (def) - The same time of day, this many working days later (Saturdays and Sundays are skipped).
-- `due_date` (def) - When the next step is due: the date asked for (a creator's "need approval by"), else the working days a
-- `require_future` (def) - A deadline a reviewer picked has to still be ahead.
-- `revision_due` (def) - When the creator has to have the requested changes done: the date the reviewer picked, else their working days
-- `video_due` (def) - When the video is due once its script is approved: the date picked, or working days from now; None for no deadline.
-- `_when` (def) - e.g.
-- `_recipients` (def) - Reviews: every reviewer except the creator.
-- `_message` (def)
-- `_claim` (def) - Mark deadlines that need a notice as notified and return them, in one statement, so a notice goes out
-- `send_due_notices` (def) - One pass: "due soon" reminders, then overdue notices.
-- `backfill_missing` (def) - Give content that was already waiting when deadlines were introduced a deadline from now, as if it had just
-- `deadline_loop` (def)
-
-## services/compliance/review_memory_service.py (190 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
-- `_json` (def)
-- `_doc` (def) - A reviewed version as a vector document: its content is what gets matched, the review is what comes back.
-- `_remember` (def)
-- `remember` (def) - Store (or refresh) one reviewed version.
-- `remember_all` (def) - Store every decided review; only new or changed content is embedded again.
-- `remember_soon` (def) - remember() in the background, so the request that triggered it doesn't wait on embedding.
-    - `run` (def)
-- `remember_all_in_background` (def) - Startup: catch up on anything decided while review memory was off or the server was down.
-- `query_text` (def) - The text a post is matched on: the same parts that are stored for past reviews.
-- `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
-
-## services/compliance/script_match.py (92 lines) - Script vs video.
-- `_words` (def)
-- `_shown` (def)
-- `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
-- `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
-
-## services/compliance/script_review_service.py (701 lines) - Script stage of a video post.
-- `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
-- `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
-- `_clean` (def)
-- `_status` (def)
-- `check_text` (def) - The rulebook check of a script: the title and the script, scoped like the post.
-- `_versions` (def)
-- `_script_file` (def)
-- `_require_stage` (def)
-- `_reviewer_may_act` (def)
-- `get_stage` (def)
-- `_adopt_check` (def) - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
-- `_add_version` (def)
-- `_lock_status` (def) - Lock the post and make sure the script is still where the caller saw it (two people can act at once).
-- `_send_to_reviewers` (def) - Tell the reviewers it was sent to; returns who was told.
-- `_missing_details` (def) - The required submission details still empty, by their names on the form.
-- `submit` (def) - Accept the uploaded script for review and answer at once.
-- `_fail_send` (def) - The background send couldn't finish: record which step failed and why, and tell the creator.
-- `resume_interrupted_sends` (def) - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
-- `_process_send` (def) - Read the uploaded script, calculate its compliance score and send it to the reviewers.
-- `_send` (def)
-- `_send_checked` (def)
-- `decide` (def) - The reviewer approves the script, sends it back with a note, or sends back their own edited version.
-- `accept` (def) - The creator accepts the reviewer's edited version: it's the approved script.
-- `revise` (def) - The creator edits the script in the platform (after edits or a change request) and sends it back.
-- `preview_check` (def) - Check wording being edited without saving it, so the score updates as the reviewer or creator works.
-- `_refresh_stale_scripts` (def) - Re-check scripts that were checked against an older rulebook, one at a time, and save the result.
-- `_refresh_in_background` (def)
-- `queue` (def) - Scripts for one Content Screener tab, on the brands the viewer works on.
-- `get_highlights` (def) - The reviewer's highlights and notes on a script version, for anyone who can read the post.
-- `save_highlights` (def) - Replace the highlights on a script version.
-- `resolve_highlights` (def) - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
+## services/compliance/media/video_job_service.py (182 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
+- `create_video_job` (def) - Initialize a new video processing background job.
+- `get_video_job` (def) - Retrieve current status and progress of a background video job.
+- `list_video_jobs` (def) - List recent video processing jobs.
+- `run_video_processing_pipeline` (def) - Background task simulating end-to-end video processing through all stages.
 
 ## services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 
-## services/compliance/sentiment/config.py (348 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
+## services/compliance/sentiment/config.py (350 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
 - `_get_client` (def)
 - `_enum` (def)
 - `next_quota_reset` (def) - The next midnight Pacific time, when Gemini's daily quotas reset (in UTC).
@@ -936,7 +878,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_eval_cases` (def)
 - `delete_eval_case` (def)
 
-## services/compliance/sentiment/input_builder.py (351 lines) - Input building and prompt construction for sentiment analysis.
+## services/compliance/sentiment/input_builder.py (354 lines) - Input building and prompt construction for sentiment analysis.
 - `_load_submission` (def)
 - `_load_images` (def) - The post's images in order: the main ones (e.g.
 - `_json` (def)
@@ -979,9 +921,90 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `video_frame` (def) - A JPEG of the analysed video at a moment (cached on disk), so a finding can show what was on screen.
 - `analysed_image` (def) - One of the images an analysis looked at (1 = the first), as (path, mime type), so a finding can show it.
 
-## services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
+## services/compliance/submissions/analysis_progress_service.py (195 lines) - How long a post's rulebook check has left.
+- `Timings` (class)
+- `timings` (def) - Median durations of recent finished reads, by kind (cached for a few minutes).
+    - `learned` (def)
+- `video_seconds` (def)
+- `_batched` (def) - n reads of `each` seconds, `concurrent` at a time.
+- `_started` (def)
+- `_step` (def)
+- `build` (def) - The progress of one post from its files' reading states (the same parts _run_check waits on).
+- `for_submissions` (def) - Progress for each of these posts (only call with posts whose check is still pending).
 
-## services/compliance/submission_service.py (2640 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/approval_path_service.py (170 lines) - Approval paths: who gives final approval for which content.
+- `_out` (def)
+- `list_paths` (def)
+- `options` (def) - Who can be named an approver (anyone who can review) and what a path can match on.
+- `_validate` (def)
+- `create_path` (def)
+- `update_path` (def)
+- `delete_path` (def)
+- `ApprovalRules` (class) - All paths, loaded once per request, matched to as many submissions as needed.
+    - `__init__` (def)
+    - `approvers` (def) - Approvers from every path that fits.
+- `load_rules` (def)
+- `is_ceo_content` (def) - Shaun's own thought leadership: posted through his account or checked against his rule set.
+
+## services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
+- `_doc` (def)
+- `_remember` (def)
+- `remember` (def) - Index (or refresh) one verdict.
+- `remember_all` (def)
+- `_background` (def)
+    - `run` (def)
+- `remember_soon` (def) - remember() in the background, so the request that triggered it doesn't wait on embedding.
+- `forget_soon` (def) - Take a verdict back out of the index (it was undone).
+- `remember_all_in_background` (def) - Startup: index verdicts given while the vector store was off or the server was down.
+- `similar` (def) - Past verdicts on this rule for wording like `text`, closest first, as {score, verdict, reason, note, passage}.
+
+## services/compliance/submissions/flag_review_service.py (346 lines) - Reviewers' calls on automated compliance flags.
+- `_json` (def)
+- `_out` (def)
+- `list_for` (def)
+- `_reviewable` (def) - The submission, if this user may make calls on its flags now: a reviewer, while it's in review.
+- `dismiss` (def)
+- `_save_verdict` (def) - Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag.
+- `undo` (def)
+- `_verdict_out` (def)
+- `verdicts_for` (def) - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
+- `confirm` (def) - A reviewer says a flag is right.
+- `unconfirm` (def)
+- `score_after_dismissals` (def) - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
+- `ApprovalStanding` (class)
+    - `score_too_low` (def)
+- `approval_standing` (def) - Per submission, what stands between its current version and approval: open critical flags and the score
+- `open_critical_counts` (def) - Per submission: critical (red) flags on its current version that nobody has dismissed.
+- `rule_stats` (def) - How often each rule flagged a submitted version, and how often reviewers dismissed it.
+
+## services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
+- `_hours` (def)
+- `add_working_days` (def) - The same time of day, this many working days later (Saturdays and Sundays are skipped).
+- `due_date` (def) - When the next step is due: the date asked for (a creator's "need approval by"), else the working days a
+- `require_future` (def) - A deadline a reviewer picked has to still be ahead.
+- `revision_due` (def) - When the creator has to have the requested changes done: the date the reviewer picked, else their working days
+- `video_due` (def) - When the video is due once its script is approved: the date picked, or working days from now; None for no deadline.
+- `_when` (def) - e.g.
+- `_recipients` (def) - Reviews: every reviewer except the creator.
+- `_message` (def)
+- `_claim` (def) - Mark deadlines that need a notice as notified and return them, in one statement, so a notice goes out
+- `send_due_notices` (def) - One pass: "due soon" reminders, then overdue notices.
+- `backfill_missing` (def) - Give content that was already waiting when deadlines were introduced a deadline from now, as if it had just
+- `deadline_loop` (def)
+
+## services/compliance/submissions/review_memory_service.py (190 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
+- `_json` (def)
+- `_doc` (def) - A reviewed version as a vector document: its content is what gets matched, the review is what comes back.
+- `_remember` (def)
+- `remember` (def) - Store (or refresh) one reviewed version.
+- `remember_all` (def) - Store every decided review; only new or changed content is embedded again.
+- `remember_soon` (def) - remember() in the background, so the request that triggered it doesn't wait on embedding.
+    - `run` (def)
+- `remember_all_in_background` (def) - Startup: catch up on anything decided while review memory was off or the server was down.
+- `query_text` (def) - The text a post is matched on: the same parts that are stored for past reviews.
+- `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
+
+## services/compliance/submissions/submission_service.py (2657 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -1075,24 +1098,6 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `recheck_after_document_text` (def) - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
 - `_recheck_for_file` (def) - Re-run the check of the open submission a file belongs to, after something about the file was read.
 
-## services/compliance/transcription_service.py (257 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
-- `_get_client` (def)
-- `_to_seconds` (def) - Accept numbers or "MM:SS(.s)" / "HH:MM:SS" strings, which models sometimes return anyway.
-- `_normalize` (def)
-- `_wait_until_active` (def) - Gemini processes uploaded videos before they can be referenced in a prompt.
-- `_claim` (def) - Atomically move a video to PROCESSING unless another worker is already transcribing it.
-- `_save` (def)
-- `transcribe_file` (def)
-- `_run` (def)
-- `schedule` (def) - Start background transcription for each video not already being transcribed by this process.
-- `schedule_missing` (def) - Queue videos that were never transcribed, or whose previous attempt was abandoned.
-
-## services/compliance/video_job_service.py (182 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
-- `create_video_job` (def) - Initialize a new video processing background job.
-- `get_video_job` (def) - Retrieve current status and progress of a background video job.
-- `list_video_jobs` (def) - List recent video processing jobs.
-- `run_video_processing_pipeline` (def) - Background task simulating end-to-end video processing through all stages.
-
 ## services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - `_normalize_profile` (def)
 - `fetch_me_profile` (def) - Fetch the signed-in employee's own profile via GET /v1.0/me.
@@ -1180,11 +1185,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `_consume_in_memory` (def)
     - `close` (def)
 
-## services/shared/audit_service.py (126 lines) - audit service (shared)
-- `log_audit_event` (def) - Records an event in the audit_logs table.
-- `get_audit_logs` (def)
-
-## services/shared/auth_service.py (617 lines) - auth service (shared)
+## services/shared/auth/auth_service.py (617 lines) - auth service (shared auth)
 - `_update_last_activity_async` (def)
 - `create_access_token` (def)
 - `create_link_token` (def)
@@ -1204,29 +1205,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `require_permission` (def) - New API Permission Guard based on PBAC proposal.
     - `dependency` (def)
 
-## services/shared/cache_service.py (200 lines) - Goes up on every invalidation.
-- `AsyncInMemoryCache` (class) - Lightweight in-memory cache with TTL expiration, LRU eviction, and key/prefix invalidation.
-    - `__init__` (def)
-    - `get` (def)
-    - `set` (def)
-    - `set_if_unchanged` (def) - set(), unless the cache was invalidated since `generation` was read (the value may be stale).
-    - `invalidate` (def)
-    - `invalidate_prefix` (def)
-    - `clear` (def)
-- `_apply_cache_invalidation` (def) - Apply invalidation to local process in-memory caches.
-- `emit_cache_invalidation` (def) - Broadcast a cache invalidation event.
-- `_create_notification_handler` (def) - Create a callback for PostgreSQL NOTIFY events received from other workers.
-    - `handle_notification` (def)
-- `start_cache_invalidation_listener` (def) - Background worker that listens for PostgreSQL NOTIFY events on CACHE_CHANNEL.
-
-## services/shared/logging_service.py (122 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
-- `JsonFormatter` (class) - Emit one compact JSON object per line for CloudWatch Logs Insights.
-    - `format` (def)
-- `configure_logging` (def) - Configure stdout once; AWS container log drivers collect this stream.
-- `log_background_task_result` (def) - Log a task that exits unexpectedly instead of losing its exception.
-- `asyncio_exception_handler` (def) - Capture detached asyncio failures that would otherwise only reach stderr.
-
-## services/shared/oauth_connection_service.py (608 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
+## services/shared/auth/oauth_connection_service.py (608 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
 - `list_organizations` (def)
 - `get_organization` (def)
 - `create_organization` (def)
@@ -1245,7 +1224,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `sync_accounts_from_mqtt` (def) - Upserts social media accounts provided by the marketing/social media app via MQTT.
 - `sync_with_social_media_app_mqtt` (def) - Requests account synchronization over MQTT, and populates connected accounts.
 
-## services/shared/rbac_service.py (757 lines) - Utility for audit logging
+## services/shared/auth/rbac_service.py (757 lines) - Utility for audit logging
 - `log_audit` (def)
 - `get_audit_logs` (def)
 - `_actor_is_super_admin` (def)
@@ -1276,10 +1255,36 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_role_permission_groups` (def)
 - `update_role_permission_groups` (def)
 
-## services/shared/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
+## services/shared/auth/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
 - `require_application_scope` (def) - FastAPI dependency that enforces Application-Level Scope authorization.
     - `_scope_guard` (def)
 - `generate_scoped_outbound_token` (def) - Generates a minimal, scope-restricted token for sending requests to another application.
+
+## services/shared/core/audit_service.py (126 lines) - audit service (shared core)
+- `log_audit_event` (def) - Records an event in the audit_logs table.
+- `get_audit_logs` (def)
+
+## services/shared/core/cache_service.py (200 lines) - Goes up on every invalidation.
+- `AsyncInMemoryCache` (class) - Lightweight in-memory cache with TTL expiration, LRU eviction, and key/prefix invalidation.
+    - `__init__` (def)
+    - `get` (def)
+    - `set` (def)
+    - `set_if_unchanged` (def) - set(), unless the cache was invalidated since `generation` was read (the value may be stale).
+    - `invalidate` (def)
+    - `invalidate_prefix` (def)
+    - `clear` (def)
+- `_apply_cache_invalidation` (def) - Apply invalidation to local process in-memory caches.
+- `emit_cache_invalidation` (def) - Broadcast a cache invalidation event.
+- `_create_notification_handler` (def) - Create a callback for PostgreSQL NOTIFY events received from other workers.
+    - `handle_notification` (def)
+- `start_cache_invalidation_listener` (def) - Background worker that listens for PostgreSQL NOTIFY events on CACHE_CHANNEL.
+
+## services/shared/core/logging_service.py (122 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
+- `JsonFormatter` (class) - Emit one compact JSON object per line for CloudWatch Logs Insights.
+    - `format` (def)
+- `configure_logging` (def) - Configure stdout once; AWS container log drivers collect this stream.
+- `log_background_task_result` (def) - Log a task that exits unexpectedly instead of losing its exception.
+- `asyncio_exception_handler` (def) - Capture detached asyncio failures that would otherwise only reach stderr.
 
 ## tests/test_ai_down_approval.py (102 lines) - test ai down approval
 - `finding` (def)
@@ -1370,7 +1375,22 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_the_cashtag_is_suggested_first_when_the_post_is_for_investors` (def)
     - `test_otherwise_the_cashtag_is_an_option_at_the_end` (def)
 
-## tests/test_claim_checks.py (200 lines) - The text read from the "$25M contract" graphic, line breaks and all.
+## tests/test_cheaper_recall.py (95 lines) - test cheaper recall
+- `ClaimGateTests` (class)
+    - `test_posts_that_make_claims_are_worth_the_extra_pass` (def)
+    - `test_a_greeting_or_an_event_notice_is_not` (def)
+    - `test_the_mode_comes_from_the_environment` (def)
+- `SentenceSplitTests` (class)
+    - `test_long_enough_sentences_once_in_order` (def)
+    - `test_it_stops_at_the_limit` (def)
+- `rule` (def)
+- `SentenceSearchTests` (class)
+    - `test_a_rule_found_only_by_one_sentence_is_picked` (def)
+- `TriggerPhraseTests` (class)
+    - `test_soft_claim_phrases_are_added_to_the_rules` (def)
+    - `test_none_is_so_generic_it_would_match_everything` (def)
+
+## tests/test_claim_checks.py (201 lines) - The text read from the "$25M contract" graphic, line breaks and all.
 - `fired` (def) - The checks that fire, by key: a check's rule number can be shared with another check.
 - `ClaimCheckTests` (class)
     - `test_the_contract_graphic_trips_every_check` (def)
@@ -1519,6 +1539,15 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_extra_claims_are_capped` (def)
     - `test_a_denied_phrase_is_not_a_claim` (def)
 
+## tests/test_full_rule_pass.py (81 lines) - test full rule pass
+- `rule` (def)
+- `FullRulePassTests` (class)
+    - `run_pass` (def)
+    - `test_every_applicable_rule_is_put_to_the_ai_even_when_the_search_found_none` (def)
+    - `test_a_rule_the_wording_already_caught_is_not_asked_again` (def)
+    - `test_switched_off_it_asks_nothing_when_the_search_found_nothing` (def)
+    - `test_the_prompt_asks_for_soft_claims` (def)
+
 ## tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
 - `rule` (def)
 - `LibraryTests` (class)
@@ -1553,7 +1582,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ImageTextModelChainTests` (class)
     - `test_the_next_light_model_is_tried_when_one_is_out_of_quota` (def)
 
-## tests/test_performance_period.py (85 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
+## tests/test_performance_period.py (86 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
 - `PeriodTests` (class)
     - `test_last_n_days_ends_now` (def)
     - `test_a_custom_range_covers_whole_days_in_the_team_time_zone` (def)
@@ -1596,7 +1625,15 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `StuckReadRetriedTests` (class)
     - `test_only_stuck_reads_older_than_the_limit_are_retried` (def)
 
-## tests/test_review_decision.py (260 lines) - test review decision
+## tests/test_retired_models.py (36 lines) - test retired models
+- `RetiredModelTests` (class)
+    - `test_retired_models_are_dropped_in_order` (def)
+    - `test_a_list_of_only_retired_models_is_left_as_given` (def)
+    - `test_the_account_list_in_env_cannot_bring_them_back` (def)
+    - `test_no_route_tries_a_retired_model_first` (def)
+    - `test_a_route_set_in_env_is_filtered_too` (def)
+
+## tests/test_review_decision.py (261 lines) - test review decision
 - `submission_row` (def)
 - `fake_pool` (def)
 - `approve_now` (def)
@@ -1633,7 +1670,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_dismissing_the_stricter_of_two_flags_on_the_same_words_doesnt_make_them_free` (def)
     - `test_no_score_yet_or_an_old_check_without_points` (def)
 
-## tests/test_reviewer_choice.py (184 lines) - test reviewer choice
+## tests/test_reviewer_choice.py (186 lines) - test reviewer choice
 - `submission_row` (def)
 - `WhoMayOpenItTests` (class)
     - `load` (def)
@@ -1663,7 +1700,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_reviewers_and_super_admins_are_offered_by_name` (def)
     - `test_a_super_admin_is_offered_to_themselves_too` (def)
 
-## tests/test_rulebook_check_coverage.py (164 lines) - test rulebook check coverage
+## tests/test_rule25_guidance.py (26 lines) - test rule25 guidance
+- `ForwardLookingGuidanceTests` (class)
+    - `test_rule_25_tells_the_ai_generic_enthusiasm_is_not_forward_looking` (def)
+    - `test_rule_25_still_requires_the_safe_harbor_for_real_projections` (def)
+    - `test_guidance_is_only_added_where_a_rule_has_none` (def)
+
+## tests/test_rulebook_check_coverage.py (165 lines) - test rulebook check coverage
 - `submission_row` (def)
 - `image` (def)
 - `RulebookCheckReadsImageTextTests` (class)
@@ -1742,7 +1785,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_the_reviewers_and_the_creator_are_both_told` (def)
     - `test_the_confirmation_counts_several_reviewers` (def)
 
-## tests/test_security_fixes.py (132 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
+## tests/test_security_fixes.py (133 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - `CaptionSanitizerTests` (class)
     - `test_keeps_editor_formatting` (def)
     - `test_drops_scripts_handlers_and_styles` (def)
@@ -1804,7 +1847,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `QuotaResetTests` (class)
     - `test_the_daily_quota_resets_at_midnight_pacific` (def)
 
-## tests/test_submission_access.py (154 lines) - test submission access
+## tests/test_social_post_no_video.py (48 lines) - test social post no video
+- `SocialPostMediaTests` (class)
+    - `test_a_social_post_takes_images_not_video` (def)
+    - `test_other_types_are_unchanged` (def)
+    - `missing` (def)
+    - `test_a_social_post_with_a_video_cant_be_sent` (def)
+    - `test_a_social_post_with_an_image_or_none_can` (def)
+    - `test_a_paid_ad_with_a_video_is_still_fine` (def)
+
+## tests/test_submission_access.py (155 lines) - test submission access
 - `submission_row` (def)
 - `OwnedRowAccessTests` (class)
     - `load` (def)
@@ -1858,14 +1910,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `create_index` (def) [POST /index] - Create the Atlas vector search index on this project's collection if it's missing.
 - `sync_review_memory` (def) [POST /review-memory/sync] - Store every decided review as precedent for sentiment analysis (only new or changed content is embedded).
 
-## tools/compliance/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.
-- `list_paths` (def) [GET ]
-- `path_options` (def) [GET /options] - Who can be named an approver, and the brands and audiences a path can match.
-- `create_path` (def) [POST ]
-- `update_path` (def) [PUT /{path_id}]
-- `delete_path` (def) [DELETE /{path_id}]
-
-## tools/compliance/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).
+## tools/compliance/analytics/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).
 - `get_connection` (def) [GET /connection] - Whether the user has connected Canva, and whether it's the mock or the live Canva.
 - `connect` (def) [POST /connection] - Connect the user's Canva account (the mock connects immediately).
 - `disconnect` (def) [DELETE /connection]
@@ -1873,7 +1918,34 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `design_thumbnail` (def) [GET /designs/{design_id}/thumbnail] - A small PNG preview of the design for the picker.
 - `simulate_edit` (def) [POST /designs/{design_id}/simulate-edit] - Mock Canva only: pretend the design was edited, so its next export is a new revision.
 
-## tools/compliance/compliance_router.py (172 lines) - Compliance Rules & Governance Router Endpoints for managing ("build on it and remove") and checking compliance rules.
+## tools/compliance/analytics/listening_router.py (91 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
+- `list_topics` (def) [GET /topics] - Every topic with its current mood, the team's keyword tuning and how often it was matched wrongly.
+- `sync_topics` (def) [POST /topics/sync] - Pull the topic list from the listening source now instead of waiting for the daily sync.
+- `update_topic` (def) [PUT /topics/{topic_id}]
+- `match_test` (def) [POST /match-test] - Which topics this text would match and why, including the near misses.
+- `get_trends` (def) [GET /trends] - What is trending right now, whether sentiment is positive or negative, and whether the team can jump on
+- `ingest_x_comments` (def) [POST /x-ingest] - Ingest scraped or collected X (Twitter) topics and comments, classify each comment as POSITIVE/NEGATIVE/NEUTRAL
+- `_run_scrape_and_refresh` (def)
+- `trigger_live_scrape` (def) [POST /scrape] - Trigger live scraping of public X posts and news trends via Playwright + VADER,
+
+## tools/compliance/analytics/performance_router.py (45 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
+- `performance` (def) [GET ] - Live posts (one row per platform) with their numbers and health, problems first, plus totals.
+
+## tools/compliance/analytics/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
+- `_reviewer` (def)
+- `feedback_summary` (def) [GET /feedback-summary] - How reviewers rated each kind of finding, noisiest (most often "not an issue") first.
+- `list_eval_cases` (def) [GET /eval-cases]
+- `create_eval_case` (def) [POST /eval-cases] - Save an analysed post as a test case, with the verdict the reviewer agrees is right.
+- `delete_eval_case` (def) [DELETE /eval-cases/{case_id}]
+
+## tools/compliance/submissions/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.
+- `list_paths` (def) [GET ]
+- `path_options` (def) [GET /options] - Who can be named an approver, and the brands and audiences a path can match.
+- `create_path` (def) [POST ]
+- `update_path` (def) [PUT /{path_id}]
+- `delete_path` (def) [DELETE /{path_id}]
+
+## tools/compliance/submissions/compliance_router.py (172 lines) - Compliance Rules & Governance Router Endpoints for managing ("build on it and remove") and checking compliance rules.
 - `list_rules` (def) [GET /rules] - List compliance rules with multi-criteria filtering.
 - `rules_flag_stats` (def) [GET /rules/flag-stats] - Per rule: how many submitted versions it flagged and how many of those flags reviewers dismissed.
 - `rules_self_test` (def) [GET /rules/self-test] - Every rule run against its own examples: "not acceptable" ones should be flagged, "acceptable" ones not.
@@ -1889,26 +1961,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_video_job_status` (def) [GET /jobs/{job_id}] - Get the real-time status, progress, and logs of a video background job.
 - `list_video_jobs` (def) [GET /jobs] - List recent video upload and screening background jobs.
 
-## tools/compliance/context_router.py (38 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
+## tools/compliance/submissions/context_router.py (38 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
 - `list_entries` (def) [GET ] - Everyone can read it: it's the guidance their content is assessed against.
 - `create_entry` (def) [POST ]
 - `update_entry` (def) [PUT /{entry_id}]
 - `delete_entry` (def) [DELETE /{entry_id}]
 
-## tools/compliance/listening_router.py (91 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
-- `list_topics` (def) [GET /topics] - Every topic with its current mood, the team's keyword tuning and how often it was matched wrongly.
-- `sync_topics` (def) [POST /topics/sync] - Pull the topic list from the listening source now instead of waiting for the daily sync.
-- `update_topic` (def) [PUT /topics/{topic_id}]
-- `match_test` (def) [POST /match-test] - Which topics this text would match and why, including the near misses.
-- `get_trends` (def) [GET /trends] - What is trending right now, whether sentiment is positive or negative, and whether the team can jump on
-- `ingest_x_comments` (def) [POST /x-ingest] - Ingest scraped or collected X (Twitter) topics and comments, classify each comment as POSITIVE/NEGATIVE/NEUTRAL
-- `_run_scrape_and_refresh` (def)
-- `trigger_live_scrape` (def) [POST /scrape] - Trigger live scraping of public X posts and news trends via Playwright + VADER,
-
-## tools/compliance/performance_router.py (45 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
-- `performance` (def) [GET ] - Live posts (one row per platform) with their numbers and health, problems first, plus totals.
-
-## tools/compliance/script_review_router.py (88 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+## tools/compliance/submissions/script_review_router.py (88 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `script_queue` (def) [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
 - `get_script` (def) [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
 - `submit_script` (def) [POST /{submission_id}/script/submit] - Send the uploaded script for review.
@@ -1920,14 +1979,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
 - `resolve_script_highlights` (def) [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
-## tools/compliance/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
-- `_reviewer` (def)
-- `feedback_summary` (def) [GET /feedback-summary] - How reviewers rated each kind of finding, noisiest (most often "not an issue") first.
-- `list_eval_cases` (def) [GET /eval-cases]
-- `create_eval_case` (def) [POST /eval-cases] - Save an analysed post as a test case, with the verdict the reviewer agrees is right.
-- `delete_eval_case` (def) [DELETE /eval-cases/{case_id}]
-
-## tools/compliance/submission_router.py (460 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submissions/submission_router.py (463 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
 - `list_reviewers` (def) [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
 - `get_hashtag_library` (def) [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
@@ -1999,7 +2051,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `api_notification_stream` (def) [GET /notifications/stream]
     - `event_generator` (def)
 
-## tools/shared/auth_router.py (412 lines) - auth router (shared)
+## tools/shared/auth/auth_router.py (412 lines) - auth router (shared auth)
 - `_sha256` (def)
 - `microsoft_login` (def) [GET /auth/microsoft/login]
 - `microsoft_callback` (def) [GET /auth/microsoft/callback]
@@ -2016,11 +2068,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `link_token` (def) [POST /auth/link-token] - A short-lived token for loading media and the notification stream by URL (<img>, <video>, EventSource
 - `logout` (def) [POST /auth/logout]
 
-## tools/shared/log_router.py (74 lines) - log router (shared)
-- `_safe_parse_json` (def)
-- `list_audit_logs` (def) [GET /logs]
-
-## tools/shared/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
+## tools/shared/auth/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
 - `list_organizations` (def) [GET /organizations] - List all top-level organizations (e.g.
 - `get_organization` (def) [GET /organizations/{organization_id}]
 - `create_organization` (def) [POST /organizations]
@@ -2037,18 +2085,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `sync_accounts_via_mqtt` (def) [POST /sync-mqtt] - Synchronizes social media accounts from the Social Media / Marketing application via MQTT event bus.
 - `get_mqtt_sync_status` (def) [GET /mqtt-status] - Returns the current MQTT bus connection and synchronization status.
 
-## tools/shared/observability.py (117 lines) - observability (shared)
-- `ClientErrorReport` (class)
-- `ClientPerformanceReport` (class)
-- `report_client_error` (def) [POST /observability/client-error]
-- `report_client_performance` (def) [POST /observability/client-performance]
-- `get_token_usage` (def) [GET /observability/usage/tokens] - Tokens, calls, errors and latency per feature and model over the last `hours`.
-- `get_ai_summary` (def) [GET /observability/ai/summary] - Per feature and model: calls, errors, p50/p95 latency, tokens; plus cache hits, guard verdicts, tool calls.
-- `list_ai_traces` (def) [GET /observability/ai/traces] - Recent traces, newest first, each with its span count, total time and any errors.
-- `get_ai_trace` (def) [GET /observability/ai/traces/{trace_id}] - Every span of one trace (model calls, embeddings, retrieval, tool calls, guard, cache) and its prompt logs.
-- `list_ai_prompt_logs` (def) [GET /observability/ai/prompt-logs] - Prompt and response of each model call (PII-redacted), newest first.
-
-## tools/shared/rbac_router.py (236 lines) - rbac router (shared)
+## tools/shared/auth/rbac_router.py (236 lines) - rbac router (shared auth)
 - `get_current_user_id` (def)
 - `read_my_permissions` (def) [GET /me/permissions]
 - `list_audit_logs` (def) [GET /audit-logs]
@@ -2080,7 +2117,22 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_role_mcp_tool_permissions` (def) [GET /configuration/roles/{id}/mcp-tool-permissions]
 - `edit_role_mcp_tool_permissions` (def) [PUT /configuration/roles/{id}/mcp-tool-permissions]
 
-## tools/shared/search.py (176 lines) - Static system pages for quick navigation search with explicit permission codes
+## tools/shared/core/log_router.py (74 lines) - log router (shared core)
+- `_safe_parse_json` (def)
+- `list_audit_logs` (def) [GET /logs]
+
+## tools/shared/core/observability.py (117 lines) - observability (shared core)
+- `ClientErrorReport` (class)
+- `ClientPerformanceReport` (class)
+- `report_client_error` (def) [POST /observability/client-error]
+- `report_client_performance` (def) [POST /observability/client-performance]
+- `get_token_usage` (def) [GET /observability/usage/tokens] - Tokens, calls, errors and latency per feature and model over the last `hours`.
+- `get_ai_summary` (def) [GET /observability/ai/summary] - Per feature and model: calls, errors, p50/p95 latency, tokens; plus cache hits, guard verdicts, tool calls.
+- `list_ai_traces` (def) [GET /observability/ai/traces] - Recent traces, newest first, each with its span count, total time and any errors.
+- `get_ai_trace` (def) [GET /observability/ai/traces/{trace_id}] - Every span of one trace (model calls, embeddings, retrieval, tool calls, guard, cache) and its prompt logs.
+- `list_ai_prompt_logs` (def) [GET /observability/ai/prompt-logs] - Prompt and response of each model call (PII-redacted), newest first.
+
+## tools/shared/core/search.py (176 lines) - Static system pages for quick navigation search with explicit permission codes
 - `SearchResult` (class)
 - `global_search` (def) [GET ]
     - `has_perm` (def)

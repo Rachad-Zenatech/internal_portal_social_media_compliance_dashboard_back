@@ -9,8 +9,9 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from services.compliance import performance_service, review_deadline_service
-from tools.compliance import performance_router
+from services.compliance.analytics import performance_service
+from services.compliance.submissions import review_deadline_service
+from tools.compliance.analytics import performance_router
 
 USER = uuid4()
 
