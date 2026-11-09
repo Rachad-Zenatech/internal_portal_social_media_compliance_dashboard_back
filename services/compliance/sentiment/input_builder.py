@@ -8,8 +8,11 @@ from uuid import UUID
 
 from models.compliance.compliance_model import ComplianceCheckRequest
 from postgresql_db.database import fetch_all, fetch_one
-from services.compliance import context_service, document_layout, post_signals, review_memory_service
-from services.compliance.compliance_service import applicable_rules, audiences_of, brands_of, implied_audiences, implied_by_wording, parts_for
+from services.compliance.evaluation import context_service
+from services.compliance.media import document_layout
+from services.compliance.analytics import post_signals
+from services.compliance.submissions import review_memory_service
+from services.compliance.evaluation.compliance_service import applicable_rules, audiences_of, brands_of, implied_audiences, implied_by_wording, parts_for
 from services.compliance.sentiment.config import (
     CEO_BRAND,
     CEO_RULE_SET,

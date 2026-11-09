@@ -15,8 +15,8 @@ from models.compliance.sentiment_model import (
     SentimentResult,
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
-from services.ai import ai_usage_service
-from services.ai.ai_usage_service import AiLimitExceeded
+from services.ai.observability import ai_usage_service
+from services.ai.observability.ai_usage_service import AiLimitExceeded
 from services.compliance.sentiment.config import (
     QuotaExhausted,
     ModelUnavailable,
@@ -218,7 +218,7 @@ async def _request(submission_id: UUID, user_id: Optional[UUID], trigger: str) -
             """,
             submission_id, row["current_version"], trigger, PROMPT_VERSION, user_id,
         )
-        from services.compliance import transcription_service
+        from services.compliance.media import transcription_service
         await transcription_service.schedule_missing([row["video_id"]])
         return saved["id"]
     return await _queue_for(row, trigger, user_id)

@@ -6,9 +6,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from postgresql_db.database import fetch_one
-from services.compliance import review_memory_service
-from services.ai import vector_store_service
-from services.shared.auth_service import get_current_user_id_dependency
+from services.compliance.submissions import review_memory_service
+from services.ai.core import vector_store_service
+from services.shared.auth.auth_service import get_current_user_id_dependency
 
 router = APIRouter(prefix="/vector-store", tags=["Vector Store"])
 

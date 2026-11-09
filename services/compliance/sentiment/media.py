@@ -17,8 +17,8 @@ from services.compliance.sentiment.jobs import _analysis_row
 
 async def video_frame(submission_id: UUID, analysis_id: UUID, at_sec: float):
     """A JPEG of the analysed video at a moment (cached on disk), so a finding can show what was on screen."""
-    from services.compliance.canva_mock_render import _ffmpeg
-    from services.compliance.transcription_service import STORAGE_ROOT
+    from services.compliance.media.canva_mock_render import _ffmpeg
+    from services.compliance.media.transcription_service import STORAGE_ROOT
     import subprocess
 
     row = await _analysis_row(submission_id, analysis_id)
@@ -49,7 +49,7 @@ async def video_frame(submission_id: UUID, analysis_id: UUID, at_sec: float):
 
 async def analysed_image(submission_id: UUID, analysis_id: UUID, index: int) -> Tuple[Any, str]:
     """One of the images an analysis looked at (1 = the first), as (path, mime type), so a finding can show it."""
-    from services.compliance.transcription_service import STORAGE_ROOT
+    from services.compliance.media.transcription_service import STORAGE_ROOT
 
     row = await _analysis_row(submission_id, analysis_id)
     images = (_json(row["input"]) or {}).get("images") or []

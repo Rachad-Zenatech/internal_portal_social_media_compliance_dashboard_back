@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime, timezone
 
 from models.compliance.sentiment_model import SentimentFinding, SentimentResult
-from services.compliance import sentiment_service as s
+from services.compliance.analytics import sentiment_service as s
 
 
 def inp(caption="", title="Post", transcript=None, images=0, guidelines=()):

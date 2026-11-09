@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 
-from tools.shared import auth_router
+from tools.shared.auth import auth_router
 
 
 def request(host="localhost"):

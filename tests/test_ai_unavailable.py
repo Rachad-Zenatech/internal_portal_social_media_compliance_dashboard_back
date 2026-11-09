@@ -2,8 +2,8 @@ import unittest
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from services.compliance import submission_service
-from services.compliance.submission_service import ai_unavailable
+from services.compliance.submissions import submission_service
+from services.compliance.submissions.submission_service import ai_unavailable
 
 
 def job(check, score=100):

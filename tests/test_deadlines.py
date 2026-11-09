@@ -3,8 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 
-from services.compliance import review_deadline_service as rds
-from services.compliance.submission_service import _due
+from services.compliance.submissions import review_deadline_service as rds
+from services.compliance.submissions.submission_service import _due
 
 
 def hours(n):

@@ -2,8 +2,8 @@ import unittest
 from uuid import uuid4
 
 from models.compliance.compliance_model import ComplianceViolation, ContextEvaluation
-from services.compliance import compliance_service
-from services.compliance.flag_review_service import score_after_dismissals
+from services.compliance.evaluation import compliance_service
+from services.compliance.submissions.flag_review_service import score_after_dismissals
 
 CLAIM = "Reclaim up to 3,000 hours of manual compliance work"
 

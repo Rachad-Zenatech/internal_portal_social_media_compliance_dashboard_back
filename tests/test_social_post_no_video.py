@@ -3,9 +3,9 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-from services.compliance import submission_service as subs
+from services.compliance.submissions import submission_service as subs
 
-SVC = "services.compliance.submission_service"
+SVC = "services.compliance.submissions.submission_service"
 
 
 class SocialPostMediaTests(unittest.IsolatedAsyncioTestCase):

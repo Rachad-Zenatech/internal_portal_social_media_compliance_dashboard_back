@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from models.compliance.compliance_model import ComplianceCheckRequest, ComplianceRule
-from services.compliance import compliance_service as cs
+from services.compliance.evaluation import compliance_service as cs
 
 
 def rule(number, severity="MEDIUM"):

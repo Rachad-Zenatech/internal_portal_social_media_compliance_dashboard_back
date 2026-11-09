@@ -1,9 +1,9 @@
 import unittest
 
 from models.compliance.compliance_model import ComplianceCheckRequest
-from services.compliance import hashtag_library as hl
-from services.compliance.approval_path_service import ApprovalRules
-from services.compliance.compliance_service import audiences_of, check_scope
+from services.compliance.media import hashtag_library as hl
+from services.compliance.submissions.approval_path_service import ApprovalRules
+from services.compliance.evaluation.compliance_service import audiences_of, check_scope
 from uuid import uuid4
 
 

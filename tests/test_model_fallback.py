@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from google.genai import errors
 
 from models.compliance.sentiment_model import SentimentResult
-from services.compliance import image_text_service
-from services.compliance import sentiment_service as s
+from services.compliance.media import image_text_service
+from services.compliance.analytics import sentiment_service as s
 
-SS = "services.compliance.sentiment_service"
+SS = "services.compliance.analytics.sentiment_service"
 # Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
 ENGINE = "services.compliance.sentiment.engine"
 INPUT = "services.compliance.sentiment.input_builder"

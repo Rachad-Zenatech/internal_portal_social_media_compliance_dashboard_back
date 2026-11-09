@@ -6,10 +6,11 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from models.compliance.compliance_model import ComplianceCheckResponse
-from services.compliance import image_text_service, submission_service
+from services.compliance.media import image_text_service
+from services.compliance.submissions import submission_service
 
-SVC = "services.compliance.submission_service"
-ITS = "services.compliance.image_text_service"
+SVC = "services.compliance.submissions.submission_service"
+ITS = "services.compliance.media.image_text_service"
 
 
 def submission_row(**overrides):
@@ -100,8 +101,8 @@ class ImageTextReaderTests(unittest.IsolatedAsyncioTestCase):
             })),
             patch(f"{ITS}._save", new=save),
             patch(f"{ITS}._generate", new=generate),
-            patch("services.compliance.transcription_service.STORAGE_ROOT", self.root),
-            patch("services.compliance.sentiment_service._image_bytes", return_value=(b"png", "image/png")),
+            patch("services.compliance.media.transcription_service.STORAGE_ROOT", self.root),
+            patch("services.compliance.analytics.sentiment_service._image_bytes", return_value=(b"png", "image/png")),
             patch(f"{SVC}.recheck_after_image_text", new=recheck),
         ):
             await image_text_service.read_file(uuid4())

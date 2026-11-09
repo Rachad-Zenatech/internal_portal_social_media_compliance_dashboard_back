@@ -2,8 +2,8 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from services.compliance import document_text_service as docs
-from services.compliance import image_text_service as images
+from services.compliance.media import document_text_service as docs
+from services.compliance.media import image_text_service as images
 
 
 class ResumeInterruptedReadTests(unittest.IsolatedAsyncioTestCase):

@@ -5,7 +5,8 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from models.compliance.compliance_model import ComplianceCheckRequest, ComplianceRule
-from services.compliance import claim_checks, compliance_service
+from services.compliance.evaluation import claim_checks
+from services.compliance.evaluation import compliance_service
 
 # The text read from the "$25M contract" graphic, line breaks and all.
 CONTRACT_GRAPHIC = """ZENA T T E C H

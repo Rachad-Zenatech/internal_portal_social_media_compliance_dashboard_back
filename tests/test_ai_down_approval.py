@@ -6,9 +6,9 @@ from fastapi import HTTPException
 
 from models.compliance.compliance_model import ComplianceViolation
 from models.compliance.submission_model import ReviewDecisionRequest
-from services.compliance import context_evaluator as ce
-from services.compliance import script_review_service as srs
-from services.compliance import submission_service as ss
+from services.compliance.evaluation import context_evaluator as ce
+from services.compliance.evaluation import script_review_service as srs
+from services.compliance.submissions import submission_service as ss
 from tests.test_compliance_scoring import rule
 
 USER = uuid4()

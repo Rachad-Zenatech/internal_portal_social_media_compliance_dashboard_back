@@ -6,12 +6,14 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from models.compliance.submission_model import SubmissionUpdate
-from services.compliance import review_deadline_service, script_review_service, submission_service
+from services.compliance.submissions import review_deadline_service
+from services.compliance.evaluation import script_review_service
+from services.compliance.submissions import submission_service
 
 CREATOR = uuid4()
 PICKED = uuid4()
 OTHER_REVIEWER = uuid4()
-SVC = "services.compliance.submission_service"
+SVC = "services.compliance.submissions.submission_service"
 
 
 def submission_row(**overrides):
