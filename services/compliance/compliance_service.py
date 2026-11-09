@@ -759,6 +759,15 @@ EXTRA_CLAIM_CAP = 10
 EVIDENCE_PENALTY = 5
 EVIDENCE_CAP = 10
 
+# A finding a person has to check costs points by how sure the model is that the rule is broken: at REVIEW_SURE or
+# above, REVIEW_SURE_SHARE of what the violation would cost (half of a critical rule's 35 is 18, missing disclaimer or not); from REVIEW_LIKELY up
+# to that, the same few points as a claim that needs a source; below it, nothing. Dismissing the flag gives them back.
+# Only the model's own judgment counts: a finding it would have cleared, or one no model could read, costs nothing.
+REVIEW_SURE = 0.8
+REVIEW_LIKELY = 0.5
+REVIEW_SURE_SHARE = 0.5
+REVIEW_LIKELY_PENALTY = EVIDENCE_PENALTY
+
 
 def _quoted(items: Sequence[str]) -> str:
     """'"a", "b"'. A helper rather than inline, since Python before 3.12 allows no backslash inside an f-string's {}."""
@@ -1271,6 +1280,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     _count_overlaps_once(breaches, padded_text)
     _count_extra_claims(breaches, rules, padded_text)
     unsupported = _charge_unsupported_claims(violations)
+    to_check = _charge_review_findings(violations, rules)
     blocked = any(v.traffic_light == "RED" for v in breaches)
     needs_review = sum(1 for v in violations if v.status == "NEEDS_REVIEW")
     needs_evidence = sum(1 for v in violations if v.status == "EVIDENCE_REQUIRED")
@@ -1279,7 +1289,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # GREEN means nothing needs a look. Any open finding makes it at least YELLOW, so the light, the score and
     # "compliant" always agree; a cleared trigger doesn't count.
     overall_traffic_light = "RED" if blocked else "YELLOW" if (breaches or open_warnings) else "GREEN"
-    raw_score = max(0, 100 - sum(v.penalty for v in breaches) - sum(v.penalty for v in unsupported))
+    raw_score = max(0, 100 - sum(v.penalty for v in (*breaches, *unsupported, *to_check)))
     score = min(raw_score, CRITICAL_SCORE_CAP) if blocked else raw_score
 
     recommendations: List[str] = []
@@ -1298,8 +1308,10 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
             parts.append(f"{needs_evidence} claim{'s' if needs_evidence != 1 else ''} that need{'' if needs_evidence != 1 else 's'} a source")
         note = "Confirm them before publishing."
         if needs_evidence:
-            note = ("Checks by a person don't lower the score; a claim that needs a source costs a few points until a reviewer "
-                    "confirms the evidence is on file. Confirm them before publishing.")
+            note = ("A claim that needs a source costs a few points until a reviewer confirms the evidence is on file. "
+                    "Confirm them before publishing.")
+        if any(v.status == "NEEDS_REVIEW" for v in to_check):
+            note += " A check the AI thinks is likely a breach costs points until it's fixed or dismissed."
         recommendations.append(
             ("No rule breaches found, but " if not breaches else "Also: ") + " and ".join(parts) + ". " + note
         )
@@ -1429,6 +1441,36 @@ def _charge_unsupported_claims(violations: List[ComplianceViolation]) -> List[Co
             first[key] = v
         v.penalty = max(0, min(EVIDENCE_PENALTY, EVIDENCE_CAP - charged))
         charged += v.penalty
+        if v.penalty:
+            costing.append(v)
+    return costing
+
+
+def review_penalty(rule: ComplianceRule, kind: str, confidence: float) -> int:
+    """What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE)."""
+    if confidence >= REVIEW_SURE:
+        # The rule's own violation points (35 red, 20 high, 10 other), even when the finding is a missing disclaimer:
+        # a red rule's check costs half of 35, not half of the flat 20 a missing disclaimer costs.
+        full, _ = _penalty_and_light(rule)
+        return int(full * REVIEW_SURE_SHARE + 0.5)
+    if confidence >= REVIEW_LIKELY:
+        return REVIEW_LIKELY_PENALTY
+    return 0
+
+
+def _charge_review_findings(violations: List[ComplianceViolation],
+                            rules: Sequence[ComplianceRule]) -> List[ComplianceViolation]:
+    """Give each finding a person has to check its points by the model's confidence. Returns the ones that cost any."""
+    by_id = {r.id: r for r in rules}
+    costing: List[ComplianceViolation] = []
+    for v in violations:
+        if v.status != "NEEDS_REVIEW":
+            continue
+        ev, rule = v.evaluation, by_id.get(v.rule_id)
+        # ADJUSTED: the model would have cleared it, so its confidence is that the rule isn't broken.
+        if rule is None or ev is None or ev.source != "AI":
+            continue
+        v.penalty = review_penalty(rule, v.kind, ev.confidence)
         if v.penalty:
             costing.append(v)
     return costing

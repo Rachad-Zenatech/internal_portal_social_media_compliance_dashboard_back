@@ -150,7 +150,8 @@ class ComplianceCheckRequest(BaseModel):
 #   NEEDS_REVIEW       whether it applies depends on something the text can't show, such as the final footage
 #   EVIDENCE_REQUIRED  a factual claim that needs a source before it goes out
 #   CLEARED            a trigger was found, but the context shows the rule doesn't apply
-# Only violations cost points or block; the rest are warnings, so a reviewer sees them without being stopped.
+# Only violations block. Violations cost points; so do claims that need a source and checks the AI thinks are likely
+# breaches (see REVIEW_SURE in compliance_service). Cleared triggers cost nothing.
 FindingStatus = Literal["VIOLATION", "NEEDS_REVIEW", "EVIDENCE_REQUIRED", "CLEARED"]
 
 

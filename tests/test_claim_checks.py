@@ -155,9 +155,11 @@ class ScoreWithClaimChecksTests(unittest.IsolatedAsyncioTestCase):
                 ComplianceCheckRequest(text="Good news: our drones already guard every border.")
             )
 
-        # One finding: the quote that is in the post. It costs nothing and doesn't block.
+        # One finding: the quote that is in the post. It doesn't block; the model is 90% sure, so it costs half of the
+        # HIGH rule's 20 points.
         self.assertEqual([v.status for v in result.violations], ["NEEDS_REVIEW"])
-        self.assertEqual((result.violations_count, result.review_count, result.score), (0, 1, 100))
+        self.assertEqual((result.violations_count, result.review_count, result.score), (0, 1, 90))
+        self.assertFalse(result.blocked)
         self.assertEqual(result.violations[0].flagged_terms, ["our drones already guard every border"])
         self.assertIn("by meaning", result.violations[0].explanation)
 
