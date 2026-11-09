@@ -27,7 +27,7 @@ import uuid
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple
+from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Optional, Tuple
 from uuid import UUID
 
 from postgresql_db.database import get_pool
@@ -263,6 +263,23 @@ def classify_error(e: BaseException) -> str:
     return "OTHER"
 
 
+# Told about each model attempt as it starts and ends, for whoever set it (the creator's compliance check streams
+# them to the page). Tasks started inside inherit it, like any context variable.
+attempt_listener: contextvars.ContextVar[Optional[Callable[[Dict[str, Any]], None]]] = contextvars.ContextVar(
+    "ai_attempt_listener", default=None
+)
+
+
+def _notify_attempt(event: Dict[str, Any]) -> None:
+    listener = attempt_listener.get()
+    if listener is None:
+        return
+    try:
+        listener(event)
+    except Exception:  # A listener must never break the model call.
+        logger.debug("AI attempt listener failed", exc_info=True)
+
+
 async def generate(client: Any, *, model: str, contents: Any, config: Any = None, feature: str = "GENERAL",
                    submission_id: Optional[UUID] = None, guard: Optional[GuardResult] = None,
                    **attributes: Any) -> Any:
@@ -278,15 +295,23 @@ async def generate(client: Any, *, model: str, contents: Any, config: Any = None
     async with span("model", "gemini.generate_content", model=model, feature=feature,
                     prompt_chars=len(prompt), attachments=attachments, **attributes) as s:
         started = time.perf_counter()
+        attempt_id = uuid.uuid4().hex
+        _notify_attempt({"event": "attempt", "id": attempt_id, "status": "RUNNING", "model": model, "feature": feature,
+                         "attempt": attributes.get("attempt"), "tier": attributes.get("route_tier")})
         try:
             response = await asyncio.to_thread(client.models.generate_content, model=model, contents=contents, config=config)
         except Exception as e:
             s.attributes["error_kind"] = classify_error(e)
+            _notify_attempt({"event": "attempt", "id": attempt_id, "status": "FAILED", "model": model, "feature": feature,
+                             "error_kind": s.attributes["error_kind"], "error": str(e)[:160],
+                             "duration_ms": round((time.perf_counter() - started) * 1000)})
             log_prompt(**logged, response=None, status="ERROR", error_type=type(e).__name__,
                        latency_ms=round((time.perf_counter() - started) * 1000, 2))
             raise
         input_tokens, output_tokens = token_counts(response)
         s.attributes.update(input_tokens=input_tokens, output_tokens=output_tokens)
+        _notify_attempt({"event": "attempt", "id": attempt_id, "status": "OK", "model": model, "feature": feature,
+                         "duration_ms": round((time.perf_counter() - started) * 1000)})
         log_prompt(**logged, response=response_text(response),
                    latency_ms=round((time.perf_counter() - started) * 1000, 2),
                    input_tokens=input_tokens, output_tokens=output_tokens)

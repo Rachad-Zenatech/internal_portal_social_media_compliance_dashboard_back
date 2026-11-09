@@ -2,11 +2,14 @@
 Create, save and resume drafts, attach files, submit for compliance review and view history.
 """
 
+import asyncio
+import json
+import logging
 from typing import Annotated, Dict, List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from models.compliance.canva_model import CanvaImportRequest, CanvaReimportRequest
 from models.compliance.caption_model import CaptionSuggestions, CaptionSuggestRequest
@@ -34,13 +37,15 @@ from models.compliance.submission_model import (
     SubmissionUpdate,
     SubmitResult,
 )
-from services.ai import ai_usage_service
+from services.ai import ai_observability, ai_usage_service
 from services.compliance import caption_service, public_mood_service, sentiment_service
 from services.compliance import flag_review_service
 from services.compliance import submission_service as svc
 from models.compliance.flag_review_model import FindingVerdict, FlagConfirmRequest, FlagDismissRequest, FlagReview
 from services.shared.auth_service import get_current_user_id_dependency
 from services.compliance.hashtag_library import HashtagLibrary
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/submissions", tags=["Content Submissions"])
 
@@ -188,6 +193,49 @@ async def reimport_from_canva(submission_id: UUID, data: CanvaReimportRequest, u
 async def run_initial_check(submission_id: UUID, user_id: CurrentUser):
     """Screen the title and caption against the rulebook without submitting."""
     return await svc.run_initial_check(submission_id, user_id)
+
+
+@router.post("/{submission_id}/check/stream")
+async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser):
+    """The same check as /check, streamed as newline-delimited JSON so the page can show its progress: an
+    {"event": "attempt"} line as each AI model call starts and ends (fallbacks included), then {"event": "done",
+    "submission": ...} with the saved result, or {"event": "failed", "status": ..., "detail": ...}."""
+    await svc._get_owned_row(submission_id, user_id)  # access check before the stream starts
+    queue: asyncio.Queue = asyncio.Queue()
+    open_ = {"value": True}
+
+    def listen(event: Dict) -> None:
+        # Background work the check starts (reading an image's text) keeps the listener after the check is done.
+        if open_["value"]:
+            queue.put_nowait(event)
+
+    async def work() -> None:
+        ai_observability.attempt_listener.set(listen)
+        try:
+            sub = await svc.run_initial_check(submission_id, user_id)
+            queue.put_nowait({"event": "done", "submission": sub.model_dump(mode="json")})
+        except HTTPException as e:
+            queue.put_nowait({"event": "failed", "status": e.status_code, "detail": e.detail})
+        except Exception:
+            logger.exception("Streamed compliance check failed for %s", submission_id)
+            queue.put_nowait({"event": "failed", "status": 500, "detail": "The compliance check couldn't run"})
+
+    # Runs to the end and saves its result even if the page goes away mid-check.
+    task = asyncio.create_task(work(), name=f"check-stream-{submission_id}")
+
+    async def lines():
+        try:
+            while True:
+                event = await queue.get()
+                yield json.dumps(event, default=str) + "\n"
+                if event["event"] in ("done", "failed"):
+                    break
+        finally:
+            open_["value"] = False
+            if task.done() and not task.cancelled():
+                task.exception()  # already handled inside work(); read so asyncio doesn't warn
+
+    return StreamingResponse(lines(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache"})
 
 
 @router.post("/{submission_id}/submit", response_model=SubmitResult)

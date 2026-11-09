@@ -329,7 +329,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `summarize` (def) - rows: the AI calls in the window, newest first, each with status, kind (the failure kind) and started_at.
 - `status` (def)
 
-## services/ai/ai_observability.py (385 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+## services/ai/ai_observability.py (410 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - `_env_int` (def)
 - `Span` (class)
 - `_get_queue` (def)
@@ -347,6 +347,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `response_text` (def)
 - `log_prompt` (def)
 - `classify_error` (def) - What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
+- `_notify_attempt` (def)
 - `generate` (def) - client.models.generate_content in a thread, traced and prompt-logged.
 - `_write` (def)
 - `_apply_retention` (def)
@@ -1926,7 +1927,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `create_eval_case` (def) [POST /eval-cases] - Save an analysed post as a test case, with the verdict the reviewer agrees is right.
 - `delete_eval_case` (def) [DELETE /eval-cases/{case_id}]
 
-## tools/compliance/submission_router.py (412 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submission_router.py (460 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
 - `list_reviewers` (def) [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
 - `get_hashtag_library` (def) [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
@@ -1946,6 +1947,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `import_from_canva` (def) [POST /{submission_id}/canva/import] - Export a Canva design and add it as the main content file, exactly like an upload.
 - `reimport_from_canva` (def) [POST /{submission_id}/canva/reimport] - Replace the Canva-imported main file with the design's latest revision; optionally resubmit for review.
 - `run_initial_check` (def) [POST /{submission_id}/check] - Screen the title and caption against the rulebook without submitting.
+- `run_initial_check_stream` (def) [POST /{submission_id}/check/stream] - The same check as /check, streamed as newline-delimited JSON so the page can show its progress: an
+    - `listen` (def)
+    - `work` (def)
+    - `lines` (def)
 - `submit_for_review` (def) [POST /{submission_id}/submit] - Validate required information, snapshot a new version and create a review job.
 - `withdraw` (def) [POST /{submission_id}/withdraw] - Pull a submission back to draft to edit it: from review, or after approval for a late fix (the approval
 - `get_version` (def) [GET /{submission_id}/versions/{version}] - One submitted version as it was: snapshot, video, automated check and decision.

@@ -26,7 +26,7 @@ TIERS = ("LIGHT", "STANDARD", "HEAVY")
 # HEAVY defaults to flash because Pro models have no free-tier allowance; on a paid key, put a Pro model first.
 _TIER_DEFAULTS: Dict[str, str] = {
     "LIGHT": "gemini-3.1-flash-lite,gemini-2.5-flash-lite",
-    "STANDARD": "gemini-2.5-flash,gemini-3-flash-preview",
+    "STANDARD": "gemini-3.5-flash,gemini-3-flash-preview",
     "HEAVY": "gemini-2.5-flash,gemini-3-flash-preview",
 }
 _FEATURE_TIERS: Dict[str, str] = {
