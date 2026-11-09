@@ -13,9 +13,9 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - models/compliance/approval_path_model.py (38 lines) - Approval paths: who gives final approval for which content.
 - models/compliance/canva_model.py (41 lines) - Canva Integration Models Connecting a Canva account, picking a design and importing (or reimporting) its export into a submission.
 - models/compliance/caption_model.py (39 lines) - Caption suggestions: Gemini drafts a few captions from the post itself, checked against the rulebook.
-- models/compliance/compliance_model.py (273 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+- models/compliance/compliance_model.py (275 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - models/compliance/context_model.py (32 lines) - Messaging Context: reference material the content analysis is given.
-- models/compliance/flag_review_model.py (66 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
+- models/compliance/flag_review_model.py (67 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
 - models/compliance/public_mood_model.py (197 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - models/compliance/script_review_model.py (131 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
@@ -40,9 +40,10 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - scripts/scrape_x_playwright.py (323 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
-- server.py (675 lines) - server
+- server.py (677 lines) - server
 - services/ai/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
-- services/ai/ai_observability.py (368 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+- services/ai/ai_health.py (100 lines) - Whether the AI (Gemini) is working right now, for the banner every signed-in user sees when it isn't.
+- services/ai/ai_observability.py (385 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - services/ai/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - services/ai/ai_usage_service.py (164 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - services/ai/assistant_chat_service.py (256 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
@@ -56,13 +57,13 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
 - services/compliance/caption_service.py (331 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
 - services/compliance/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
-- services/compliance/compliance_service.py (1403 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+- services/compliance/compliance_service.py (1474 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - services/compliance/context_evaluator.py (360 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/context_service.py (159 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/document_layout.py (419 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
 - services/compliance/document_text_service.py (244 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - services/compliance/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
-- services/compliance/flag_review_service.py (342 lines) - Reviewers' calls on automated compliance flags.
+- services/compliance/flag_review_service.py (346 lines) - Reviewers' calls on automated compliance flags.
 - services/compliance/hashtag_library.py (144 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - services/compliance/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
 - services/compliance/image_text_service.py (203 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
@@ -85,7 +86,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/sentiment/jobs.py (467 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - services/compliance/sentiment/media.py (66 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
-- services/compliance/submission_service.py (2613 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submission_service.py (2640 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/transcription_service.py (257 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
 - services/compliance/video_job_service.py (182 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
@@ -103,15 +104,18 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/shared/rbac_service.py (757 lines) - Utility for audit logging
 - services/shared/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
 - tests/test_ai_down_approval.py (102 lines) - test ai down approval
+- tests/test_ai_health.py (94 lines) - test ai health
 - tests/test_ai_unavailable.py (45 lines) - test ai unavailable
 - tests/test_analysis_pending.py (50 lines) - test analysis pending
 - tests/test_analysis_progress.py (112 lines) - test analysis progress
 - tests/test_audiences.py (81 lines) - test audiences
-- tests/test_claim_checks.py (166 lines) - The text read from the "$25M contract" graphic, line breaks and all.
+- tests/test_claim_checks.py (200 lines) - The text read from the "$25M contract" graphic, line breaks and all.
 - tests/test_compliance_scoring.py (405 lines) - These tests are about the wording-based rules, so the vector store and the model that match rules by meaning are
 - tests/test_dashboard_summary.py (152 lines) - In the order dashboard_summary asks: post decisions, the average score, then script decisions.
 - tests/test_deadlines.py (56 lines) - test deadlines
+- tests/test_delete_draft.py (36 lines) - test delete draft
 - tests/test_document_text.py (81 lines) - test document text
+- tests/test_evidence_penalty.py (57 lines) - test evidence penalty
 - tests/test_extra_claims.py (46 lines) - test extra claims
 - tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
 - tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
@@ -119,10 +123,10 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_post_signals.py (93 lines) - test post signals
 - tests/test_resume_reads.py (47 lines) - test resume reads
 - tests/test_review_decision.py (260 lines) - test review decision
-- tests/test_reviewer_choice.py (168 lines) - test reviewer choice
+- tests/test_reviewer_choice.py (184 lines) - test reviewer choice
 - tests/test_rulebook_check_coverage.py (164 lines) - test rulebook check coverage
 - tests/test_script_match.py (73 lines) - test script match
-- tests/test_script_queue.py (104 lines) - test script queue
+- tests/test_script_queue.py (107 lines) - test script queue
 - tests/test_script_send.py (160 lines) - test script send
 - tests/test_security_fixes.py (132 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - tests/test_sentiment_strictness.py (70 lines) - test sentiment strictness
@@ -130,6 +134,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_submission_access.py (154 lines) - test submission access
 - tests/test_test_login.py (56 lines) - auth_router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
 - tests/test_x_sentiment_listening.py (178 lines) - test x sentiment listening
+- tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
 - tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - tools/compliance/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.
 - tools/compliance/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).

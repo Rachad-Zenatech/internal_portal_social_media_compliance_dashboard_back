@@ -45,7 +45,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `CaptionSuggestion` (class)
 - `CaptionSuggestions` (class)
 
-## models/compliance/compliance_model.py (273 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (275 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class)
 - `ComplianceRuleCreate` (class)
 - `ComplianceRuleUpdate` (class)
@@ -65,7 +65,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ContextEntryIn` (class)
 - `ContextEntry` (class)
 
-## models/compliance/flag_review_model.py (66 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
+## models/compliance/flag_review_model.py (67 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - `FlagDismissRequest` (class)
 - `FlagReview` (class)
 - `FlagConfirmRequest` (class)
@@ -284,7 +284,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `run_saved_case` (def)
 - `main` (def)
 
-## server.py (675 lines) - server
+## server.py (677 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -324,7 +324,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `feed` (def)
     - `flush` (def)
 
-## services/ai/ai_observability.py (368 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+## services/ai/ai_health.py (100 lines) - Whether the AI (Gemini) is working right now, for the banner every signed-in user sees when it isn't.
+- `AiStatus` (class)
+- `summarize` (def) - rows: the AI calls in the window, newest first, each with status, kind (the failure kind) and started_at.
+- `status` (def)
+
+## services/ai/ai_observability.py (385 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - `_env_int` (def)
 - `Span` (class)
 - `_get_queue` (def)
@@ -341,6 +346,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `token_counts` (def)
 - `response_text` (def)
 - `log_prompt` (def)
+- `classify_error` (def) - What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
 - `generate` (def) - client.models.generate_content in a thread, traced and prompt-logged.
 - `_write` (def)
 - `_apply_retention` (def)
@@ -513,8 +519,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_quoted` (def) - a", "b"'.
 - `find_claims` (def) - The built-in claim checks that fire on this text, as findings.
 
-## services/compliance/compliance_service.py (1403 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/compliance_service.py (1474 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def)
+- `_ai_switched_off` (def) - The AI meaning check was turned off on purpose (not a failure).
 - `_ai_viability_enabled` (def)
 - `_row_to_rule` (def)
 - `_clean_scope` (def) - Validate scope lists against the known rule sets, brands, audiences, regions and platforms.
@@ -558,6 +565,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `flagged_tags` (def) - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
 - `_count_overlaps_once` (def) - When two rules flag the very same words (e.g.
     - `spans` (def)
+- `_charge_unsupported_claims` (def) - Give each claim that needs a source its small penalty.
+    - `claim` (def)
 - `_count_extra_claims` (def) - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
 - `rulebook_version` (def) - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
 - `_examples` (def) - (example, quoted) pairs from a rule's example text.
@@ -653,7 +662,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `remember_all_in_background` (def) - Startup: index verdicts given while the vector store was off or the server was down.
 - `similar` (def) - Past verdicts on this rule for wording like `text`, closest first, as {score, verdict, reason, note, passage}.
 
-## services/compliance/flag_review_service.py (342 lines) - Reviewers' calls on automated compliance flags.
+## services/compliance/flag_review_service.py (346 lines) - Reviewers' calls on automated compliance flags.
 - `_json` (def)
 - `_out` (def)
 - `list_for` (def)
@@ -971,7 +980,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 
-## services/compliance/submission_service.py (2613 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submission_service.py (2640 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -999,6 +1008,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_submissions` (def) - The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers.
 - `get_submission` (def)
 - `update_submission` (def)
+- `_script_with_reviewer` (def) - A video post's script is with a reviewer, or being sent to them: the post is still a draft, but it has been sent
+- `_can_delete` (def) - Only a draft that hasn't gone to a reviewer: not in review, not approved, and no script out with a reviewer.
 - `delete_draft` (def) - Delete a draft.
 - `_safe_name` (def)
 - `add_file` (def)
@@ -1032,7 +1043,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_version` (def) - A past (or the current) submitted version, for looking back at what it was and how it was decided.
 - `get_history` (def)
 - `_reviewer_ids` (def) - Active users who can review: super admins and roles with "Review & Publish Content".
-- `reviewer_options` (def) - The people a creator can send content to: reviewers and super admins (on any of the brands, when given), not
+- `_creator_exclusion` (def) - Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
+- `reviewer_options` (def) - The people a creator can send content to: reviewers and super admins (on any of the brands, when given).
 - `_review_recipients` (def) - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
 - `_notify` (def)
 - `_score_line` (def) - The check's score for a message, or that it's still being analysed.
@@ -1286,6 +1298,26 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_it_stops_at_the_first_one_that_still_cannot_be_read` (def)
     - `test_nothing_to_retry_is_a_quiet_pass` (def)
 
+## tests/test_ai_health.py (94 lines) - test ai health
+- `call` (def)
+- `FakeError` (class)
+    - `__init__` (def)
+- `AiStatusTests` (class)
+    - `test_no_calls_yet_is_fine` (def)
+    - `test_the_latest_call_working_is_fine` (def)
+    - `test_one_model_failing_just_after_another_worked_is_the_fallback_not_an_outage` (def)
+    - `test_everything_failing_for_a_while_is_down_and_says_why` (def)
+    - `test_a_key_problem_outranks_a_quota_one` (def)
+    - `test_a_used_up_quota_says_so` (def)
+    - `test_no_key_configured_is_down_without_looking_at_calls` (def)
+    - `test_it_comes_back_as_soon_as_a_call_works` (def)
+- `ClassifyTests` (class)
+    - `test_kinds` (def)
+- `CheckWithoutTheAiTests` (class) - With no working AI the check must say so, not hand back a clean 100.
+    - `run_check` (def)
+    - `test_no_key_marks_the_check_as_not_fully_read` (def)
+    - `test_the_meaning_check_switched_off_on_purpose_is_not_a_failure` (def)
+
 ## tests/test_ai_unavailable.py (45 lines) - test ai unavailable
 - `job` (def)
 - `AiUnavailableTests` (class)
@@ -1337,7 +1369,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_the_cashtag_is_suggested_first_when_the_post_is_for_investors` (def)
     - `test_otherwise_the_cashtag_is_an_option_at_the_end` (def)
 
-## tests/test_claim_checks.py (166 lines) - The text read from the "$25M contract" graphic, line breaks and all.
+## tests/test_claim_checks.py (200 lines) - The text read from the "$25M contract" graphic, line breaks and all.
 - `fired` (def) - The checks that fire, by key: a check's rule number can be shared with another check.
 - `ClaimCheckTests` (class)
     - `test_the_contract_graphic_trips_every_check` (def)
@@ -1354,6 +1386,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_clean_caption_still_scores_100` (def)
     - `test_figures_need_a_source_but_are_not_violations` (def)
     - `test_semantic_matches_are_things_to_check_not_violations` (def)
+    - `test_a_claim_the_meaning_check_says_only_needs_a_source_costs_the_evidence_penalty` (def)
 
 ## tests/test_compliance_scoring.py (405 lines) - These tests are about the wording-based rules, so the vector store and the model that match rules by meaning are
 - `setUpModule` (def)
@@ -1441,6 +1474,15 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_script_deadline_shows_only_at_its_step` (def)
     - `test_the_video_notices_read_naturally` (def)
 
+## tests/test_delete_draft.py (36 lines) - test delete draft
+- `WhoCanBeDeletedTests` (class)
+    - `test_a_draft_can_be_deleted_by_whoever_may` (def)
+    - `test_content_in_review_or_approved_cannot` (def)
+    - `test_a_draft_whose_script_is_with_a_reviewer_cannot` (def)
+    - `test_a_draft_whose_script_is_being_sent_cannot` (def)
+    - `test_a_script_that_was_sent_back_or_never_sent_does_not_stop_it` (def)
+    - `test_a_stuck_send_does_not_stop_it_forever` (def)
+
 ## tests/test_document_text.py (81 lines) - test document text
 - `docx` (def) - A minimal .docx with these paragraphs ("\\t" and "\\n" become a tab and a line break).
     - `run` (def)
@@ -1455,6 +1497,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_long_text_is_capped` (def)
 - `WhichFilesTests` (class)
     - `test_scripts_and_article_files_are_read` (def)
+
+## tests/test_evidence_penalty.py (57 lines) - test evidence penalty
+- `finding` (def)
+- `UnsupportedClaimTests` (class)
+    - `test_a_claim_that_needs_a_source_costs_five_points` (def)
+    - `test_the_same_words_under_two_rules_cost_once_at_the_stricter_rule` (def)
+    - `test_the_total_is_capped_at_ten` (def)
+    - `test_checks_for_a_person_cost_nothing` (def)
+    - `test_dismissing_the_flag_gives_the_points_back` (def)
+    - `test_dismissing_the_stricter_flag_makes_the_other_rule_carry_the_claim` (def)
 
 ## tests/test_extra_claims.py (46 lines) - test extra claims
 - `ExtraClaimTests` (class) - Uses the scoring tests' no-database check helper.
@@ -1580,7 +1632,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_dismissing_the_stricter_of_two_flags_on_the_same_words_doesnt_make_them_free` (def)
     - `test_no_score_yet_or_an_old_check_without_points` (def)
 
-## tests/test_reviewer_choice.py (168 lines) - test reviewer choice
+## tests/test_reviewer_choice.py (184 lines) - test reviewer choice
 - `submission_row` (def)
 - `WhoMayOpenItTests` (class)
     - `load` (def)
@@ -1599,6 +1651,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `PickingReviewersTests` (class)
     - `update` (def)
     - `test_picked_reviewers_are_saved_once_each` (def)
+    - `test_a_super_admin_can_pick_themselves` (def)
     - `test_someone_who_cant_review_the_brand_cant_be_picked` (def)
     - `test_clearing_the_choice_sends_it_to_every_reviewer_again` (def)
 - `ReviewersAreRequiredTests` (class)
@@ -1607,6 +1660,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_script_cant_be_sent_without_picking_reviewers` (def)
 - `ReviewerOptionsTests` (class)
     - `test_reviewers_and_super_admins_are_offered_by_name` (def)
+    - `test_a_super_admin_is_offered_to_themselves_too` (def)
 
 ## tests/test_rulebook_check_coverage.py (164 lines) - test rulebook check coverage
 - `submission_row` (def)
@@ -1644,7 +1698,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_red_check_stays_red` (def)
     - `test_a_matching_or_partial_video_is_not_flagged` (def)
 
-## tests/test_script_queue.py (104 lines) - test script queue
+## tests/test_script_queue.py (107 lines) - test script queue
 - `script_row` (def)
 - `QueueTests` (class)
     - `setUp` (def)
@@ -1793,6 +1847,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_publishing_decision_rules_post_wait_and_hold` (def)
     - `test_x_json_provider_reads_and_scores_comments` (def)
     - `test_load_submission_includes_script_and_video_transcript_for_attack_drone_screening` (def)
+
+## tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
+- `ai_status` (def) [GET /ai/status] - The AI's state: available, or why it isn't (key, quota, models, busy).
 
 ## tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - `_super_admin` (def)
