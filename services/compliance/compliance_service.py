@@ -2,6 +2,7 @@
 Rule CRUD and rulebook screening of captions, scripts and transcripts.
 """
 
+import asyncio
 import contextvars
 import hashlib
 import json
@@ -62,7 +63,7 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-11"
+SCOPE_VERSION = "scope-13"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
@@ -842,6 +843,27 @@ def _evaluate_rule(rule: ComplianceRule, padded_text: str,
 # Vector DB + Gemini AI Viability & Semantic Rule Evaluation
 # ---------------------------------------------------------------------------
 
+# A post is searched sentence by sentence as well as whole: one set of numbers for a long caption dilutes a short soft claim
+# until it matches no rule. Each sentence costs one embedding call (a separate, much larger allowance than the AI's).
+SENTENCE_SEARCH_MAX = int(os.getenv("COMPLIANCE_SENTENCE_SEARCH_MAX", "10"))
+SENTENCE_MIN_SCORE = float(os.getenv("COMPLIANCE_SENTENCE_MIN_SCORE", "0.66"))
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def _sentences(text: str, limit: int) -> List[str]:
+    """The post's sentences worth searching on: long enough to say something, each once, in order, at most `limit`."""
+    seen, out = set(), []
+    for part in _SENTENCE_SPLIT.split(text or ""):
+        part = " ".join(part.split())
+        key = part.lower()
+        if 25 <= len(part) <= 400 and key not in seen:
+            seen.add(key)
+            out.append(part)
+        if len(out) >= limit:
+            break
+    return out
+
+
 async def _vector_context_for_check(
     req: ComplianceCheckRequest,
     rules: List[ComplianceRule],
@@ -879,6 +901,20 @@ async def _vector_context_for_check(
         logger.warning("Vector store lookup for compliance viability failed: %s", e)
         return [], []
 
+    # The same search for each sentence, so a short claim in a long post still finds its rule. Strongest matches first.
+    sentences = _sentences(req.text, SENTENCE_SEARCH_MAX) if SENTENCE_SEARCH_MAX > 0 else []
+    if sentences:
+        per_sentence = await asyncio.gather(*(
+            store.search(
+                s, kinds=[reference_index_service.RULE_KIND], brand=req.brand_codes, audience=req.audiences,
+                platforms=req.platforms, limit=3, min_score=SENTENCE_MIN_SCORE,
+            )
+            for s in sentences
+        ), return_exceptions=True)
+        extra = [h for hits in per_sentence if isinstance(hits, list) for h in hits]
+        extra.sort(key=lambda h: h.get("score") or 0, reverse=True)
+        rule_hits = list(rule_hits) + extra
+
     semantic_rules: List[ComplianceRule] = []
     for h in rule_hits:
         r = rule_by_id.get(str(h.get("source_id"))) or rule_by_num.get((h.get("meta") or {}).get("rule_number", ""))
@@ -902,7 +938,7 @@ async def _vector_context_for_check(
             if snippet:
                 context_notes.append(f"[{kind}] {title}: {snippet}")
 
-    return semantic_rules[:6], context_notes[:8]
+    return semantic_rules[:8], context_notes[:8]
 
 
 _SEMANTIC_SCHEMA: Dict[str, Any] = {
@@ -932,9 +968,36 @@ _SEMANTIC_SCHEMA: Dict[str, Any] = {
 # ("best in class", "reduces errors", "guards every border") often sits too far from any rule's wording for the search to
 # find it, and a post the search found nothing for would otherwise never be read at all. Turn it off to go back to the
 # search's picks only (fewer AI calls).
-FULL_RULE_PASS = os.getenv("COMPLIANCE_FULL_RULE_PASS", "true").strip().lower() not in {"0", "false", "no", "off"}
+def _full_rule_mode() -> str:
+    """off (default): the trigger phrases and the sentence-by-sentence search pick what the AI reads; auto: also read the post
+    against every rule when it reads like it makes claims; always: every post. The extra pass costs one AI call per post
+    and, on the test posts, added little over the phrases and the search."""
+    raw = os.getenv("COMPLIANCE_FULL_RULE_PASS", "off").strip().lower()
+    if raw in {"1", "true", "yes", "on", "always"}:
+        return "always"
+    if raw == "auto":
+        return "auto"
+    return "off"
+
+
 # The most rules put in front of the AI at once, the search's picks first.
 FULL_RULE_PASS_MAX = int(os.getenv("COMPLIANCE_FULL_RULE_PASS_MAX", "40"))
+
+# Words that make a post worth the all-rules AI pass: a number, a superlative or absolute, a comparison, a promise of
+# results, or a statement of selection, approval or deployment. A greeting or an event notice has none, so it costs no
+# extra AI call. Cheap and deliberately broad: a false match only costs one call.
+_CLAIM_WORDS = re.compile(
+    r"\d|[%$\u20ac\u00a3#]|\b(?:best|leading|leader|first|only|most|fastest|biggest|largest|unmatched|unrivaled|unrivalled|"
+    r"unparalleled|world[- ]class|second to none|every|all|always|never|zero|none|guarantee\w*|ensure\w*|eliminat\w+|"
+    r"reduc\w+|improv\w+|increas\w+|boost\w*|strengthen\w*|stronger|fewer|prov(?:e|es|ed|en)|certified|approved|"
+    r"endors\w+|selected|signed|partner\w*|deployed|operational|outperform\w*|better than|faster than|cheaper than|"
+    r"expect\w*|anticipat\w+|plan(?:s|ned)? to|on track|will)\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_claims(text: str) -> bool:
+    return bool(_CLAIM_WORDS.search(text or ""))
 
 # A match by meaning has to be at least this sure before it's shown.
 SEMANTIC_MIN_CONFIDENCE = float(os.getenv("COMPLIANCE_SEMANTIC_MIN_CONFIDENCE", "0.7"))
@@ -962,7 +1025,8 @@ async def _semantic_findings(
         _ai_incomplete.set(True)
         return []
     semantic_rules, vector_notes = await _vector_context_for_check(req, rules, found_rule_numbers)
-    if FULL_RULE_PASS:
+    mode = _full_rule_mode()
+    if mode == "always" or (mode == "auto" and _looks_like_claims(req.text)):
         picked = {r.rule_number for r in semantic_rules}
         rest = [r for r in rules if r.rule_number not in found_rule_numbers and r.rule_number not in picked]
         semantic_rules = (semantic_rules + rest)[:FULL_RULE_PASS_MAX]

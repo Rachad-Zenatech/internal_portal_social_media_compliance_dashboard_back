@@ -818,6 +818,17 @@ _ADDED_BASELINE_TERMS = {
         "guarantees * accuracy", "guaranteed * accuracy", "100 * accuracy", "100 * accurate", "never misses",
         "never makes mistakes", "never makes a mistake", "never makes errors", "perfect results", "perfect accuracy",
         "every single time", "flawless", "error free", "zero errors", "zero mistakes",
+        # Soft claims: a superlative, a comparison with everyone, or a promise of results with no condition. A match is
+        # only a candidate: the context check decides whether it's a violation, something to look at, or fine.
+        "best * platform", "best * for defense", "best in class", "the best drone", "market leader", "industry leader",
+        "category leader", "world class", "second to none", "unmatched", "unrivaled", "unparalleled", "outperforms",
+        "better than every", "better than any", "faster than any", "beats every", "reduces errors", "reduce errors",
+        "eliminates errors", "fewer errors", "strengthens audit", "stronger audits", "zero downtime", "no downtime",
+    ],
+    "Rule 16": [
+        # A capability stated as working today, which may still be planned.
+        "guards every", "protects every", "secures every", "monitors every", "autonomously guards",
+        "autonomously protects", "now deployed", "already deployed", "deployed with a", "fully operational",
     ],
 }
 

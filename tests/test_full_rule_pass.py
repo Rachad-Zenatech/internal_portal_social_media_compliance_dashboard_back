@@ -30,7 +30,7 @@ class FullRulePassTests(unittest.IsolatedAsyncioTestCase):
 
         await cs._ai_check_cache.clear()
         with (
-            patch.object(cs, "FULL_RULE_PASS", full),
+            patch.dict("os.environ", {"COMPLIANCE_FULL_RULE_PASS": "always" if full else "off"}),
             patch.object(cs, "_vector_context_for_check", new=AsyncMock(return_value=(vector_rules, []))),
             patch.object(cs, "generate_content_with_fallback", new=fake_generate),
             patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}),
@@ -59,7 +59,7 @@ class FullRulePassTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(cs, "_vector_context_for_check", new=AsyncMock(return_value=([], []))),
             patch.object(cs, "generate_content_with_fallback", new=fake_generate),
-            patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}),
+            patch.dict("os.environ", {"GEMINI_API_KEY": "test-key", "COMPLIANCE_FULL_RULE_PASS": "always"}),
         ):
             await cs._semantic_findings(ComplianceCheckRequest(text=TEXT), RULES, {"Rule 24"}, cs._normalize(TEXT))
         self.assertNotIn('"rule_number": "Rule 24"', asked["prompt"])
