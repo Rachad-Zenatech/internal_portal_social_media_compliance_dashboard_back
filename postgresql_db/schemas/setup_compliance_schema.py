@@ -822,6 +822,32 @@ _ADDED_BASELINE_TERMS = {
 }
 
 
+# How to judge a baseline rule that has no guidance of its own yet. The meaning check hands this to the AI with the rule, so
+# it knows when the rule really applies. Only a rule with no guidance is filled in, so a rule edited in the Rulebook keeps
+# its own wording.
+_ADDED_GUIDANCE = {
+    "Rule 25": (
+        "Decide whether the passage is a forward-looking statement: a specific projection, forecast, financial "
+        "expectation, dated milestone or business commitment ('we expect revenue to grow 30% next year', 'we plan to "
+        "launch in Q2 2027'). Those need the safe-harbor line. Generic enthusiasm or well-wishing with no specific "
+        "figure, date, plan or commitment ('Exciting things ahead!', 'Looking forward to what comes next', 'Big things "
+        "coming') is ordinary social language, not a forward-looking statement: report nothing. If it is unclear "
+        "whether a vague line hints at a real plan, it is a point for a person to look at, not a violation."
+    ),
+}
+
+
+async def _add_baseline_guidance(conn) -> None:
+    for number, guidance in _ADDED_GUIDANCE.items():
+        await conn.execute(
+            """
+            UPDATE compliance_rules SET evaluation_guidance = $2, updated_at = NOW()
+            WHERE rule_number = $1 AND NOT is_custom AND evaluation_guidance IS NULL
+            """,
+            number, guidance,
+        )
+
+
 async def _add_baseline_terms(conn) -> None:
     for number, terms in _ADDED_BASELINE_TERMS.items():
         await conn.execute(
@@ -1049,6 +1075,7 @@ async def setup(reset: bool = False):
         # A fresh database only has the baseline rules now.
         await _mark_contextual_rules(conn)
         await _add_baseline_terms(conn)
+        await _add_baseline_guidance(conn)
 
         logger.info("Compliance schema and rules successfully initialized!")
 

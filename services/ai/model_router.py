@@ -20,14 +20,14 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List
 
-from services.ai.gemini_service import get_gemini_fallback_models
+from services.ai.gemini_service import get_gemini_fallback_models, without_retired
 
 TIERS = ("LIGHT", "STANDARD", "HEAVY")
 # HEAVY defaults to flash because Pro models have no free-tier allowance; on a paid key, put a Pro model first.
 _TIER_DEFAULTS: Dict[str, str] = {
-    "LIGHT": "gemini-3.1-flash-lite,gemini-2.5-flash-lite",
-    "STANDARD": "gemini-2.5-flash,gemini-3-flash-preview",
-    "HEAVY": "gemini-2.5-flash,gemini-3-flash-preview",
+    "LIGHT": "gemini-3.1-flash-lite,gemini-3.5-flash-lite",
+    "STANDARD": "gemini-3-flash-preview,gemini-3.1-flash-lite",
+    "HEAVY": "gemini-3-flash-preview,gemini-3.1-flash-lite",
 }
 _FEATURE_TIERS: Dict[str, str] = {
     "CHAT": "LIGHT",
@@ -53,7 +53,7 @@ def enabled() -> bool:
 
 def tier_models(tier: str) -> List[str]:
     raw = os.getenv(f"AI_ROUTE_TIER_{tier}", _TIER_DEFAULTS[tier])
-    return [m.strip().lower() for m in raw.split(",") if m.strip()]
+    return without_retired([m.strip().lower() for m in raw.split(",") if m.strip()])
 
 
 def base_tier(feature: str) -> str:

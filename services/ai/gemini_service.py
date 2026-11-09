@@ -24,7 +24,18 @@ DEPRECATED_MODELS = {
     "gemini-1.5-pro",
     "gemini-1.0-pro",
     "gemini-2.5-pro",
+    # Google answers these with 404 ("no longer available to new users"); trying them only wastes a call and a wait.
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
 }
+
+
+def without_retired(models):
+    """The models that can still be called, in the same order. Falls back to the list as given if every one is retired,
+    so a misconfigured list fails with the API's own error rather than with nothing to try."""
+    kept = [m for m in models if m.strip().lower() not in DEPRECATED_MODELS]
+    return kept or list(models)
+
 
 def get_gemini_fallback_models() -> List[str]:
     """
@@ -32,17 +43,17 @@ def get_gemini_fallback_models() -> List[str]:
     from the environment configuration, filtering out deprecated/retired models.
     Guarantees active, proven general-purpose models are prioritized at the front of the rotation chain.
     """
-    models_str = os.getenv("GEMINI_AVAILABLE_MODELS", "gemini-2.5-flash,gemini-3.1-flash-lite,gemini-2.5-flash-lite,gemini-3.1-pro-preview,gemini-3-flash-preview")
+    models_str = os.getenv("GEMINI_AVAILABLE_MODELS", "gemini-3.1-flash-lite,gemini-3-flash-preview,gemini-3.1-pro-preview")
     raw_models = [_normalize_ai_model_name(m) for m in models_str.split(",") if m.strip()]
 
     # Filter out deprecated models that are no longer available in the Google GenAI API
     models = [m for m in raw_models if m not in DEPRECATED_MODELS]
-    priority_order = ["gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite", "gemini-3.1-pro-preview", "gemini-3-flash-preview"]
+    priority_order = ["gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-3.1-pro-preview"]
     ordered = [m for m in priority_order if m in models or m not in DEPRECATED_MODELS]
     for m in models:
         if m not in ordered:
             ordered.append(m)
-    return ordered or ["gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"]
+    return ordered or ["gemini-3.1-flash-lite", "gemini-3-flash-preview"]
 
 def is_rotatable_model_error(e: Exception) -> bool:
     """

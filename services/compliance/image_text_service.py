@@ -21,7 +21,7 @@ from google.genai import types
 
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai import ai_observability
-from services.ai.gemini_service import is_rotatable_model_error
+from services.ai.gemini_service import is_rotatable_model_error, without_retired
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +36,9 @@ MAX_TEXT_CHARS = 5000
 # Reading text doesn't need a strong model, so this uses light models with their own daily allowance (on Gemini's
 # free tier each model has its own), leaving the main models' allowance for sentiment and transcription. Tried in
 # order; the next one is used when a model's limit is reached or it isn't available.
-MODELS = [m.strip() for m in os.getenv(
-    "IMAGE_TEXT_MODELS", "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash-lite"
-).split(",") if m.strip()]
+MODELS = without_retired([m.strip() for m in os.getenv(
+    "IMAGE_TEXT_MODELS", "gemini-3.5-flash-lite,gemini-3.1-flash-lite"
+).split(",") if m.strip()])
 # The most one read may take before the next model is tried.
 TIMEOUT_SEC = int(os.getenv("IMAGE_TEXT_TIMEOUT_SEC", "60"))
 

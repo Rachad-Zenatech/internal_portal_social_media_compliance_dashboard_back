@@ -54,7 +54,7 @@ from services.compliance import context_service, review_memory_service
 from services.ai.ai_guardrails import screen_input
 from services.compliance import document_layout, post_signals
 from services.compliance.compliance_service import applicable_rules, implied_audiences, implied_by_wording, parts_for
-from services.ai.gemini_service import is_rotatable_model_error
+from services.ai.gemini_service import is_rotatable_model_error, without_retired
 
 logger = logging.getLogger(__name__)
 
@@ -65,11 +65,11 @@ VIDEO_READY_TIMEOUT_SEC = 300
 # (and Pro models none), so when one's allowance is used up, or a model has been retired, the next one does the
 # analysis instead of the run failing; the result records which model it was. SENTIMENT_MODEL, if set, goes first.
 _PREFERRED = os.getenv("SENTIMENT_MODEL", "").strip()
-MODEL_CHAIN: List[str] = list(dict.fromkeys(
+MODEL_CHAIN: List[str] = without_retired(list(dict.fromkeys(
     ([_PREFERRED] if _PREFERRED else [])
-    + [m.strip() for m in os.getenv("SENTIMENT_MODELS", "gemini-2.5-flash,gemini-3.8-flash,gemini-3.5-flash").split(",")
+    + [m.strip() for m in os.getenv("SENTIMENT_MODELS", "gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite").split(",")
        if m.strip()]
-))
+)))
 MODEL = MODEL_CHAIN[0]
 # Shaun's posts and investor-facing posts can start with a stronger model (e.g. a Pro model on a paid tier). Unset,
 # they use the same chain as everything else.
