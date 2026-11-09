@@ -3,8 +3,8 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from models.compliance.compliance_model import ComplianceViolation, ContextEvaluation
-from services.compliance import compliance_service
-from services.compliance.flag_review_service import score_after_dismissals
+from services.compliance.evaluation import compliance_service
+from services.compliance.submissions.flag_review_service import score_after_dismissals
 
 
 def rule(severity="CRITICAL", light="RED"):
