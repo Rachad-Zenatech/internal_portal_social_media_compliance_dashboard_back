@@ -13,7 +13,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - models/compliance/approval_path_model.py (38 lines) - Approval paths: who gives final approval for which content.
 - models/compliance/canva_model.py (41 lines) - Canva Integration Models Connecting a Canva account, picking a design and importing (or reimporting) its export into a submission.
 - models/compliance/caption_model.py (39 lines) - Caption suggestions: Gemini drafts a few captions from the post itself, checked against the rulebook.
-- models/compliance/compliance_model.py (275 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+- models/compliance/compliance_model.py (319 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - models/compliance/context_model.py (32 lines) - Messaging Context: reference material the content analysis is given.
 - models/compliance/flag_review_model.py (67 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
@@ -28,7 +28,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - postgresql_db/schema_metadata.py (328 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
-- postgresql_db/schemas/setup_compliance_schema.py (1105 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
+- postgresql_db/schemas/setup_compliance_schema.py (1226 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
 - postgresql_db/schemas/setup_context_schema.py (200 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
 - postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
 - postgresql_db/schemas/setup_listening_schema.py (92 lines) - Public mood: topics from the social listening source (Sprout Social, mocked for now), dated snapshots of how people feel about each one, ...
@@ -54,11 +54,11 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/analytics/listening_providers.py (412 lines) - Social listening providers: where "public mood" data comes from.
 - services/compliance/analytics/performance_service.py (323 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
 - services/compliance/analytics/post_metrics_providers.py (303 lines) - Where published posts' numbers come from, and what each platform's API can actually give us.
-- services/compliance/analytics/post_signals.py (204 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
+- services/compliance/analytics/post_signals.py (206 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - services/compliance/analytics/public_mood_service.py (946 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - services/compliance/analytics/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 - services/compliance/evaluation/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
-- services/compliance/evaluation/compliance_service.py (1560 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+- services/compliance/evaluation/compliance_service.py (1571 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - services/compliance/evaluation/context_evaluator.py (360 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/evaluation/context_service.py (159 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
@@ -68,10 +68,10 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/media/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
 - services/compliance/media/caption_service.py (332 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
 - services/compliance/media/document_layout.py (419 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
-- services/compliance/media/document_text_service.py (244 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
+- services/compliance/media/document_text_service.py (245 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - services/compliance/media/hashtag_library.py (144 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
-- services/compliance/media/image_text_service.py (203 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+- services/compliance/media/image_text_service.py (206 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/media/transcription_service.py (258 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
 - services/compliance/media/video_job_service.py (182 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
 - services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
@@ -88,7 +88,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/submissions/flag_review_service.py (346 lines) - Reviewers' calls on automated compliance flags.
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - services/compliance/submissions/review_memory_service.py (190 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
-- services/compliance/submissions/submission_service.py (2657 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2678 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
 - services/notifications/ceo_event_publisher.py (50 lines) - Cross-application event publisher for CEO Dashboard integration.
@@ -115,7 +115,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_dashboard_summary.py (152 lines) - In the order dashboard_summary asks: post decisions, the average score, then script decisions.
 - tests/test_deadlines.py (56 lines) - test deadlines
 - tests/test_delete_draft.py (36 lines) - test delete draft
-- tests/test_document_text.py (81 lines) - test document text
+- tests/test_document_text.py (83 lines) - test document text
 - tests/test_evidence_penalty.py (57 lines) - test evidence penalty
 - tests/test_extra_claims.py (46 lines) - test extra claims
 - tests/test_full_rule_pass.py (81 lines) - test full rule pass

@@ -45,19 +45,22 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `CaptionSuggestion` (class)
 - `CaptionSuggestions` (class)
 
-## models/compliance/compliance_model.py (275 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (319 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class)
 - `ComplianceRuleCreate` (class)
 - `ComplianceRuleUpdate` (class)
 - `ComplianceRule` (class)
 - `RuleExampleResult` (class)
 - `RuleSelfTest` (class)
+- `ProvidedSource` (class) - A document the author attached as evidence (a supporting file), already read as text, to check claims against.
 - `ComplianceCheckRequest` (class)
     - `_keep_audience_and_audiences_in_step` (def)
 - `ContextEvaluation` (class) - How the AI read a rule's trigger in context, kept beside the finding so the decision can be audited.
 - `ComplianceViolation` (class)
 - `ManualReviewRule` (class) - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
 - `CheckSignals` (class) - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
+- `SourceClaim` (class) - One claim the post makes, and whether the source it cites backs it up.
+- `SourceCheck` (class) - A source the post cites (or that was attached), and what reading it showed.
 - `AddedRuleSet` (class) - A rule set checked because of what the post says, not because it was chosen.
 - `ComplianceCheckResponse` (class)
 
@@ -222,7 +225,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
 - `setup` (def)
 
-## postgresql_db/schemas/setup_compliance_schema.py (1105 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
+## postgresql_db/schemas/setup_compliance_schema.py (1226 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
 - `_base_rules_json` (def)
 - `_add_baseline_guidance` (def)
 - `_add_baseline_terms` (def)
@@ -483,7 +486,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `metrics` (def)
 - `get_provider` (def)
 
-## services/compliance/analytics/post_signals.py (204 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
+## services/compliance/analytics/post_signals.py (206 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - `_key` (def)
 - `is_government_handle` (def)
 - `_domain` (def)
@@ -553,7 +556,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_quoted` (def) - a", "b"'.
 - `find_claims` (def) - The built-in claim checks that fire on this text, as findings.
 
-## services/compliance/evaluation/compliance_service.py (1560 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/evaluation/compliance_service.py (1571 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def)
 - `_ai_switched_off` (def) - The AI meaning check was turned off on purpose (not a failure).
 - `_ai_viability_enabled` (def)
@@ -764,9 +767,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_block_lines` (def) - A text block as paragraphs: its visual lines joined, except where the style changes or a short line ends one.
 - `plain_text` (def) - The wording alone: page marks dropped, headings, bold and italics unmarked, list markers dropped, table cells
 
-## services/compliance/media/document_text_service.py (244 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
+## services/compliance/media/document_text_service.py (245 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - `UnreadableDocument` (class) - A document we can't read, with a message the creator can act on.
-- `is_document_file` (def) - Whether this file's text is read: any script, or a main file that's a document (a blog's article).
+- `is_document_file` (def) - Whether this file's text is read: any script, a main file that's a document (a blog's article), or a document
 - `_decode` (def) - Text file bytes as text: UTF-16 when it starts with that byte-order mark, else UTF-8, else Windows-1252.
 - `read_docx` (def) - The text of a .docx with its headings, bold wording, tables (one row per line) and page breaks marked, so it
 - `clean` (def) - Whitespace tidied, runs of blank lines cut to one (so a script's scenes stay apart when it's shown and edited),
@@ -805,7 +808,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `result` (def)
 - `sanitize_caption_html` (def) - The caption HTML with only safe formatting left.
 
-## services/compliance/media/image_text_service.py (203 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+## services/compliance/media/image_text_service.py (206 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def)
 - `_get_client` (def)
 - `_claim` (def) - Atomically mark an image as being read unless another worker already is.
@@ -1004,7 +1007,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `query_text` (def) - The text a post is matched on: the same parts that are stored for past reviews.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (2657 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (2678 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -1050,7 +1053,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_unavailable_sql` (def)
 - `_pending_sql` (def) - SQL for analysis_pending() on a stored check (older checks only have the two parts).
 - `_check_text` (def)
-- `check_request` (def) - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms).
+- `check_request` (def) - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
 - `script_stage_on` (def) - Video posts created since the script stage existed have their script approved before the video.
 - `approved_script` (def) - The approved script's text, when the post went through the script stage and it was approved.
 - `_run_check` (def) - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
@@ -1504,7 +1507,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_script_that_was_sent_back_or_never_sent_does_not_stop_it` (def)
     - `test_a_stuck_send_does_not_stop_it_forever` (def)
 
-## tests/test_document_text.py (81 lines) - test document text
+## tests/test_document_text.py (83 lines) - test document text
 - `docx` (def) - A minimal .docx with these paragraphs ("\\t" and "\\n" become a tab and a line break).
     - `run` (def)
 - `ReadTests` (class)
