@@ -43,6 +43,7 @@ from tools.compliance.analytics.listening_router import router as listening_rout
 from tools.compliance.analytics.performance_router import router as performance_router
 from tools.shared.auth.auth_router import router as auth_router
 from tools.notifications.notification_router import notification_router
+from tools.notifications.teams_router import teams_bot_router, teams_router
 from tools.shared.core.observability import router as observability_router
 from tools.shared.core.log_router import router as log_router
 from tools.microsoft_graph.graph_router import router as graph_router
@@ -133,6 +134,11 @@ async def lifespan(app: FastAPI):
                 await setup_ai_observability_schema()
             except Exception as ai_err:
                 logger.warning(f"AI observability schema setup note: {ai_err}")
+            try:
+                from postgresql_db.schemas.setup_teams_schema import setup as setup_teams_schema
+                await setup_teams_schema()
+            except Exception as teams_err:
+                logger.warning(f"Teams schema setup note: {teams_err}")
         else:
             logger.info("Skipping startup schema auto-migration (AUTO_MIGRATE_SCHEMA=false or production mode)", extra={"event": "schema_migration_skipped"})
     except Exception:
@@ -422,6 +428,8 @@ app.include_router(auth_router, prefix="/api", tags=["Authentication"])
 app.include_router(rbac_router, prefix="/api", tags=["RBAC & Configuration"])
 app.include_router(search_router, prefix="/api/search", tags=["Global Search"], dependencies=authenticated)
 app.include_router(notification_router, prefix="/api", tags=["Notifications"], dependencies=authenticated)
+app.include_router(teams_bot_router, prefix="/api", tags=["Microsoft Teams"])
+app.include_router(teams_router, prefix="/api", tags=["Microsoft Teams"], dependencies=authenticated)
 app.include_router(log_router, prefix="/api", tags=["Logs"])
 app.include_router(observability_router, prefix="/api", tags=["Observability"])
 app.include_router(graph_router, prefix="/api", tags=["Microsoft Graph"], dependencies=authenticated)

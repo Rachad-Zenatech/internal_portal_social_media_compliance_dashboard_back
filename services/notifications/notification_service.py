@@ -97,6 +97,14 @@ async def create_notification(data: NotificationCreate) -> NotificationResponse:
     except Exception:
         pass
 
+    # Deliver it to the person's Teams chat too, when they have one (see teams_service).
+    try:
+        from services.notifications import teams_service
+        if teams_service.enabled():
+            asyncio.create_task(teams_service.notify_user(res))
+    except Exception:
+        pass
+
     # Publish cross-application event to CEO Dashboard
     try:
         from services.notifications.ceo_event_publisher import publish_ceo_event

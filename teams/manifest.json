@@ -1,0 +1,57 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "REPLACE_WITH_BOT_APP_ID",
+  "developer": {
+    "name": "ZenaTech",
+    "websiteUrl": "https://www.zenatech.com",
+    "privacyUrl": "https://www.zenatech.com/privacy-policy/",
+    "termsOfUseUrl": "https://www.zenatech.com/terms/"
+  },
+  "name": {
+    "short": "Compliance Portal",
+    "full": "ZenaTech Social Media Compliance Portal"
+  },
+  "description": {
+    "short": "Compliance portal notifications in Teams.",
+    "full": "Sends you the compliance portal's notifications as direct messages: posts sent for review, changes requested and decisions, with a button that opens the right page. Write \"pause\" to stop them and \"resume\" to start again."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#1E4DA6",
+  "bots": [
+    {
+      "botId": "REPLACE_WITH_BOT_APP_ID",
+      "scopes": [
+        "personal"
+      ],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": [
+            "personal"
+          ],
+          "commands": [
+            {
+              "title": "pause",
+              "description": "Stop sending me notifications here"
+            },
+            {
+              "title": "resume",
+              "description": "Start sending me notifications here again"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": []
+}
