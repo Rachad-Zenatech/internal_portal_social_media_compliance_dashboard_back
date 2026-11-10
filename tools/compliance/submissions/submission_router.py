@@ -36,8 +36,11 @@ from models.compliance.submission_model import (
     SubmissionSummary,
     SubmissionUpdate,
     SubmitResult,
+    DuplicateReport,
+    SubmitRequest,
 )
 from services.ai.observability import ai_observability
+from services.compliance.submissions import duplicate_service
 from services.ai.observability import ai_usage_service
 from services.compliance.media import caption_service
 from services.compliance.analytics import public_mood_service
@@ -241,10 +244,20 @@ async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser):
     return StreamingResponse(lines(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache"})
 
 
+@router.get("/{submission_id}/duplicates", response_model=DuplicateReport)
+async def find_duplicates(submission_id: UUID, user_id: CurrentUser):
+    """Posts already sent for approval with the same content and caption as this draft, with how their Submission
+    Details overlap. Submitting is refused while one overlaps on every detail and the publish date."""
+    row = await svc._get_owned_row(submission_id, user_id)
+    return await duplicate_service.find(row)
+
+
 @router.post("/{submission_id}/submit", response_model=SubmitResult)
-async def submit_for_review(submission_id: UUID, user_id: CurrentUser):
-    """Validate required information, snapshot a new version and create a review job."""
-    submission, job = await svc.submit_for_review(submission_id, user_id)
+async def submit_for_review(submission_id: UUID, user_id: CurrentUser, body: Optional[SubmitRequest] = None):
+    """Validate required information, snapshot a new version and create a review job. A post that repeats one already
+    sent for approval is refused (409 DUPLICATE_POST), or needs confirm_repost when only the date differs."""
+    submission, job = await svc.submit_for_review(submission_id, user_id,
+                                                  confirm_repost=bool(body and body.confirm_repost))
     return SubmitResult(submission=submission, review_job=job)
 
 

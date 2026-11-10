@@ -123,6 +123,8 @@ async def setup():
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS canva_design_id VARCHAR(200);
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS canva_design_title VARCHAR(300);
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS canva_revision INT;
+            -- The main file's bytes as a hash, so the same post sent twice is recognised (see duplicate_service).
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS content_sha256 CHAR(64);
 
             -- A post can go out through several connected accounts. account_id stays as the first (primary) one,
             -- which the calendar, screener and publish page use.

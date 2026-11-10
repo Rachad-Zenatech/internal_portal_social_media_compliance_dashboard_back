@@ -55,6 +55,7 @@ from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.core.audit_service import log_audit_event
 from services.ai.observability import ai_usage_service
 from services.compliance.submissions import approval_path_service
+from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
 from services.compliance.submissions import flag_review_service
 from services.compliance.submissions import review_deadline_service
@@ -1353,6 +1354,29 @@ async def _missing_for_submit(row: Dict[str, Any]) -> List[str]:
     return missing
 
 
+async def _require_not_duplicate(row: Dict[str, Any], confirm_repost: bool) -> None:
+    """The same content and caption, already sent for approval to the same place on the same date, can't be sent
+    again; on another date it can, once the creator confirms (see duplicate_service)."""
+    report = await duplicate_service.find(row)
+    if report.blocking:
+        m = report.blocking
+        raise HTTPException(status_code=409, detail={
+            "code": "DUPLICATE_POST",
+            "message": f"The same post and caption were already sent for approval as {m.reference_code} with the same "
+                       "submission details and publish date. Change the brand, account, audience, region or platform "
+                       "so they no longer overlap.",
+            "duplicates": report.model_dump(mode="json"),
+        })
+    if report.repost and not confirm_repost:
+        m = report.repost
+        raise HTTPException(status_code=409, detail={
+            "code": "REPOST_CONFIRM",
+            "message": f"The same post was already sent for approval as {m.reference_code} for another publish date. "
+                       "Confirm to send it for this date too.",
+            "duplicates": report.model_dump(mode="json"),
+        })
+
+
 def _review_job(r: Dict[str, Any]) -> ReviewJob:
     return ReviewJob(
         id=r["id"],
@@ -1373,7 +1397,8 @@ def _review_job(r: Dict[str, Any]) -> ReviewJob:
     )
 
 
-async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submission, ReviewJob]:
+async def submit_for_review(submission_id: UUID, user_id: UUID,
+                            confirm_repost: bool = False) -> Tuple[Submission, ReviewJob]:
     row = await _get_owned_row(submission_id, user_id)
     if row["status"] == "IN_REVIEW":
         raise HTTPException(status_code=409, detail="This submission is already in review")
@@ -1408,6 +1433,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID) -> Tuple[Submiss
             "message": "Some required information is missing.",
             "missing": sorted(set(missing)),
         })
+    await _require_not_duplicate(row, confirm_repost)
 
     # Sent to the reviewers picked (required, see _missing_for_submit) who can still review it, and its final
     # approvers, who must see it to approve it.
