@@ -83,6 +83,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `PerformanceSummary` (class)
 - `PerformanceReport` (class)
 
+## models/compliance/policy_model.py (109 lines) - Social media content policies: the platform policy pages read, and the rules proposed from them for approval.
+- `PolicySource` (class)
+- `PolicyPage` (class) - One policy URL and every platform/region it stands for.
+- `SimilarRule` (class) - An existing rule a proposal resembles.
+- `PolicyRuleProposal` (class)
+- `ProposalUpdate` (class) - What a reviewer can change before approving.
+- `ProposalDecision` (class)
+- `PastedPolicyText` (class)
+- `PolicyOverview` (class)
+
 ## models/compliance/public_mood_model.py (197 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - `ListeningPost` (class)
 - `TopicSnapshot` (class)
@@ -254,6 +264,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_main` (def)
 
 ## postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
+- `setup` (def)
+
+## postgresql_db/schemas/setup_policy_schema.py (222 lines) - Social media content policies: the platforms' own policy pages, what was read from them, and the rules the AI proposes from them.
 - `setup` (def)
 
 ## postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
@@ -900,6 +913,46 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_video_job` (def) - Retrieve current status and progress of a background video job.
 - `list_video_jobs` (def) - List recent video processing jobs.
 - `run_video_processing_pipeline` (def) - Background task simulating end-to-end video processing through all stages.
+
+## services/compliance/policy/policy_service.py (766 lines) - Social Media Content Policy Reads the platforms' policy pages, proposes rules from them with Gemini, compares each proposal with the rule...
+- `_TextExtractor` (class) - The readable text of a page: no scripts, menus or footers, one block per line.
+    - `__init__` (def)
+    - `handle_starttag` (def)
+    - `handle_endtag` (def)
+    - `handle_data` (def)
+- `html_to_text` (def)
+- `clean_text` (def) - One space between words, no blank or repeated short lines (menus and buttons repeat).
+- `text_hash` (def)
+- `_read_plain` (def)
+- `_read_with_browser` (def) - A headless browser for pages built by script.
+- `fetch_page` (def) - Read one page.
+- `paste_text` (def) - Text a person copied from a page that wouldn't load here.
+- `_save_version` (def)
+- `refresh_all` (def) - Read every page; pages whose text changed get new proposals.
+- `is_refreshing` (def)
+- `refresh_loop` (def) - Re-read the pages when the last read is older than REFRESH_HOURS (checked hourly).
+- `_norm` (def)
+- `_words` (def)
+- `similarity` (def) - How much two rules' wording overlaps (0 to 1), by shared meaningful words.
+- `rule_text` (def)
+- `merge_similar` (def) - The existing rules a proposal resembles: the ones the model named (only real rule numbers), plus any whose wording
+- `quote_in_text` (def)
+- `_propose_quietly` (def)
+- `propose_for_page` (def) - Turn the page's latest text into proposed rules.
+- `_set_proposal_status` (def)
+- `_terms` (def)
+- `_clean_proposal` (def) - Keep a proposal to what the page covers: its platforms and regions, a quote that is really on the page.
+- `_prompt` (def)
+- `rulebook_id` (def)
+- `overview` (def)
+- `_to_proposal` (def)
+- `list_proposals` (def)
+- `_get_proposal` (def)
+- `_require_pending` (def)
+- `update_proposal` (def)
+- `_next_rule_number` (def)
+- `approve` (def) - Add the proposal to the rulebook as a rule in the Social Media Content Policy rulebook.
+- `reject` (def)
 
 ## services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 
@@ -1718,6 +1771,33 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `LivePostsWindowTests` (class)
     - `test_the_query_uses_the_window` (def)
 
+## tests/test_policy_rules.py (152 lines) - test policy rules
+- `ReadingTests` (class)
+    - `test_keeps_the_content_and_drops_scripts_menus_and_footers` (def)
+    - `test_the_fingerprint_ignores_spacing_and_case` (def)
+- `ProposalTests` (class)
+    - `proposal` (def)
+    - `clean` (def)
+    - `test_a_quote_that_is_not_on_the_page_is_dropped` (def)
+    - `test_platforms_and_regions_stay_within_the_page` (def)
+    - `test_no_platform_named_means_every_platform_of_the_page` (def)
+    - `test_every_region_listed_means_everywhere` (def)
+    - `test_a_regional_page_keeps_its_regions_when_none_named` (def)
+    - `test_bad_values_fall_back_to_safe_ones` (def)
+    - `test_a_proposal_without_a_title_is_skipped` (def)
+- `SimilarityTests` (class)
+    - `test_the_model_named_rule_comes_first_and_unknown_numbers_are_ignored` (def)
+    - `test_strongly_similar_wording_is_found_without_the_model` (def)
+    - `test_unrelated_wording_is_not_similar` (def)
+- `pending` (def)
+- `ApproveTests` (class)
+    - `test_approving_creates_a_scoped_rule_in_the_policy_rulebook` (def)
+    - `test_a_decided_proposal_cant_be_decided_again` (def)
+- `_Ctx` (class)
+    - `__init__` (def)
+    - `__aenter__` (def)
+    - `__aexit__` (def)
+
 ## tests/test_post_signals.py (93 lines) - test post signals
 - `ExtractTests` (class)
     - `test_cashtags_hashtags_mentions_and_links_are_read` (def)
@@ -2131,6 +2211,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_eval_cases` (def) [GET /eval-cases]
 - `create_eval_case` (def) [POST /eval-cases] - Save an analysed post as a test case, with the verdict the reviewer agrees is right.
 - `delete_eval_case` (def) [DELETE /eval-cases/{case_id}]
+
+## tools/compliance/policy/policy_router.py (97 lines) - Social Media Content Policy Router Read the platforms' policy pages, review the rules proposed from them, and approve them into the ruleb...
+- `_background` (def)
+- `policy_overview` (def) [GET ] - Every policy page, what it stands for (platform, region, policy name), when it was read and its proposals.
+- `refresh_all` (def) [POST /refresh] - Read every page in the background.
+- `fetch_page` (def) [POST /pages/{page_id}/fetch] - Read one page now; proposals follow when its text changed.
+- `paste_text` (def) [POST /pages/{page_id}/text] - The policy's text, pasted by a person, for a page that wouldn't load here.
+- `propose` (def) [POST /pages/{page_id}/propose] - Propose rules again from the page's latest text (undecided proposals from it are replaced).
+- `list_proposals` (def) [GET /proposals]
+- `update_proposal` (def) [PATCH /proposals/{proposal_id}] - Edit a proposal before deciding on it.
+- `approve` (def) [POST /proposals/{proposal_id}/approve] - Add the proposal to the rulebook (Social Media Content Policy).
+- `reject` (def) [POST /proposals/{proposal_id}/reject]
 
 ## tools/compliance/submissions/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.
 - `list_paths` (def) [GET ]
