@@ -17,6 +17,9 @@ from models.compliance.public_mood_model import MoodFeedbackIn, PublicMood
 from models.compliance.sentiment_model import FindingFeedback, FindingFeedbackIn, SentimentAnalysis
 from models.compliance.submission_model import (
     DashboardSummary,
+    DelegateRequest,
+    Delegation,
+    DelegationDirection,
     ReviewComment,
     ReviewCommentCreate,
     ReviewCommentUpdate,
@@ -40,6 +43,7 @@ from models.compliance.submission_model import (
     SubmitRequest,
 )
 from services.ai.observability import ai_observability
+from services.compliance.submissions import delegation_service
 from services.compliance.submissions import duplicate_service
 from services.ai.observability import ai_usage_service
 from services.compliance.media import caption_service
@@ -105,6 +109,18 @@ async def review_queue(
 async def review_queue_counts(user_id: CurrentUser, scope: ViewScope = Query("all")):
     """How many posts are in each Content Screener tab."""
     return await svc.review_queue_counts(user_id, mine=scope == "mine")
+
+
+@router.get("/delegations", response_model=List[Delegation])
+async def list_delegations(user_id: CurrentUser, direction: DelegationDirection = Query("all")):
+    """Review hand-offs the user made (by_me) or received (to_me), with each post's current status."""
+    return await delegation_service.list_delegations(user_id, direction)
+
+
+@router.get("/delegations/count")
+async def delegation_count(user_id: CurrentUser):
+    """Posts delegated to the user that are still waiting for a decision."""
+    return {"pending": await delegation_service.delegation_count(user_id)}
 
 
 @router.get("/dashboard", response_model=DashboardSummary)
@@ -400,6 +416,18 @@ async def review_submission(submission_id: UUID, data: ReviewDecisionRequest, us
     """Reviewer decision on the version in review: approve (schedule it, or publish now) or request changes.
     Reviewers can't decide on their own uploads; the creator is notified either way."""
     return await svc.decide_review(submission_id, user_id, data)
+
+
+@router.post("/{submission_id}/delegate", response_model=Submission)
+async def delegate_review(submission_id: UUID, data: DelegateRequest, user_id: CurrentUser):
+    """Reviewer hands the post in review to another reviewer; the delegator keeps seeing it and can still decide."""
+    return await delegation_service.delegate(submission_id, user_id, data)
+
+
+@router.get("/{submission_id}/delegations", response_model=List[Delegation])
+async def submission_delegations(submission_id: UUID, user_id: CurrentUser):
+    """Every review hand-off on this post."""
+    return await delegation_service.submission_delegations(submission_id, user_id)
 
 
 @router.post("/{submission_id}/reopen", response_model=Submission)

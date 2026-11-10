@@ -26,9 +26,10 @@ def submission_row(**overrides):
 
 
 class WhoMayOpenItTests(unittest.IsolatedAsyncioTestCase):
-    async def load(self, row, user, *, super_admin=False):
+    async def load(self, row, user, *, super_admin=False, outranks=False):
         with (
             patch(f"{SVC}.fetch_one", new=AsyncMock(return_value=row)),
+            patch(f"{SVC}._outranks", new=AsyncMock(return_value=outranks)),
             patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=super_admin)),
             patch(f"{SVC}._can_see_team_content", new=AsyncMock(return_value=True)),
             patch(f"{SVC}._brand_scope", new=AsyncMock(return_value=None)),
@@ -53,8 +54,16 @@ class WhoMayOpenItTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(await self.load(row, CREATOR), row)
         self.assertIs(await self.load(row, OTHER_REVIEWER, super_admin=True), row)
 
+    async def test_someone_above_the_reviewer_in_the_hierarchy_can_open_it(self):
+        row = submission_row(status="IN_REVIEW", reviewer_ids=[PICKED])
+        self.assertIs(await self.load(row, OTHER_REVIEWER, outranks=True), row)
+
     def test_lists_and_queues_use_the_same_rule(self):
-        self.assertEqual(submission_service._sent_to("$2"), "(cardinality(s.reviewer_ids) = 0 OR $2 = ANY(s.reviewer_ids))")
+        self.assertEqual(
+            submission_service._sent_to("$2"),
+            "(cardinality(s.reviewer_ids) = 0 OR $2 = ANY(s.reviewer_ids)"
+            " OR content_review_rank($2) > (SELECT min(content_review_rank(x)) FROM unnest(s.reviewer_ids) x))",
+        )
 
 
 class WhoIsNotifiedTests(unittest.IsolatedAsyncioTestCase):

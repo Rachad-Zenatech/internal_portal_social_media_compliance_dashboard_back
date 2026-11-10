@@ -75,6 +75,7 @@ class ReviewDecisionTestCase(unittest.IsolatedAsyncioTestCase):
         score=100,
         approvers=((), ()),
         open_comments=0,
+        delegates=(),
     ):
         pool, conn = fake_pool()
 
@@ -96,6 +97,8 @@ class ReviewDecisionTestCase(unittest.IsolatedAsyncioTestCase):
             stack.enter_context(patch(f"{SVC}.approval_path_service.load_rules", new=AsyncMock()))
             stack.enter_context(patch(f"{SVC}._approvers", return_value=(list(approvers[0]), list(approvers[1]))))
             stack.enter_context(patch(f"{SVC}._accounts", return_value=[]))
+            stack.enter_context(patch(f"{SVC}.delegation_service.with_delegates",
+                                      new=AsyncMock(side_effect=lambda _sid, ids: ids + list(delegates))))
             stack.enter_context(patch(f"{SVC}.fetch_one", new=AsyncMock(side_effect=fetch_one)))
             stack.enter_context(patch(f"{SVC}.get_pool", return_value=pool))
             stack.enter_context(patch(f"{SVC}.log_audit_event", new=AsyncMock()))
@@ -141,6 +144,12 @@ class WhoMayDecideTests(ReviewDecisionTestCase):
         self.assertIn("Named Approver", detail)
 
         _, conn = await self.decide(approve_now(), submission_row(), user=named, approvers=([named], ["Named Approver"]))
+        self.assertEqual(self.job_update(conn)[3], "APPROVED")
+
+    async def test_a_named_approvers_delegate_can_give_final_approval(self):
+        named = uuid4()
+        _, conn = await self.decide(approve_now(), submission_row(), approvers=([named], ["Named Approver"]),
+                                    delegates=[REVIEWER])
         self.assertEqual(self.job_update(conn)[3], "APPROVED")
 
     async def test_any_reviewer_can_request_changes_on_a_named_path(self):
