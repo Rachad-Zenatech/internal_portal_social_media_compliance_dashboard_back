@@ -48,6 +48,7 @@ from tools.shared.core.log_router import router as log_router
 from tools.microsoft_graph.graph_router import router as graph_router
 from tools.shared.auth.oauth_router import router as oauth_router
 from tools.compliance.submissions.compliance_router import router as compliance_router
+from tools.compliance.policy.policy_router import router as policy_router
 from tools.compliance.submissions.submission_router import router as submission_router
 from tools.compliance.submissions.script_review_router import router as script_review_router
 from tools.compliance.analytics.canva_router import router as canva_router
@@ -108,6 +109,12 @@ async def lifespan(app: FastAPI):
                 await setup_submissions_schema()
             except Exception as sub_err:
                 logger.warning(f"Submission schema setup note: {sub_err}")
+            try:
+                # After the compliance schema: it adds the Social Media Content Policy rulebook.
+                from postgresql_db.schemas.setup_policy_schema import setup as setup_policy_schema
+                await setup_policy_schema()
+            except Exception as policy_err:
+                logger.warning(f"Policy schema setup note: {policy_err}")
             try:
                 from postgresql_db.schemas.setup_context_schema import setup as setup_context_schema
                 await setup_context_schema()
@@ -175,6 +182,14 @@ async def lifespan(app: FastAPI):
         partial(log_background_task_result, task_name="review-deadlines")
     )
     background_tasks.append(deadline_task)
+
+    # 3b2. Platform policy pages, re-read on a schedule (new rules are only proposed, never added on their own)
+    from services.compliance.policy.policy_service import refresh_loop as policy_refresh_loop
+    policy_task = asyncio.create_task(policy_refresh_loop(), name="policy-refresh")
+    policy_task.add_done_callback(
+        partial(log_background_task_result, task_name="policy-refresh")
+    )
+    background_tasks.append(policy_task)
 
     # 3c. Sentiment analyses scheduled to run once Gemini's daily limit resets
     from services.compliance.analytics.sentiment_service import scheduled_runs_loop
@@ -427,6 +442,7 @@ app.include_router(observability_router, prefix="/api", tags=["Observability"])
 app.include_router(graph_router, prefix="/api", tags=["Microsoft Graph"], dependencies=authenticated)
 app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"])
 app.include_router(compliance_router, prefix="/api", tags=["Compliance Rules & Governance"])
+app.include_router(policy_router, prefix="/api", tags=["Social Media Content Policy"])
 app.include_router(script_review_router, prefix="/api", tags=["Script Review"])
 app.include_router(submission_router, prefix="/api", tags=["Content Submissions"])
 app.include_router(ai_status_router, prefix="/api", tags=["AI Status"], dependencies=authenticated)

@@ -45,7 +45,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `CaptionSuggestion` (class)
 - `CaptionSuggestions` (class)
 
-## models/compliance/compliance_model.py (319 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (320 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class)
 - `ComplianceRuleCreate` (class)
 - `ComplianceRuleUpdate` (class)
@@ -133,7 +133,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (520 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (559 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -162,6 +162,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `DashboardActivity` (class) - One recent thing that happened to content the viewer can see.
 - `DashboardFinding` (class) - A rulebook rule and how often it was flagged on content sent for review.
 - `DashboardSummary` (class) - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
+- `DuplicateDetail` (class) - One Submission Details dropdown, compared with an earlier post that has the same content and caption.
+- `DuplicateMatch` (class) - A post already sent for approval with the same content and caption.
+- `DuplicateReport` (class) - Earlier posts with the same content and caption.
+- `SubmitRequest` (class)
 - `SubmitResult` (class)
 
 ## models/notifications/notification_model.py (34 lines) - notification model (notifications)
@@ -256,7 +260,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (654 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (656 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -288,7 +292,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `run_saved_case` (def)
 - `main` (def)
 
-## server.py (679 lines) - server
+## server.py (695 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -540,6 +544,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/analytics/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 
+## services/compliance/evaluation/citation_finder.py (185 lines) - Citation finder: what a post says it got its claims from.
+- `Citation` (class)
+- `_clean_link` (def)
+- `_host_and_path` (def)
+- `_article_like` (def) - A path that names a page (an article, a report, a PDF), not a home page or a section front.
+- `_is_social` (def)
+- `_named_parts` (def) - The sources in a "Source: ..." line: links and hashtags are taken out; several are split on ";".
+- `_continues` (def) - Whether a line carries on the source line before it.
+- `find` (def) - The citations in this text, each once, in the order they appear, at most MAX_CITATIONS.
+    - `add` (def)
+- `describe` (def) - Why a citation can't be checked as it stands, or None when it can.
+
 ## services/compliance/evaluation/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
 - `ClaimCheck` (class)
     - `rule_id` (def)
@@ -556,7 +572,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_quoted` (def) - a", "b"'.
 - `find_claims` (def) - The built-in claim checks that fire on this text, as findings.
 
-## services/compliance/evaluation/compliance_service.py (1571 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/evaluation/compliance_service.py (1613 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def)
 - `_ai_switched_off` (def) - The AI meaning check was turned off on purpose (not a failure).
 - `_ai_viability_enabled` (def)
@@ -607,6 +623,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `spans` (def)
 - `_charge_unsupported_claims` (def) - Give each claim that needs a source its small penalty.
     - `claim` (def)
+- `review_penalty` (def) - What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE).
+- `_charge_review_findings` (def) - Give each finding a person has to check its points by the model's confidence.
 - `_count_extra_claims` (def) - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
 - `rulebook_version` (def) - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
 - `_examples` (def) - (example, quoted) pairs from a rule's example text.
@@ -686,6 +704,50 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_highlights` (def) - The reviewer's highlights and notes on a script version, for anyone who can read the post.
 - `save_highlights` (def) - Replace the highlights on a script version.
 - `resolve_highlights` (def) - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
+
+## services/compliance/evaluation/source_check_service.py (488 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+- `_Result` (class)
+- `_Response` (class)
+- `SourceCheckResult` (class)
+- `authority_of` (def)
+    - `on` (def)
+- `_digits` (def) - Text with figures in one form: no thousands commas, and the common number words as digits.
+- `missing_figures` (def) - Figures and years in the claim that the source's text never mentions (in digits or as words).
+- `_post_key` (def)
+- `_ask` (def)
+- `_compare` (def) - The model's claim-by-claim answer for one source (None when no model could give one), and the model's name.
+- `_to_claims` (def) - The model's answers, through the safeguards.
+- `_distinct_words` (def)
+- `_matches` (def) - Whether an attached document looks like the one a "Source:" line names: most of the line's distinctive words appear
+- `_read_link` (def) - The check for a cited link, and (label, text) for the model when it could be read.
+- `run` (def) - Find the sources a post cites, read them, and compare the post's claims with each.
+    - `compare` (def)
+- `_finding` (def)
+- `_label` (def)
+- `findings` (def) - The findings the sources produce: claims that contradict their source cost points; claims the source doesn't
+- `_tokens` (def)
+- `_same_claim` (def) - Whether a supported claim is the one a "needs a source" finding is about.
+- `clear_supported` (def) - A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place).
+
+## services/compliance/evaluation/source_fetch_service.py (321 lines) - Source fetcher: opens a link a post cites and returns its readable text.
+- `FetchedSource` (class)
+- `_Refused` (class)
+- `_forbidden` (def)
+- `_check_destination` (def)
+- `_Text` (class) - Visible text of a page, with the article's own text kept apart (it beats menus and related-story lists).
+    - `__init__` (def)
+    - `handle_starttag` (def)
+    - `handle_endtag` (def)
+    - `handle_data` (def)
+    - `_put` (def)
+- `_tidy` (def)
+- `html_to_text` (def) - (text, title, published date) of an HTML page.
+- `_decode` (def)
+- `_fail` (def)
+- `_get_once` (def) - One request, its body read as a stream and cut off at the size limit.
+- `_download` (def) - (bytes, content type, final url), following a few redirects, checking every destination.
+- `fetch` (def) - Open a link and return its readable text, or the reason it couldn't be read.
+- `_fetch` (def)
 
 ## services/compliance/media/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
 - `Frame` (class) - An RGB frame being drawn.
@@ -949,6 +1011,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `load_rules` (def)
 - `is_ceo_content` (def) - Shaun's own thought leadership: posted through his account or checked against his rule set.
 
+## services/compliance/submissions/duplicate_service.py (189 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
+- `normalize_caption` (def) - Captions compare without case or spacing differences.
+- `details_of` (def) - The post's Submission Details values, as keys (brand codes, account ids, audience codes...).
+- `compare_details` (def) - Per dropdown: the values both posts have, and the values only this post has.
+- `same_publish_date` (def) - Same calendar day (UTC), or neither has a date.
+- `_sha256` (def)
+- `_content_hashes` (def) - Each post's main files as sorted content hashes.
+- `_labels` (def) - Display names for the dropdown values, by field.
+- `find` (def) - Posts already sent for approval with the same content and caption as this one, and how their details overlap.
+
 ## services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
 - `_doc` (def)
 - `_remember` (def)
@@ -1007,7 +1079,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `query_text` (def) - The text a post is matched on: the same parts that are stored for past reviews.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (2678 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (2704 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -1060,6 +1132,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_mirror_to_script_version` (def) - A check saved on the post while its script is with the reviewer is also the script version's check, so both
 - `run_initial_check` (def)
 - `_missing_for_submit` (def)
+- `_require_not_duplicate` (def) - The same content and caption, already sent for approval to the same place on the same date, can't be sent
 - `_review_job` (def)
 - `submit_for_review` (def)
 - `withdraw` (def) - Pull a submission back to draft so the creator can edit and resubmit: from review, or after approval for a
@@ -1393,7 +1466,33 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_soft_claim_phrases_are_added_to_the_rules` (def)
     - `test_none_is_so_generic_it_would_match_everything` (def)
 
-## tests/test_claim_checks.py (201 lines) - The text read from the "$25M contract" graphic, line breaks and all.
+## tests/test_citation_finder.py (115 lines) - Finding what a post cites as its source: links, "Source:" lines on a caption or an image, named documents.
+- `refs` (def)
+- `TestLinks` (class)
+    - `test_a_read_the_full_article_link_is_a_citation_and_a_cut_short_one_says_so` (def)
+    - `test_a_whole_link_is_not_cut_short` (def)
+    - `test_a_call_to_action_home_page_is_not_a_citation` (def)
+    - `test_a_learn_more_link_to_an_article_is_one` (def)
+    - `test_a_source_cue_makes_even_a_home_page_a_citation` (def)
+    - `test_social_profiles_are_not_citations` (def)
+    - `test_a_bare_domain_with_a_path_is_found` (def)
+    - `test_trailing_punctuation_is_not_part_of_the_link` (def)
+    - `test_the_same_link_twice_is_one_citation` (def)
+- `TestNamedSources` (class)
+    - `test_a_source_line_printed_on_an_image_runs_over_its_line_breaks` (def)
+    - `test_the_same_source_in_the_caption_is_where_caption` (def)
+    - `test_several_sources_are_split` (def)
+    - `test_hashtags_and_cashtags_after_a_source_are_left_out` (def)
+    - `test_a_source_line_does_not_swallow_the_next_sentence` (def)
+    - `test_according_to_names_the_source` (def)
+    - `test_per_needs_a_name_after_it` (def)
+    - `test_a_source_in_brackets_in_a_sentence` (def)
+- `TestNothingToFind` (class)
+    - `test_a_post_with_no_citation` (def)
+    - `test_empty` (def)
+    - `test_at_most_six` (def)
+
+## tests/test_claim_checks.py (203 lines) - The text read from the "$25M contract" graphic, line breaks and all.
 - `fired` (def) - The checks that fire, by key: a check's rule number can be shared with another check.
 - `ClaimCheckTests` (class)
     - `test_the_contract_graphic_trips_every_check` (def)
@@ -1521,6 +1620,24 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_long_text_is_capped` (def)
 - `WhichFilesTests` (class)
     - `test_scripts_and_article_files_are_read` (def)
+
+## tests/test_duplicate_posts.py (103 lines) - test duplicate posts
+- `post` (def)
+- `find` (def)
+- `CompareTests` (class)
+    - `test_captions_compare_without_case_or_spacing` (def)
+    - `test_every_dropdown_sharing_a_value_is_a_full_overlap` (def)
+    - `test_a_different_platform_is_not_an_overlap` (def)
+    - `test_publish_dates_compare_by_day` (def)
+- `FindTests` (class)
+    - `test_same_post_same_details_same_date_is_blocked` (def)
+    - `test_same_post_other_date_is_a_repost_to_confirm` (def)
+    - `test_same_post_for_another_platform_is_allowed_and_listed` (def)
+    - `test_different_files_are_a_different_post` (def)
+- `SubmitGuardTests` (class)
+    - `guard` (def)
+    - `test_a_duplicate_cant_be_submitted_even_when_confirmed` (def)
+    - `test_a_repost_needs_confirming` (def)
 
 ## tests/test_evidence_penalty.py (57 lines) - test evidence penalty
 - `finding` (def)
@@ -1672,6 +1789,19 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_the_critical_cap_lasts_only_while_a_critical_flag_is_open` (def)
     - `test_dismissing_the_stricter_of_two_flags_on_the_same_words_doesnt_make_them_free` (def)
     - `test_no_score_yet_or_an_old_check_without_points` (def)
+
+## tests/test_review_penalty.py (68 lines) - test review penalty
+- `rule` (def)
+- `to_check` (def)
+- `charge` (def)
+- `ReviewPenaltyTests` (class)
+    - `test_sure_costs_half_the_violation_points` (def)
+    - `test_a_missing_disclaimer_costs_half_of_its_rules_points` (def)
+    - `test_fairly_sure_costs_five` (def)
+    - `test_unsure_costs_nothing` (def)
+    - `test_only_the_models_own_judgment_counts` (def)
+    - `test_other_statuses_are_left_alone` (def)
+    - `test_it_is_a_warning_so_no_critical_cap_and_dismissing_gives_points_back` (def)
 
 ## tests/test_reviewer_choice.py (186 lines) - test reviewer choice
 - `submission_row` (def)
@@ -1859,6 +1989,67 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_social_post_with_an_image_or_none_can` (def)
     - `test_a_paid_ad_with_a_video_is_still_fine` (def)
 
+## tests/test_source_check.py (435 lines) - Source check: reading what a post cites and comparing it with the post's claims.
+- `run` (def)
+- `answer` (def)
+- `result` (def)
+- `FiguresTests` (class)
+    - `test_a_figure_in_the_source_in_any_form_is_found` (def)
+    - `test_a_figure_the_source_never_mentions_is_missing` (def)
+    - `test_number_words_in_the_claim_are_not_figures` (def)
+- `AuthorityTests` (class)
+    - `test_who_published_it` (def)
+- `SafeguardTests` (class)
+    - `test_supported_with_evidence_and_the_figures_stays_supported` (def)
+    - `test_supported_without_evidence_becomes_unclear` (def)
+    - `test_supported_with_low_confidence_becomes_unclear` (def)
+    - `test_supported_with_a_figure_not_in_the_source_becomes_unclear` (def)
+    - `test_a_contradiction_is_kept_as_it_is` (def)
+    - `test_an_unknown_verdict_is_unclear` (def)
+- `MatchingTests` (class)
+    - `test_an_attached_memo_stands_in_for_the_named_source` (def)
+    - `test_an_unrelated_document_does_not` (def)
+- `RunTests` (class)
+    - `go` (def)
+    - `test_nothing_cited_costs_nothing` (def)
+    - `test_a_cited_article_is_opened_and_its_claims_are_compared` (def)
+    - `test_a_claim_that_overstates_its_source_is_a_finding_that_costs_points` (def)
+    - `test_a_claim_the_source_doesnt_settle_is_for_a_person_at_no_cost` (def)
+    - `test_a_cut_short_link_cant_be_opened_and_says_why` (def)
+    - `test_a_page_that_cant_be_read_is_reported_with_its_reason` (def)
+    - `test_a_page_that_tries_to_steer_the_review_is_not_used` (def)
+    - `test_a_named_source_with_nothing_attached_needs_a_copy` (def)
+    - `test_an_attached_memo_is_read_in_place_of_the_named_source` (def)
+    - `test_when_no_model_can_answer_nothing_is_marked_supported` (def)
+    - `test_switched_off` (def)
+- `finding` (def)
+- `ClearingTests` (class)
+    - `checks` (def)
+    - `test_a_supported_claim_clears_its_needs_a_source_finding` (def)
+    - `test_a_claim_about_something_else_leaves_it_alone` (def)
+    - `test_a_contradicted_claim_clears_nothing` (def)
+    - `test_only_needs_a_source_findings_are_cleared` (def)
+- `InTheCheckTests` (class) - The source check inside check_compliance: its findings, its score and its place in the response.
+    - `check` (def)
+    - `read` (def)
+    - `test_a_contradicted_claim_takes_20_points_and_the_response_carries_the_source_check` (def)
+    - `test_a_supported_claim_costs_nothing` (def)
+    - `test_a_source_that_couldnt_be_checked_is_for_a_person_and_costs_nothing` (def)
+    - `test_a_supported_figure_no_longer_needs_a_source` (def)
+    - `test_a_source_no_model_could_read_makes_the_check_incomplete` (def)
+- `FetchSafetyTests` (class)
+    - `refused` (def)
+    - `test_private_and_local_addresses_are_refused` (def)
+    - `test_other_schemes_ports_and_logins_are_refused` (def)
+    - `test_a_redirect_to_a_private_address_is_not_followed` (def)
+    - `test_a_page_is_read_and_remembered` (def)
+    - `test_a_connection_that_doesnt_get_through_is_tried_again` (def)
+    - `test_a_site_that_never_answers_is_reported_as_too_slow` (def)
+    - `test_missing_and_walled_pages_say_what_happened` (def)
+- `HtmlTests` (class)
+    - `test_the_article_is_read_without_menus_scripts_or_footers` (def)
+    - `test_a_page_with_no_article_element_gives_its_visible_text` (def)
+
 ## tests/test_submission_access.py (155 lines) - test submission access
 - `submission_row` (def)
 - `OwnedRowAccessTests` (class)
@@ -1982,7 +2173,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
 - `resolve_script_highlights` (def) [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
-## tools/compliance/submissions/submission_router.py (463 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submissions/submission_router.py (476 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
 - `list_reviewers` (def) [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
 - `get_hashtag_library` (def) [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
@@ -2006,6 +2197,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `listen` (def)
     - `work` (def)
     - `lines` (def)
+- `find_duplicates` (def) [GET /{submission_id}/duplicates] - Posts already sent for approval with the same content and caption as this draft, with how their Submission
 - `submit_for_review` (def) [POST /{submission_id}/submit] - Validate required information, snapshot a new version and create a review job.
 - `withdraw` (def) [POST /{submission_id}/withdraw] - Pull a submission back to draft to edit it: from review, or after approval for a late fix (the approval
 - `get_version` (def) [GET /{submission_id}/versions/{version}] - One submitted version as it was: snapshot, video, automated check and decision.
