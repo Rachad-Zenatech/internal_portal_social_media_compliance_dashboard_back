@@ -45,7 +45,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `CaptionSuggestion` (class)
 - `CaptionSuggestions` (class)
 
-## models/compliance/compliance_model.py (320 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (324 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class)
 - `ComplianceRuleCreate` (class)
 - `ComplianceRuleUpdate` (class)
@@ -64,9 +64,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `AddedRuleSet` (class) - A rule set checked because of what the post says, not because it was chosen.
 - `ComplianceCheckResponse` (class)
 
-## models/compliance/context_model.py (32 lines) - Messaging Context: reference material the content analysis is given.
+## models/compliance/context_model.py (52 lines) - Messaging Context: reference material the content analysis is given.
 - `ContextEntryIn` (class)
 - `ContextEntry` (class)
+- `ContextSync` (class) - A sync of facts from a source (the newsroom): running, or how the last one went.
 
 ## models/compliance/flag_review_model.py (67 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - `FlagDismissRequest` (class)
@@ -133,7 +134,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (620 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (623 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -240,7 +241,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def) - Create the tables and add any missing baseline rules.
 - `_main` (def)
 
-## postgresql_db/schemas/setup_context_schema.py (200 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
+## postgresql_db/schemas/setup_context_schema.py (225 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
 - `setup` (def)
 
 ## postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
@@ -263,7 +264,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (689 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (691 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -298,7 +299,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `run_saved_case` (def)
 - `main` (def)
 
-## server.py (687 lines) - server
+## server.py (693 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -496,7 +497,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `metrics` (def)
 - `get_provider` (def)
 
-## services/compliance/analytics/post_signals.py (206 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
+## services/compliance/analytics/post_signals.py (217 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - `_key` (def)
 - `is_government_handle` (def)
 - `_domain` (def)
@@ -578,7 +579,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_quoted` (def) - a", "b"'.
 - `find_claims` (def) - The built-in claim checks that fire on this text, as findings.
 
-## services/compliance/evaluation/compliance_service.py (1613 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/evaluation/compliance_service.py (1648 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def)
 - `_ai_switched_off` (def) - The AI meaning check was turned off on purpose (not a failure).
 - `_ai_viability_enabled` (def)
@@ -638,7 +639,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `self_test_all` (def)
 - `get_compliance_stats` (def) - Retrieve aggregate compliance metrics.
 
-## services/compliance/evaluation/context_evaluator.py (360 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+## services/compliance/evaluation/context_evaluator.py (367 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - `_Result` (class)
 - `_Response` (class)
 - `_enum` (def)
@@ -653,8 +654,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_apply` (def) - Put the model's answer on the finding, through the safeguards.
 - `evaluate` (def) - Read each candidate in context and set its status (in place).
 
-## services/compliance/evaluation/context_service.py (159 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
+## services/compliance/evaluation/context_service.py (188 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - `_out` (def)
+- `_newest_first` (def)
 - `list_entries` (def)
 - `_clean` (def)
 - `create_entry` (def)
@@ -678,7 +680,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 - `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/evaluation/script_review_service.py (704 lines) - Script stage of a video post.
+## services/compliance/evaluation/script_review_service.py (721 lines) - Script stage of a video post.
 - `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
@@ -711,7 +713,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `save_highlights` (def) - Replace the highlights on a script version.
 - `resolve_highlights` (def) - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
 
-## services/compliance/evaluation/source_check_service.py (488 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+## services/compliance/evaluation/source_check_service.py (494 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+- `claim_id` (def) - The id of one claim's finding: its kind's id and the claim's own wording.
 - `_Result` (class)
 - `_Response` (class)
 - `SourceCheckResult` (class)
@@ -1049,7 +1052,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `remember_all_in_background` (def) - Startup: index verdicts given while the vector store was off or the server was down.
 - `similar` (def) - Past verdicts on this rule for wording like `text`, closest first, as {score, verdict, reason, note, passage}.
 
-## services/compliance/submissions/flag_review_service.py (346 lines) - Reviewers' calls on automated compliance flags.
+## services/compliance/submissions/flag_review_service.py (364 lines) - Reviewers' calls on automated compliance flags.
 - `_json` (def)
 - `_out` (def)
 - `list_for` (def)
@@ -1104,7 +1107,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_photo_text` (def) - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (2831 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (2978 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_same_value` (def) - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
 - `content_changed` (def) - Whether saving these fields changes anything the checks read.
 - `_json` (def)
@@ -1150,9 +1153,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `remove_file` (def)
 - `get_file_for_download` (def)
 - `analysis_pending` (def) - Whether the post is still being analysed: its video transcript or the text in its images isn't read yet.
+- `reads_failed` (def) - What of the post couldn't be read (video, image or document), so its wording was never checked.
 - `ai_unavailable` (def) - Whether the AI couldn't read part of the post, so the check has no score to show.
 - `_unavailable_sql` (def)
 - `_pending_sql` (def) - SQL for analysis_pending() on a stored check (older checks only have the two parts).
+- `_platform_captions` (def)
 - `_check_text` (def)
 - `check_request` (def) - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
 - `script_stage_on` (def) - Video posts created since the script stage existed have their script approved before the video.
@@ -1193,11 +1198,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `add_comment` (def)
 - `set_comment_resolved` (def)
 - `delete_comment` (def)
+- `_check_still_current` (def) - Whether a check that began at `started` on `row` may still be saved.
 - `_recheck_one` (def) - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
 - `recheck_open_submissions` (def) - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
     - `describe` (def)
 - `recheck_ai_unavailable` (def) - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
     - `describe` (def)
+- `retry_failed_reads` (def) - Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
 - `ai_recheck_loop` (def) - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
 - `recheck_outdated_on_start` (def) - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
 - `schedule_rulebook_recheck` (def) - Re-check open content shortly after a rule changes; a burst of edits leads to one pass.
@@ -1420,7 +1427,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `log_background_task_result` (def) - Log a task that exits unexpectedly instead of losing its exception.
 - `asyncio_exception_handler` (def) - Capture detached asyncio failures that would otherwise only reach stderr.
 
-## tests/test_ai_down_approval.py (102 lines) - test ai down approval
+## tests/test_ai_down_approval.py (150 lines) - test ai down approval
 - `finding` (def)
 - `UnreadableFindingTests` (class)
     - `test_a_critical_rule_stays_a_violation_when_no_model_can_read_it` (def)
@@ -1430,8 +1437,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `approve` (def)
     - `test_no_approval_while_the_ai_review_could_not_run` (def)
     - `test_no_approval_while_the_post_is_still_being_read` (def)
+    - `test_no_approval_while_part_of_the_post_could_not_be_read` (def)
+    - `test_no_approval_while_a_flag_needs_a_persons_answer` (def)
+    - `test_a_check_from_an_older_rulebook_is_run_again_before_approving` (def)
 - `ScriptApprovalGateTests` (class)
     - `test_a_script_checked_without_the_ai_cannot_be_approved` (def)
+    - `approve_script` (def)
+    - `test_a_script_with_a_critical_flag_cannot_be_approved` (def)
+    - `test_a_script_below_the_minimum_score_cannot_be_approved` (def)
 - `AiRecheckTests` (class)
     - `run_pass` (def)
     - `test_every_check_is_retried_once_the_ai_is_back` (def)
@@ -1717,6 +1730,51 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_duplicate_cant_be_submitted_even_when_confirmed` (def)
     - `test_a_repost_needs_confirming` (def)
 
+## tests/test_engine_fixes.py (220 lines) - Fixes from the compliance engine review: a post must not slip through on a near-match or a stale or failed check.
+- `padded` (def)
+- `DisclaimerNearMatch` (class)
+    - `test_the_opposite_statement_is_not_the_disclaimer` (def)
+    - `test_a_dropped_not_is_not_a_small_drift` (def)
+    - `test_an_added_negator_turns_it_around` (def)
+    - `test_or_and_and_are_not_dropped` (def)
+    - `test_a_short_disclaimer_must_be_word_for_word` (def)
+    - `test_a_contraction_still_counts_as_not` (def)
+- `NoEndorsementWording` (class)
+    - `has` (def)
+    - `test_the_real_disclaimer_wording_counts` (def)
+    - `test_an_endorsement_that_merely_follows_a_no_does_not_count` (def)
+- `make_rule` (def)
+- `make_violation` (def)
+- `ReadsThatFailed` (class)
+    - `test_a_check_lists_what_it_could_not_read` (def)
+    - `test_a_check_with_nothing_failed_has_none` (def)
+    - `test_an_older_check_says_it_through_its_counts` (def)
+    - `test_outage_and_quota_errors_are_worth_another_try_and_a_corrupt_file_is_not` (def)
+- `SourceClaimsAreSeparate` (class)
+    - `test_each_claim_has_its_own_id_so_dismissing_one_leaves_the_others` (def)
+    - `test_the_same_claim_keeps_the_same_id` (def)
+    - `test_the_kind_is_part_of_the_id` (def)
+- `PassageIsWhereTheWordingCounts` (class)
+    - `test_a_denied_sentence_is_not_the_one_the_model_reads` (def)
+    - `test_a_sentence_inside_an_exception_is_skipped` (def)
+    - `test_when_every_match_is_denied_the_first_one_is_still_used` (def)
+- `DisclaimerNeedsToBePublished` (class)
+    - `test_a_disclaimer_only_in_the_unpublished_parts_does_not_count` (def)
+    - `test_a_disclaimer_in_the_published_parts_counts` (def)
+- `CriticalRulesAreNotLetGoOnUncertainAnswers` (class)
+    - `judge` (def)
+    - `test_an_unsure_downgrade_of_a_critical_rule_stays_a_violation` (def)
+    - `test_an_unsure_all_clear_of_a_critical_rule_stays_a_violation` (def)
+    - `test_a_sure_all_clear_of_a_critical_rule_is_still_cleared` (def)
+    - `test_a_downgrade_that_is_sure_of_itself_is_kept` (def)
+    - `test_a_less_serious_rule_may_still_be_downgraded` (def)
+- `OpenYellowFlagsNeedAnAnswer` (class)
+    - `standing` (def)
+    - `v` (def)
+    - `test_an_open_yellow_flag_counts` (def)
+    - `test_a_dismissed_or_confirmed_flag_does_not` (def)
+    - `test_green_and_red_flags_are_not_yellow` (def)
+
 ## tests/test_evidence_penalty.py (57 lines) - test evidence penalty
 - `finding` (def)
 - `UnsupportedClaimTests` (class)
@@ -1854,7 +1912,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_no_route_tries_a_retired_model_first` (def)
     - `test_a_route_set_in_env_is_filtered_too` (def)
 
-## tests/test_review_decision.py (270 lines) - test review decision
+## tests/test_review_decision.py (272 lines) - test review decision
 - `submission_row` (def)
 - `fake_pool` (def)
 - `approve_now` (def)
@@ -2120,7 +2178,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_social_post_with_an_image_or_none_can` (def)
     - `test_a_paid_ad_with_a_video_is_still_fine` (def)
 
-## tests/test_source_check.py (435 lines) - Source check: reading what a post cites and comparing it with the post's claims.
+## tests/test_source_check.py (436 lines) - Source check: reading what a post cites and comparing it with the post's claims.
 - `run` (def)
 - `answer` (def)
 - `result` (def)
@@ -2336,8 +2394,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_video_job_status` (def) [GET /jobs/{job_id}] - Get the real-time status, progress, and logs of a video background job.
 - `list_video_jobs` (def) [GET /jobs] - List recent video upload and screening background jobs.
 
-## tools/compliance/submissions/context_router.py (38 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
+## tools/compliance/submissions/context_router.py (51 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
 - `list_entries` (def) [GET ] - Everyone can read it: it's the guidance their content is assessed against.
+- `newsroom_sync_status` (def) [GET /newsroom-sync] - The newsroom sync running now, or how the last one went (none yet: null).
+- `start_newsroom_sync` (def) [POST /newsroom-sync] - Read the ZenaTech newsroom now and add or update its facts (it also runs once a day).
 - `create_entry` (def) [POST ]
 - `update_entry` (def) [PUT /{entry_id}]
 - `delete_entry` (def) [DELETE /{entry_id}]
