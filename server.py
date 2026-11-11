@@ -208,6 +208,12 @@ async def lifespan(app: FastAPI):
     recheck_task.add_done_callback(partial(log_background_task_result, task_name="outdated-check-recheck"))
     background_tasks.append(recheck_task)
 
+    # 3e0. Facts from the ZenaTech newsroom, re-read once a day
+    from services.compliance.evaluation.newsroom_sync_service import newsroom_sync_loop
+    newsroom_task = asyncio.create_task(newsroom_sync_loop(), name="newsroom-sync")
+    newsroom_task.add_done_callback(partial(log_background_task_result, task_name="newsroom-sync"))
+    background_tasks.append(newsroom_task)
+
     # 3e1. Checks the AI couldn't read (key out of credits, quota, down) are retried until it can
     from services.compliance.submissions.submission_service import ai_recheck_loop
     ai_recheck_task = asyncio.create_task(ai_recheck_loop(), name="ai-unavailable-recheck")

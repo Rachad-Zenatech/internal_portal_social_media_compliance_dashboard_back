@@ -5,8 +5,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from models.compliance.context_model import ContextEntry, ContextEntryIn
+from models.compliance.context_model import ContextEntry, ContextEntryIn, ContextSync
 from services.compliance.evaluation import context_service as svc
+from services.compliance.evaluation import newsroom_sync_service as newsroom
 from services.shared.auth.auth_service import get_current_user_id_dependency, require_permission
 
 router = APIRouter(prefix="/messaging-context")
@@ -20,6 +21,18 @@ ManageUser = Annotated[UUID, Depends(require_permission("CONFIG_ROLES_UPDATE"))]
 async def list_entries(user_id: CurrentUser, kind: Optional[str] = Query(None)):
     """Everyone can read it: it's the guidance their content is assessed against."""
     return await svc.list_entries(kind)
+
+
+@router.get("/newsroom-sync", response_model=Optional[ContextSync])
+async def newsroom_sync_status(user_id: CurrentUser):
+    """The newsroom sync running now, or how the last one went (none yet: null)."""
+    return await newsroom.latest()
+
+
+@router.post("/newsroom-sync", response_model=ContextSync, status_code=status.HTTP_202_ACCEPTED)
+async def start_newsroom_sync(user_id: ManageUser):
+    """Read the ZenaTech newsroom now and add or update its facts (it also runs once a day)."""
+    return await newsroom.start("MANUAL", user_id)
 
 
 @router.post("", response_model=ContextEntry, status_code=status.HTTP_201_CREATED)

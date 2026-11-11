@@ -180,6 +180,31 @@ async def setup() -> None:
                 deleted_at TIMESTAMP WITH TIME ZONE
             );
             CREATE INDEX IF NOT EXISTS idx_messaging_context_kind ON messaging_context(kind) WHERE deleted_at IS NULL;
+            -- Facts read from a source (the ZenaTech newsroom): the article, the fact as last generated (so a person's
+            -- rewrite can be told apart and kept) and a hash of the article text (so only changed articles are re-read).
+            ALTER TABLE messaging_context ADD COLUMN IF NOT EXISTS source_url TEXT;
+            ALTER TABLE messaging_context ADD COLUMN IF NOT EXISTS auto_source VARCHAR(30);
+            ALTER TABLE messaging_context ADD COLUMN IF NOT EXISTS auto_body TEXT;
+            ALTER TABLE messaging_context ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64);
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_messaging_context_source_url ON messaging_context(source_url);
+            -- Each sync of a source: when, what it found and did, and why it failed.
+            CREATE TABLE IF NOT EXISTS messaging_context_syncs (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                source VARCHAR(30) NOT NULL,
+                trigger VARCHAR(20) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'RUNNING',
+                started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                finished_at TIMESTAMP WITH TIME ZONE,
+                found INT NOT NULL DEFAULT 0,
+                added INT NOT NULL DEFAULT 0,
+                updated INT NOT NULL DEFAULT 0,
+                unchanged INT NOT NULL DEFAULT 0,
+                skipped INT NOT NULL DEFAULT 0,
+                failed INT NOT NULL DEFAULT 0,
+                error TEXT,
+                started_by UUID REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_messaging_context_syncs_source ON messaging_context_syncs(source, started_at DESC);
         """)
         await conn.execute(
             """
