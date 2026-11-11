@@ -37,6 +37,8 @@ logger = logging.getLogger(__name__)
 ALL = "*"
 EMBED_BATCH = 100  # texts per embedding request
 FILTER_PATHS = ["kind", "brands", "audiences", "platforms"]
+# Kinds that the assistant never quotes, so changing them doesn't drop its cached answers.
+NOT_REFERENCE_KINDS = {"REVIEW_DECISION", "X_CONVERSATION"}
 
 
 def _setting(name: str, default: str) -> str:
@@ -67,8 +69,8 @@ _client = None
 _gemini: Optional[genai.Client] = None
 
 
-def _collection():
-    """The project's collection, or None when MONGODB_URI isn't set."""
+def named_collection(name: str):
+    """Another collection in the same database, over the same connection, or None when MONGODB_URI isn't set."""
     global _client
     if not is_enabled():
         return None
@@ -76,7 +78,12 @@ def _collection():
         import motor.motor_asyncio  # imported lazily: only needed once the vector store is configured
 
         _client = motor.motor_asyncio.AsyncIOMotorClient(os.environ["MONGODB_URI"], serverSelectionTimeoutMS=5000)
-    return _client.get_database(database_name()).get_collection(collection_name())
+    return _client.get_database(database_name()).get_collection(name)
+
+
+def _collection():
+    """The project's collection, or None when MONGODB_URI isn't set."""
+    return named_collection(collection_name())
 
 
 def _gemini_client() -> genai.Client:
@@ -163,7 +170,7 @@ async def upsert(docs: List[VectorDoc]) -> Dict[str, int]:
             fields.update(content_hash=hashes[d.doc_id], embedding=vectors[d.doc_id], embedding_model=embedding_model())
         ops.append(UpdateOne({"_id": d.doc_id}, {"$set": fields}, upsert=True))
     await collection.bulk_write(ops, ordered=False)
-    if any(d.kind != "REVIEW_DECISION" for d in changed):
+    if any(d.kind not in NOT_REFERENCE_KINDS for d in changed):
         await _reference_changed()
     return {"embedded": len(changed), "unchanged": len(docs) - len(changed)}
 
@@ -173,7 +180,19 @@ async def delete(doc_ids: List[str]) -> int:
     if collection is None or not doc_ids:
         return 0
     res = await collection.delete_many({"_id": {"$in": doc_ids}})
-    if res.deleted_count and any(not i.startswith("REVIEW_DECISION:") for i in doc_ids):
+    if res.deleted_count and any(i.split(":", 1)[0] not in NOT_REFERENCE_KINDS for i in doc_ids):
+        await _reference_changed()
+    return res.deleted_count
+
+
+async def delete_kind_except(kind: str, keep_doc_ids: List[str]) -> int:
+    """Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
+    exactly (leftovers from an older format or from removed items would otherwise take retrieval slots)."""
+    collection = _collection()
+    if collection is None:
+        return 0
+    res = await collection.delete_many({"kind": kind, "_id": {"$nin": keep_doc_ids}})
+    if res.deleted_count and kind not in NOT_REFERENCE_KINDS:
         await _reference_changed()
     return res.deleted_count
 

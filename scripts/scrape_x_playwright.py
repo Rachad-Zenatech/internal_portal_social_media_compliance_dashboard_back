@@ -5,11 +5,13 @@ Scrapes general, company-agnostic market trends, public X posts from global news
 real-time news discussions across broad market & world topics (never scraping ZenaTech's own profiles).
 
 Then classifies each scraped post/headline as POSITIVE, NEGATIVE, or NEUTRAL with confidence scores
-using VADER's 7,506-word lexicon (`vaderSentiment`), computes POST / WAIT / HOLD recommendations,
-and saves the live feed to `.data/x_listening_feed.json`.
+the sentiment model (VADER as the fallback), computes POST / WAIT / HOLD recommendations, and stores the
+live feed in the vector database's `x_feed_data` collection (a JSON file only when there is no vector database, or
+with --out).
 
 Usage:
-    wsl ./venv/bin/python3 -m scripts.scrape_x_playwright
+    python -m scripts.scrape_x_playwright            # stores the feed in x_feed_data
+    python -m scripts.scrape_x_playwright --out f.json   # writes a file instead
 """
 
 import argparse
@@ -20,9 +22,9 @@ import logging
 import os
 import re
 import sys
-from datetime import date, datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from urllib.parse import quote_plus
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -33,14 +35,27 @@ _LOCAL_LIBS = "/home/rachad/.local/pw_libs/usr/lib/x86_64-linux-gnu"
 if os.path.isdir(_LOCAL_LIBS) and _LOCAL_LIBS not in os.environ.get("LD_LIBRARY_PATH", ""):
     os.environ["LD_LIBRARY_PATH"] = f"{_LOCAL_LIBS}:{os.environ.get('LD_LIBRARY_PATH', '')}"
 
+try:  # a command-line run needs the same MONGODB_URI the server has (the server's own runs inherit it)
+    from dotenv import load_dotenv
+    load_dotenv(ROOT_DIR / ".env")
+except ImportError:
+    pass
+
 from services.compliance.analytics.listening_providers import (
-    DEFAULT_X_JSON_PATH,
+    LOCAL_MODEL_NAME,
     analyze_raw_x_topic,
     classify_comment_sentiment,
+    clean_headline,
     evaluate_publishing_decision,
+    save_feed,
 )
 
 logger = logging.getLogger("scrape_x_playwright")
+
+try:
+    NEWS_MAX_AGE_DAYS = int(os.getenv("X_SCRAPE_NEWS_MAX_AGE_DAYS", os.getenv("PUBLIC_MOOD_ITEM_WINDOW_DAYS", "14")))
+except ValueError:
+    NEWS_MAX_AGE_DAYS = 14
 
 # Broad industry, technology, and global news trends (company-agnostic, zero ZenaTech handles/queries).
 TRENDING_MARKET_TOPICS: List[Dict[str, Any]] = [
@@ -95,42 +110,43 @@ TRENDING_MARKET_TOPICS: List[Dict[str, Any]] = [
 ]
 
 
+def snowflake_time(status_id: str) -> Optional[datetime]:
+    """When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits)."""
+    try:
+        ms = (int(status_id) >> 22) + 1288834974657
+        return datetime.fromtimestamp(ms / 1000, timezone.utc)
+    except (ValueError, OverflowError, OSError):
+        return None
+
+
 def _extract_tweets_from_rendered_profile(body: str, handle: str) -> List[Dict[str, Any]]:
-    """Parse real X posts, status IDs, and engagement counts from a rendered public X profile."""
+    """Parse X posts from a rendered public X profile: text, link and real post time (from the post id). Engagement
+    isn't read: the page's numbers can't be told apart from dates and counts of other posts.
+
+    The page is a list; every post starts at a bullet ("*   [...") and runs to the next one. Inside a post: the
+    author header ending in a dated link to the post, then the text, then media and counts."""
     posts: List[Dict[str, Any]] = []
     seen_ids = set()
-
-    pattern = re.compile(
-        rf"\(https://x\.com/({re.escape(handle)}|[A-Za-z0-9_]+)/status/(\d+)\)",
-        re.IGNORECASE,
-    )
-    matches = list(pattern.finditer(body))
-    for i, m in enumerate(matches):
-        author_handle = m.group(1)
-        status_id = m.group(2)
+    status = re.compile(r"https://x\.com/([A-Za-z0-9_]+)/status/(\d+)")
+    for block in re.split(r"\n\s*\*\s{2,}(?=\[)", body)[1:]:
+        first = status.search(block)
+        if not first:
+            continue
+        author_handle, status_id = first.group(1), first.group(2)
         if status_id in seen_ids:
             continue
         seen_ids.add(status_id)
+        posted = snowflake_time(status_id)
 
-        start = m.end()
-        end = matches[i + 1].start() if i + 1 < len(matches) else min(len(body), start + 900)
-        chunk = body[start:end]
-
-        chunk = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", chunk)
-        chunk = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", chunk)
-        chunk = re.sub(
-            rf"^.*?\@{re.escape(author_handle)}\s+(?:[A-Z][a-z]{{2}}\s+\d{{1,2}}(?:,\s*\d{{4}})?|\d+[hm])\s*",
-            "",
-            chunk.strip(),
-            flags=re.IGNORECASE | re.DOTALL,
-        )
-        eng_nums = [int(n) for n in re.findall(r"\b(\d{1,6})\b", chunk[-80:])]
-        engagements = sum(eng_nums[-4:]) if eng_nums else 150
-
+        # The text starts after the dated link ("[Nov 10](.../status/ID)", "[3h](...)"), the first one with a label.
+        dated = re.search(rf"\[[^\]\n]+\]\(https://x\.com/[A-Za-z0-9_]+/status/{status_id}\)", block)
+        chunk = block[dated.end():] if dated else block
+        # ...and ends at the first media or empty link (photo, compose box), or the post's own counts.
+        chunk = re.split(r"!\[|\[\]\(https://x\.com/", chunk, maxsplit=1)[0]
+        chunk = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", chunk)      # links keep their label
         chunk = re.sub(r"\s+Show more.*$", "", chunk, flags=re.DOTALL)
-        chunk = re.sub(r"\s+\d+(?:\s+\d+){1,4}\s*\*?\s*$", "", chunk)
+        chunk = re.sub(r"\s+\d+(?:\s+\d+){0,4}\s*$", "", chunk)      # trailing reply / like counts
         chunk = re.sub(r"\s+", " ", chunk).strip(" *-\n\t")
-
         if len(chunk) < 25:
             continue
 
@@ -140,28 +156,70 @@ def _extract_tweets_from_rendered_profile(body: str, handle: str) -> List[Dict[s
             "status_id": status_id,
             "url": f"https://x.com/{author_handle}/status/{status_id}",
             "text": chunk[:500],
-            "engagements": max(25, engagements),
-            "posted_on": date.today().isoformat(),
+            "engagements": 0,
+            "published_at": posted.isoformat() if posted else None,
+            "posted_on": posted.date().isoformat() if posted else None,
         })
     return posts
 
 
-async def _scrape_x_handle_playwright(page, handle: str) -> List[Dict[str, Any]]:
-    """Scrape a public X profile using Playwright."""
+_AUTH_MARKERS = ("log in", "sign in", "sign up", "login required", "create your account")
+_RATE_MARKERS = ("429", "rate limit", "too many requests", "unusual traffic")
+
+
+def _page_status(body: str, found: int) -> str:
+    """Why a page gave what it gave: SUCCESS, EMPTY (loaded, nothing there), AUTH_REQUIRED or RATE_LIMITED."""
+    if found:
+        return "SUCCESS"
+    low = (body or "").lower()
+    if any(m in low for m in _RATE_MARKERS):
+        return "RATE_LIMITED"
+    if any(m in low for m in _AUTH_MARKERS):
+        return "AUTH_REQUIRED"
+    return "EMPTY"
+
+
+async def _scrape_x_handle_playwright(page, handle: str, limit: int = 20):
+    """Scrape a public X profile using Playwright. Returns (posts, status): a failed or blocked profile is told
+    apart from one that simply had nothing."""
     url = f"https://r.jina.ai/https://x.com/{handle}"
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=25000)
         body = await page.inner_text("body")
-        return _extract_tweets_from_rendered_profile(body, handle)
+        parsed = _extract_tweets_from_rendered_profile(body, handle)
+        # A logged-out profile can show posts from years ago; only recent ones are evidence of the mood now.
+        oldest = datetime.now(timezone.utc) - timedelta(days=NEWS_MAX_AGE_DAYS)
+        posts = [p for p in parsed if p["published_at"] and datetime.fromisoformat(p["published_at"]) >= oldest][:limit]
+        if len(posts) < len(parsed):
+            logger.info("@%s: dropped %d posts older than %d days", handle, len(parsed) - len(posts), NEWS_MAX_AGE_DAYS)
+        return posts, _page_status(body, len(posts))
     except Exception as e:
         logger.warning("Playwright failed to scrape @%s: %s", handle, e)
-        return []
+        return [], ("RATE_LIMITED" if any(m in str(e).lower() for m in _RATE_MARKERS) else "FAILED")
 
 
-async def _scrape_live_trend_news_playwright(page, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-    """Scrape live breaking news & public headlines via Playwright for a market/world trend query."""
-    url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+def _rss_date_iso(value: Optional[str]) -> Optional[str]:
+    """An RSS date ('Tue, 10 Nov 2026 14:03:00 GMT') as an ISO timestamp, or None."""
+    if not value:
+        return None
+    try:
+        from email.utils import parsedate_to_datetime
+        d = parsedate_to_datetime(value)
+        return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).isoformat()
+    except (TypeError, ValueError):
+        return None
+
+
+async def _scrape_live_trend_news_playwright(page, query: str, limit: int = 10, exclude_terms: Optional[List[str]] = None,
+                                             drop_own_brand: bool = True):
+    """Scrape live breaking news & public headlines via Playwright for a market/world trend query.
+    Returns (items, status)."""
+    # Google's `when:Nd` keeps to recent articles; without it the RSS returns the most relevant ones of any age
+    # (some from years ago), which are not "what people are saying now".
+    url = f"https://news.google.com/rss/search?q={quote_plus(f'{query} when:{NEWS_MAX_AGE_DAYS}d')}&hl=en-US&gl=US&ceid=US:en"
     items: List[Dict[str, Any]] = []
+    status = "EMPTY"
+    oldest = datetime.now(timezone.utc) - timedelta(days=NEWS_MAX_AGE_DAYS)
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=20000)
         raw_xml = await page.content()
@@ -170,12 +228,19 @@ async def _scrape_live_trend_news_playwright(page, query: str, limit: int = 10) 
             title_m = re.search(r"<title>(.*?)</title>", block, flags=re.DOTALL)
             source_m = re.search(r"<source[^>]*>(.*?)</source>", block, flags=re.DOTALL)
             link_m = re.search(r"<link>(.*?)</link>", block, flags=re.DOTALL)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block, flags=re.DOTALL)
             if not title_m:
                 continue
             title_txt = html.unescape(re.sub(r"<[^>]+>", "", title_m.group(1))).strip()
             # Filter out any company-specific PR from ZenaTech so trends reflect the general market/news only
-            if "zenatech" in title_txt.lower() or "zenadrone" in title_txt.lower():
+            # Market trends stay company-agnostic; searches about the company itself keep its own coverage.
+            if drop_own_brand and ("zenatech" in title_txt.lower() or "zenadrone" in title_txt.lower()):
                 continue
+            if any(t in title_txt.lower() for t in (exclude_terms or [])):
+                continue
+            published = _rss_date_iso(date_m.group(1).strip() if date_m else None)
+            if published and datetime.fromisoformat(published) < oldest:
+                continue  # the query asked for recent news, but the guard is cheap
             source_txt = html.unescape(re.sub(r"<[^>]+>", "", source_m.group(1))).strip() if source_m else "News"
             author_slug = re.sub(r"[^A-Za-z0-9_]", "", source_txt.replace(" ", "_"))[:22] or "MarketNews"
             items.append({
@@ -183,21 +248,168 @@ async def _scrape_live_trend_news_playwright(page, query: str, limit: int = 10) 
                 "author": f"@{author_slug}",
                 "url": link_m.group(1).strip() if link_m else None,
                 "text": title_txt,
-                "engagements": max(80, (limit - idx) * 240),
-                "posted_on": date.today().isoformat(),
+                # Google News gives no engagement figures, so none are claimed.
+                "engagements": 0,
+                # The article's own publish time (RSS pubDate), when it has one: the evidence window and the saved
+                # assessments depend on it. Items without one are dated from when they were first seen.
+                "published_at": _rss_date_iso(date_m.group(1).strip() if date_m else None),
+                "posted_on": (_rss_date_iso(date_m.group(1).strip() if date_m else None) or "")[:10] or None,
             })
+        status = "SUCCESS" if items else _page_status(raw_xml, 0)
     except Exception as e:
         logger.warning("Playwright live trend scrape failed for %r: %s", query, e)
-    return items
+        status = "RATE_LIMITED" if any(m in str(e).lower() for m in _RATE_MARKERS) else "FAILED"
+    return items, status
 
 
-async def build_live_x_listening_json(output_path: Path = DEFAULT_X_JSON_PATH) -> Dict[str, Any]:
-    """Launch Playwright headless Chromium, scrape general market/world trends and public X posts,
-    score every item with VADER (`vaderSentiment`), and save to `.data/x_listening_feed.json`."""
+# ---------------------------------------------------------------------------
+# Collection: broad candidates, bounded, with an honest status. Which candidates are about a given draft is decided
+# later (embedding + relevance checks), not here.
+# ---------------------------------------------------------------------------
+
+def _env_num(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, default))
+    except ValueError:
+        return default
+
+
+MAX_ITEMS_PER_TOPIC = int(_env_num("X_SCRAPE_MAX_ITEMS_PER_TOPIC", 30))
+MAX_POSTS_PER_HANDLE = int(_env_num("X_SCRAPE_MAX_POSTS_PER_HANDLE", 20))
+NEWS_LIMIT = int(_env_num("X_SCRAPE_NEWS_LIMIT", 15))
+MAX_SECONDS = _env_num("X_SCRAPE_MAX_SECONDS", 300)
+# Words that never make a post a candidate on their own.
+_GENERIC = {"that", "this", "with", "from", "into", "over", "your", "have", "will", "about", "more", "than",
+            "news", "today", "video", "watch", "live"}
+
+
+def _csv_env(name: str) -> List[str]:
+    return [t.strip().lower() for t in os.getenv(name, "").split(",") if t.strip()]
+
+
+def _stem(word: str) -> str:
+    return word[:-1] if len(word) > 4 and word.endswith("s") else word
+
+
+def _words(text: str) -> set:
+    return {_stem(w) for w in re.findall(r"[a-z0-9]+", (text or "").lower()) if len(w) >= 4 and w not in _GENERIC}
+
+
+def _exclusions(cfg: Dict[str, Any]) -> List[str]:
+    return [*cfg.get("exclude_terms", []), *_csv_env("X_COLLECT_EXCLUDE_TERMS")]
+
+
+def topic_vocabulary(cfg: Dict[str, Any]) -> set:
+    """The words that make an X post a candidate for a topic: any single word from its name, keywords or extra
+    collection terms (config `collect_terms`, or X_COLLECT_TERMS for every topic), not only the exact phrases.
+    Deliberately broad; the bound is MAX_POSTS_PER_HANDLE / MAX_ITEMS_PER_TOPIC, not strict wording."""
+    terms = [cfg["name"], *cfg.get("keywords", []), *cfg.get("collect_terms", []), *_csv_env("X_COLLECT_TERMS")]
+    vocab: set = set()
+    for t in terms:
+        vocab |= _words(t)
+    return vocab
+
+
+def is_candidate(text: str, cfg: Dict[str, Any]) -> bool:
+    low = (text or "").lower()
+    if any(t.lower() in low for t in _exclusions(cfg)):
+        return False
+    return bool(_words(text) & topic_vocabulary(cfg))
+
+
+def overall_status(sources: List[Dict[str, Any]], total_items: int, deadline_hit: bool) -> str:
+    """SUCCESS | PARTIAL | EMPTY | AUTH_REQUIRED | RATE_LIMITED | FAILED for the run as a whole. A source that came
+    back EMPTY is not a problem (it had nothing) and NOT_CONFIGURED isn't a source at all; a blocked, failed or
+    skipped one is."""
+    statuses = {s["status"] for s in sources if s["status"] != "NOT_CONFIGURED"}
+    if total_items == 0:
+        if statuses and statuses <= {"FAILED"}:
+            return "FAILED"
+        for blocked in ("RATE_LIMITED", "AUTH_REQUIRED"):
+            if blocked in statuses and statuses <= {blocked, "EMPTY"}:
+                return blocked
+        return "EMPTY"
+    problem = statuses & {"FAILED", "AUTH_REQUIRED", "RATE_LIMITED", "SKIPPED"}
+    return "PARTIAL" if problem or deadline_hit else "SUCCESS"
+
+
+WATCH_SCORE = 1000  # a search about the company itself outranks a market topic's claim to the same story
+
+
+def topic_score(text: str, cfg: Dict[str, Any]) -> int:
+    """How strongly a text belongs to a market topic: 2 per topic keyword phrase in it, 1 per shared word."""
+    low = (text or "").lower()
+    return sum(2 for k in cfg.get("keywords", []) if k.lower() in low) + len(_words(text) & topic_vocabulary(cfg))
+
+
+def assign_unique(pool: List[Dict[str, Any]], order: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+    """One home for each story. `pool` holds candidates {"topic", "score", "item"}: a post that qualifies for several
+    topics, or a headline several searches found, goes to the topic that claims it most strongly (ties: the earlier
+    topic in `order`), so topics don't share, and double-count, the same story."""
+    rank = {t: i for i, t in enumerate(order)}
+    best: Dict[str, Dict[str, Any]] = {}
+    for cand in pool:
+        key = clean_headline(cand["item"]["text"])
+        cur = best.get(key)
+        if cur is None or (cand["score"], -rank[cand["topic"]]) > (cur["score"], -rank[cur["topic"]]):
+            best[key] = cand
+    out: Dict[str, List[Dict[str, Any]]] = {t: [] for t in order}
+    for cand in best.values():
+        out[cand["topic"]].append(cand["item"])
+    return out
+
+
+async def _collect_watch(page, queries, sources, out_of_time, pool) -> List[Dict[str, Any]]:
+    """Searches about the company itself (names, hashtags, products, links, events, competitors). Returns the watch
+    topics that have a search configured. Every category and every search reports a status."""
+    from services.compliance.analytics.listening_sources import CATEGORIES, topic_for
+
+    topics: List[Dict[str, Any]] = []
+    for category in CATEGORIES:
+        qs = [q for q in queries if q.category == category]
+        if not qs:
+            sources.append({"kind": category, "name": category, "status": "NOT_CONFIGURED", "items": 0})
+            continue
+        cfg = topic_for(category, queries)
+        found = 0
+        for q in qs:
+            if out_of_time():
+                sources.append({"kind": f"{category}:news", "name": q.text, "status": "SKIPPED", "items": 0})
+                continue
+            items, status = await _scrape_live_trend_news_playwright(page, q.news, limit=NEWS_LIMIT, drop_own_brand=False)
+            sources.append({"kind": f"{category}:news", "name": q.text, "status": status, "items": len(items)})
+            for it in items:
+                pool.append({"topic": cfg["external_id"], "score": WATCH_SCORE,
+                             "item": {**it, "category": category, "collected_by": q.text}})
+            found += len(items)
+        print(f"[Playwright Live] watch '{category}': {found} candidates")
+        topics.append(cfg)
+    return topics
+
+
+async def build_live_x_listening_json(output_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Launch Playwright headless Chromium and collect candidates for each market topic and for searches about the
+    company itself (bounded by time and item limits), give every story one home, score each with the sentiment model,
+    and store the feed with a per-source collection status: in the vector database's x_feed_data collection, or in
+    `output_path` (a JSON file) when one is given or there is no vector database. Numbers are only what was
+    collected: no estimated volume, daily counts, spike or engagement. The result says where it went (`stored_in`)."""
+    import time
     from playwright.async_api import async_playwright
+    from services.compliance.analytics.listening_sources import build_queries, load_plan
+
+    started = time.monotonic()
+    deadline_hit = False
+
+    def out_of_time() -> bool:
+        nonlocal deadline_hit
+        if time.monotonic() - started > MAX_SECONDS:
+            deadline_hit = True
+        return deadline_hit
 
     handle_cache: Dict[str, List[Dict[str, Any]]] = {}
-    topics_out: List[Dict[str, Any]] = []
+    sources: List[Dict[str, Any]] = []
+    pool: List[Dict[str, Any]] = []
+    queries = build_queries(load_plan())
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -211,105 +423,103 @@ async def build_live_x_listening_json(output_path: Path = DEFAULT_X_JSON_PATH) -
 
         unique_handles = list(dict.fromkeys(h for t in TRENDING_MARKET_TOPICS for h in t.get("x_handles", [])))
         for handle in unique_handles:
-            posts = await _scrape_x_handle_playwright(page, handle)
+            if out_of_time():
+                sources.append({"kind": "x_handle", "name": f"@{handle}", "status": "SKIPPED", "items": 0})
+                continue
+            posts, status = await _scrape_x_handle_playwright(page, handle, limit=MAX_POSTS_PER_HANDLE)
             handle_cache[handle] = posts
-            print(f"[Playwright Live] Scraped {len(posts)} real X posts from @{handle}")
+            sources.append({"kind": "x_handle", "name": f"@{handle}", "status": status, "items": len(posts)})
+            print(f"[Playwright Live] @{handle}: {len(posts)} X posts ({status})")
 
+        # Market topics: news for each topic's query, and X posts from its accounts.
         for topic_cfg in TRENDING_MARKET_TOPICS:
-            collected: List[Dict[str, Any]] = []
-            seen_texts = set()
-
-            # 1. Live market/world news headlines for the trend
-            live_discussions = await _scrape_live_trend_news_playwright(page, topic_cfg["live_query"], limit=10)
-            print(f"[Playwright Live] Scraped {len(live_discussions)} live trend items for {topic_cfg['name']!r}")
-            for item in live_discussions:
-                norm = item["text"].lower()
-                if norm not in seen_texts:
-                    seen_texts.add(norm)
-                    collected.append(item)
-
-            # 2. Matching public X posts from industry/news accounts
+            tid = topic_cfg["external_id"]
+            if out_of_time():
+                sources.append({"kind": "news", "name": topic_cfg["name"], "status": "SKIPPED", "items": 0})
+            else:
+                news, status = await _scrape_live_trend_news_playwright(
+                    page, topic_cfg["live_query"], limit=NEWS_LIMIT,
+                    exclude_terms=[t.lower() for t in _exclusions(topic_cfg)])
+                sources.append({"kind": "news", "name": topic_cfg["name"], "status": status, "items": len(news)})
+                print(f"[Playwright Live] {topic_cfg['name']!r}: {len(news)} news items ({status})")
+                for item in news:
+                    pool.append({"topic": tid, "score": max(1, topic_score(item["text"], topic_cfg)),
+                                 "item": {**item, "category": "market", "collected_by": topic_cfg["live_query"]}})
             for h in topic_cfg.get("x_handles", []):
                 for post in handle_cache.get(h, []):
-                    norm = post["text"].lower()
-                    if h.lower() in ("faanews", "uavcoach", "jobyaviation", "kratosdefense", "redcatholdings") or any(
-                        kw in norm for kw in topic_cfg["keywords"]
-                    ):
-                        if norm not in seen_texts:
-                            seen_texts.add(norm)
-                            collected.append(dict(post))
+                    if is_candidate(post["text"], topic_cfg):
+                        pool.append({"topic": tid, "score": topic_score(post["text"], topic_cfg),
+                                     "item": {**post, "category": "market", "collected_by": f"@{h}"}})
 
-            for c in collected:
-                cls = classify_comment_sentiment(c["text"])
-                c["sentiment"] = cls["sentiment"]
-                c["confidence"] = cls["confidence"]
-                c["compound"] = cls["compound"]
-                c["crisis_flags"] = cls["crisis_flags"]
-
-            total_engagements = sum(int(c.get("engagements") or 0) for c in collected)
-            base_daily = max(50, total_engagements // 7)
-            daily_volume = [
-                int(base_daily * factor)
-                for factor in (0.72, 0.80, 0.88, 0.96, 1.10, 1.25, 1.38)
-            ]
-            first_half = sum(daily_volume[:3]) or 1
-            second_half = sum(daily_volume[3:])
-            volume_change_pct = round((second_half - first_half) / first_half * 100, 1)
-
-            topic_input = {
-                "external_id": topic_cfg["external_id"],
-                "name": topic_cfg["name"],
-                "description": topic_cfg["description"],
-                "keywords": topic_cfg["keywords"],
-                "volume": max(len(collected) * 250, total_engagements),
-                "volume_change_pct": volume_change_pct,
-                "daily_volume": daily_volume,
-                "comments": collected,
-            }
-            analyzed = analyze_raw_x_topic(topic_input, days=7)
-            is_spike = (analyzed["volume_change_pct"] or 0) >= 35.0
-            rec, rec_reason = evaluate_publishing_decision(
-                positive_pct=analyzed["positive"],
-                neutral_pct=analyzed["neutral"],
-                negative_pct=analyzed["negative"],
-                volume=analyzed["volume"],
-                volume_change_pct=analyzed["volume_change_pct"],
-                is_spike=is_spike,
-                top_posts=analyzed["top_posts"],
-            )
-
-            topics_out.append({
-                "external_id": topic_cfg["external_id"],
-                "name": topic_cfg["name"],
-                "description": topic_cfg["description"],
-                "keywords": topic_cfg["keywords"],
-                **analyzed,
-                "is_spike": is_spike,
-                "recommendation": rec,
-                "recommendation_reason": rec_reason,
-                "comments": collected,
-            })
-
+        # Searches about the company itself.
+        watch_topics = await _collect_watch(page, queries, sources, out_of_time, pool)
         await browser.close()
 
+    all_topics = [*watch_topics, *TRENDING_MARKET_TOPICS]  # the company's own searches first: they win ties
+    homes = assign_unique(pool, [t["external_id"] for t in all_topics])
+
+    topics_out: List[Dict[str, Any]] = []
+    for topic_cfg in all_topics:
+        collected = homes[topic_cfg["external_id"]][:MAX_ITEMS_PER_TOPIC]
+        if topic_cfg.get("category") and not collected:
+            continue  # a company search that found nothing isn't a topic; the sources list says why
+        for c in collected:
+            cls = classify_comment_sentiment(c["text"])
+            c["sentiment"] = cls["sentiment"]
+            c["confidence"] = cls["confidence"]
+            c["compound"] = cls["compound"]
+            c["crisis_flags"] = cls["crisis_flags"]
+        # No volume, daily counts or change are passed: analyze_raw_x_topic uses the number collected and leaves
+        # the rest unknown (the server works the trend out from everything collected so far).
+        analyzed = analyze_raw_x_topic({"comments": collected}, days=7)
+        is_spike = (analyzed["volume_change_pct"] or 0) >= 35.0
+        rec, rec_reason = evaluate_publishing_decision(
+            positive_pct=analyzed["positive"], neutral_pct=analyzed["neutral"], negative_pct=analyzed["negative"],
+            volume=analyzed["volume"], volume_change_pct=analyzed["volume_change_pct"], is_spike=is_spike,
+            top_posts=analyzed["top_posts"],
+        )
+        topics_out.append({
+            "external_id": topic_cfg["external_id"],
+            "name": topic_cfg["name"],
+            "description": topic_cfg["description"],
+            "keywords": topic_cfg["keywords"],
+            "category": topic_cfg.get("category") or "market",
+            **analyzed,
+            "is_spike": is_spike,
+            "recommendation": rec,
+            "recommendation_reason": rec_reason,
+            "comments": collected,
+        })
+
+    total_items = sum(len(t["comments"]) for t in topics_out)
+    status = overall_status(sources, total_items, deadline_hit)
     payload = {
-        "source": "Playwright Live Scrape (Global News & Industry X Trends) + VADER Sentiment",
+        "source": f"Playwright Live Scrape (Global News & Industry X Trends) + sentiment model ({LOCAL_MODEL_NAME})",
         "is_live_scraped": True,
         "collected_at": datetime.now(timezone.utc).isoformat(),
+        "collection": {
+            "status": status,
+            "items": total_items,
+            "sources": sources,
+            "note": "Stopped at the time limit; later sources were skipped." if deadline_hit else None,
+            "limits": {"max_items_per_topic": MAX_ITEMS_PER_TOPIC, "max_posts_per_handle": MAX_POSTS_PER_HANDLE,
+                       "news_limit": NEWS_LIMIT, "max_seconds": MAX_SECONDS},
+        },
         "topics": topics_out,
     }
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    payload["stored_in"] = await save_feed(payload, output_path)
     return payload
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Live scrape general market/news trends & X posts with Playwright + VADER.")
-    parser.add_argument("--out", type=Path, default=DEFAULT_X_JSON_PATH, help="Output JSON path.")
+    parser = argparse.ArgumentParser(description="Live scrape general market/news trends & X posts with Playwright.")
+    parser.add_argument("--out", type=Path, default=None,
+                        help="Write the feed to this JSON file instead of the vector database.")
     args = parser.parse_args()
 
     payload = asyncio.run(build_live_x_listening_json(output_path=args.out))
-    print(f"\nSaved {len(payload['topics'])} live-scraped market/news trends to {args.out}\n")
+    print(f"\nSaved {len(payload['topics'])} live-scraped market/news trends to {payload['stored_in']} "
+          f"(collection: {payload['collection']['status']}, {payload['collection']['items']} items)\n")
     for t in payload["topics"]:
         print(
             f"- {t['name']:38s} | {t['recommendation']:4s} | "

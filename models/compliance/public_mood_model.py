@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 PublishingRecommendation = Literal["POST", "WAIT", "HOLD"]
 
@@ -88,6 +88,135 @@ class MoodFeedbackIn(BaseModel):
     note: Optional[str] = Field(None, max_length=1000)
 
 
+RelevanceStatus = Literal["RELEVANT", "UNRELATED", "UNCERTAIN"]
+
+
+class ConversationMatch(BaseModel):
+    """A scraped news headline or X post found by vector search, and whether it is about this post's subject."""
+    topic: str
+    network: str
+    author: str
+    text: str
+    sentiment: Literal["POSITIVE", "NEUTRAL", "NEGATIVE"]
+    # Atlas cosine score (0-1) and its lead over the median score of everything retrieved (diagnostic only).
+    similarity: float
+    margin: float
+    posted_on: Optional[str] = None
+    item_id: Optional[UUID] = None
+    url: Optional[str] = None
+    published_at: Optional[datetime] = None
+    # Same number as `similarity`: the retrieval score, kept apart from the relevance verdict below.
+    similarity_score: Optional[float] = None
+    relevance_status: RelevanceStatus = "RELEVANT"
+    relevance_reason: Optional[str] = None
+    supporting_text: Optional[str] = None
+    # Other retrieved items that report the same story (counted once in the mood).
+    also_reported_by: int = 0
+    # What found it: 'market' (a trend topic) or a watch category (company, hashtags, products...), and the query.
+    category: Optional[str] = None
+    collected_by: Optional[str] = None
+
+
+ConversationStatus = Literal["READY", "UNAVAILABLE", "INDEXING_PENDING", "NO_RELEVANT_MATCHES", "STALE"]
+
+
+class ExcludedMatch(BaseModel):
+    """A retrieved item a reviewer marked unrelated: left out of the mood, listed so it can be put back."""
+    item_id: UUID
+    text: str
+    topic: Optional[str] = None
+    url: Optional[str] = None
+    reason_code: str
+    note: Optional[str] = None
+    by_name: Optional[str] = None
+    at: datetime
+
+
+class ReviewerCorrection(BaseModel):
+    """A reviewer's view that this assessment's recommendation was wrong (the assessment itself is unchanged)."""
+    recommendation: PublishingRecommendation
+    reason_code: str
+    note: Optional[str] = None
+    by_name: Optional[str] = None
+    at: datetime
+    mine: bool = False
+
+
+class ConversationMood(BaseModel):
+    """What the verified-relevant conversations found for this post say: specific to this post, not the topic.
+
+    `status` says what the rest of the object means:
+      READY               recommendation, percentages and matches are current.
+      NO_RELEVANT_MATCHES conversations were found but none could be verified as about this post: WAIT, never POST.
+      INDEXING_PENDING    collected items aren't searchable yet: no recommendation.
+      UNAVAILABLE         the vector store or search can't be used right now: no recommendation.
+      STALE               an earlier assessment, shown because a current one can't be made (see reason_codes).
+    """
+    status: ConversationStatus = "READY"
+    # Short machine-readable reasons (REVIEW_REQUIRED, SMALL_SAMPLE, RETRIEVAL_CAPPED, COLLECTION_PARTIAL,
+    # INDEXING_INCOMPLETE, NO_RELEVANT_EVIDENCE, STORE_NOT_CONFIGURED...) and human-readable warnings.
+    reason_codes: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    # Distinct stories the mood was calculated from (not the number displayed).
+    count: int = 0
+    positive_pct: float = 0.0
+    neutral_pct: float = 0.0
+    negative_pct: float = 0.0
+    recommendation: Optional[PublishingRecommendation] = None
+    recommendation_reason: Optional[str] = None
+    # The strongest examples, at most PUBLIC_MOOD_DISPLAY_LIMIT. The mood uses every verified story, not just these.
+    matches: List[ConversationMatch] = Field(default_factory=list)
+    # What happened between search and mood, so a reader can tell a small sample from a capped one.
+    retrieved_count: int = 0
+    verified_relevant_count: int = 0
+    distinct_story_count: int = 0
+    displayed_count: int = 0
+    uncertain_count: int = 0
+    unrelated_count: int = 0
+    outdated_count: int = 0
+    assessment_scope: str = "matched_conversations"
+    # The retrieval limit was reached: a sample of the relevant conversations, not all of them.
+    retrieval_capped: bool = False
+    assessment_id: Optional[UUID] = None
+    evidence_version: Optional[str] = None
+    assessed_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    # Who decided the recommendation: the RULES, a promoted MODEL (inside guard rails), or RULES_FALLBACK when the model
+    # couldn't be used (decision_note says why). A shadow model's answer is saved for comparison but not shown.
+    decision_source: str = "RULES"
+    decision_note: Optional[str] = None
+    # How the evidence was collected and indexed, as of now (not as of the assessment).
+    collection_status: Optional[str] = None
+    collected_at: Optional[datetime] = None
+    indexing_status: Optional[str] = None
+    pending_index_count: int = 0
+    # Reviewer input on this assessment.
+    excluded_by_reviewers: List[ExcludedMatch] = Field(default_factory=list)
+    reviewer_corrections: List[ReviewerCorrection] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def matched_items(self) -> List[ConversationMatch]:
+        """The same list as `matches`, under the name the API contract uses."""
+        return self.matches
+
+
+class UnrelatedIn(BaseModel):
+    reason_code: str = Field(..., max_length=40)
+    note: Optional[str] = Field(None, max_length=1000)
+
+
+class SentimentCorrectionIn(BaseModel):
+    correct_sentiment: Literal["POSITIVE", "NEUTRAL", "NEGATIVE"]
+    note: Optional[str] = Field(None, max_length=1000)
+
+
+class CorrectionIn(BaseModel):
+    recommendation: PublishingRecommendation
+    reason_code: str = Field(..., max_length=40)
+    note: Optional[str] = Field(None, max_length=1000)
+
+
 class DismissedTopic(BaseModel):
     topic_id: UUID
     name: str
@@ -104,6 +233,8 @@ class PublicMood(BaseModel):
     # Why there's nothing to show (source not connected, no topics matched).
     message: Optional[str] = None
     topics: List[MatchedTopic] = Field(default_factory=list)
+    # Scraped headlines/X posts nearest this post in meaning (vector store on and the feed indexed), with their mood.
+    conversation_mood: Optional[ConversationMood] = None
     # Topics someone said this post isn't about; left out until put back.
     dismissed: List[DismissedTopic] = Field(default_factory=list)
     summary: Optional[PublicMoodSummary] = None

@@ -10,6 +10,7 @@ from services.compliance.analytics import public_mood_service as pms
 
 
 class XSentimentAndPublicMoodTests(unittest.IsolatedAsyncioTestCase):
+    @patch.object(lp, "_local_model", False)  # this test is about VADER, the fallback when no trained model is loaded
     def test_comment_sentiment_classifies_positive_negative_and_neutral_with_vader_lexicon(self):
         pos = lp.classify_comment_sentiment("This product is amazing. Great service!")
         self.assertEqual(pos["sentiment"], "POSITIVE")
