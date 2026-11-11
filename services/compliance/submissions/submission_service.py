@@ -55,6 +55,7 @@ from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.core.audit_service import log_audit_event
 from services.ai.observability import ai_usage_service
 from services.compliance.submissions import approval_path_service
+from services.compliance.submissions import delegation_service
 from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
 from services.compliance.submissions import flag_review_service
@@ -235,8 +236,28 @@ async def _brand_scope(user_id: UUID) -> Optional[List[str]]:
 
 
 def _sent_to(user_param: str = "$1") -> str:
-    """SQL: the content was sent to this user, or to no one in particular (every reviewer on its brand)."""
-    return f"(cardinality(s.reviewer_ids) = 0 OR {user_param} = ANY(s.reviewer_ids))"
+    """SQL: the content was sent to this user (picked, or delegated to them), to someone they outrank in the reviewer
+    hierarchy (see content_review_rank), or to no one in particular (every reviewer on its brand)."""
+    return (
+        f"(cardinality(s.reviewer_ids) = 0 OR {user_param} = ANY(s.reviewer_ids)"
+        f" OR content_review_rank({user_param}) > (SELECT min(content_review_rank(x)) FROM unnest(s.reviewer_ids) x))"
+    )
+
+
+async def _outranks(user_id: UUID, reviewer_ids: List[UUID]) -> bool:
+    """The user is above at least one of these reviewers in the reviewer hierarchy."""
+    row = await fetch_one(
+        "SELECT content_review_rank($1) > (SELECT min(content_review_rank(x)) FROM unnest($2::uuid[]) x) AS above",
+        user_id, list(reviewer_ids),
+    )
+    return bool(row and row["above"])
+
+
+async def _in_review_scope(user_id: UUID, reviewer_ids: List[UUID]) -> bool:
+    """Python twin of _sent_to for one loaded row."""
+    if not reviewer_ids or user_id in reviewer_ids:
+        return True
+    return await _outranks(user_id, reviewer_ids)
 
 
 async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: bool = False) -> Dict[str, Any]:
@@ -263,8 +284,9 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
         scope = await _brand_scope(user_id)
         if scope is not None and not set(brands_of(row)) & set(scope):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
-        # Sent to particular reviewers: only they (besides its creator and super admins) may open it.
-        if row.get("reviewer_ids") and user_id not in row["reviewer_ids"]:
+        # Sent to particular reviewers: only they, their delegates and those above them in the reviewer hierarchy
+        # (besides its creator and super admins) may open it.
+        if not await _in_review_scope(user_id, list(row.get("reviewer_ids") or [])):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     return row
 
@@ -280,10 +302,14 @@ def _may_approve(user_id: UUID, is_super: bool, approver_ids: List[UUID]) -> boo
     return is_super or not approver_ids or user_id in approver_ids
 
 
-def _approval_fields(rules, r: Dict[str, Any], user_id: UUID, is_reviewer: bool, is_super: bool, accounts=None) -> Dict[str, Any]:
+def _approval_fields(rules, r: Dict[str, Any], user_id: UUID, is_reviewer: bool, is_super: bool, accounts=None,
+                     edges=None) -> Dict[str, Any]:
     ids, names = _approvers(rules, r, accounts)
+    # A named final approver who delegated the post passes their approval to the delegate.
+    ids = delegation_service.extend(ids, edges or [])
     can_review = r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super)
-    return {"approver_names": names, "can_approve": can_review and _may_approve(user_id, is_super, ids)}
+    return {"approver_names": names, "can_approve": can_review and _may_approve(user_id, is_super, ids),
+            "can_delegate": can_review}
 
 
 def _require_editable(row: Dict[str, Any]) -> None:
@@ -508,7 +534,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             LIMIT 1
         ) cov ON true
         WHERE (s.created_by = $1 OR ($3 AND ($4::text[] IS NULL OR s.brand_codes && $4::text[])
-                                     AND (cardinality(s.reviewer_ids) = 0 OR $1 = ANY(s.reviewer_ids))))
+                                     AND """ + _sent_to() + """))
           AND s.deleted_at IS NULL AND ($2::text IS NULL OR s.status = $2)
         -- What needs the creator comes first: changes to fix (a post's or its script's), then drafts to finish
         -- (including an approved script waiting for its video). Then what's waiting on someone else: content in
@@ -535,6 +561,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
     )
     rules = await approval_path_service.load_rules()
     summaries = []
+    edges = await delegation_service.edges_for([r["id"] for r in rows if r["status"] == "IN_REVIEW"])
     for r in rows:
         base = {k: v for k, v in r.items()
                 if not k.startswith(("acc_", "cov_"))
@@ -552,7 +579,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             cover=_file_out(r["id"], cover) if cover["id"] else None,
             can_delete=_can_delete(r, r["created_by"] == user_id or is_manager),
             can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
-            **_approval_fields(rules, r, user_id, is_reviewer, is_super, _accounts(r)),
+            **_approval_fields(rules, r, user_id, is_reviewer, is_super, _accounts(r), edges.get(r["id"])),
             can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
         ))
     # Posts still being read: what's left and when their score should be ready.
@@ -574,6 +601,8 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
         is_super = await _is_super_admin(user_id)
         may_decide = await _can_review(user_id) and (not is_creator or is_super)
         sub.can_review = row["status"] == "IN_REVIEW" and may_decide
+        sub.can_delegate = sub.can_review
+        approver_ids = await delegation_service.with_delegates(row["id"], approver_ids)
         sub.can_approve = sub.can_review and _may_approve(user_id, is_super, approver_ids)
         sub.can_manage_approval = row["status"] == "APPROVED" and may_decide
     standing = (await flag_review_service.approval_standing([row])).get(row["id"])
@@ -1804,6 +1833,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         SELECT s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
                s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
                s.brand_code, s.brand_codes, s.audience, s.audiences, s.rule_sets, s.approval_needed_by, s.script_required, s.script_status,
+               s.reviewer_ids,
                {_DECIDED_AT} AS decided_at,
                u.full_name AS creator_name,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
@@ -1859,6 +1889,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
     progress = await analysis_progress_service.for_submissions(
         [r["id"] for r in rows if analysis_pending(_json(r["latest_check"]))]
     )
+    edges = await delegation_service.edges_for([r["id"] for r in rows if r["status"] == "IN_REVIEW"])
     return [
         ReviewQueueItem(
             id=r["id"],
@@ -1883,7 +1914,8 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             }) if r["file_id"] else None,
             images=images.get(r["id"], []),
             can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
-            **_approval_fields(rules, r, user_id, is_reviewer, is_super),
+            **_approval_fields(rules, r, user_id, is_reviewer, is_super, edges=edges.get(r["id"])),
+            reviewer_ids=list(r["reviewer_ids"] or []),
             open_critical_flags=standing[r["id"]].open_critical if r["id"] in standing else 0,
             approval_score=standing[r["id"]].score if r["id"] in standing else None,
             min_approval_score=flag_review_service.MIN_APPROVAL_SCORE,
@@ -2155,6 +2187,8 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
             )
         approval_score = standing.score if standing else None
         approver_ids, approver_names = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
+        # A named final approver who delegated the post passes their approval to the delegate.
+        approver_ids = await delegation_service.with_delegates(submission_id, approver_ids)
         if not _may_approve(user_id, is_super, approver_ids):
             raise HTTPException(
                 status_code=403,
