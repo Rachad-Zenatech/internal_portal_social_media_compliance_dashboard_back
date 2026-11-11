@@ -297,6 +297,7 @@ async def request_sentiment(submission_id: UUID, user_id: CurrentUser):
     sub = await svc.get_submission(submission_id, user_id)
     if not (sub.title or "").strip() and not (sub.caption_text or "").strip() and not sub.files:
         raise HTTPException(status_code=422, detail="Add a title, caption or video before running sentiment analysis")
+    await svc.require_details_complete_for(submission_id, user_id, "running the sentiment analysis")
     analysis_id = await sentiment_service.request_analysis(submission_id, user_id)
     return await sentiment_service.get_analysis(analysis_id, viewer=user_id)
 
@@ -322,6 +323,7 @@ async def summarise_public_mood(submission_id: UUID, user_id: CurrentUser):
     """An AI reading of how this post is likely to land given the current mood. Reused while neither the post nor
     the topics' moods have changed; otherwise counts toward the AI limits."""
     await svc.get_submission(submission_id, user_id)  # access check
+    await svc.require_details_complete_for(submission_id, user_id, "reading the public mood")
     return await public_mood_service.summarise(submission_id, user_id)
 
 

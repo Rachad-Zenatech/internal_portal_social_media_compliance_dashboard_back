@@ -72,6 +72,9 @@ async def setup():
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS due_overdue_notified_at TIMESTAMP WITH TIME ZONE;
             -- When the creator needs the post approved by; it becomes the reviewer's deadline on submit.
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS approval_needed_by TIMESTAMP WITH TIME ZONE;
+            -- When the post's content last changed (a field, the caption, a file). A compliance check, sentiment analysis or
+            -- public mood read from before then is out of date. Null means never changed since it was created.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS content_edited_at TIMESTAMP WITH TIME ZONE;
             CREATE INDEX IF NOT EXISTS idx_content_submissions_due ON content_submissions(due_at)
                 WHERE due_at IS NOT NULL AND deleted_at IS NULL;
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS deleted_by UUID REFERENCES users(id) ON DELETE SET NULL;

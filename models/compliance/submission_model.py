@@ -174,6 +174,26 @@ class AnalysisProgress(BaseModel):
     from_history: bool = False
 
 
+StepState = Literal["done", "stale", "running", "todo"]
+
+
+class SubmissionSteps(BaseModel):
+    """How far a post has got through the five steps a creator works through (see post_steps_service)."""
+    details: StepState
+    compliance: StepState
+    sentiment: StepState
+    mood: StepState
+    send: StepState
+    # Where to carry on: the first of details, compliance, sentiment and mood that isn't done, else send. None once sent.
+    next: Optional[Literal["details", "compliance", "sentiment", "mood", "send"]] = None
+    # All four earlier steps are done and up to date: the only time it can be sent for review.
+    ready_to_send: bool = False
+    # Sent (in review, approved or published): nothing can be edited or re-run.
+    locked: bool = False
+    # What the details step is still missing, by field name.
+    missing: List[str] = Field(default_factory=list)
+
+
 class SubmissionSummary(BaseModel):
     id: UUID
     reference_code: str
@@ -231,6 +251,8 @@ class SubmissionSummary(BaseModel):
     can_approve: bool = False
     # Approved and the viewer is a reviewer who may reschedule it or reopen it for changes.
     can_manage_approval: bool = False
+    # How far the creator has got through details, compliance, sentiment, public mood and send.
+    steps: Optional[SubmissionSteps] = None
 
 
 class Submission(BaseModel):
