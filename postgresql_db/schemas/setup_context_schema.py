@@ -277,6 +277,33 @@ async def setup() -> None:
                 started_by UUID REFERENCES users(id) ON DELETE SET NULL
             );
             CREATE INDEX IF NOT EXISTS idx_messaging_context_syncs_source ON messaging_context_syncs(source, started_at DESC);
+
+            -- Brand voice per brand, read from its brand manual (PDF): voice, tone, do's and don'ts, colours,
+            -- typefaces and the logo. Kept in the Messaging Context as the brand's Brand Voice entry (auto_source
+            -- BRAND_MANUAL) so the analysis uses it.
+            CREATE TABLE IF NOT EXISTS brand_voice_profiles (
+                brand_code VARCHAR(50) PRIMARY KEY REFERENCES brands(code) ON DELETE CASCADE,
+                manual_name VARCHAR(300),
+                manual_path TEXT,
+                manual_size BIGINT,
+                manual_uploaded_at TIMESTAMP WITH TIME ZONE,
+                manual_uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'NONE',
+                error TEXT,
+                processing_started_at TIMESTAMP WITH TIME ZONE,
+                voice TEXT,
+                tone TEXT[] NOT NULL DEFAULT '{}',
+                do_examples TEXT[] NOT NULL DEFAULT '{}',
+                dont_examples TEXT[] NOT NULL DEFAULT '{}',
+                colors JSONB NOT NULL DEFAULT '[]'::jsonb,
+                typefaces JSONB NOT NULL DEFAULT '[]'::jsonb,
+                logo_path TEXT,
+                logo_mime VARCHAR(50),
+                logo_notes TEXT,
+                extracted_at TIMESTAMP WITH TIME ZONE,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                updated_by UUID REFERENCES users(id) ON DELETE SET NULL
+            );
         """)
         await conn.execute(
             """

@@ -235,6 +235,10 @@ async def lifespan(app: FastAPI):
         documents = await document_text_service.resume_interrupted()
         if images or documents:
             logger.info("Resumed %d image and %d document read(s) interrupted by a restart", images, documents)
+        from services.compliance.evaluation import brand_voice_service
+        manuals = await brand_voice_service.resume_interrupted()
+        if manuals:
+            logger.info("Resumed reading %d brand manual(s) interrupted by a restart", manuals)
 
     resume_reads_task = asyncio.create_task(resume_reads(), name="resume-interrupted-reads")
     resume_reads_task.add_done_callback(partial(log_background_task_result, task_name="resume-interrupted-reads"))

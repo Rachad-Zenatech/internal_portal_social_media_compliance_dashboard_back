@@ -262,7 +262,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def) - Create the tables and add any missing baseline rules.
 - `_main` (def)
 
-## postgresql_db/schemas/setup_context_schema.py (299 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
+## postgresql_db/schemas/setup_context_schema.py (326 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
 - `setup` (def)
 
 ## postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
@@ -360,7 +360,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `embedding_quota_left` (def) - None if embeddings work; otherwise why not.
 - `main` (def)
 
-## server.py (700 lines) - server
+## server.py (704 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -1665,7 +1665,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `status_for` (def) - What the portal shows a person about their Teams messages.
 - `set_enabled_for` (def)
 
-## services/shared/auth/auth_service.py (617 lines) - auth service (shared auth)
+## services/shared/auth/auth_service.py (618 lines) - auth service (shared auth)
 - `_update_last_activity_async` (def)
 - `create_access_token` (def)
 - `create_link_token` (def)
@@ -3284,10 +3284,17 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_video_job_status` (def) [GET /jobs/{job_id}] - Get the real-time status, progress, and logs of a video background job.
 - `list_video_jobs` (def) [GET /jobs] - List recent video upload and screening background jobs.
 
-## tools/compliance/submissions/context_router.py (51 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
+## tools/compliance/submissions/context_router.py (96 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
 - `list_entries` (def) [GET ] - Everyone can read it: it's the guidance their content is assessed against.
 - `newsroom_sync_status` (def) [GET /newsroom-sync] - The newsroom sync running now, or how the last one went (none yet: null).
 - `start_newsroom_sync` (def) [POST /newsroom-sync] - Read the ZenaTech newsroom now and add or update its facts (it also runs once a day).
+- `list_brand_voices` (def) [GET /brand-voices] - Every brand's voice: what was read from its brand manual (or written by hand), and whether the viewer may edit it.
+- `get_brand_voice` (def) [GET /brand-voices/{brand_code}]
+- `upload_brand_manual` (def) [POST /brand-voices/{brand_code}/manual] - Upload the brand's manual (PDF).
+- `reread_brand_manual` (def) [POST /brand-voices/{brand_code}/read] - Read the uploaded manual again (e.g.
+- `update_brand_voice` (def) [PUT /brand-voices/{brand_code}] - Edit the brand voice by hand (what was read from the manual, or without one).
+- `download_brand_manual` (def) [GET /brand-voices/{brand_code}/manual]
+- `brand_logo` (def) [GET /brand-voices/{brand_code}/logo]
 - `create_entry` (def) [POST ]
 - `update_entry` (def) [PUT /{entry_id}]
 - `delete_entry` (def) [DELETE /{entry_id}]
