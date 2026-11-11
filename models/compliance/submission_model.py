@@ -249,6 +249,8 @@ class SubmissionSummary(BaseModel):
     approver_names: List[str] = Field(default_factory=list)
     # The viewer may approve it (a reviewer, and one of its named approvers when it has any).
     can_approve: bool = False
+    # In review and the viewer may hand it to another reviewer (they stay on it and can still decide).
+    can_delegate: bool = False
     # Approved and the viewer is a reviewer who may reschedule it or reopen it for changes.
     can_manage_approval: bool = False
     # How far the creator has got through details, compliance, sentiment, public mood and send.
@@ -304,6 +306,8 @@ class Submission(BaseModel):
     approver_names: List[str] = Field(default_factory=list)
     # The viewer may approve it (a reviewer, and one of its named approvers when it has any).
     can_approve: bool = False
+    # In review and the viewer may hand it to another reviewer (they keep seeing it, and can still decide).
+    can_delegate: bool = False
     # Critical (red) flags on the current version that a reviewer hasn't dismissed; approval waits on these.
     open_critical_flags: int = 0
     # The rulebook score counting only flags nobody has dismissed, and the least it needs to be approved. None when
@@ -393,6 +397,37 @@ class RescheduleRequest(BaseModel):
     publish_at: datetime
 
 
+class DelegateRequest(BaseModel):
+    """A reviewer hands the post in review to someone else; they stay on it and still see its status."""
+    to_user_id: UUID
+    note: Optional[str] = Field(None, max_length=1000)
+
+
+DelegationDirection = Literal["all", "by_me", "to_me"]
+
+
+class Delegation(BaseModel):
+    """One hand-off of a post in review, with where the post stands now."""
+    id: UUID
+    submission_id: UUID
+    reference_code: str
+    title: str
+    content_type: str
+    status: str
+    version_number: int
+    current_version: int
+    from_user_id: Optional[UUID] = None
+    from_user_name: Optional[str] = None
+    to_user_id: Optional[UUID] = None
+    to_user_name: Optional[str] = None
+    note: Optional[str] = None
+    created_at: datetime
+    # The decision on the delegated version, once someone has made it.
+    decision: Optional[str] = None
+    decided_by_name: Optional[str] = None
+    decided_at: Optional[datetime] = None
+
+
 CommentCategory = Literal["LEGAL", "EDITORIAL", "COMPLIANCE", "BRAND", "NOTE"]
 
 
@@ -465,6 +500,8 @@ class ReviewQueueItem(BaseModel):
     approver_names: List[str] = Field(default_factory=list)
     # The viewer may approve it (a reviewer, and one of its named approvers when it has any).
     can_approve: bool = False
+    # In review and the viewer may hand it to another reviewer (they stay on it and can still decide).
+    can_delegate: bool = False
     # Critical (red) flags on the current version that a reviewer hasn't dismissed; approval waits on these.
     open_critical_flags: int = 0
     # The rulebook score counting only flags nobody has dismissed, and the least it needs to be approved.
@@ -481,6 +518,8 @@ class ReviewQueueItem(BaseModel):
     due_at: Optional[datetime] = None
     due_kind: Optional[Literal["REVIEW", "REVISION", "VIDEO"]] = None
     created_by: Optional[UUID] = None
+    # Who it was sent to, including anyone it was delegated to.
+    reviewer_ids: List[UUID] = Field(default_factory=list)
     # Approved content: the viewer is a reviewer who may reschedule it or reopen it for changes.
     can_manage_approval: bool = False
     # When the latest version was approved or sent back.

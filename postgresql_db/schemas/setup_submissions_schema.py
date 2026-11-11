@@ -314,6 +314,36 @@ async def setup():
             -- Whether the author wrote it as the reviewer (a super admin can review their own upload)
             ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS from_reviewer BOOLEAN;
 
+            -- Reviewer hierarchy by role: Super Admin (4) > Administrator (3) > Content Manager (2) > anyone else who
+            -- can review (1). Content sent to a reviewer is also seen by, and can be approved by, everyone who
+            -- outranks them; one approval from any of them approves it.
+            CREATE OR REPLACE FUNCTION content_review_rank(uid UUID) RETURNS INT LANGUAGE sql STABLE AS $fn$
+                SELECT GREATEST(
+                    (SELECT CASE WHEN u.is_super_admin THEN 4 ELSE 1 END FROM users u WHERE u.id = uid),
+                    COALESCE((
+                        SELECT MAX(CASE r.code WHEN 'SUPER_ADMIN' THEN 4 WHEN 'ADMIN' THEN 3 WHEN 'MANAGER' THEN 2 ELSE 1 END)
+                        FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+                        WHERE ur.user_id = uid AND ur.is_active AND r.is_active AND r.deleted_at IS NULL
+                    ), 1)
+                )
+            $fn$;
+
+            -- Review delegations: a reviewer hands a post in review to someone else. The delegate is added to the
+            -- post's reviewers; the delegator stays on it, so they still see its status (and can still decide).
+            CREATE TABLE IF NOT EXISTS content_review_delegations (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                submission_id UUID NOT NULL REFERENCES content_submissions(id) ON DELETE CASCADE,
+                version_number INT NOT NULL DEFAULT 0,
+                from_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                to_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                note TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_content_review_delegations_submission
+                ON content_review_delegations(submission_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_content_review_delegations_from ON content_review_delegations(from_user_id);
+            CREATE INDEX IF NOT EXISTS idx_content_review_delegations_to ON content_review_delegations(to_user_id);
+
             -- Gemini sentiment analysis (see services/compliance/analytics/sentiment_service.py). Advisory only.
             -- input is exactly what was analysed; content_hash lets an unchanged draft reuse its result.
             CREATE TABLE IF NOT EXISTS content_sentiment_analyses (
