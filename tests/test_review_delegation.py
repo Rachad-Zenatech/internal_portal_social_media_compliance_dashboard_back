@@ -66,7 +66,7 @@ class DelegateTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any("INSERT INTO content_review_delegations" in c.args[0] for c in conn.execute.await_args_list))
         self.assertEqual(notify.await_args.args[0], [DELEGATE])
 
-    async def test_someone_above_the_reviewer_stays_on_it_too(self):
+    async def test_a_super_admin_who_wasnt_on_it_stays_on_it_too(self):
         boss = uuid4()
         _, conn, _ = await self.run_delegate(submission_row(), user=boss)
         update = next(c for c in conn.execute.await_args_list if "UPDATE content_submissions" in c.args[0])

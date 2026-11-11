@@ -210,12 +210,16 @@ async def exchange_login_code(data: LoginCodeExchange):
     return {"token": create_access_token(row["id"], bool(row["is_super_admin"]))}
 
 
-# Local testing only: sign in as a test creator or test reviewer without Microsoft, so both sides of a review can be
-# tried on one machine. Off unless DEV_TEST_LOGIN is set, never in production, and only when the API is called at
+# Local testing only: sign in as a test creator, reviewer or manager without Microsoft, so every side of a review
+# (including delegation between reviewers) can be tried on one machine. Off unless DEV_TEST_LOGIN is set, never in production, and only when the API is called at
 # localhost (inside Docker the caller's address is the bridge gateway, so the host the browser asked for is checked).
 TEST_USERS = {
     "creator": ("test.creator@example.com", "Test Creator", "USER"),
     "reviewer": ("test.reviewer@example.com", "Test Reviewer", "REVIEWER"),
+    "manager": ("test.manager@example.com", "Test Manager", "MANAGER"),
+    # More reviewers, to try brand-based routing (give each a brand in Role Assignments).
+    "reviewer2": ("test.reviewer2@example.com", "Test Reviewer 2", "REVIEWER"),
+    "reviewer3": ("test.reviewer3@example.com", "Test Reviewer 3", "REVIEWER"),
 }
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]"}
 
@@ -229,7 +233,7 @@ def _test_login_allowed(request: Request) -> bool:
 
 
 class TestLoginRequest(BaseModel):
-    as_: str = Field(alias="as", pattern="^(creator|reviewer)$")
+    as_: str = Field(alias="as", pattern="^(creator|reviewer|manager|reviewer2|reviewer3)$")
 
 
 @router.get("/auth/test-login")
@@ -240,7 +244,8 @@ async def test_login_status(request: Request):
 
 @router.post("/auth/test-login")
 async def test_login(data: TestLoginRequest, request: Request):
-    """Sign in as the test creator (Standard User) or test reviewer (Content Reviewer), creating them if needed.
+    """Sign in as the test creator (Standard User), a test reviewer (Content Reviewer) or the test manager
+    (Content Manager), creating them if needed.
     Their @example.com addresses can never receive email."""
     if not _test_login_allowed(request):
         raise HTTPException(status_code=404, detail="Not found")

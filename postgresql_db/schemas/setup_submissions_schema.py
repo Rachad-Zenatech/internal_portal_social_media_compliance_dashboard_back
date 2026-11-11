@@ -316,20 +316,6 @@ async def setup():
             -- Whether the author wrote it as the reviewer (a super admin can review their own upload)
             ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS from_reviewer BOOLEAN;
 
-            -- Reviewer hierarchy by role: Super Admin (4) > Administrator (3) > Content Manager (2) > anyone else who
-            -- can review (1). Content sent to a reviewer is also seen by, and can be approved by, everyone who
-            -- outranks them; one approval from any of them approves it.
-            CREATE OR REPLACE FUNCTION content_review_rank(uid UUID) RETURNS INT LANGUAGE sql STABLE AS $fn$
-                SELECT GREATEST(
-                    (SELECT CASE WHEN u.is_super_admin THEN 4 ELSE 1 END FROM users u WHERE u.id = uid),
-                    COALESCE((
-                        SELECT MAX(CASE r.code WHEN 'SUPER_ADMIN' THEN 4 WHEN 'ADMIN' THEN 3 WHEN 'MANAGER' THEN 2 ELSE 1 END)
-                        FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-                        WHERE ur.user_id = uid AND ur.is_active AND r.is_active AND r.deleted_at IS NULL
-                    ), 1)
-                )
-            $fn$;
-
             -- Review delegations: a reviewer hands a post in review to someone else. The delegate is added to the
             -- post's reviewers; the delegator stays on it, so they still see its status (and can still decide).
             CREATE TABLE IF NOT EXISTS content_review_delegations (

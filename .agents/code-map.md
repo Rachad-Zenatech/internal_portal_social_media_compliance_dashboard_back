@@ -142,7 +142,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (623 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (627 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -272,7 +272,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (691 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (677 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -1388,7 +1388,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_photo_text` (def) - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (2978 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (2969 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_same_value` (def) - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
 - `content_changed` (def) - Whether saving these fields changes anything the checks read.
 - `_json` (def)
@@ -1402,9 +1402,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_can_review` (def) - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
 - `_can_see_team_content` (def) - Content Managers and reviewers can read everyone's submissions.
 - `_brand_scope` (def) - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
-- `_sent_to` (def) - SQL: the content was sent to this user (picked, or delegated to them), to someone they outrank in the reviewer
-- `_outranks` (def) - The user is above at least one of these reviewers in the reviewer hierarchy.
-- `_in_review_scope` (def) - Python twin of _sent_to for one loaded row.
+- `_sent_to` (def) - SQL: the content was sent to this user (picked, or delegated to them), or to no one in particular (every
 - `_get_owned_row` (def) - Load a submission the user may access (creator or super admin; managers and reviewers too when
 - `_approvers` (def) - The named final approvers for a submission row (empty: any reviewer on its brand).
 - `_may_approve` (def)
@@ -2619,7 +2617,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `DelegateTests` (class)
     - `run_delegate` (def)
     - `test_the_delegate_joins_the_reviewers_and_the_delegator_stays` (def)
-    - `test_someone_above_the_reviewer_stays_on_it_too` (def)
+    - `test_a_super_admin_who_wasnt_on_it_stays_on_it_too` (def)
     - `test_only_content_in_review` (def)
     - `test_only_reviewers` (def)
     - `test_the_delegate_must_be_able_to_review_the_brand` (def)
@@ -2654,7 +2652,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_other_statuses_are_left_alone` (def)
     - `test_it_is_a_warning_so_no_critical_cap_and_dismissing_gives_points_back` (def)
 
-## tests/test_reviewer_choice.py (195 lines) - test reviewer choice
+## tests/test_reviewer_choice.py (186 lines) - test reviewer choice
 - `submission_row` (def)
 - `WhoMayOpenItTests` (class)
     - `load` (def)
@@ -2662,7 +2660,6 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_other_reviewers_cant_open_it` (def)
     - `test_content_sent_to_no_one_in_particular_is_open_to_every_reviewer` (def)
     - `test_its_creator_and_super_admins_can_still_open_it` (def)
-    - `test_someone_above_the_reviewer_in_the_hierarchy_can_open_it` (def)
     - `test_lists_and_queues_use_the_same_rule` (def)
 - `WhoIsNotifiedTests` (class)
     - `recipients` (def)
@@ -3014,7 +3011,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_never_in_production` (def)
     - `test_never_from_a_real_address` (def)
     - `test_signing_in_is_refused_while_off` (def)
-    - `test_only_the_two_test_users_can_be_asked_for` (def)
+    - `test_only_the_test_users_can_be_asked_for` (def)
 
 ## tests/test_trend_and_watch.py (252 lines) - A real trend from what has been collected, and searches about the company itself.
 - `VolumeChangeTests` (class)
@@ -3283,7 +3280,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `my_status` (def) [GET /teams/status]
 - `set_my_status` (def) [PUT /teams/status]
 
-## tools/shared/auth/auth_router.py (412 lines) - auth router (shared auth)
+## tools/shared/auth/auth_router.py (417 lines) - auth router (shared auth)
 - `_sha256` (def)
 - `microsoft_login` (def) [GET /auth/microsoft/login]
 - `microsoft_callback` (def) [GET /auth/microsoft/callback]
@@ -3292,7 +3289,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_test_login_allowed` (def)
 - `TestLoginRequest` (class)
 - `test_login_status` (def) [GET /auth/test-login] - Whether the login page offers the test sign-in buttons.
-- `test_login` (def) [POST /auth/test-login] - Sign in as the test creator (Standard User) or test reviewer (Content Reviewer), creating them if needed.
+- `test_login` (def) [POST /auth/test-login] - Sign in as the test creator (Standard User), a test reviewer (Content Reviewer) or the test manager
 - `get_auth_bootstrap` (def) [GET /auth/bootstrap]
 - `get_all_navigation_items` (def)
 - `get_all_mcp_tools` (def)

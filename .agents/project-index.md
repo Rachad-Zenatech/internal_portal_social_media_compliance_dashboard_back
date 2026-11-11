@@ -20,7 +20,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - models/compliance/public_mood_model.py (328 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - models/compliance/script_review_model.py (131 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - models/compliance/sentiment_model.py (213 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
-- models/compliance/submission_model.py (623 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+- models/compliance/submission_model.py (627 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
 - models/shared/oauth_connection_model.py (127 lines) - Pydantic models for Organization, Company, and OAuth connections.
 - models/shared/rbac_model.py (146 lines) - rbac model (shared)
@@ -36,7 +36,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - postgresql_db/schemas/setup_pbac_schema.py (450 lines) - setup pbac schema (schemas)
 - postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
 - postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
-- postgresql_db/schemas/setup_submissions_schema.py (691 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+- postgresql_db/schemas/setup_submissions_schema.py (677 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
@@ -110,7 +110,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/submissions/post_steps_service.py (117 lines) - The five steps a creator works through, and how far each post has got.
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - services/compliance/submissions/review_memory_service.py (229 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
-- services/compliance/submissions/submission_service.py (2978 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2969 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
 - services/notifications/ceo_event_publisher.py (50 lines) - Cross-application event publisher for CEO Dashboard integration.
@@ -168,7 +168,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_review_delegation.py (111 lines) - Review delegation: a reviewer hands a post in review to someone else and stays on it.
 - tests/test_review_memory_text.py (88 lines) - What is stored for a past post, and what a new post is compared on, must be the same set of text.
 - tests/test_review_penalty.py (68 lines) - test review penalty
-- tests/test_reviewer_choice.py (195 lines) - test reviewer choice
+- tests/test_reviewer_choice.py (186 lines) - test reviewer choice
 - tests/test_rule25_guidance.py (26 lines) - test rule25 guidance
 - tests/test_rulebook_check_coverage.py (165 lines) - test rulebook check coverage
 - tests/test_scrape_button.py (188 lines) - The scrape button: scraping starts only from it, runs outside the server's event loop, and reports how it went.
@@ -200,7 +200,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/notifications/notification_router.py (87 lines) - notification router (notifications)
 - tools/notifications/teams_router.py (55 lines) - Microsoft Teams: the endpoint the bot's messages arrive on, and a person's own on/off switch for them.
-- tools/shared/auth/auth_router.py (412 lines) - auth router (shared auth)
+- tools/shared/auth/auth_router.py (417 lines) - auth router (shared auth)
 - tools/shared/auth/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
 - tools/shared/auth/rbac_router.py (236 lines) - rbac router (shared auth)
 - tools/shared/core/log_router.py (74 lines) - log router (shared core)

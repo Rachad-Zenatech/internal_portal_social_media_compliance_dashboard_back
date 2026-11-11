@@ -86,7 +86,7 @@ async def delegate(submission_id: UUID, user_id: UUID, req: DelegateRequest) -> 
             if not reviewers:
                 reviewers.append(user_id)
             elif user_id not in reviewers:
-                # Someone above the reviewers in the hierarchy: they stay on it too.
+                # A super admin who wasn't on it: they stay on it too.
                 reviewers.append(user_id)
             reviewers.append(req.to_user_id)
             await conn.execute(
