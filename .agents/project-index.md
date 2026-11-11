@@ -63,6 +63,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/evaluation/compliance_service.py (1648 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - services/compliance/evaluation/context_evaluator.py (367 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/evaluation/context_service.py (188 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
+- services/compliance/evaluation/newsroom_sync_service.py (290 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.
 - services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
 - services/compliance/evaluation/script_review_service.py (721 lines) - Script stage of a video post.

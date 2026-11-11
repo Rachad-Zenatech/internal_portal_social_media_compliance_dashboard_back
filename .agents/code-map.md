@@ -665,6 +665,20 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_applies` (def)
 - `for_content` (def) - The active entries that apply to this content, in prompt order, trimmed to a sensible total size.
 
+## services/compliance/evaluation/newsroom_sync_service.py (290 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.
+- `_get_client` (def)
+- `_text` (def)
+- `parse_list` (def) - The articles on the newsroom page: url, title and date, newest first, one per url.
+- `article_text` (def) - The release itself: from its headline to the boilerplate ("About ZenaTech", safe harbor).
+- `_summarize` (def)
+- `_save` (def) - Add or update the fact for one article.
+- `_record` (def)
+- `run_sync` (def)
+- `_out` (def)
+- `latest` (def)
+- `start` (def) - Start a sync unless one is already running (a run left RUNNING for over an hour is treated as dead).
+- `newsroom_sync_loop` (def) - Once a day: sync when the last finished sync is over a day old (checked hourly, so restarts don't skip a day).
+
 ## services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - `_lines` (def)
 - `_context_doc` (def)
