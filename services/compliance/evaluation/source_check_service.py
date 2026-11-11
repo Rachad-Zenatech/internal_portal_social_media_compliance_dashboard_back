@@ -71,6 +71,12 @@ NOT_FOUND_ID = uuid5(NAMESPACE_URL, "zenatech-source-check:not-found")
 UNCHECKED_ID = uuid5(NAMESPACE_URL, "zenatech-source-check:unchecked")
 CHECK_IDS = {CONTRADICTED_ID, NOT_FOUND_ID, UNCHECKED_ID}
 
+
+def claim_id(kind_id: UUID, claim: str) -> UUID:
+    """The id of one claim's finding: its kind's id and the claim's own wording. A finding is dismissed by its id, so
+    clearing one claim must not clear every other claim of that kind."""
+    return uuid5(kind_id, " ".join((claim or "").lower().split()))
+
 SYSTEM_PROMPT = """You check whether the source a post cites really backs up what the post says. You are given the post (its caption,
 plus any text read from its images, marked "Text in image") and ONE source the post cites, a web page or a document, as text.
 
@@ -398,7 +404,7 @@ async def run(text: str, provided: Sequence[ProvidedSource] = ()) -> SourceCheck
 def _finding(rule_id: UUID, status: str, severity: str, title: str, claim: SourceClaim, check: SourceCheck,
              explanation: str, remediation: str) -> ComplianceViolation:
     return ComplianceViolation(
-        rule_id=rule_id, rule_number="Rule 18", title=title, category="Source Check", severity=severity,
+        rule_id=claim_id(rule_id, claim.claim), rule_number="Rule 18", title=title, category="Source Check", severity=severity,
         traffic_light="YELLOW", flagged_terms=[claim.claim], explanation=explanation, remediation_guidance=remediation,
         penalty=PENALTY_CONTRADICTED if status == "VIOLATION" else 0, status=status,
         evaluation=ContextEvaluation(

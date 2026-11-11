@@ -516,7 +516,17 @@ def _hashtag_hit(term: str, hashtag_keys: Sequence[str], exceptions: List[str]) 
     return any(key in tag and not any(e in tag for e in excused) for tag in hashtag_keys)
 
 
-_SMALL_WORDS = {"the", "and", "for", "not", "or", "of", "a", "an", "to", "in", "on", "by", "is", "it"}
+# Words a near-match may drop. Never a negator, "or" or "and": "not endorsed by the DoD" is the opposite of "endorsed by
+# the DoD", and "or" / "and" change what a disclaimer covers.
+_SMALL_WORDS = {"the", "for", "of", "a", "an", "to", "in", "on", "by", "is", "it"}
+
+
+_CONTRACTED_NOT = re.compile(r"\b(\w+)n t\b")
+
+
+# A disclaimer shorter than this many meaningful words must be there word for word: with so few words, one wrong or
+# missing word is a different sentence.
+DISCLAIMER_NEAR_MIN_WORDS = 6
 
 
 # How spread out a near-match disclaimer may be: its words must sit within this many times its own length.
@@ -532,17 +542,27 @@ def _disclaimer_present(disclaimer: str, padded_text: str) -> bool:
         return True
     if f" {norm} " in padded_text:
         return True
+    # "doesn't" is "does not": once punctuation is stripped it is "doesn t".
+    norm = _CONTRACTED_NOT.sub(r"\1 not", norm)
+    padded_text = _CONTRACTED_NOT.sub(r"\1 not", padded_text)
     words = [w for w in norm.split() if w not in _SMALL_WORDS]
-    if not words:
+    if len(words) < DISCLAIMER_NEAR_MIN_WORDS:
         return False
     wanted = set(words)
+    denied = _NEGATORS - {"t"}
+    # Words that can't be missing from a near-match, however close the rest is.
+    must = {w for w in wanted if w in denied or w in ("or", "and")}
     window = max(len(norm.split()), int(len(norm.split()) * DISCLAIMER_SPREAD + 0.5))
     tokens = padded_text.split()
     # A matching stretch starts on one of the disclaimer's words, so only those starts are tried.
     for start, token in enumerate(tokens):
         if token not in wanted:
             continue
-        near = set(tokens[start:start + window])
+        stretch = tokens[start:start + window]
+        near = set(stretch)
+        # A negator the disclaimer doesn't have turns it into the opposite statement.
+        if (near & denied) - wanted or not must <= near:
+            continue
         if sum(1 for w in words if w in near) / len(words) >= 0.85:
             return True
     return False
@@ -790,10 +810,11 @@ def _penalty_and_light(rule: ComplianceRule, kind: str = "PROHIBITED_TERM") -> T
 
 
 def _evaluate_rule(rule: ComplianceRule, padded_text: str,
-                   hashtag_keys: Sequence[str] = ()) -> Optional[ComplianceViolation]:
+                   hashtag_keys: Sequence[str] = (), disclaimer_padded: Optional[str] = None) -> Optional[ComplianceViolation]:
     """One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
     disclaimer. Used by the check and by the rule self-tests, so both always agree. hashtag_keys are the post's
-    hashtags as one lowercase word each, so a phrase run together in a hashtag still counts."""
+    hashtags as one lowercase word each, so a phrase run together in a hashtag still counts. A required disclaimer is
+    looked for in disclaimer_padded (the published parts) when given, else in the whole text."""
     exceptions = list(rule.exception_terms or [])
 
     def found(term: str) -> bool:
@@ -810,7 +831,8 @@ def _evaluate_rule(rule: ComplianceRule, padded_text: str,
     if rule.required_disclaimers:
         triggered_by = [t for t in rule.disclaimer_triggers if found(t)]
         needed = not rule.disclaimer_triggers or bool(triggered_by) or bool(flagged)
-        if needed and not any(_disclaimer_present(d, padded_text) for d in rule.required_disclaimers):
+        where = padded_text if disclaimer_padded is None else disclaimer_padded
+        if needed and not any(_disclaimer_present(d, where) for d in rule.required_disclaimers):
             missing = list(rule.required_disclaimers)
 
     if flagged:
@@ -1021,6 +1043,7 @@ async def _semantic_findings(
     rules: List[ComplianceRule],
     found_rule_numbers: set,
     padded_text: str,
+    disclaimer_padded: Optional[str] = None,
 ) -> List[ComplianceViolation]:
     """Rules the exact wording missed but the vector store says the post is close to in meaning, confirmed by Gemini.
     They come back as NEEDS_REVIEW findings (nothing in the wording triggered them, so they never block), or as
@@ -1141,7 +1164,9 @@ CONTENT TO EVALUATE
             continue
         kind = sv.get("kind") if sv.get("kind") in ("PROHIBITED_TERM", "MISSING_DISCLAIMER") else "PROHIBITED_TERM"
         if kind == "MISSING_DISCLAIMER" and (
-            not rule.required_disclaimers or any(_disclaimer_present(d, padded_text) for d in rule.required_disclaimers)
+            not rule.required_disclaimers
+            or any(_disclaimer_present(d, padded_text if disclaimer_padded is None else disclaimer_padded)
+                   for d in rule.required_disclaimers)
         ):
             continue
         reasoning = f"Matched by meaning rather than exact wording. {explanation}"
@@ -1179,16 +1204,20 @@ PASSAGE_CHARS = 500
 CONTEXT_CHARS = 1500
 
 
-def _passage(text: str, terms: Sequence[str]) -> Tuple[str, str]:
+def _passage(text: str, terms: Sequence[str], exceptions: Sequence[str] = ()) -> Tuple[str, str]:
     """The sentence a finding's wording sits in, and the sentences around it, for judging it in context. Lines (a
-    script's table rows, a caption's paragraphs) and sentences within them are each a unit."""
+    script's table rows, a caption's paragraphs) and sentences within them are each a unit. It's the sentence where the
+    matcher counted the wording (not denied, not inside one of the rule's exceptions): a model shown "we don't offer
+    guaranteed returns" instead of the sentence that does would clear a real breach."""
     units: List[str] = []
     for line in plain_text_lines(text):
         units.extend(u.strip() for u in _SENTENCE_END.split(line) if u.strip())
-    for i, unit in enumerate(units):
-        padded = f" {_normalize(unit)} "
-        if any(_matches(t, padded) for t in terms):
-            return unit[:PASSAGE_CHARS], " ".join(units[max(0, i - 2): i + 3])[:CONTEXT_CHARS]
+    exceptions = list(exceptions or [])
+    padded_units = [f" {_normalize(u)} " for u in units]
+    for counted in (True, False):
+        for i, (unit, padded) in enumerate(zip(units, padded_units)):
+            if any((_hit(t, padded, exceptions, honor_negation=True) if counted else _matches(t, padded)) for t in terms):
+                return unit[:PASSAGE_CHARS], " ".join(units[max(0, i - 2): i + 3])[:CONTEXT_CHARS]
     # Wording that only matched in a hashtag, or across a line break: the start of the content will have to do.
     return text.strip()[:PASSAGE_CHARS], text.strip()[:CONTEXT_CHARS]
 
@@ -1210,13 +1239,18 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     rules = await applicable_rules(req)
     padded_text = f" {_normalize(chr(10).join([req.text, *signals.hashtag_phrases]))} "
     hashtag_keys = signals.hashtag_keys
+    # Where a required disclaimer has to be: the published parts only, when the caller says which those are.
+    disclaimer_padded = (
+        f" {_normalize(chr(10).join([req.disclaimer_text, *signals.hashtag_phrases]))} "
+        if req.disclaimer_text is not None else None
+    )
     violations: List[ComplianceViolation] = []
     # Findings from rules that are judged in context, with their rule, for the contextual evaluation below.
     contextual: List[Tuple[ComplianceViolation, ComplianceRule]] = []
     # Two rules can ask for the same disclaimer (e.g. Rules 4 and 13); a missing one is reported once.
     reported_disclaimers: set = set()
     for rule in rules:
-        v = _evaluate_rule(rule, padded_text, hashtag_keys)
+        v = _evaluate_rule(rule, padded_text, hashtag_keys, disclaimer_padded)
         if not v:
             continue
         if v.missing_disclaimers:
@@ -1265,7 +1299,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # Claim checks carry their rule's number but don't stand in for the rule, so they don't take it off the list.
     found = {v.rule_number for v in violations if v.rule_id not in claim_checks.CHECK_IDS}
     _ai_incomplete.set(False)
-    violations.extend(await _semantic_findings(req, rules, found, padded_text))
+    violations.extend(await _semantic_findings(req, rules, found, padded_text, disclaimer_padded))
 
     # The sources the post cites (links, "Source:" lines, attached documents) are opened and compared with its claims. A
     # claim that contradicts its source costs points; one the source doesn't settle is for a person; one it supports
@@ -1278,8 +1312,9 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # A CONTEXT rule's match is only a candidate: a model reads it in its sentence and decides whether it's a violation,
     # something a person has to check, a claim that needs a source, or not a breach at all.
     # Where each finding sits, kept on it so a reviewer's call can be saved as a labelled example.
+    exceptions_of = {r.id: r.exception_terms for r in rules}
     for v in violations:
-        v.passage, v.context = _passage(req.text, v.flagged_terms)
+        v.passage, v.context = _passage(req.text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])
     await context_evaluator.evaluate(
         [context_evaluator.Candidate(v, rule, v.passage or "", v.context or "") for v, rule in contextual],
         req.text,

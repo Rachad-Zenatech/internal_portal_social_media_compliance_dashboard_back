@@ -44,7 +44,18 @@ URL_PATTERN = _URL
 # ("UAVTech" -> "UAV", "Tech").
 _CAMEL = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 # The rulebook's "no endorsement" wording, in any of its usual forms.
-_NO_ENDORSEMENT = re.compile(r"\b(?:not|no|nor)\b(?!\s+only\b)[^.\n]{0,80}\bendors", re.IGNORECASE)
+# A negator, then only the words such a disclaimer is made of, then "endorse...". Anything else in between
+# ("No doubt, the @USArmy endorses us") is not the disclaimer.
+_DISCLAIMER_FILLER = (
+    r"imply|implies|implied|constitute|constitutes|suggest|suggests|mean|means|an|any|a|or|and|the|official|formal|"
+    r"express|expressed|by|of|dod|d\.o\.d\.?|u\.?s\.?|us|department|defen[cs]e|war|government|military|army|navy|"
+    r"air|force|space|agency|branch|this|our|its|their|company|product|products|service|services|content|video|"
+    r"image|images|visual|information|appearance|use|to|for|from|as|with"
+)
+_NO_ENDORSEMENT = re.compile(
+    r"(?:\b(?:not|no|nor)\b|n['’]t\b)(?:\s+(?:" + _DISCLAIMER_FILLER + r")(?=\s)){0,10}\s+endors",
+    re.IGNORECASE,
+)
 
 # --- Government and military accounts and sites -------------------------------------------------------------------
 

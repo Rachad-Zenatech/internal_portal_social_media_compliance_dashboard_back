@@ -142,7 +142,7 @@ class RunTests(unittest.TestCase):
         found = sc.findings(out.checks)
         self.assertEqual(len(found), 1)
         self.assertEqual((found[0].status, found[0].penalty, found[0].rule_number), ("VIOLATION", 20, "Rule 18"))
-        self.assertEqual(found[0].rule_id, sc.CONTRADICTED_ID)
+        self.assertEqual(found[0].rule_id, sc.claim_id(sc.CONTRADICTED_ID, found[0].flagged_terms[0]))
         self.assertIn("pilots are underway", found[0].explanation)
 
     def test_a_claim_the_source_doesnt_settle_is_for_a_person_at_no_cost(self):
@@ -158,7 +158,8 @@ class RunTests(unittest.TestCase):
         self.assertEqual(out.checks[0].status, "UNREADABLE")
         self.assertIn("cut short", out.checks[0].message)
         found = sc.findings(out.checks)
-        self.assertEqual([(f.status, f.penalty, f.rule_id) for f in found], [("NEEDS_REVIEW", 0, sc.UNCHECKED_ID)])
+        self.assertEqual([(f.status, f.penalty) for f in found], [("NEEDS_REVIEW", 0)])
+        self.assertEqual(found[0].rule_id, sc.claim_id(sc.UNCHECKED_ID, found[0].flagged_terms[0]))
 
     def test_a_page_that_cant_be_read_is_reported_with_its_reason(self):
         bad = sf.FetchedSource(url="u", ok=False, status="NOT_FOUND", error="The page wasn't found.")
