@@ -112,7 +112,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `XIngestTopicInput` (class)
 - `XIngestRequest` (class)
 
-## models/compliance/script_batch_model.py (118 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
+## models/compliance/script_batch_model.py (132 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - `BatchDetails` (class) - What every post made from the batch shares.
 - `BatchUpdate` (class)
 - `BatchItemCreate` (class)
@@ -125,8 +125,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ItemResult` (class)
 - `BatchReviewResult` (class)
 
-## models/compliance/script_review_model.py (131 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+## models/compliance/script_review_model.py (156 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class)
+- `ScriptBatchRef` (class) - Where this script sits in the batch it was uploaded with, for stepping through the batch one script at a time.
 - `ScriptStage` (class)
 - `ScriptDecisionRequest` (class) - The reviewer's call on the script.
 - `ScriptReviseRequest` (class)
@@ -281,14 +282,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
 - `setup` (def)
 
-## postgresql_db/schemas/setup_script_batches_schema.py (60 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
+## postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
 - `setup` (def)
 
 ## postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (691 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (694 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -972,13 +973,17 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `run` (def)
 - `search` (def)
 
-## services/compliance/evaluation/script_batch_service.py (589 lines) - Script batches.
+## services/compliance/evaluation/script_batch_service.py (656 lines) - Script batches.
 - `missing_details` (def) - The details still empty, by their names on the form.
 - `_json` (def)
 - `_details` (def)
-- `post_row` (def) - The batch's details shaped like a post row, so a script is checked against the rules scoped to its posts.
+- `effective_details` (def) - The details a script's post gets: its own when the batch sets them per script, else the batch's.
+- `post_row` (def) - A script's details shaped like a post row, so it is checked against the rules scoped to its post.
+- `item_status` (def) - DRAFT until the batch is sent; then whatever its script is on its post.
+- `batch_status` (def) - A batch is what its scripts are: in review while any waits for a reviewer, with the creator while any of the rest
 - `read_upload` (def) - The text of an uploaded document (PDF, Word or text), or a message the creator can act on.
 - `_load` (def)
+- `_picked_reviewers` (def) - The reviewers a batch was sent to, or None when anyone may review it (some script names no reviewer).
 - `_reviewer_may_see` (def)
 - `_may_see` (def)
 - `_owned` (def)
@@ -986,24 +991,22 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_item_out` (def)
 - `_out` (def)
 - `get_batch` (def)
-- `list_batches` (def) - Batches the user uploaded ("mine"), or those waiting for or done by reviewers ("review").
+- `list_batches` (def) - Batches the user uploaded ("mine"), or those sent to reviewers ("review").
 - `create_batch` (def) - Split an uploaded document into scripts and start a batch of them (a draft the creator can still change).
 - `update_batch` (def)
 - `_editable_item` (def)
 - `add_item` (def)
 - `update_item` (def)
 - `delete_item` (def)
-- `delete_batch` (def) - Remove a batch that hasn't produced any posts (nothing has been approved from it).
-- `send` (def) - Send the scripts that are waiting (new ones, and ones sent back) to the reviewers.
+- `delete_batch` (def) - Remove a batch whose scripts haven't been sent (no posts were made from it).
+- `_unsent` (def) - The scripts not sent yet: no post, or a post whose script was never sent for review.
+- `send` (def) - Send the scripts that haven't been sent: a post is made for each and its script goes to the reviewers, as when a
 - `_check_item` (def)
-- `_process_send` (def) - Check each waiting script, then hand the batch to the reviewers (or say what went wrong).
+- `check_item` (def) - Creator: check one script against the rulebook before sending it, to see its score and flags and fix them
+- `_make_post` (def) - The post for a script: a video post of the creator's with the batch's details, linked to the script.
+- `_process_send` (def) - Check each unsent script, make its post and send its script for review.
 - `_notify_reviewers` (def)
-- `_refresh_checks` (def) - Check again the waiting scripts whose check was made without the AI, or against an older rulebook, so a reviewer
-- `_needs_recheck` (def)
-- `approval_block` (def) - Why a script can't be approved yet, or None.
-- `_make_post` (def) - The post for an approved script: a video post of the creator's, with the batch's details and the script already
-- `review` (def) - Decide on any number of the batch's scripts at once.
-- `_refresh_status` (def) - IN_REVIEW while any script waits for a reviewer, CHANGES_REQUESTED while only the creator has something to do,
+- `review` (def) - Decide on any number of the batch's scripts at once, with the same rules as deciding on one script on its own
 
 ## services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
 - `_words` (def)
@@ -1011,16 +1014,20 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 - `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/evaluation/script_review_service.py (721 lines) - Script stage of a video post.
+## services/compliance/evaluation/script_review_service.py (825 lines) - Script stage of a video post.
 - `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
 - `_status` (def)
 - `check_text` (def) - The rulebook check of a script: the title and the script, scoped like the post.
+- `check_key` (def) - What a script's check depends on: its wording and the details it's judged by (title, brand, audience, region,
+- `precheck_record` (def) - A check run before sending, as stored (JSON).
+- `still_valid` (def) - The stored check, if it was made on this wording and these details against the current rulebook.
 - `_versions` (def)
 - `_script_file` (def)
 - `_require_stage` (def)
 - `_reviewer_may_act` (def)
+- `batch_ref` (def) - Where the script sits in the batch it was uploaded with, or None when it wasn't part of one.
 - `get_stage` (def)
 - `_adopt_check` (def) - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
 - `_add_version` (def)
@@ -1030,9 +1037,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `submit` (def) - Accept the uploaded script for review and answer at once.
 - `_fail_send` (def) - The background send couldn't finish: record which step failed and why, and tell the creator.
 - `resume_interrupted_sends` (def) - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
+- `_read_uploaded` (def) - The uploaded script file and its text, read now if it hasn't been yet.
+- `precheck` (def) - The creator checks the uploaded script against the rulebook before sending it, to see the score and the flags
 - `_process_send` (def) - Read the uploaded script, calculate its compliance score and send it to the reviewers.
 - `_send` (def)
-- `_send_checked` (def)
+- `_send_checked` (def) - Send a checked script for review.
 - `decide` (def) - The reviewer approves the script, sends it back with a note, or sends back their own edited version.
 - `accept` (def) - The creator accepts the reviewer's edited version: it's the approved script.
 - `revise` (def) - The creator edits the script in the platform (after edits or a change request) and sends it back.
@@ -1664,11 +1673,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `status_for` (def) - What the portal shows a person about their Teams messages.
 - `set_enabled_for` (def)
 
-## services/shared/auth/auth_service.py (617 lines) - auth service (shared auth)
+## services/shared/auth/auth_service.py (603 lines) - Who a token is for: this app only.
 - `_update_last_activity_async` (def)
 - `create_access_token` (def)
 - `create_link_token` (def)
-- `verify_token` (def)
+- `verify_token` (def) - The payload of a sign-in or link token this app issued, or None.
 - `get_my_permissions` (def)
 - `user_can_access_page` (def)
 - `user_can_use_mcp_tool` (def)
@@ -2808,23 +2817,28 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_the_feed_lives_in_the_repo_data_folder_next_to_the_apps_other_data` (def)
     - `test_the_scraper_and_the_app_share_one_way_of_storing_and_loading_the_feed` (def)
 
-## tests/test_script_batch.py (95 lines) - test script batch
+## tests/test_script_batch.py (147 lines) - test script batch
 - `DetailsTests` (class)
     - `test_every_shared_detail_is_needed_before_sending` (def)
     - `test_a_filled_in_batch_is_ready` (def)
     - `test_an_empty_list_counts_as_missing` (def)
     - `test_the_scripts_are_checked_as_video_posts_with_the_batchs_details` (def)
-- `ApprovalBlockTests` (class)
-    - `test_a_clean_script_can_be_approved` (def)
-    - `test_the_minimum_itself_is_enough` (def)
-    - `test_a_low_score_blocks` (def)
-    - `test_a_critical_flag_blocks` (def)
-    - `test_a_script_the_ai_could_not_read_blocks` (def)
-    - `test_a_script_with_no_check_blocks` (def)
-- `RecheckTests` (class)
-    - `test_a_script_with_no_check_is_checked` (def)
-    - `test_a_check_from_an_older_rulebook_is_checked_again` (def)
-    - `test_an_ai_down_check_is_retried_but_not_on_every_page_load` (def)
+- `PerScriptDetailsTests` (class)
+    - `test_with_one_set_every_script_gets_the_batchs_details` (def)
+    - `test_with_details_per_script_each_script_gets_its_own` (def)
+    - `test_a_script_with_no_details_of_its_own_has_none` (def)
+    - `test_a_script_is_read_the_same_whichever_way_the_row_was_loaded` (def)
+    - `test_the_batch_alone_when_there_is_no_script` (def)
+- `StatusTests` (class)
+    - `test_a_script_is_a_draft_until_its_post_is_made` (def)
+    - `test_a_script_is_what_it_is_on_its_post` (def)
+    - `test_edits_the_reviewer_proposed_wait_for_the_creator` (def)
+    - `test_a_post_whose_script_was_never_sent_is_still_a_draft` (def)
+    - `test_a_batch_nobody_sent_is_a_draft` (def)
+    - `test_a_batch_is_in_review_while_any_script_waits_for_a_reviewer` (def)
+    - `test_a_batch_is_with_the_creator_when_nothing_waits_for_a_reviewer` (def)
+    - `test_a_batch_is_done_when_every_script_is_approved` (def)
+    - `test_a_batch_being_sent_shows_as_processing` (def)
 - `UploadTests` (class)
     - `refused` (def)
     - `test_a_text_file_is_read` (def)
@@ -2833,6 +2847,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_file_with_no_text_is_refused` (def)
     - `test_a_very_large_file_is_refused` (def)
     - `test_an_old_word_file_says_what_to_do` (def)
+- `NobodyApprovesTheirOwnScripts` (class) - The creator of a script can't approve it, even as a super admin: another reviewer has to.
+    - `may_act` (def)
+    - `test_a_single_scripts_creator_cannot_review_it_even_as_a_super_admin` (def)
+    - `test_a_batchs_creator_cannot_review_it_even_as_a_super_admin` (def)
+    - `test_someone_who_is_not_a_reviewer_cannot_review` (def)
 
 ## tests/test_script_match.py (73 lines) - test script match
 - `ScriptMatchTests` (class)
@@ -2865,7 +2884,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_script_the_ai_could_not_read_is_flagged` (def)
     - `test_a_script_the_ai_read_is_not` (def)
 
-## tests/test_script_send.py (160 lines) - test script send
+## tests/test_script_send.py (162 lines) - test script send
 - `processing` (def)
 - `SendStateTests` (class)
     - `test_nothing_in_progress` (def)
@@ -2905,7 +2924,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_empty_chunks_are_dropped_and_line_endings_do_not_matter` (def)
     - `test_nothing_in_nothing_out` (def)
 
-## tests/test_security_fixes.py (133 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
+## tests/test_security_fixes.py (195 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - `CaptionSanitizerTests` (class)
     - `test_keeps_editor_formatting` (def)
     - `test_drops_scripts_handlers_and_styles` (def)
@@ -2929,6 +2948,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_link_token_only_works_from_a_url` (def)
     - `test_session_token_is_refused_in_a_url` (def)
     - `test_tokens_issued_before_logout_stay_dead` (def)
+- `ServiceAndForeignTokenTests` (class) - Only this app's own sign-in tokens sign a person in: never a service token, another app's token, or a token
+    - `setUp` (def)
+    - `forge` (def)
+    - `refused` (def)
+    - `test_a_service_token_is_not_a_user` (def)
+    - `test_a_token_that_names_no_user_is_refused` (def)
+    - `test_another_apps_token_is_refused` (def)
+    - `test_the_idle_logout_follows_the_database_not_the_token` (def)
 
 ## tests/test_sentiment_strictness.py (70 lines) - test sentiment strictness
 - `inp` (def)
@@ -3288,7 +3315,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `update_entry` (def) [PUT /{entry_id}]
 - `delete_entry` (def) [DELETE /{entry_id}]
 
-## tools/compliance/submissions/script_batch_router.py (81 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
+## tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - `list_batches` (def) [GET ] - The batches you uploaded, or (reviewers) the batches sent for review.
 - `upload_batch` (def) [POST ] - Upload one document holding several scripts; it is split into scripts the creator can still change.
 - `get_batch` (def) [GET /{batch_id}]
@@ -3297,16 +3324,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `add_item` (def) [POST /{batch_id}/items]
 - `update_item` (def) [PATCH /{batch_id}/items/{item_id}]
 - `delete_item` (def) [DELETE /{batch_id}/items/{item_id}]
+- `check_item` (def) [POST /{batch_id}/items/{item_id}/check] - Check one script against the rulebook before sending it (the result is kept and reused on send).
 - `send_batch` (def) [POST /{batch_id}/send] - Send the waiting scripts to the reviewers (checked against the rulebook in the background).
 - `review_batch` (def) [POST /{batch_id}/review] - Approve or send back any number of the batch's scripts at once; each approved script becomes a post.
 
-## tools/compliance/submissions/script_review_router.py (88 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+## tools/compliance/submissions/script_review_router.py (94 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `script_queue` (def) [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
 - `get_script` (def) [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
 - `submit_script` (def) [POST /{submission_id}/script/submit] - Send the uploaded script for review.
 - `decide_script` (def) [POST /{submission_id}/script/decision] - Approve the script, or send it back with a note and/or the reviewer's edited version.
 - `accept_script_edits` (def) [POST /{submission_id}/script/accept] - Accept the reviewer's edits; the script is approved.
 - `revise_script` (def) [POST /{submission_id}/script/revise] - Send an edited script back to the reviewer.
+- `precheck_script` (def) [POST /{submission_id}/script/precheck] - Creator: check the uploaded script against the rulebook before sending it (the result is kept).
 - `check_script` (def) [POST /{submission_id}/script/check] - Check wording being edited, without saving it.
 - `get_script_highlights` (def) [GET /{submission_id}/script/highlights] - The reviewer's highlights and notes on a script version (the creator sees them too).
 - `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
