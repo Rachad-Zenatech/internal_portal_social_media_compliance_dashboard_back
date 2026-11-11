@@ -133,7 +133,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (520 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (581 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -144,6 +144,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `SubmissionFile` (class)
 - `AnalysisStep` (class) - One part of the post still being read before the rulebook check can score it.
 - `AnalysisProgress` (class) - How far the post's reading has got and when the score is expected.
+- `SubmissionSteps` (class) - How far a post has got through the five steps a creator works through (see post_steps_service).
 - `SubmissionSummary` (class)
 - `Submission` (class)
 - `SubmissionVersion` (class)
@@ -162,6 +163,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `DashboardActivity` (class) - One recent thing that happened to content the viewer can see.
 - `DashboardFinding` (class) - A rulebook rule and how often it was flagged on content sent for review.
 - `DashboardSummary` (class) - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
+- `DuplicateDetail` (class) - One Submission Details dropdown, compared with an earlier post that has the same content and caption.
+- `DuplicateMatch` (class) - A post already sent for approval with the same content and caption.
+- `DuplicateReport` (class) - Earlier posts with the same content and caption.
+- `SubmitRequest` (class)
 - `SubmitResult` (class)
 
 ## models/notifications/notification_model.py (34 lines) - notification model (notifications)
@@ -256,7 +261,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (654 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (659 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -264,6 +269,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_retire_demo_social_accounts` (def) - Remove the earlier demo accounts.
 - `_seed_demo_social_accounts` (def) - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
 - `_main` (def)
+
+## postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
+- `setup` (def)
 
 ## scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - `_guard` (def)
@@ -1007,6 +1015,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `load_rules` (def)
 - `is_ceo_content` (def) - Shaun's own thought leadership: posted through his account or checked against his rule set.
 
+## services/compliance/submissions/duplicate_service.py (189 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
+- `normalize_caption` (def) - Captions compare without case or spacing differences.
+- `details_of` (def) - The post's Submission Details values, as keys (brand codes, account ids, audience codes...).
+- `compare_details` (def) - Per dropdown: the values both posts have, and the values only this post has.
+- `same_publish_date` (def) - Same calendar day (UTC), or neither has a date.
+- `_sha256` (def)
+- `_content_hashes` (def) - Each post's main files as sorted content hashes.
+- `_labels` (def) - Display names for the dropdown values, by field.
+- `find` (def) - Posts already sent for approval with the same content and caption as this one, and how their details overlap.
+
 ## services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
 - `_doc` (def)
 - `_remember` (def)
@@ -1053,8 +1071,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `backfill_missing` (def) - Give content that was already waiting when deadlines were introduced a deadline from now, as if it had just
 - `deadline_loop` (def)
 
-## services/compliance/submissions/review_memory_service.py (190 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
+## services/compliance/submissions/review_memory_service.py (229 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - `_json` (def)
+- `post_text` (def) - The text a post is matched on: its caption, what its video says, its script and the text read from its photos,
 - `_doc` (def) - A reviewed version as a vector document: its content is what gets matched, the review is what comes back.
 - `_remember` (def)
 - `remember` (def) - Store (or refresh) one reviewed version.
@@ -1063,9 +1082,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `run` (def)
 - `remember_all_in_background` (def) - Startup: catch up on anything decided while review memory was off or the server was down.
 - `query_text` (def) - The text a post is matched on: the same parts that are stored for past reviews.
+- `_photo_text` (def) - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (2678 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (2797 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- `_same_value` (def) - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
+- `content_changed` (def) - Whether saving these fields changes anything the checks read.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -1117,7 +1139,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_run_check` (def) - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
 - `_mirror_to_script_version` (def) - A check saved on the post while its script is with the reviewer is also the script version's check, so both
 - `run_initial_check` (def)
+    - `record` (def)
 - `_missing_for_submit` (def)
+- `details_missing` (def) - What the post still needs before its compliance check, sentiment analysis and public mood can be run.
+- `require_details_complete` (def) - The three tools read a finished post, so they are refused until its details are filled in.
+- `require_details_complete_for` (def)
+- `_require_not_duplicate` (def) - The same content and caption, already sent for approval to the same place on the same date, can't be sent
 - `_review_job` (def)
 - `submit_for_review` (def)
 - `withdraw` (def) - Pull a submission back to draft so the creator can edit and resubmit: from review, or after approval for a
@@ -1245,6 +1272,31 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `consume_queue` (def) - Subscribes to a queue and processes messages with manual acknowledgments.
     - `_consume_in_memory` (def)
     - `close` (def)
+
+## services/notifications/teams_service.py (358 lines) - Microsoft Teams direct messages: the portal's notifications, delivered to people's Teams chat by a bot.
+- `_app_id` (def)
+- `_password` (def)
+- `_tenant` (def)
+- `enabled` (def) - Whether the bot is set up.
+- `portal_url` (def)
+- `safe_service_url` (def) - The address Teams told us to reply to, when it is a Microsoft one over https (else None).
+- `_signing_key` (def)
+- `verify_inbound` (def) - Whether a request really comes from the Bot Framework, for this bot, about the address it names.
+- `_bot_token` (def)
+- `_conversation_path` (def)
+- `_call` (def) - A call to the Bot Connector with the bot's token: a fresh token on 401, one more try after a 429.
+- `card` (def) - An Adaptive Card: the title, the message and a button that opens the page in the portal.
+- `_post_card` (def)
+- `_say` (def)
+- `_member_email` (def) - The person's email, from the chat's roster (Teams sends only ids in the activity).
+- `_save_conversation` (def) - Remember the chat, linked to the portal user it belongs to.
+- `_set_enabled` (def)
+- `_deactivate` (def)
+- `_command` (def)
+- `handle_activity` (def) - React to what Teams sends the bot: a person installing it, or writing to it.
+- `notify_user` (def) - Post a portal notification to its user's Teams chat, if they have one and haven't paused it.
+- `status_for` (def) - What the portal shows a person about their Teams messages.
+- `set_enabled_for` (def)
 
 ## services/shared/auth/auth_service.py (617 lines) - auth service (shared auth)
 - `_update_last_activity_async` (def)
@@ -1605,6 +1657,24 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_long_text_is_capped` (def)
 - `WhichFilesTests` (class)
     - `test_scripts_and_article_files_are_read` (def)
+
+## tests/test_duplicate_posts.py (103 lines) - test duplicate posts
+- `post` (def)
+- `find` (def)
+- `CompareTests` (class)
+    - `test_captions_compare_without_case_or_spacing` (def)
+    - `test_every_dropdown_sharing_a_value_is_a_full_overlap` (def)
+    - `test_a_different_platform_is_not_an_overlap` (def)
+    - `test_publish_dates_compare_by_day` (def)
+- `FindTests` (class)
+    - `test_same_post_same_details_same_date_is_blocked` (def)
+    - `test_same_post_other_date_is_a_repost_to_confirm` (def)
+    - `test_same_post_for_another_platform_is_allowed_and_listed` (def)
+    - `test_different_files_are_a_different_post` (def)
+- `SubmitGuardTests` (class)
+    - `guard` (def)
+    - `test_a_duplicate_cant_be_submitted_even_when_confirmed` (def)
+    - `test_a_repost_needs_confirming` (def)
 
 ## tests/test_evidence_penalty.py (57 lines) - test evidence penalty
 - `finding` (def)
@@ -2044,6 +2114,56 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_flags_can_only_be_dismissed_while_in_review` (def)
     - `test_a_reason_of_other_needs_a_note` (def)
 
+## tests/test_teams_service.py (287 lines) - Teams direct messages: checking what Teams sends, saving chats, and delivering notifications.
+- `token` (def)
+- `activity` (def)
+- `notification` (def)
+- `ServiceUrlTests` (class)
+    - `test_microsoft_addresses_pass` (def)
+    - `test_anything_else_is_refused` (def)
+- `VerifyInboundTests` (class)
+    - `verify` (def)
+    - `test_a_valid_token_passes` (def)
+    - `test_no_header_or_wrong_scheme_fails` (def)
+    - `test_wrong_audience_issuer_or_expiry_fails` (def)
+    - `test_a_token_signed_with_another_key_fails` (def)
+    - `test_an_address_that_isnt_the_tokens_fails` (def)
+- `CardTests` (class)
+    - `test_a_relative_link_becomes_a_button_to_the_portal` (def)
+    - `test_an_absolute_link_is_kept_and_no_link_means_no_button` (def)
+    - `test_long_text_is_cut` (def)
+- `HandleActivityTests` (class)
+    - `patched` (def)
+    - `run_with` (def)
+    - `test_installing_the_bot_saves_the_chat_and_welcomes` (def)
+    - `test_a_person_who_has_no_portal_account_is_told_so` (def)
+    - `test_pause_and_resume` (def)
+    - `test_another_tenant_or_a_non_microsoft_address_is_ignored` (def)
+    - `test_group_chats_are_not_saved` (def)
+    - `test_the_bot_being_added_to_a_chat_alone_does_nothing` (def)
+    - `test_an_unknown_kind_of_activity_does_nothing` (def)
+- `NotifyTests` (class)
+    - `notify` (def)
+    - `test_a_notification_is_posted_to_the_users_chat` (def)
+    - `test_nobody_to_send_to` (def)
+    - `test_off_when_the_bot_isnt_set_up` (def)
+    - `test_a_removed_bot_stops_further_tries` (def)
+    - `test_a_server_error_is_not_fatal_and_keeps_the_chat` (def)
+    - `test_a_stored_address_that_isnt_microsoft_is_never_used` (def)
+    - `test_it_never_raises` (def)
+- `CallTests` (class)
+    - `client` (def)
+    - `test_a_429_is_retried_once_after_the_wait` (def)
+    - `test_a_401_gets_a_fresh_token` (def)
+    - `test_the_conversation_id_is_kept_readable_in_the_path` (def)
+- `RouterTests` (class)
+    - `client` (def)
+    - `test_unset_bot_answers_503` (def)
+    - `test_an_unsigned_request_is_refused` (def)
+    - `test_a_good_request_is_handled` (def)
+    - `test_a_bug_in_handling_doesnt_make_teams_retry` (def)
+    - `test_garbage_is_a_400` (def)
+
 ## tests/test_test_login.py (56 lines) - auth_router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
 - `request` (def)
 - `TestLoginGuardTests` (class)
@@ -2140,7 +2260,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
 - `resolve_script_highlights` (def) [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
-## tools/compliance/submissions/submission_router.py (463 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submissions/submission_router.py (478 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
 - `list_reviewers` (def) [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
 - `get_hashtag_library` (def) [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
@@ -2164,6 +2284,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `listen` (def)
     - `work` (def)
     - `lines` (def)
+- `find_duplicates` (def) [GET /{submission_id}/duplicates] - Posts already sent for approval with the same content and caption as this draft, with how their Submission
 - `submit_for_review` (def) [POST /{submission_id}/submit] - Validate required information, snapshot a new version and create a review job.
 - `withdraw` (def) [POST /{submission_id}/withdraw] - Pull a submission back to draft to edit it: from review, or after approval for a late fix (the approval
 - `get_version` (def) [GET /{submission_id}/versions/{version}] - One submitted version as it was: snapshot, video, automated check and decision.
@@ -2211,6 +2332,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `api_clear_all` (def) [DELETE /notifications/all]
 - `api_notification_stream` (def) [GET /notifications/stream]
     - `event_generator` (def)
+
+## tools/notifications/teams_router.py (55 lines) - Microsoft Teams: the endpoint the bot's messages arrive on, and a person's own on/off switch for them.
+- `receive` (def) [POST /teams/messages]
+- `TeamsPreference` (class)
+- `my_status` (def) [GET /teams/status]
+- `set_my_status` (def) [PUT /teams/status]
 
 ## tools/shared/auth/auth_router.py (412 lines) - auth router (shared auth)
 - `_sha256` (def)
