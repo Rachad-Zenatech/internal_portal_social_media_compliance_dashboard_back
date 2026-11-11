@@ -126,6 +126,18 @@ async def delete_entry(entry_id: UUID, user_id: UUID) -> None:
 # For the analysis
 # ---------------------------------------------------------------------------
 
+THOUGHT_LEADERSHIP_BRAND = "CEO_THOUGHT_LEADERSHIP"
+
+
+def with_thought_leadership(brand_codes: Sequence[str], thought_leadership: bool) -> List[str]:
+    """The brands whose context applies: a post on a thought leadership account (Shaun's channel) also gets the
+    thought leadership brand guide, even when it was filed under another brand."""
+    brands = list(brand_codes)
+    if thought_leadership and THOUGHT_LEADERSHIP_BRAND not in brands:
+        brands.append(THOUGHT_LEADERSHIP_BRAND)
+    return brands
+
+
 def _applies(values: List[str], content: List[str]) -> bool:
     return not values or bool(set(values) & set(content))
 

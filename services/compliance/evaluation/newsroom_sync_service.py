@@ -32,9 +32,11 @@ logger = logging.getLogger(__name__)
 SOURCE = "NEWSROOM"
 NEWSROOM_URL = os.getenv("NEWSROOM_URL", "https://www.zenatech.com/newsroom/")
 SYNC_EVERY = timedelta(hours=24)
+# Articles the AI couldn't read (quota, rate limit) are tried again this soon, not the next day.
+RETRY_FAILED_AFTER = timedelta(hours=3)
 # Be polite to the site and the AI quota.
 FETCH_CONCURRENCY = 4
-AI_CONCURRENCY = 3
+AI_CONCURRENCY = 2
 MAX_ARTICLE_CHARS = 12_000
 USER_AGENT = "Mozilla/5.0 (compatible; ZenaTechCompliancePortal/1.0; +https://www.zenatech.com/)"
 
@@ -128,7 +130,10 @@ async def _summarize(item: Dict[str, Any], text: str) -> Dict[str, str]:
     config = types.GenerateContentConfig(
         response_mime_type="application/json", response_schema=RESPONSE_SCHEMA, temperature=0.1
     )
-    response = await generate_content_with_fallback(_get_client(), prompt, config, feature="NEWSROOM")
+    # A call that hangs would hold up the whole sync: give up on this article after two minutes.
+    response = await asyncio.wait_for(
+        generate_content_with_fallback(_get_client(), prompt, config, feature="NEWSROOM"), timeout=120
+    )
     data = json.loads(response.text or "{}")
     title = (data.get("title") or item["title"]).strip()[:200]
     fact = (data.get("fact") or "").strip()[:2000]
@@ -273,15 +278,31 @@ async def start(trigger: str, user_id: Optional[UUID] = None) -> Dict[str, Any]:
 
 
 async def newsroom_sync_loop() -> None:
-    """Once a day: sync when the last finished sync is over a day old (checked hourly, so restarts don't skip a day)."""
+    """Once a day: sync when the last finished sync is over a day old (checked hourly, so restarts don't skip a day).
+    A sync that failed or was cut off is tried again an hour later; one that left articles unread, three hours later."""
+    # A sync runs inside the server, so one still marked RUNNING was cut off when the server last stopped.
+    await fetch_one(
+        "UPDATE messaging_context_syncs SET status = 'FAILED', error = 'Stopped when the server restarted', "
+        "finished_at = NOW() WHERE source = $1 AND status = 'RUNNING' RETURNING id",
+        SOURCE,
+    )
     await asyncio.sleep(60)
     while True:
         try:
             last = await fetch_one(
-                "SELECT max(started_at) AS at FROM messaging_context_syncs WHERE source = $1 AND status IN ('DONE', 'RUNNING')",
-                SOURCE,
+                """
+                SELECT max(started_at + CASE WHEN failed > 0 THEN $2::interval ELSE $3::interval END)
+                           FILTER (WHERE status = 'DONE') AS fresh_until,
+                       max(started_at) FILTER (WHERE error IS DISTINCT FROM 'Stopped when the server restarted') AS tried_at
+                FROM messaging_context_syncs WHERE source = $1
+                """,
+                SOURCE, RETRY_FAILED_AFTER, SYNC_EVERY,
             )
-            if not last or not last["at"] or datetime.now(timezone.utc) - last["at"] >= SYNC_EVERY:
+            now = datetime.now(timezone.utc)
+            # A finished sync is good for a day; one that couldn't read some articles is run again sooner for those.
+            stale = not last or not last["fresh_until"] or now >= last["fresh_until"]
+            rested = not last or not last["tried_at"] or now - last["tried_at"] >= timedelta(hours=1)
+            if stale and rested:
                 await start("SCHEDULED")
         except Exception:
             logger.exception("Newsroom sync scheduling failed")
