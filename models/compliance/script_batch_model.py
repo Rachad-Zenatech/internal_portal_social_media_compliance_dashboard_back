@@ -27,6 +27,8 @@ class BatchDetails(BaseModel):
 class BatchUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=300)
     details: Optional[BatchDetails] = None
+    # True: each script has its own details (before the batch is first sent). False: one set for the whole batch.
+    per_script_details: Optional[bool] = None
 
 
 class BatchItemCreate(BaseModel):
@@ -37,6 +39,8 @@ class BatchItemCreate(BaseModel):
 class BatchItemUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=300)
     body: Optional[str] = Field(None, max_length=200_000)
+    # This script's own details, when the batch sets them per script.
+    details: Optional[BatchDetails] = None
 
 
 class BatchItem(BaseModel):
@@ -45,14 +49,20 @@ class BatchItem(BaseModel):
     title: str
     body: str
     status: ItemStatus
-    # The rulebook check of the script (score, flags), as for a post's script.
+    # The rulebook check of the script (score, flags), as for a post's script. Before sending, the creator's own check;
+    # stale once its wording, its details or the rulebook changed since.
     check: Optional[Dict[str, Any]] = None
+    check_stale: bool = False
     review_note: Optional[str] = None
     reviewed_by_name: Optional[str] = None
     reviewed_at: Optional[datetime] = None
-    # The post made from it once approved.
+    # The post made for it when the batch was sent; its script is reviewed on that post's own page.
     submission_id: Optional[UUID] = None
     reference_code: Optional[str] = None
+    # The details its post gets: its own when the batch sets them per script, else the batch's. What is still missing
+    # (per-script batches only; a shared set's gaps are on the batch).
+    details: Dict[str, Any] = Field(default_factory=dict)
+    missing_details: List[str] = Field(default_factory=list)
 
 
 class Batch(BaseModel):
@@ -63,14 +73,18 @@ class Batch(BaseModel):
     created_by: UUID
     created_by_name: Optional[str] = None
     details: Dict[str, Any] = Field(default_factory=dict)
-    # The details still missing before it can be sent, by their names on the form.
+    # One set of details for every script (False), or each script has its own (True).
+    per_script_details: bool = False
+    # The details still missing before it can be sent, by their names on the form (the shared set; per script, see items).
     missing_details: List[str] = Field(default_factory=list)
     items: List[BatchItem] = Field(default_factory=list)
     error: Optional[str] = None
     sent_at: Optional[datetime] = None
     created_at: datetime
-    # What the viewer can do now.
+    # What the viewer can do now. can_edit: the details form (until the batch is first sent). can_change_scripts: edit,
+    # add or remove scripts that haven't been sent yet.
     can_edit: bool = False
+    can_change_scripts: bool = False
     can_send: bool = False
     can_review: bool = False
 
@@ -98,8 +112,8 @@ class ItemDecision(BaseModel):
 
 class BatchReviewRequest(BaseModel):
     decisions: List[ItemDecision] = Field(..., min_length=1, max_length=200)
-    # When each created post's video is due: working days from now, or an exact time. Neither: no deadline.
-    due_days: Optional[int] = Field(None, ge=1, le=60)
+    # When each approved script's video is due: working days from now, or an exact time. Neither: no deadline.
+    due_days: Optional[Literal[1, 2, 3, 5]] = None
     due_at: Optional[datetime] = None
 
 

@@ -30,6 +30,22 @@ class ScriptVersion(BaseModel):
     reviewed_at: Optional[datetime] = None
 
 
+class ScriptBatchRef(BaseModel):
+    """Where this script sits in the batch it was uploaded with, for stepping through the batch one script at a time."""
+    batch_id: UUID
+    title: str
+    # 1-based place in the batch, and how many scripts it has.
+    position: int
+    total: int
+    # The posts of the scripts before and after this one (None at the ends).
+    previous_id: Optional[UUID] = None
+    next_id: Optional[UUID] = None
+    # The next script after this one that is still waiting for a reviewer (going round the batch), if any.
+    next_waiting_id: Optional[UUID] = None
+    # How many of the batch's scripts are still waiting for a reviewer.
+    waiting: int = 0
+
+
 class ScriptStage(BaseModel):
     submission_id: UUID
     reference_code: str
@@ -52,6 +68,13 @@ class ScriptStage(BaseModel):
     processing: bool = False
     # Why the last send failed (which step), so the creator can fix it and send again.
     send_error: Optional[str] = None
+    # Set when the script came in a batch of scripts uploaded together.
+    batch: Optional[ScriptBatchRef] = None
+    # The creator's compliance check of the uploaded script, run before sending it; stale once the script, the post's
+    # details or the rulebook changed since (then it's run again).
+    precheck: Optional[Dict[str, Any]] = None
+    precheck_stale: bool = False
+    precheck_at: Optional[datetime] = None
 
 
 class ScriptDecisionRequest(BaseModel):
@@ -95,6 +118,8 @@ class ScriptQueueItem(BaseModel):
     ai_unavailable: bool = False
     traffic_light: Optional[str] = None
     approval_needed_by: Optional[datetime] = None
+    # Set when the script came in a batch of scripts uploaded together (listed with that batch).
+    batch_id: Optional[UUID] = None
     # IN_REVIEW, CHANGES_REQUESTED, EDITS_PROPOSED or APPROVED, and when the reviewer decided (None while waiting).
     script_status: str = "IN_REVIEW"
     decided_at: Optional[datetime] = None

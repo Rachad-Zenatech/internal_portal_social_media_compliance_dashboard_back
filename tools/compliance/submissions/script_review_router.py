@@ -61,6 +61,12 @@ async def revise_script(submission_id: UUID, req: ScriptReviseRequest, user_id: 
     return await svc.revise(submission_id, user_id, req)
 
 
+@router.post("/{submission_id}/script/precheck", response_model=ScriptStage)
+async def precheck_script(submission_id: UUID, user_id: CurrentUser):
+    """Creator: check the uploaded script against the rulebook before sending it (the result is kept)."""
+    return await svc.precheck(submission_id, user_id)
+
+
 @router.post("/{submission_id}/script/check", response_model=Dict[str, Any])
 async def check_script(submission_id: UUID, req: ScriptCheckRequest, user_id: CurrentUser):
     """Check wording being edited, without saving it."""
