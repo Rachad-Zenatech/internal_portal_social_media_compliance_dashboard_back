@@ -124,9 +124,61 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/shared/core/audit_service.py (126 lines) - audit service (shared core)
 - services/shared/core/cache_service.py (200 lines) - Goes up on every invalidation.
 - services/shared/core/logging_service.py (122 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
+- tests/conftest.py (23 lines) - Shared test setup.
+- tests/fake_mongo.py (139 lines) - An in-memory stand-in for the parts of motor's collection API the mood-learning code uses, so tests never need (or reach) a real database.
+- tests/test_ai_down_approval.py (102 lines) - test ai down approval
+- tests/test_ai_health.py (94 lines) - test ai health
+- tests/test_ai_unavailable.py (45 lines) - test ai unavailable
+- tests/test_analysis_pending.py (50 lines) - test analysis pending
+- tests/test_analysis_progress.py (112 lines) - test analysis progress
+- tests/test_audiences.py (81 lines) - test audiences
+- tests/test_cheaper_recall.py (95 lines) - test cheaper recall
+- tests/test_citation_finder.py (115 lines) - Finding what a post cites as its source: links, "Source:" lines on a caption or an image, named documents.
+- tests/test_claim_checks.py (203 lines) - The text read from the "$25M contract" graphic, line breaks and all.
+- tests/test_collection.py (168 lines) - Scraped numbers are only what was collected; collection is broad but bounded; failures are not 'no results'.
+- tests/test_compliance_scoring.py (405 lines) - These tests are about the wording-based rules, so the vector store and the model that match rules by meaning are
+- tests/test_conversation_mood.py (424 lines) - Public mood from the conversations found for a post: relevance checks, stories, limits, saved assessments.
+- tests/test_conversation_states.py (248 lines) - Step 6: explicit states, reasons and warnings, and reviewer input saved against the exact assessment.
+- tests/test_dashboard_summary.py (152 lines) - In the order dashboard_summary asks: post decisions, the average score, then script decisions.
+- tests/test_deadlines.py (56 lines) - test deadlines
+- tests/test_delete_draft.py (36 lines) - test delete draft
+- tests/test_document_text.py (83 lines) - test document text
+- tests/test_duplicate_posts.py (103 lines) - test duplicate posts
+- tests/test_evidence_penalty.py (57 lines) - test evidence penalty
+- tests/test_extra_claims.py (46 lines) - test extra claims
+- tests/test_full_rule_pass.py (81 lines) - test full rule pass
+- tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
+- tests/test_local_sentiment_model.py (59 lines) - The trained local sentiment model (with VADER as the fallback) for scraped X posts and headlines.
+- tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
+- tests/test_mood_auto_train.py (289 lines) - Training starts by itself when a reviewer's decision changes, and only then; it never blocks, never creates empty datasets, and never reg...
+- tests/test_mood_features_and_records.py (292 lines) - Steps 8 and 10: one feature function, and an insert-only record of every assessment made.
+- tests/test_mood_learning_pipeline.py (674 lines) - Steps 9, 11-14: reviews and conflicts, a fixed dataset, training, promotion, and the guarded decision.
+- tests/test_mood_xgboost_port.py (328 lines) - The XGBoost model as carried over from the administration project's approach, fitted to this project: training rows with the required att...
+- tests/test_performance_period.py (86 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
+- tests/test_post_signals.py (93 lines) - test post signals
+- tests/test_resume_reads.py (47 lines) - test resume reads
+- tests/test_retired_models.py (36 lines) - test retired models
 - tests/test_review_decision.py (270 lines) - test review decision
 - tests/test_review_delegation.py (111 lines) - Review delegation: a reviewer hands a post in review to someone else and stays on it.
+- tests/test_review_penalty.py (68 lines) - test review penalty
 - tests/test_reviewer_choice.py (195 lines) - test reviewer choice
+- tests/test_rule25_guidance.py (26 lines) - test rule25 guidance
+- tests/test_rulebook_check_coverage.py (165 lines) - test rulebook check coverage
+- tests/test_scrape_button.py (188 lines) - The scrape button: scraping starts only from it, runs outside the server's event loop, and reports how it went.
+- tests/test_script_match.py (73 lines) - test script match
+- tests/test_script_queue.py (107 lines) - test script queue
+- tests/test_script_send.py (160 lines) - test script send
+- tests/test_security_fixes.py (133 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
+- tests/test_sentiment_strictness.py (70 lines) - test sentiment strictness
+- tests/test_sentiment_verification.py (147 lines) - test sentiment verification
+- tests/test_social_post_no_video.py (48 lines) - test social post no video
+- tests/test_source_check.py (435 lines) - Source check: reading what a post cites and comparing it with the post's claims.
+- tests/test_submission_access.py (155 lines) - test submission access
+- tests/test_teams_service.py (287 lines) - Teams direct messages: checking what Teams sends, saving chats, and delivering notifications.
+- tests/test_test_login.py (56 lines) - auth_router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
+- tests/test_trend_and_watch.py (252 lines) - A real trend from what has been collected, and searches about the company itself.
+- tests/test_x_feed_store.py (243 lines) - The collected feed lives in the vector database's x_feed_data collection, and is read from there, not from a file.
+- tests/test_x_sentiment_listening.py (179 lines) - test x sentiment listening
 - tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
 - tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - tools/compliance/analytics/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).
