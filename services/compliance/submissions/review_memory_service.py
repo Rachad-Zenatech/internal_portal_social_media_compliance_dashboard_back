@@ -1,7 +1,8 @@
 """Review memory: this team's past review decisions, used as precedent when new content is analysed.
 
 Every decided review (approved, or sent back for changes) is kept in the vector store with the content that was
-reviewed and what reviewers said about it: the decision and its note, their comments, compliance flags they
+reviewed (the title, the caption, what a video says, the script, and the text read from its photos) and what reviewers
+said about it: the decision and its note, their comments, compliance flags they
 dismissed as false alarms, and sentiment findings they rated useful or "not an issue". When a post is analysed,
 the past reviews closest to it in meaning are given to Gemini as precedent, so it judges new content the way this
 team has judged similar content. That matters most for repeated campaigns and recurring wording.
@@ -29,7 +30,8 @@ MAX_PRECEDENTS = 4
 # vectorSearchScore for cosine similarity runs 0-1 (0.5 = unrelated). Below this, a past review isn't similar
 # enough to be precedent.
 MIN_SCORE = float(os.getenv("REVIEW_MEMORY_MIN_SCORE", "0.88"))
-TEXT_CHARS = 4000
+# How much of a post's text is kept and matched: caption, video speech, script and photo text together.
+TEXT_CHARS = int(os.getenv("REVIEW_MEMORY_TEXT_CHARS", "12000"))
 DECISION_LABELS = {"APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES REQUESTED"}
 
 _tasks: Set[asyncio.Task] = set()
@@ -38,7 +40,7 @@ _tasks: Set[asyncio.Task] = set()
 _DECISIONS_SQL = """
     SELECT DISTINCT ON (j.submission_id, j.version_number)
            j.submission_id, j.version_number, j.decision, j.decision_notes, j.decided_at,
-           s.reference_code, v.snapshot, u.full_name AS decided_by_name, t.transcript,
+           s.reference_code, v.snapshot, u.full_name AS decided_by_name, t.transcript, i.image_text,
            COALESCE((
                SELECT json_agg(c.body ORDER BY c.created_at) FROM content_review_comments c
                WHERE c.submission_id = j.submission_id AND c.version_number = j.version_number
@@ -65,6 +67,12 @@ _DECISIONS_SQL = """
           AND f.mime_type LIKE 'video/%' AND f.transcript IS NOT NULL
         LIMIT 1
     ) t ON true
+    LEFT JOIN LATERAL (
+        SELECT string_agg(f.image_text, E'\\n' ORDER BY f.created_at) AS image_text
+        FROM content_submission_files f
+        WHERE f.id::text IN (SELECT e->>'id' FROM jsonb_array_elements(COALESCE(v.snapshot->'files', '[]'::jsonb)) e)
+          AND f.mime_type LIKE 'image/%' AND f.image_text_status = 'COMPLETED' AND COALESCE(f.image_text, '') <> ''
+    ) i ON true
     WHERE j.decision IS NOT NULL AND s.deleted_at IS NULL {where}
     ORDER BY j.submission_id, j.version_number, j.decided_at DESC NULLS LAST
 """
@@ -74,11 +82,18 @@ def _json(value: Any) -> Any:
     return json.loads(value) if isinstance(value, str) else value
 
 
+def post_text(caption: Any = "", spoken: Any = "", script: Any = "", photo_text: Any = "") -> str:
+    """The text a post is matched on: its caption, what its video says, its script and the text read from its photos,
+    in that order. Past posts are stored as this and a new post is compared as this, so the two line up."""
+    parts = [str(p).strip() for p in (caption, spoken, script, photo_text) if p and str(p).strip()]
+    return "\n".join(parts)[:TEXT_CHARS]
+
+
 def _doc(row: Dict[str, Any]) -> Optional[store.VectorDoc]:
     """A reviewed version as a vector document: its content is what gets matched, the review is what comes back."""
     snap = _json(row["snapshot"]) or {}
     transcript = " ".join(s.get("text", "") for s in (_json(row["transcript"]) or []) if isinstance(s, dict))
-    text = "\n".join(p for p in ((snap.get("caption_text") or "").strip(), transcript) if p.strip())[:TEXT_CHARS]
+    text = post_text(snap.get("caption_text"), transcript, snap.get("script_text"), row.get("image_text"))
     title = snap.get("title") or ""
     if not (title.strip() or text.strip()):
         return None
@@ -153,11 +168,33 @@ async def remember_all_in_background() -> None:
 
 
 def query_text(inp: Dict[str, Any]) -> str:
-    """The text a post is matched on: the same parts that are stored for past reviews."""
+    """The text a post is matched on: the same parts that are stored for past reviews. The analysis input carries the
+    caption, the video's transcript and the script; the photo text is added under "image_text" (see similar())."""
     transcript = inp.get("transcript")
     spoken = " ".join(s.get("text", "") for s in transcript) if isinstance(transcript, list) else ""
-    text = "\n".join(p for p in (inp.get("caption") or "", spoken) if p.strip())[:TEXT_CHARS]
+    text = post_text(inp.get("caption"), spoken, inp.get("script"), inp.get("image_text"))
     return f"{inp.get('title') or ''}\n{text}".strip()
+
+
+async def _photo_text(inp: Dict[str, Any]) -> str:
+    """The text read from the post's photos, which the analysis input only refers to by file."""
+    ids: List[UUID] = []
+    for image in inp.get("images") or []:
+        try:
+            ids.append(UUID(str(image["file_id"])))
+        except (KeyError, ValueError, TypeError):
+            continue
+    if not ids:
+        return str(inp.get("image_text") or "")
+    rows = await fetch_all(
+        """
+        SELECT image_text FROM content_submission_files
+        WHERE id = ANY($1::uuid[]) AND image_text_status = 'COMPLETED' AND COALESCE(image_text, '') <> ''
+        ORDER BY created_at
+        """,
+        ids,
+    )
+    return "\n".join(r["image_text"] for r in rows)
 
 
 async def similar(inp: Dict[str, Any], submission_id: Optional[UUID] = None,
@@ -168,8 +205,10 @@ async def similar(inp: Dict[str, Any], submission_id: Optional[UUID] = None,
     precedent of all), except an approval of identical content, which would only confirm itself.
     exclude_submission leaves the post out entirely (the test set does, so a saved case can't see its own answer).
     """
-    query = query_text(inp)
-    if not store.is_enabled() or not query:
+    if not store.is_enabled():
+        return []
+    query = query_text({**inp, "image_text": await _photo_text(inp)})
+    if not query:
         return []
     rows = await store.search(query, kinds=[KIND], limit=MAX_PRECEDENTS + 6, min_score=MIN_SCORE)
     own = str(submission_id) if submission_id else None

@@ -4,6 +4,7 @@ Drafts, file storage, versioning, review jobs and activity history for content s
 
 import asyncio
 import json
+import time
 import logging
 import mimetypes
 import os
@@ -53,7 +54,7 @@ from models.compliance.submission_model import (
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.core.audit_service import log_audit_event
-from services.ai.observability import ai_usage_service
+from services.ai.observability import ai_observability, ai_usage_service
 from services.compliance.submissions import approval_path_service
 from services.compliance.submissions import delegation_service
 from services.compliance.submissions import duplicate_service
@@ -62,6 +63,7 @@ from services.compliance.submissions import flag_review_service
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
+from services.compliance.submissions import post_steps_service
 from services.compliance.media import document_layout
 from services.compliance.media import document_text_service
 from services.compliance.media import image_text_service
@@ -104,6 +106,31 @@ MAIN_EXT_BY_TYPE = {
 }
 # Types whose main asset is required to submit; posts and articles can be text-only. An ad needs its creative.
 MAIN_FILE_REQUIRED = {"VIDEO", "IMAGE", "CAROUSEL", "AD"}
+# Saved fields that don't change what the compliance check, sentiment analysis or public mood read.
+_NOT_CONTENT_FIELDS = {"approval_needed_by", "reviewer_ids", "reviewer_route"}
+
+
+def _same_value(new: Any, old: Any) -> bool:
+    """Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts)."""
+    if isinstance(new, list) and isinstance(old, list):
+        return [str(x) for x in new] == [str(x) for x in old]
+    if isinstance(old, datetime) and isinstance(new, str):
+        try:
+            parsed = datetime.fromisoformat(new.replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=old.tzinfo)
+        return parsed == old
+    if isinstance(new, UUID) or isinstance(old, UUID):
+        return str(new) == str(old)
+    return new == old
+
+
+def content_changed(row: Dict[str, Any], fields: Dict[str, Any]) -> bool:
+    """Whether saving these fields changes anything the checks read. A save that only repeats what is already there
+    (every save from the editor sends the whole form) leaves the checks up to date."""
+    return any(c not in _NOT_CONTENT_FIELDS and not _same_value(v, row.get(c)) for c, v in fields.items())
 
 
 # ---------------------------------------------------------------------------
@@ -483,7 +510,19 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         """
         SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.brand_codes, s.platforms, s.status,
                s.current_version, s.publish_at, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
-               s.due_at, s.due_kind, s.rule_sets,
+               s.due_at, s.due_kind, s.rule_sets, s.region, s.script_required,
+               -- What the five steps are worked out from: when each tool last ran, and when the content last changed.
+               s.content_edited_at,
+               (s.latest_check->>'checked_at')::timestamptz AS check_at,
+               (SELECT max(a.completed_at) FROM content_sentiment_analyses a
+                 WHERE a.submission_id = s.id AND a.status = 'COMPLETED') AS sentiment_at,
+               EXISTS (SELECT 1 FROM content_sentiment_analyses a WHERE a.submission_id = s.id
+                        AND a.status IN ('WAITING_TRANSCRIPT', 'PENDING', 'PROCESSING')) AS sentiment_running,
+               (SELECT max(m.created_at) FROM public_mood_summaries m WHERE m.submission_id = s.id) AS mood_at,
+               EXISTS (SELECT 1 FROM content_submission_files mf WHERE mf.submission_id = s.id AND mf.kind = 'MAIN'
+                        AND mf.deleted_at IS NULL) AS has_main,
+               EXISTS (SELECT 1 FROM content_submission_files mf WHERE mf.submission_id = s.id AND mf.kind = 'MAIN'
+                        AND mf.deleted_at IS NULL AND mf.mime_type LIKE 'video/%') AS main_is_video,
                CASE WHEN s.script_required AND s.content_type = 'VIDEO' THEN coalesce(s.script_status, 'DRAFT') END
                    AS script_status,
                CASE WHEN s.script_send->>'status' = 'PROCESSING'
@@ -581,6 +620,13 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
             **_approval_fields(rules, r, user_id, is_reviewer, is_super, _accounts(r), edges.get(r["id"])),
             can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
+            steps=post_steps_service.compute_steps({
+                **r,
+                "has_account": bool(_accounts(r)),
+                "main_required": r["content_type"] in MAIN_FILE_REQUIRED,
+                "script_stage": script_stage_on(r),
+                "latest_score": r["latest_score"],
+            }),
         ))
     # Posts still being read: what's left and when their score should be ready.
     progress = await analysis_progress_service.for_submissions([s.id for s in summaries if s.analysis_pending])
@@ -721,11 +767,13 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
     columns = list(fields.keys())
     sets = ", ".join(f"{c} = ${i + 2}" for i, c in enumerate(columns))
     params = [submission_id, *fields.values(), user_id]
+    # Changing anything the checks read makes their results out of date; who reviews it and by when does not.
+    edited = ", content_edited_at = NOW()" if content_changed(row, fields) else ""
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
-                f"UPDATE content_submissions SET {sets}, updated_by = ${len(params)}, updated_at = NOW() WHERE id = $1",
+                f"UPDATE content_submissions SET {sets}{edited}, updated_by = ${len(params)}, updated_at = NOW() WHERE id = $1",
                 *params,
             )
             # One "draft saved" entry per 10 minutes keeps autosave from flooding the activity log.
@@ -960,8 +1008,9 @@ async def _record_file(
                 canva["title"] if canva else None,
                 canva["revision"] if canva else None,
             )
-            await conn.execute("UPDATE content_submissions SET updated_at = NOW(), updated_by = $2 WHERE id = $1",
-                               submission_id, user_id)
+            await conn.execute(
+                "UPDATE content_submissions SET updated_at = NOW(), content_edited_at = NOW(), updated_by = $2 WHERE id = $1",
+                submission_id, user_id)
             if canva:
                 verb = "Reimported" if replaces_file_id else "Imported"
                 await _add_event(conn, submission_id, "CANVA_IMPORTED",
@@ -1097,6 +1146,7 @@ async def remove_file(submission_id: UUID, file_id: UUID, user_id: UUID) -> None
             )
             if not name:
                 raise HTTPException(status_code=404, detail="File not found")
+            await conn.execute("UPDATE content_submissions SET content_edited_at = NOW() WHERE id = $1", submission_id)
             await _add_event(conn, submission_id, "FILE_REMOVED", f"Removed {name}", user_id, {"file_id": str(file_id)})
 
 
@@ -1329,7 +1379,24 @@ async def run_initial_check(submission_id: UUID, user_id: UUID) -> Submission:
     row = await _get_owned_row(submission_id, user_id)
     if not _check_text(row):
         raise HTTPException(status_code=422, detail="Add a title or caption before running the check")
-    result, check = await _run_check(row)
+    await require_details_complete(row, "running the compliance check")
+    # Which models answered is kept with the result, so it can be shown later and not only while the check runs.
+    attempts: Dict[str, Dict[str, Any]] = {}
+    outer = ai_observability.attempt_listener.get()
+    started = time.perf_counter()
+
+    def record(event: Dict[str, Any]) -> None:
+        if event.get("event") == "attempt" and event.get("id"):
+            attempts[event["id"]] = {k: event.get(k) for k in ("id", "status", "model", "feature", "attempt", "tier", "error_kind", "error", "duration_ms")}
+        if outer is not None:
+            outer(event)
+
+    token = ai_observability.attempt_listener.set(record)
+    try:
+        result, check = await _run_check(row)
+    finally:
+        ai_observability.attempt_listener.reset(token)
+    check["models"] = {"attempts": list(attempts.values()), "duration_ms": round((time.perf_counter() - started) * 1000)}
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -1381,6 +1448,32 @@ async def _missing_for_submit(row: Dict[str, Any]) -> List[str]:
     if script_stage_on(row) and row.get("script_status") != "APPROVED":
         missing.append("script_approval")
     return missing
+
+
+# What sending needs on top of the post's own details; the checks don't wait for these.
+_SEND_ONLY_FIELDS = {"approval_needed_by", "reviewer_ids"}
+
+
+async def details_missing(row: Dict[str, Any]) -> List[str]:
+    """What the post still needs before its compliance check, sentiment analysis and public mood can be run."""
+    return [m for m in await _missing_for_submit(row) if m not in _SEND_ONLY_FIELDS]
+
+
+async def require_details_complete(row: Dict[str, Any], doing: str) -> None:
+    """The three tools read a finished post, so they are refused until its details are filled in. A post that has been
+    sent was complete when it went, so it is never refused."""
+    if row["status"] not in post_steps_service.EDITABLE_STATUSES:
+        return
+    missing = await details_missing(row)
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Fill in the post details before {doing}. Still needed: {post_steps_service.missing_words(missing)}.",
+        )
+
+
+async def require_details_complete_for(submission_id: UUID, user_id: UUID, doing: str) -> None:
+    await require_details_complete(await _get_owned_row(submission_id, user_id, manager_can_read=True), doing)
 
 
 async def _require_not_duplicate(row: Dict[str, Any], confirm_repost: bool) -> None:

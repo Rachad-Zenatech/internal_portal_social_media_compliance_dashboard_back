@@ -141,7 +141,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (598 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (620 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -152,6 +152,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `SubmissionFile` (class)
 - `AnalysisStep` (class) - One part of the post still being read before the rulebook check can score it.
 - `AnalysisProgress` (class) - How far the post's reading has got and when the score is expected.
+- `SubmissionSteps` (class) - How far a post has got through the five steps a creator works through (see post_steps_service).
 - `SubmissionSummary` (class)
 - `Submission` (class)
 - `SubmissionVersion` (class)
@@ -270,7 +271,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (686 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (689 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -1334,6 +1335,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `open_critical_counts` (def) - Per submission: critical (red) flags on its current version that nobody has dismissed.
 - `rule_stats` (def) - How often each rule flagged a submitted version, and how often reviewers dismissed it.
 
+## services/compliance/submissions/post_steps_service.py (117 lines) - The five steps a creator works through, and how far each post has got.
+- `missing_words` (def)
+- `_aware` (def)
+- `details_missing` (def) - What the post still needs before its details are complete.
+- `_tool` (def) - done, stale (run before the last edit), running, or todo (never run).
+- `compute_steps` (def) - The steps for one post, from a row of what the list query reads (see submission_service.list_submissions).
+
 ## services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - `_hours` (def)
 - `add_working_days` (def) - The same time of day, this many working days later (Saturdays and Sundays are skipped).
@@ -1349,8 +1357,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `backfill_missing` (def) - Give content that was already waiting when deadlines were introduced a deadline from now, as if it had just
 - `deadline_loop` (def)
 
-## services/compliance/submissions/review_memory_service.py (190 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
+## services/compliance/submissions/review_memory_service.py (229 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - `_json` (def)
+- `post_text` (def) - The text a post is matched on: its caption, what its video says, its script and the text read from its photos,
 - `_doc` (def) - A reviewed version as a vector document: its content is what gets matched, the review is what comes back.
 - `_remember` (def)
 - `remember` (def) - Store (or refresh) one reviewed version.
@@ -1359,9 +1368,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `run` (def)
 - `remember_all_in_background` (def) - Startup: catch up on anything decided while review memory was off or the server was down.
 - `query_text` (def) - The text a post is matched on: the same parts that are stored for past reviews.
+- `_photo_text` (def) - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (2738 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (2831 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- `_same_value` (def) - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
+- `content_changed` (def) - Whether saving these fields changes anything the checks read.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -1415,7 +1427,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_run_check` (def) - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
 - `_mirror_to_script_version` (def) - A check saved on the post while its script is with the reviewer is also the script version's check, so both
 - `run_initial_check` (def)
+    - `record` (def)
 - `_missing_for_submit` (def)
+- `details_missing` (def) - What the post still needs before its compliance check, sentiment analysis and public mood can be run.
+- `require_details_complete` (def) - The three tools read a finished post, so they are refused until its details are filled in.
+- `require_details_complete_for` (def)
 - `_require_not_duplicate` (def) - The same content and caption, already sent for approval to the same place on the same date, can't be sent
 - `_review_job` (def)
 - `submit_for_review` (def)
@@ -1940,6 +1956,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_nothing_is_added_when_already_chosen_or_none_are_chosen` (def)
     - `test_both_reasons_are_given_investors_first` (def)
 
+## tests/test_content_changed.py (43 lines) - A save only makes the checks out of date when it changes something they read.
+- `test_saving_the_same_form_again_changes_nothing` (def)
+- `test_a_new_caption_counts` (def)
+- `test_a_new_platform_list_counts` (def)
+- `test_a_new_publish_date_counts` (def)
+- `test_who_reviews_and_by_when_never_counts` (def)
+- `test_a_field_the_post_did_not_have_counts` (def)
+
 ## tests/test_conversation_mood.py (424 lines) - Public mood from the conversations found for a post: relevance checks, stories, limits, saved assessments.
 - `_item` (def)
 - `_hit` (def)
@@ -2072,6 +2096,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_draft_whose_script_is_being_sent_cannot` (def)
     - `test_a_script_that_was_sent_back_or_never_sent_does_not_stop_it` (def)
     - `test_a_stuck_send_does_not_stop_it_forever` (def)
+
+## tests/test_details_gate.py (57 lines) - The compliance check, sentiment analysis and public mood can't be run until the post's details are filled in.
+- `row` (def)
+- `DetailsGateTests` (class)
+    - `gate` (def)
+    - `test_a_draft_with_missing_details_is_refused_and_told_what_is_missing` (def)
+    - `test_a_complete_draft_is_let_through` (def)
+    - `test_what_only_sending_needs_does_not_hold_the_tools_back` (def)
+    - `test_a_sending_field_does_not_hide_a_real_gap` (def)
+    - `test_changes_requested_is_held_to_the_same_rule` (def)
+    - `test_a_post_that_was_sent_is_never_refused` (def)
+    - `test_every_missing_field_has_a_word` (def)
 
 ## tests/test_document_text.py (83 lines) - test document text
 - `docx` (def) - A minimal .docx with these paragraphs ("\\t" and "\\n" become a tab and a line break).
@@ -2428,6 +2464,29 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_not_only_is_not_a_disclaimer` (def)
     - `test_ordinary_posts_have_no_findings` (def)
 
+## tests/test_post_steps.py (120 lines) - The five steps a creator works through: which are done, which are out of date, where to carry on, and when a post can be sent.
+- `post` (def) - A draft with everything filled in and every tool run after the last edit.
+- `StepsTests` (class)
+    - `test_a_finished_draft_is_ready_to_send_and_sits_on_the_send_step` (def)
+    - `test_a_new_draft_with_nothing_filled_in_starts_at_details` (def)
+    - `test_it_carries_on_at_the_first_step_not_done` (def)
+    - `test_a_tool_run_before_the_last_edit_is_out_of_date` (def)
+    - `test_an_edit_before_the_tools_ran_leaves_them_current` (def)
+    - `test_a_post_never_edited_counts_from_when_it_was_created` (def)
+    - `test_a_check_still_being_read_is_running_and_not_ready` (def)
+    - `test_a_sentiment_run_in_progress_is_running` (def)
+    - `test_a_check_the_ai_could_not_finish_has_to_be_run_again` (def)
+    - `test_a_check_saved_before_checks_were_timed_counts_as_current` (def)
+    - `test_incomplete_details_stop_it_being_ready_even_if_every_tool_ran` (def)
+    - `test_a_text_post_needs_no_media` (def)
+    - `test_a_social_post_with_a_video_is_missing_its_media` (def)
+    - `test_a_video_needs_its_script_approved_first` (def)
+    - `test_the_fields_that_belong_to_sending_are_not_part_of_the_details_step` (def)
+- `LockedTests` (class)
+    - `test_a_sent_post_is_locked_and_everything_is_done` (def)
+    - `test_changes_requested_unlocks_it_and_the_steps_are_worked_out_again` (def)
+    - `test_changes_requested_with_nothing_edited_can_be_resent` (def)
+
 ## tests/test_resume_reads.py (47 lines) - test resume reads
 - `ResumeInterruptedReadTests` (class)
     - `test_images_cut_off_by_a_restart_are_read_again` (def)
@@ -2496,6 +2555,19 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `WithDelegatesTests` (class)
     - `test_follows_the_chain_from_named_approvers` (def)
     - `test_no_named_approvers_stays_empty` (def)
+
+## tests/test_review_memory_text.py (88 lines) - What is stored for a past post, and what a new post is compared on, must be the same set of text.
+- `_row` (def)
+- `StoredPostText` (class)
+    - `test_a_photo_posts_stored_text_includes_the_text_read_from_its_photos` (def)
+    - `test_the_script_and_video_speech_are_stored_too` (def)
+    - `test_the_parts_are_in_a_fixed_order` (def)
+    - `test_a_post_with_only_photo_text_is_still_stored` (def)
+    - `test_a_post_with_nothing_to_match_is_not_stored` (def)
+    - `test_long_text_is_cut_at_the_limit_not_before` (def)
+- `ComparedPostText` (class)
+    - `test_a_new_post_is_compared_on_the_same_parts` (def)
+    - `test_a_post_without_photos_or_script_matches_as_before` (def)
 
 ## tests/test_review_penalty.py (68 lines) - test review penalty
 - `rule` (def)
@@ -3045,7 +3117,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
 - `resolve_script_highlights` (def) [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
-## tools/compliance/submissions/submission_router.py (577 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submissions/submission_router.py (579 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
 - `list_reviewers` (def) [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
 - `get_hashtag_library` (def) [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
