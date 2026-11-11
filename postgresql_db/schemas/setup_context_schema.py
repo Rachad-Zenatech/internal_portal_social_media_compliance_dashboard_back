@@ -300,10 +300,13 @@ async def setup() -> None:
                 logo_path TEXT,
                 logo_mime VARCHAR(50),
                 logo_notes TEXT,
+                -- Rows of swatches in the manual (tints, shades...) by main colour: [{base_hex, label, colors}].
+                palette JSONB NOT NULL DEFAULT '[]'::jsonb,
                 extracted_at TIMESTAMP WITH TIME ZONE,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                 updated_by UUID REFERENCES users(id) ON DELETE SET NULL
             );
+            ALTER TABLE brand_voice_profiles ADD COLUMN IF NOT EXISTS palette JSONB NOT NULL DEFAULT '[]'::jsonb;
         """)
         await conn.execute(
             """

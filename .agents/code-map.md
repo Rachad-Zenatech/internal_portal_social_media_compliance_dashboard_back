@@ -33,6 +33,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ApproverOption` (class)
 - `ApprovalPathOptions` (class)
 
+## models/compliance/brand_voice_model.py (59 lines) - Brand voice per brand: the brand manual (PDF) and what was read from it (voice, colours, typefaces, logo).
+- `BrandColor` (class)
+- `PaletteRow` (class) - A row of colour swatches in the manual (e.g.
+- `BrandTypeface` (class)
+- `BrandVoiceIn` (class) - What a person can change by hand after (or instead of) reading the manual.
+- `BrandVoice` (class)
+
 ## models/compliance/canva_model.py (41 lines) - Canva Integration Models Connecting a Canva account, picking a design and importing (or reimporting) its export into a submission.
 - `CanvaConnection` (class)
 - `CanvaDesign` (class)
@@ -262,7 +269,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def) - Create the tables and add any missing baseline rules.
 - `_main` (def)
 
-## postgresql_db/schemas/setup_context_schema.py (326 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
+## postgresql_db/schemas/setup_context_schema.py (329 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
 - `setup` (def)
 
 ## postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
@@ -833,6 +840,41 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `summarise` (def) - Write (or reuse) the summary for the post's current version against the current moods.
 
 ## services/compliance/analytics/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
+
+## services/compliance/evaluation/brand_voice_service.py (711 lines) - Brand voice per brand, read from its brand manual.
+- `_may_edit` (def) - Super admins, rulebook editors, and reviewers for the brands they work on.
+- `_require_edit` (def)
+- `_json_list` (def)
+- `_out` (def)
+- `list_voices` (def) - Every active brand with its voice (an empty one when no manual or voice was added yet).
+- `get_voice` (def)
+- `file_path` (def) - The stored manual or logo for download: (path, media type, file name).
+- `upload_manual` (def)
+- `reread` (def)
+- `update_voice` (def)
+- `_clean` (def)
+    - `items` (def)
+- `PdfFacts` (class)
+- `_swatch_rows` (def) - Rows of three or more touching, same-height filled blocks (a palette strip), with the label above each.
+- `_sections` (def) - Each page rendered as images about as tall as an A4 page, overlapping a little so nothing is cut in half.
+- `crop_logo` (def) - Cut the logo out of the page at high resolution, from a box [ymin, xmin, ymax, xmax] (0-1000) in a section.
+- `read_pdf` (def) - What the PDF gives without AI: its text, the colour codes it prints, its fonts and its images.
+- `_AiColor` (class)
+- `_AiTypeface` (class)
+- `_AiResult` (class)
+- `_get_client` (def)
+- `_ask_ai` (def)
+- `_hex` (def)
+- `_logo_guess` (def) - Without AI: the biggest image on the earliest page that has one (manuals open with the logo).
+- `_rgb` (def)
+- `build_palette` (def) - Each swatch row under its main colour: the one it starts with, else the closest main colour, else its own
+- `extract` (def) - Read the stored manual and save what it says (runs in the background).
+- `_save_failure` (def)
+- `schedule` (def)
+    - `run` (def)
+- `context_body` (def) - The brand voice as one Messaging Context entry body (what the analysis is given).
+- `_sync_context_entry` (def) - Keep the brand's Brand Voice entry in the Messaging Context in step with its profile.
+- `resume_interrupted` (def) - Manuals that were being read when the server stopped are read again.
 
 ## services/compliance/evaluation/citation_finder.py (185 lines) - Citation finder: what a post says it got its claims from.
 - `Citation` (class)
@@ -1904,6 +1946,33 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `AnalysisUsesTheGuideTests` (class)
     - `test_the_prompt_lists_the_guide_with_its_source` (def)
     - `test_brand_alignment_checks_the_visual_identity` (def)
+
+## tests/test_brand_voice.py (156 lines) - Brand voice per brand, read from its brand manual (PDF).
+- `sample_manual` (def)
+- `ReadPdfTests` (class)
+    - `setUp` (def)
+    - `test_colour_codes_it_prints` (def)
+    - `test_fonts_it_is_set_in` (def)
+    - `test_images_that_could_be_the_logo` (def)
+    - `test_no_images_no_logo_guess` (def)
+- `TallPageTests` (class) - A one-page manual drawn as one long strip, with the logo as vector shapes (no image file).
+    - `setUp` (def)
+    - `test_the_page_is_shown_in_sections_that_cover_it_all` (def)
+    - `test_a_drawn_logo_is_cut_out_where_the_ai_found_it` (def)
+    - `test_a_box_too_small_gives_no_logo` (def)
+- `PaletteTests` (class) - Rows of swatches drawn in the manual: the tints, shades and other variants of each main colour.
+    - `setUp` (def)
+    - `test_rows_of_swatches_with_their_labels` (def)
+    - `test_each_row_goes_under_its_main_colour` (def)
+    - `test_a_row_not_starting_with_a_main_colour_goes_under_the_closest` (def)
+    - `test_the_palette_overview_itself_is_left_out` (def)
+    - `test_the_analysis_hears_about_it_grouped_by_colour` (def)
+- `ContextEntryTests` (class)
+    - `test_the_analysis_gets_voice_tone_colours_typefaces_and_logo_rules` (def)
+    - `test_an_empty_voice_gives_no_entry` (def)
+- `CleanTests` (class)
+    - `test_trims_dedupes_and_uppercases` (def)
+    - `test_hex_parsing` (def)
 
 ## tests/test_cheaper_recall.py (95 lines) - test cheaper recall
 - `ClaimGateTests` (class)

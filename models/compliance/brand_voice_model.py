@@ -16,6 +16,13 @@ class BrandColor(BaseModel):
     usage: Optional[str] = Field(None, max_length=200)
 
 
+class PaletteRow(BaseModel):
+    """A row of colour swatches in the manual (e.g. the tints of a main colour), read straight from the PDF."""
+    base_hex: str  # the main colour it belongs to
+    label: str  # e.g. Tints, Shades, Monochromatic
+    colors: List[str] = Field(default_factory=list)
+
+
 class BrandTypeface(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     role: Optional[str] = Field(None, max_length=100)  # e.g. Headings, Body
@@ -36,6 +43,8 @@ class BrandVoiceIn(BaseModel):
 class BrandVoice(BrandVoiceIn):
     brand_code: str
     brand_name: str
+    # The extended palette shown in the manual, by main colour (read from the PDF; replaced on each read).
+    palette: List[PaletteRow] = Field(default_factory=list)
     status: BrandVoiceStatus = "NONE"
     error: Optional[str] = None
     manual_name: Optional[str] = None
