@@ -264,29 +264,17 @@ async def _brand_scope(user_id: UUID) -> Optional[List[str]]:
     return list(row["brands"])
 
 
+def _reviewer_sees(user_param: str, scope_param: str) -> str:
+    """SQL: a reviewer sees content on their brands that was sent to them (or to no one in particular), and
+    anything sent or delegated to them by name, whatever its brand (delegation can go to any reviewer)."""
+    return (f"((({scope_param}::text[] IS NULL OR s.brand_codes && {scope_param}::text[]) AND {_sent_to(user_param)})"
+            f" OR {user_param} = ANY(s.reviewer_ids))")
+
+
 def _sent_to(user_param: str = "$1") -> str:
-    """SQL: the content was sent to this user (picked, or delegated to them), to someone they outrank in the reviewer
-    hierarchy (see content_review_rank), or to no one in particular (every reviewer on its brand)."""
-    return (
-        f"(cardinality(s.reviewer_ids) = 0 OR {user_param} = ANY(s.reviewer_ids)"
-        f" OR content_review_rank({user_param}) > (SELECT min(content_review_rank(x)) FROM unnest(s.reviewer_ids) x))"
-    )
-
-
-async def _outranks(user_id: UUID, reviewer_ids: List[UUID]) -> bool:
-    """The user is above at least one of these reviewers in the reviewer hierarchy."""
-    row = await fetch_one(
-        "SELECT content_review_rank($1) > (SELECT min(content_review_rank(x)) FROM unnest($2::uuid[]) x) AS above",
-        user_id, list(reviewer_ids),
-    )
-    return bool(row and row["above"])
-
-
-async def _in_review_scope(user_id: UUID, reviewer_ids: List[UUID]) -> bool:
-    """Python twin of _sent_to for one loaded row."""
-    if not reviewer_ids or user_id in reviewer_ids:
-        return True
-    return await _outranks(user_id, reviewer_ids)
+    """SQL: the content was sent to this user (picked, or delegated to them), or to no one in particular (every
+    reviewer on its brand)."""
+    return f"(cardinality(s.reviewer_ids) = 0 OR {user_param} = ANY(s.reviewer_ids))"
 
 
 async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: bool = False) -> Dict[str, Any]:
@@ -311,11 +299,12 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
         if not (manager_can_read and await _can_see_team_content(user_id)):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
         scope = await _brand_scope(user_id)
-        if scope is not None and not set(brands_of(row)) & set(scope):
+        named = user_id in (row.get("reviewer_ids") or [])
+        if scope is not None and not set(brands_of(row)) & set(scope) and not named:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
-        # Sent to particular reviewers: only they, their delegates and those above them in the reviewer hierarchy
-        # (besides its creator and super admins) may open it.
-        if not await _in_review_scope(user_id, list(row.get("reviewer_ids") or [])):
+        # Sent to particular reviewers: only they and anyone they delegated it to (besides its creator and super
+        # admins) may open it.
+        if row.get("reviewer_ids") and user_id not in row["reviewer_ids"]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     return row
 
@@ -513,7 +502,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         """
         SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.brand_codes, s.platforms, s.status,
                s.current_version, s.publish_at, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
-               s.due_at, s.due_kind, s.rule_sets, s.region, s.script_required,
+               s.due_at, s.due_kind, s.rule_sets, s.region, s.script_required, s.platform_captions,
                -- What the five steps are worked out from: when each tool last ran, and when the content last changed.
                s.content_edited_at,
                (s.latest_check->>'checked_at')::timestamptz AS check_at,
@@ -575,8 +564,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             ORDER BY (cf.kind = 'MAIN') DESC, cf.created_at ASC
             LIMIT 1
         ) cov ON true
-        WHERE (s.created_by = $1 OR ($3 AND ($4::text[] IS NULL OR s.brand_codes && $4::text[])
-                                     AND """ + _sent_to() + """))
+        WHERE (s.created_by = $1 OR ($3 AND """ + _reviewer_sees("$1", "$4") + """))
           AND s.deleted_at IS NULL AND ($2::text IS NULL OR s.status = $2)
         -- What needs the creator comes first: changes to fix (a post's or its script's), then drafts to finish
         -- (including an approved script waiting for its video). Then what's waiting on someone else: content in
@@ -607,7 +595,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
     for r in rows:
         base = {k: v for k, v in r.items()
                 if not k.startswith(("acc_", "cov_"))
-                and k not in ("platforms", "accounts_json", "due_at", "due_kind", "rule_sets")}
+                and k not in ("platforms", "accounts_json", "due_at", "due_kind", "rule_sets", "platform_captions")}
         cover = {k[4:]: v for k, v in r.items() if k.startswith("cov_")}
         if base.get("script_excerpt"):
             # The card shows the wording, without the page, heading and table marks.
@@ -618,6 +606,8 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             **_due(r),
             account=_account_option(r, prefix="acc_"),
             accounts=_accounts(r),
+            # The calendar publishes each platform's own caption.
+            platform_captions=_platform_captions(dict(r)),
             cover=_file_out(r["id"], cover) if cover["id"] else None,
             can_delete=_can_delete(r, r["created_by"] == user_id or is_manager),
             can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
@@ -650,7 +640,8 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
         is_super = await _is_super_admin(user_id)
         may_decide = await _can_review(user_id) and (not is_creator or is_super)
         sub.can_review = row["status"] == "IN_REVIEW" and may_decide
-        sub.can_delegate = sub.can_review
+        sub.can_delegate = sub.can_review and not await delegation_service.has_delegated(
+            row["id"], row["current_version"], user_id)
         approver_ids = await delegation_service.with_delegates(row["id"], approver_ids)
         sub.can_approve = sub.can_review and _may_approve(user_id, is_super, approver_ids)
         sub.can_manage_approval = row["status"] == "APPROVED" and may_decide
@@ -690,6 +681,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         brand_codes = [payload["brand_code"]]
     if brand_codes is not None:
         brand_codes = list(dict.fromkeys(brand_codes))
+        if len(brand_codes) > 1:
+            raise HTTPException(status_code=422, detail="A post is for one brand. Make a separate post for each brand.")
         found = await fetch_all("SELECT code FROM brands WHERE code = ANY($1::text[]) AND is_active", brand_codes)
         if len(found) != len(brand_codes):
             raise HTTPException(status_code=422, detail="Unknown brand")
@@ -1578,6 +1571,11 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
         raise HTTPException(status_code=409, detail="This submission is already in review")
     _require_editable(row)
 
+    if len(brands_of(row)) > 1:
+        raise HTTPException(status_code=422, detail={
+            "message": "A post is for one brand. Keep one brand here and make a separate post for each other brand.",
+            "missing": ["brand_code"],
+        })
     missing = await _missing_for_submit(row)
     account_ids = _account_ids(row)
     accounts = await _connected_accounts(account_ids)
@@ -1849,8 +1847,7 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
     see_all = not mine and await _can_see_team_content(user_id)
     scope = await _brand_scope(user_id)
     visible = (
-        "s.deleted_at IS NULL AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_codes && $3::text[])"
-        f" AND {_sent_to()}))"
+        f"s.deleted_at IS NULL AND (s.created_by = $1 OR ($2 AND {_reviewer_sees('$1', '$3')}))"
     )
     since = f"NOW() - INTERVAL '{DASHBOARD_DAYS} days'"
     args = (user_id, see_all, scope)
@@ -1953,7 +1950,7 @@ async def review_queue_counts(user_id: UUID, mine: bool = False) -> ReviewQueueC
                 AND s.content_type = 'VIDEO' AND s.updated_at > NOW() - INTERVAL '30 days') AS scripts_done
         FROM content_submissions s
         WHERE s.deleted_at IS NULL
-          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_codes && $3::text[]) AND {_sent_to()}))
+          AND (s.created_by = $1 OR ($2 AND {_reviewer_sees("$1", "$3")}))
         """,
         user_id,
         see_all,
@@ -1979,7 +1976,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         SELECT s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
                s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
                s.brand_code, s.brand_codes, s.audience, s.audiences, s.rule_sets, s.approval_needed_by, s.script_required, s.script_status,
-               s.reviewer_ids,
+               s.reviewer_ids, s.platform_captions,
                {_DECIDED_AT} AS decided_at,
                u.full_name AS creator_name,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
@@ -1999,7 +1996,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         LEFT JOIN oauth_connections c ON c.id = s.account_id
         LEFT JOIN users u ON u.id = s.created_by
         WHERE {_queue_filter(tab)} AND s.deleted_at IS NULL
-          AND (s.created_by = $1 OR ($2 AND ($3::text[] IS NULL OR s.brand_codes && $3::text[]) AND {_sent_to()}))
+          AND (s.created_by = $1 OR ($2 AND {_reviewer_sees("$1", "$3")}))
           AND ($4 = '' OR s.title ILIKE '%' || $4 || '%' OR s.reference_code ILIKE '%' || $4 || '%')
         ORDER BY {_QUEUE_ORDER[tab]}
         LIMIT 100
@@ -2036,6 +2033,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
         [r["id"] for r in rows if analysis_pending(_json(r["latest_check"]))]
     )
     edges = await delegation_service.edges_for([r["id"] for r in rows if r["status"] == "IN_REVIEW"])
+    already = await delegation_service.delegated_by(user_id, {r["id"]: r["current_version"] for r in rows})
     return [
         ReviewQueueItem(
             id=r["id"],
@@ -2046,6 +2044,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             platforms=list(r["platforms"] or []),
             account=_account_option(r, prefix="acc_"),
             caption_text=r["caption_text"],
+            platform_captions=_platform_captions(dict(r)),
             latest_check=_json(r["latest_check"]),
             analysis_progress=progress.get(r["id"]),
             current_version=r["current_version"],
@@ -2060,7 +2059,8 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             }) if r["file_id"] else None,
             images=images.get(r["id"], []),
             can_review=r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super),
-            **_approval_fields(rules, r, user_id, is_reviewer, is_super, edges=edges.get(r["id"])),
+            **{**_approval_fields(rules, r, user_id, is_reviewer, is_super, edges=edges.get(r["id"])),
+               **({"can_delegate": False} if r["id"] in already else {})},
             reviewer_ids=list(r["reviewer_ids"] or []),
             open_critical_flags=standing[r["id"]].open_critical if r["id"] in standing else 0,
             approval_score=standing[r["id"]].score if r["id"] in standing else None,

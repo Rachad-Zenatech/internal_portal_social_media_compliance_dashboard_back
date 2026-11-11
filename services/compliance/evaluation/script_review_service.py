@@ -338,7 +338,43 @@ def _missing_details(row: Dict[str, Any]) -> List[str]:
     return [_DETAIL_LABELS[m] for m in missing]
 
 
-async def submit(submission_id: UUID, user_id: UUID) -> ScriptStage:
+async def _require_not_duplicate(row: Dict[str, Any], body: str, confirm_repost: bool) -> None:
+    """The same script, already sent for review for the same place and publish date, can't be sent again; for another
+    date it can, once the creator confirms (the same rules as posts, see duplicate_service.find_script)."""
+    from services.compliance.submissions import duplicate_service
+
+    report = await duplicate_service.find_script(row, body)
+    if report.blocking:
+        m = report.blocking
+        raise HTTPException(status_code=409, detail={
+            "code": "DUPLICATE_SCRIPT",
+            "message": f"The same script was already sent for review as {m.reference_code} with the same submission "
+                       "details and publish date. Change the brand, account, audience, region or platform so they no "
+                       "longer overlap, or change the script.",
+            "duplicates": report.model_dump(mode="json"),
+        })
+    if report.repost and not confirm_repost:
+        m = report.repost
+        raise HTTPException(status_code=409, detail={
+            "code": "REPOST_CONFIRM",
+            "message": f"The same script was already sent for review as {m.reference_code} for another publish date. "
+                       "Confirm to send it for this date too.",
+            "duplicates": report.model_dump(mode="json"),
+        })
+
+
+def _repost_confirmed(row: Dict[str, Any]) -> bool:
+    """Whether the creator confirmed sending this script again for another date (kept with the send in progress)."""
+    send = row.get("script_send")
+    if isinstance(send, str):
+        try:
+            send = json.loads(send)
+        except ValueError:
+            send = None
+    return bool(isinstance(send, dict) and send.get("confirm_repost"))
+
+
+async def submit(submission_id: UUID, user_id: UUID, confirm_repost: bool = False) -> ScriptStage:
     """Accept the uploaded script for review and answer at once. Reading it, calculating its compliance score and
     telling the reviewers happen in the background (_process_send), so a long script doesn't keep the creator waiting.
     The post shows it as processing until then, or says which step failed."""
@@ -352,11 +388,17 @@ async def submit(submission_id: UUID, user_id: UUID) -> ScriptStage:
     missing = _missing_details(row)
     if missing:
         raise HTTPException(status_code=422, detail=f"Fill in the submission details first: {', '.join(missing)}.")
-    if not await _script_file(submission_id):
+    file = await _script_file(submission_id)
+    if not file:
         raise HTTPException(status_code=422, detail="Upload the script first (PDF, Word or text)")
+    # Usually the script's text is already read (on upload): check for a duplicate now, so the creator can confirm a
+    # repost straight away. Otherwise it's checked once it's read, in the background.
+    if file["doc_text_status"] == "COMPLETED" and (file["doc_text"] or "").strip():
+        await _require_not_duplicate(row, _clean(file["doc_text"]), confirm_repost)
     await execute(
         "UPDATE content_submissions SET script_send = $2::jsonb WHERE id = $1",
-        submission_id, json.dumps({"status": "PROCESSING", "started_at": datetime.now(timezone.utc).isoformat()}),
+        submission_id, json.dumps({"status": "PROCESSING", "started_at": datetime.now(timezone.utc).isoformat(),
+                                   "confirm_repost": confirm_repost}),
     )
     task = asyncio.create_task(_process_send(submission_id, user_id))
     _background.add(task)
@@ -446,6 +488,16 @@ async def _process_send(submission_id: UUID, user_id: UUID) -> None:
         previous = await _versions(submission_id)
         if previous and _status(row) == "CHANGES_REQUESTED" and _same(previous[-1].body, body):
             raise HTTPException(status_code=422, detail="This is the same script the reviewer sent back. Make the changes first.")
+        step = "checking for duplicates"
+        try:
+            await _require_not_duplicate(row, body, _repost_confirmed(row))
+        except HTTPException as dup:
+            # The creator isn't on the page to confirm: say what matched; sending again asks them to confirm.
+            message = dup.detail.get("message") if isinstance(dup.detail, dict) else str(dup.detail)
+            if isinstance(dup.detail, dict) and dup.detail.get("code") == "REPOST_CONFIRM":
+                message = message.replace("Confirm to send it for this date too.",
+                                          "Send it again and confirm to send it for this date too.")
+            raise HTTPException(status_code=409, detail=message)
         step = "calculating the compliance score"
         # The creator's own check of this same script is reused; otherwise it's checked now.
         check = still_valid(row.get("script_precheck"), row, body, await rulebook_version()) or await check_text(row, body)
@@ -657,6 +709,7 @@ async def revise(submission_id: UUID, user_id: UUID, req: ScriptReviseRequest) -
         detail = ("That's the reviewer's version unchanged. Accept it instead."
                   if _status(row) == "EDITS_PROPOSED" else "Make the changes the reviewer asked for first.")
         raise HTTPException(status_code=422, detail=detail)
+    await _require_not_duplicate(row, body, req.confirm_repost)
     return await _send(row, body, "CREATOR_EDIT", user_id, note=req.note)
 
 
@@ -730,8 +783,8 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
         LEFT JOIN users u ON u.id = s.created_by
         LEFT JOIN content_script_batch_items bi ON bi.submission_id = s.id
         WHERE {where} AND s.script_required AND s.content_type = 'VIDEO'
-          AND s.deleted_at IS NULL AND ($1::text[] IS NULL OR s.brand_codes && $1::text[])
-          AND (s.created_by = $2 OR {subs._sent_to("$2")})
+          AND s.deleted_at IS NULL
+          AND (s.created_by = $2 OR {subs._reviewer_sees("$2", "$1")})
         ORDER BY {order}
         LIMIT 100
         """,

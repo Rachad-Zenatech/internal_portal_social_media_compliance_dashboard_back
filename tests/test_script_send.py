@@ -86,6 +86,7 @@ class ProcessSendTests(unittest.IsolatedAsyncioTestCase):
             patch.object(srs, "_fail_send", new=AsyncMock()),
             # Sending reuses the creator's check from before sending when it is still right; here there is none.
             patch.object(srs, "rulebook_version", new=AsyncMock(return_value=None)),
+            patch.object(srs, "_require_not_duplicate", new=AsyncMock()),
         ]
 
     async def run_with(self, file, **kw):

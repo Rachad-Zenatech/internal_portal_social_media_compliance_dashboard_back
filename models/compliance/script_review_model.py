@@ -93,6 +93,13 @@ class ScriptDecisionRequest(BaseModel):
 class ScriptReviseRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=MAX_SCRIPT_CHARS)
     note: Optional[str] = Field(None, max_length=4000)
+    # The creator confirmed sending the same script again for another publish date.
+    confirm_repost: bool = False
+
+
+class ScriptSubmitRequest(BaseModel):
+    # The creator confirmed sending the same script again for another publish date.
+    confirm_repost: bool = False
 
 
 class ScriptCheckRequest(BaseModel):

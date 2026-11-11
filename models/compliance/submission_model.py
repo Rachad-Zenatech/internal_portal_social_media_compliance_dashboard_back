@@ -238,6 +238,8 @@ class SubmissionSummary(BaseModel):
     account: Optional[AccountOption] = None
     accounts: List[AccountOption] = Field(default_factory=list)
     caption_text: Optional[str] = None
+    # Platforms with their own caption (plain text); the others use caption_text.
+    platform_captions: Dict[str, str] = Field(default_factory=dict)
     # Video posts with a script stage: the start of the script, shown on the card until a video is added.
     script_excerpt: Optional[str] = None
     cover: Optional[SubmissionFile] = None
@@ -488,6 +490,8 @@ class ReviewQueueItem(BaseModel):
     platforms: List[str] = Field(default_factory=list)
     account: Optional[AccountOption] = None
     caption_text: Optional[str] = None
+    # Platforms with their own caption (plain text); the others use caption_text.
+    platform_captions: Dict[str, str] = Field(default_factory=dict)
     latest_check: Optional[Dict[str, Any]] = None
     # While the check is still reading the post: what's left and when the score is expected.
     analysis_progress: Optional[AnalysisProgress] = None

@@ -4,6 +4,9 @@ A post is the same as one already sent for approval when its main files (by thei
 same post can go out again on other platforms, accounts, brands, audiences or regions: it's only a duplicate when every
 one of those overlaps with the earlier post. Then the publish date decides: the same date is a duplicate and can't be
 submitted; another date is a repost, which the creator confirms.
+
+Scripts (the script stage of video posts) follow the same rules: a script is the same as one already sent for review
+when its text matches (ignoring case and spacing), and the submission details and publish date decide as for posts.
 """
 
 import asyncio
@@ -159,6 +162,11 @@ async def find(row: Dict[str, Any]) -> DuplicateReport:
     if not same:
         return DuplicateReport()
 
+    return await _report(row, same)
+
+
+async def _report(row: Dict[str, Any], same: List[Any], sent_key: str = "submitted_at") -> DuplicateReport:
+    """How each matching post's details overlap with this one's, and whether that blocks it or asks for a repost."""
     labels = await _labels([row, *same])
     mine = details_of(row)
     matches: List[DuplicateMatch] = []
@@ -173,7 +181,7 @@ async def find(row: Dict[str, Any]) -> DuplicateReport:
             reference_code=c["reference_code"],
             title=c["title"],
             status=c["status"],
-            submitted_at=c.get("submitted_at"),
+            submitted_at=c.get(sent_key),
             publish_at=c.get("publish_at"),
             created_by_name=c.get("created_by_name"),
             details=[
@@ -186,3 +194,43 @@ async def find(row: Dict[str, Any]) -> DuplicateReport:
     blocking = next((m for m in matches if m.all_overlap and m.same_date), None)
     repost = None if blocking else next((m for m in matches if m.all_overlap), None)
     return DuplicateReport(matches=matches, blocked=blocking is not None, blocking=blocking, repost=repost)
+
+
+# Scripts that have been sent for review (a draft script hasn't).
+SCRIPT_SENT_STATUSES = ("IN_REVIEW", "CHANGES_REQUESTED", "EDITS_PROPOSED", "APPROVED")
+
+
+def normalize_script(text: Optional[str]) -> str:
+    """A script's text as compared: case and spacing (line breaks included) don't make it different."""
+    return re.sub(r"\s+", " ", (text or "").strip()).lower()
+
+
+async def find_script(row: Dict[str, Any], body: str) -> DuplicateReport:
+    """Other posts whose script, as last sent for review, is the same text as this one, and how their details overlap
+    (the same rules as posts: every detail overlapping and the same publish date is a duplicate; another date a repost)."""
+    from services.compliance.submissions.submission_service import _ACCOUNTS_COLUMN
+
+    text = normalize_script(body)
+    if not text:
+        return DuplicateReport()
+    same = await fetch_all(
+        """
+        SELECT s.*, u.full_name AS created_by_name, v.created_at AS script_sent_at,"""
+        + _ACCOUNTS_COLUMN
+        + """
+        FROM content_submissions s
+        JOIN LATERAL (
+            SELECT body, created_at FROM content_script_versions sv
+            WHERE sv.submission_id = s.id ORDER BY version_number DESC LIMIT 1
+        ) v ON true
+        LEFT JOIN users u ON u.id = s.created_by
+        WHERE s.deleted_at IS NULL AND s.id <> $1 AND s.script_status = ANY($2::text[])
+          AND lower(regexp_replace(btrim(v.body), '\\s+', ' ', 'g')) = $3
+        ORDER BY v.created_at DESC
+        LIMIT 50
+        """,
+        row["id"], list(SCRIPT_SENT_STATUSES), text,
+    )
+    if not same:
+        return DuplicateReport()
+    return await _report(row, [dict(c) for c in same], sent_key="script_sent_at")
