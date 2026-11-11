@@ -83,7 +83,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `PerformanceSummary` (class)
 - `PerformanceReport` (class)
 
-## models/compliance/public_mood_model.py (197 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
+## models/compliance/public_mood_model.py (328 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - `ListeningPost` (class)
 - `TopicSnapshot` (class)
 - `MatchedTopic` (class)
@@ -91,6 +91,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `PublicMoodResult` (class)
 - `PublicMoodSummary` (class)
 - `MoodFeedbackIn` (class)
+- `ConversationMatch` (class) - A scraped news headline or X post found by vector search, and whether it is about this post's subject.
+- `ExcludedMatch` (class) - A retrieved item a reviewer marked unrelated: left out of the mood, listed so it can be put back.
+- `ReviewerCorrection` (class) - A reviewer's view that this assessment's recommendation was wrong (the assessment itself is unchanged).
+- `ConversationMood` (class) - What the verified-relevant conversations found for this post say: specific to this post, not the topic.
+    - `matched_items` (def) - The same list as `matches`, under the name the API contract uses.
+- `UnrelatedIn` (class)
+- `SentimentCorrectionIn` (class)
+- `CorrectionIn` (class)
 - `DismissedTopic` (class)
 - `PublicMood` (class)
 - `ListeningTopic` (class)
@@ -133,7 +141,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (520 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (559 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -162,6 +170,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `DashboardActivity` (class) - One recent thing that happened to content the viewer can see.
 - `DashboardFinding` (class) - A rulebook rule and how often it was flagged on content sent for review.
 - `DashboardSummary` (class) - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
+- `DuplicateDetail` (class) - One Submission Details dropdown, compared with an earlier post that has the same content and caption.
+- `DuplicateMatch` (class) - A post already sent for approval with the same content and caption.
+- `DuplicateReport` (class) - Earlier posts with the same content and caption.
+- `SubmitRequest` (class)
 - `SubmitResult` (class)
 
 ## models/notifications/notification_model.py (34 lines) - notification model (notifications)
@@ -239,7 +251,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
 - `setup` (def)
 
-## postgresql_db/schemas/setup_listening_schema.py (92 lines) - Public mood: topics from the social listening source (Sprout Social, mocked for now), dated snapshots of how people feel about each one, ...
+## postgresql_db/schemas/setup_listening_schema.py (217 lines) - Public mood: topics from the social listening source (Sprout Social, mocked for now), dated snapshots of how people feel about each one, ...
 - `setup` (def)
 
 ## postgresql_db/schemas/setup_login_codes_schema.py (28 lines) - One-time sign-in codes: after Microsoft sign-in the browser gets a short-lived code in the redirect (never the session token), and swaps ...
@@ -256,7 +268,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (654 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (656 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -264,6 +276,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_retire_demo_social_accounts` (def) - Remove the earlier demo accounts.
 - `_seed_demo_social_accounts` (def) - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
 - `_main` (def)
+
+## postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
+- `setup` (def)
 
 ## scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - `_guard` (def)
@@ -273,11 +288,32 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_cache_numbers` (def)
 - `main` (def)
 
-## scripts/scrape_x_playwright.py (323 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
-- `_extract_tweets_from_rendered_profile` (def) - Parse real X posts, status IDs, and engagement counts from a rendered public X profile.
+## scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
+- `_show` (def)
+- `_status` (def)
+- `_main` (def)
+- `main` (def)
+
+## scripts/scrape_x_playwright.py (533 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
+- `snowflake_time` (def) - When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits).
+- `_extract_tweets_from_rendered_profile` (def) - Parse X posts from a rendered public X profile: text, link and real post time (from the post id).
+- `_page_status` (def) - Why a page gave what it gave: SUCCESS, EMPTY (loaded, nothing there), AUTH_REQUIRED or RATE_LIMITED.
 - `_scrape_x_handle_playwright` (def) - Scrape a public X profile using Playwright.
+- `_rss_date_iso` (def) - An RSS date ('Tue, 10 Nov 2026 14:03:00 GMT') as an ISO timestamp, or None.
 - `_scrape_live_trend_news_playwright` (def) - Scrape live breaking news & public headlines via Playwright for a market/world trend query.
-- `build_live_x_listening_json` (def) - Launch Playwright headless Chromium, scrape general market/world trends and public X posts,
+- `_env_num` (def)
+- `_csv_env` (def)
+- `_stem` (def)
+- `_words` (def)
+- `_exclusions` (def)
+- `topic_vocabulary` (def) - The words that make an X post a candidate for a topic: any single word from its name, keywords or extra
+- `is_candidate` (def)
+- `overall_status` (def) - SUCCESS | PARTIAL | EMPTY | AUTH_REQUIRED | RATE_LIMITED | FAILED for the run as a whole.
+- `topic_score` (def) - How strongly a text belongs to a market topic: 2 per topic keyword phrase in it, 1 per shared word.
+- `assign_unique` (def) - One home for each story.
+- `_collect_watch` (def) - Searches about the company itself (names, hashtags, products, links, events, competitors).
+- `build_live_x_listening_json` (def) - Launch Playwright headless Chromium and collect candidates for each market topic and for searches about the
+    - `out_of_time` (def)
 - `main` (def)
 
 ## scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
@@ -286,6 +322,22 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `run_case` (def)
 - `_matches` (def) - A reviewer's phrase and a finding are about the same thing when one's wording contains the other's.
 - `run_saved_case` (def)
+- `main` (def)
+
+## scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
+- `QuotaExhausted` (class) - Gemini's embedding quota stayed exhausted: the run can't continue, and that says nothing about the behaviour.
+- `check` (def)
+- `draft` (def)
+- `Harness` (class) - Real search, real feed, real checks; the assessment storage is in memory, so nothing synthetic is saved.
+    - `__init__` (def)
+    - `__enter__` (def)
+    - `__exit__` (def)
+    - `assess` (def) - One assessment.
+    - `_assess_once` (def)
+- `mentions` (def)
+- `scenarios` (def)
+- `real_drafts` (def)
+- `embedding_quota_left` (def) - None if embeddings work; otherwise why not.
 - `main` (def)
 
 ## server.py (687 lines) - server
@@ -335,6 +387,19 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `base_tier` (def)
 - `route` (def) - The models to try, in order, for this request, and why that tier was chosen.
 
+## services/ai/core/mood_store.py (121 lines) - The collections public mood learns from, in the same MongoDB database as the vector store.
+- `is_enabled` (def)
+- `collection` (def)
+- `now` (def)
+- `aware` (def) - Mongo hands datetimes back without a zone; they were stored as UTC.
+- `ensure_indexes` (def) - The indexes a collection needs, created once per process (creating an existing one is a no-op).
+- `insert_once` (def) - Add a record that must never be replaced.
+- `upsert` (def)
+- `get` (def)
+- `update` (def)
+- `find` (def)
+- `count` (def)
+
 ## services/ai/core/semantic_cache.py (197 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
 - `_env_float` (def)
 - `is_enabled` (def)
@@ -348,13 +413,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `store` (def) - Cache an answer for the question of an earlier lookup.
 - `clear` (def) - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
-## services/ai/core/vector_store_service.py (282 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+## services/ai/core/vector_store_service.py (301 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
 - `_setting` (def)
 - `database_name` (def)
 - `collection_name` (def)
 - `index_name` (def)
 - `embedding_model` (def)
 - `is_enabled` (def)
+- `named_collection` (def) - Another collection in the same database, over the same connection, or None when MONGODB_URI isn't set.
 - `_collection` (def) - The project's collection, or None when MONGODB_URI isn't set.
 - `_gemini_client` (def)
 - `embed` (def) - Gemini embeddings for the texts, in order, batched to keep requests few.
@@ -364,10 +430,22 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `doc_id` (def)
 - `upsert` (def) - Add or update documents.
 - `delete` (def)
+- `delete_kind_except` (def) - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
 - `_reference_changed` (def) - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
 - `search` (def) - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
 - `ensure_index` (def) - Create the Atlas vector search index on the collection if it doesn't exist.
 - `status` (def) - Whether the store is configured and reachable, and what's in it (no credentials).
+
+## services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
+- `collection_name` (def)
+- `is_enabled` (def)
+- `_collection` (def)
+- `_aware` (def) - Mongo hands datetimes back without a zone; they were stored as UTC.
+- `_clean` (def)
+- `write_feed` (def) - Store a collected feed ({"source", "collected_at", "collection", "topics": [{..., "comments": [...]}]}) as the
+- `read_feed` (def) - The current feed in the shape the scraper produced it, or None if none has been stored (or the database isn't
+- `written_at` (def) - When the current feed was stored (the pointer only), for deciding whether topics need syncing again.
+- `status` (def) - What is stored, for diagnostics (no document contents).
 
 ## services/ai/observability/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
 - `_threshold` (def)
@@ -438,20 +516,98 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `reserve` (def) - Record one Gemini call, or raise AiLimitExceeded (HTTP 429) with a message saying when it frees up.
 - `usage_for` (def) - What a person has left, per feature (and for one submission when given), for showing in the UI.
 
-## services/compliance/analytics/listening_providers.py (412 lines) - Social listening providers: where "public mood" data comes from.
-- `classify_comment_sentiment` (def) - Classify an individual X comment/post as POSITIVE, NEGATIVE, or NEUTRAL with confidence (0-100%)
+## services/compliance/analytics/conversation_evidence.py (955 lines) - Conversation evidence for public mood: the news articles and X posts a post is compared with, and the saved assessment of what they say a...
+- `_env_float` (def)
+- `story_key` (def)
+- `item_key` (def) - Stable for an article or post across scrapes: its link when it has one (so an edited headline is the same item
+- `content_hash` (def)
+- `parse_published` (def) - An ISO timestamp or an RSS date as an aware datetime, else None.
+- `_tokens` (def)
+- `same_story` (def)
+- `_starts_sentence` (def) - Whether the word at `pos` begins the text, a line, or a sentence (so its capital says nothing about it).
+- `entities_split` (def) - (firm, initial): named companies, products and places as capitalised phrases (lowercased).
+- `entities` (def) - The names that stand on their own (see entities_split).
+- `_segment_with` (def) - The part of the text (sentence or headline half) that contains the term, for showing why it matched.
+- `PostContext` (class)
+- `post_context_of` (def)
+- `_unambiguous` (def) - A phrase or a coined name rarely means anything else; one everyday word might.
+- `verify_relevance` (def) - (status, reason, supporting text).
+- `EvidenceRow` (class)
+- `assess` (def) - (status, mood, every candidate's evidence row).
+- `match_of` (def)
+- `context_hash` (def) - Every field the search text is built from, in full (the search text itself is shortened).
+- `policy_version` (def)
+- `topics_fingerprint` (def) - The team's keyword tuning decides relevance, so changing it must redo the assessment.
+- `cache_key` (def) - What an assessment depends on.
+- `post_search_text` (def) - What the post is, as one context block to embed (the counterpart of _vector_text).
+- `get_state` (def)
+- `_set_state` (def)
+- `_num` (def) - A float for a NUMERIC column.
+- `_vector_text` (def) - What gets embedded for an item: topic, where it was said and what was said (the same kind of context the post
+- `FeedItem` (class)
+    - `__post_init__` (def)
+- `feed_items` (def) - The feed's items, once each (by stable key).
+- `record_feed` (def) - Save the feed's items (new ones, changed texts, and a fresh 'last seen' on the rest), then update what is
+- `topic_daily_counts` (def) - Distinct stories per day for a topic over the last `days` days (oldest first, ending today, UTC), from everything
+- `refresh_eligibility` (def) - An item is searchable while it is recent (published, or first seen, within the window), whether or not the
+- `_quota_wait` (def) - Seconds to wait if this is a rate-limit error (Gemini says how long), else None.
+- `sync_index` (def) - Make the vector index match the eligible items: embed new or changed texts (in chunks, pausing for the
+- `_mood_from_saved` (def)
+- `_save_assessment` (def)
+- `assessment_evidence` (def) - The items an assessment used, as they read when it ran (from their saved versions), however the feed has
+- `_apply_model_decision` (def) - A promoted model's recommendation replaces the rules' (it has already been through the guard rails), and the
+- `topic_terms` (def) - Topic rows (from the topic table, keywords already tuned by the team) keyed by the source's external id.
+- `EvidenceContext` (class) - How collection and indexing stand right now (as opposed to when an assessment was made).
+    - `pending` (def)
+- `evidence_context` (def)
+- `decorate` (def) - Add what is true now to a saved or fresh assessment: how the last collection went, whether indexing is
+- `_finish` (def)
+- `_without_assessment` (def) - No current assessment can be made.
+- `conversation_mood` (def) - The mood among verified-relevant conversations for this draft, always with a status (see ConversationMood):
+
+## services/compliance/analytics/conversation_feedback.py (202 lines) - Reviewer input on a conversation assessment, kept against the exact assessment the reviewer was looking at.
+- `reasons` (def)
+- `_check_reason` (def)
+- `assessment_of` (def) - The assessment, only if it belongs to this submission.
+- `mark_unrelated` (def)
+- `restore_item` (def) - Put an item back: removes every reviewer's 'unrelated' mark on it for this post.
+- `correct_recommendation` (def) - The reviewer's decision on the assessment: what it should have been (or AGREE: that it was right).
+- `confirm_recommendation` (def) - The recommendation is right": the reviewer's decision is the assessment's own recommendation.
+- `mark_wrong_sentiment` (def) - This item reads differently": what its sentiment should be.
+- `clear_wrong_sentiment` (def)
+- `clear_correction` (def)
+- `rejected_item_ids` (def) - Items any reviewer marked unrelated for this post (ids as strings, as the evidence code uses them).
+- `excluded_for` (def)
+- `corrections_for` (def)
+
+## services/compliance/analytics/listening_providers.py (579 lines) - Social listening providers: where "public mood" data comes from.
+- `clean_headline` (def) - The headline without its outlet, lowercased, letters and digits only: equal for the same story.
+- `volume_change` (def) - Percent change in mentions: the last three complete days against the three before them, from `daily` (oldest
+- `_load_local_model` (def) - The trained sentiment model, loaded once.
+- `_model_probs` (def) - {'POSITIVE': p, 'NEUTRAL': p, 'NEGATIVE': p} from the trained model, or None to fall back to VADER.
+- `classify_comment_sentiment` (def) - Classify an individual X comment/post as POSITIVE, NEGATIVE, or NEUTRAL with confidence (0-100%).
 - `evaluate_publishing_decision` (def) - Decide whether the team should POST, WAIT (review), or HOLD (escalate to human reviewer)
 - `ListeningUnavailable` (class) - The listening source can't be reached or isn't configured.
+- `_x_feed_store` (def)
+- `feed_in_database` (def)
+- `load_feed` (def) - The latest collected feed ({"collected_at", "collection", "topics": [...]}), or None if there is none yet.
+- `save_feed` (def) - Store a collected feed as the current one; says where it went.
+- `feed_stamp` (def) - When the current feed was stored: the cue that topics and snapshots built from an earlier one are out of date.
 - `ListeningProvider` (class)
+    - `feed_stamp` (def) - When this source's data was last collected, if it is collected rather than fetched live.
+    - `collection_info` (def)
     - `list_topics` (def) - Topics the account tracks: [{external_id, name, description, keywords}].
     - `snapshot` (def) - Recent sentiment for a topic: positive/neutral/negative percentages, mention volume and change,
 - `MockSproutProvider` (class) - Plausible, made-up Sprout Listening data.
     - `list_topics` (def)
     - `snapshot` (def)
 - `analyze_raw_x_topic` (def) - Score every comment in an X topic payload using VADER, compute aggregate
-- `XJsonListeningProvider` (class) - Reads scraped or API-collected X (Twitter) comments & trends from a JSON file
+- `XJsonListeningProvider` (class) - Reads the collected X (Twitter) posts and news trends, and classifies each with the sentiment model.
     - `__init__` (def)
+    - `_feed` (def)
     - `_load_feed` (def)
+    - `feed_stamp` (def)
+    - `collection_info` (def) - How the last collection went (status per source and overall), when the scraper recorded it.
     - `list_topics` (def)
     - `snapshot` (def)
 - `SproutProvider` (class) - Sprout Social Listening over its API.
@@ -460,6 +616,111 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `snapshot` (def)
 - `reset_provider_cache` (def)
 - `get_provider` (def)
+
+## services/compliance/analytics/listening_sources.py (78 lines) - What to listen for about the company itself, besides the market topics (drone delivery, FAA rules...).
+- `Query` (class)
+- `load_plan` (def)
+- `build_queries` (def) - Every search the plan asks for.
+- `topic_for` (def) - The listening topic a category becomes: matched to drafts by the words it searches for.
+
+## services/compliance/analytics/mood_auto_train.py (186 lines) - Training the decision model again whenever a reviewer's decision changes, without anyone running it.
+- `enabled` (def)
+- `min_interval_seconds` (def)
+- `timeout_seconds` (def)
+- `signature` (def) - What the reviewed data amounts to: which assessments, labelled how.
+- `read_state` (def)
+- `_remember` (def)
+- `run_once` (def) - One attempt, here and now.
+- `schedule` (def) - Ask for an attempt (a review).
+- `_spawn` (def)
+- `_attempt_in_own_process` (def)
+- `_record_failure` (def)
+- `_worker` (def) - Wait out the debounce interval, run once in a separate process, and go again if something arrived meanwhile.
+
+## services/compliance/analytics/mood_dataset.py (236 lines) - A fixed training dataset made from reviewed assessments.
+- `DatasetError` (class)
+- `_decisive_reason` (def) - (reason code, reason in words) of the review the accepted label rests on.
+- `training_row` (def) - An example as a plain training row (JSON-safe), in the shape above.
+- `_Groups` (class) - Union-find: items that share a draft or a story end up in one group.
+    - `__init__` (def)
+    - `find` (def)
+    - `union` (def)
+- `group_assessments` (def) - assessment_id -> group id.
+- `assign_splits` (def) - Set each example's split, whole groups at a time, oldest groups first: train, then validation, then test.
+- `select_examples` (def) - The examples a dataset made now would hold, already split, and what was left out and why.
+- `build_dataset` (def) - Select, label and split the reviewed assessments and save them as dataset `version`.
+- `load_dataset` (def) - A dataset's manifest and its examples.
+
+## services/compliance/analytics/mood_features.py (128 lines) - The measurements a public-mood assessment is described by, built by one function used in two places so they can't drift apart: when a dra...
+- `_f` (def)
+- `_when` (def)
+- `_is_severe` (def)
+- `build_features` (def) - The measurements for one assessment.
+- `to_row` (def) - The features as a model input row in FEATURE_NAMES order; unknown (None) becomes NaN, which XGBoost treats as
+- `schema` (def)
+
+## services/compliance/analytics/mood_model.py (334 lines) - The recommendation, with an optional trained model beside the rules.
+- `is_xgboost_available` (def)
+- `artifact_paths` (def) - (model, labels, metadata): the three files of one model.
+- `_read_json` (def)
+- `load_metadata` (def) - The model's metadata file, or None if it has none (then nothing about its training can be vouched for).
+- `load_labels` (def)
+- `auto_train_enabled` (def) - Whether a scrape or a review may start a training attempt (MOOD_AUTO_TRAIN=off turns it off).
+- `mode` (def)
+- `min_confidence` (def)
+- `Decision` (class)
+    - `as_record` (def)
+- `clear_cache` (def)
+- `registered` (def) - The newest model run with this status (PROMOTED or SHADOW), cached briefly: assessments are frequent.
+- `_booster` (def) - The model, loaded once and again whenever its file changes.
+- `_matrix` (def)
+- `predict` (def) - The model's recommendation and its class probabilities for one assessment's features.
+- `support_issues` (def) - Reasons not to trust this answer on its own: too few training examples of the predicted class, or measurements
+- `explain` (def) - What pushed the model towards `label`: the largest feature contributions (positive raises it, negative lowers
+- `insufficient_evidence` (def) - Why there isn't (fresh) evidence to approve on, or None.
+- `apply_guards` (def) - The model's answer, kept inside the limits it can't override.
+- `decide` (def) - What this assessment recommends, and (in shadow and assist modes) what the model says.
+- `model_status` (def) - The state of the decision model for an administrator: is xgboost installed, which model is registered and loaded,
+
+## services/compliance/analytics/mood_records.py (113 lines) - Saving an assessment for learning: when the system evaluates a draft it writes one record to `mood_assessments`.
+- `_plain` (def) - A value Mongo can store: UUIDs as text, Decimals as numbers, containers walked.
+- `draft_context_of` (def) - The draft as it was when assessed: who it is for and what it says.
+- `evidence_dict` (def) - An evidence item as the features and the saved snapshot need it.
+- `build_assessment_record` (def) - The record for one assessment.
+- `record_assessment` (def) - Write the record; True if it was saved.
+
+## services/compliance/analytics/mood_reviews.py (138 lines) - What reviewers say about an assessment, kept for learning (the screen's own state lives in Postgres, see conversation_feedback; these wri...
+- `Resolution` (class)
+- `resolve_decision` (def) - The accepted decision for an assessment from its active (not withdrawn) reviews, or why there isn't one.
+- `_check` (def)
+- `record_decision` (def) - Save (or change) a reviewer's decision.
+- `retract_decision` (def)
+- `decisions_for` (def) - Every review record of an assessment, withdrawn ones included (resolve_decision ignores those).
+- `record_match_correction` (def) - An item-level correction: UNRELATED (with the reason) or WRONG_SENTIMENT (with what it should have read).
+- `retract_match_corrections` (def) - Withdraw corrections of one kind on an item for a post (everyone's, or just one reviewer's).
+- `mirror` (def) - Run a Mongo write that mirrors something already saved: a failure is logged, never raised, so a reviewer's action
+
+## services/compliance/analytics/mood_training.py (375 lines) - Training and judging the decision model.
+- `NotReady` (class) - Too little data (or the wrong state) to proceed; the message says what's missing.
+- `validate_rows` (def) - Every training row must carry the required attributes, and nothing that would leak the answer.
+- `rows_from_jsonl` (def) - Training rows from a file with one JSON record per line, in the dataset's row shape.
+- `_rate` (def)
+- `metrics` (def) - How a set of recommendations compares with what the reviewers decided.
+- `calibration` (def) - Whether the model's confidence means what it says: Brier score, and expected calibration error over equal-width
+- `readiness` (def) - Whether each split has enough examples of every class.
+- `_matrix` (def)
+- `_evaluate_active` (def) - How the model currently in use does on these same held-out rows (None if there isn't one or it can't run).
+- `guard` (def) - Guarded training: is the candidate at least as good as the model in use on the same held-out examples? It must not
+- `train` (def) - Train on a fixed dataset (see train_from_rows).
+- `train_from_rows` (def) - Train on training rows (each with the required attributes and a split) and record the run: status TRAINED, or
+    - `has` (class)
+- `check_promotion` (def) - Why a run can't be promoted (empty when it can).
+    - `need` (def)
+- `_set_status` (def)
+- `shadow` (def) - Register a run so assessments record its recommendation beside the rules'.
+- `promote` (def) - Let a model decide, inside the guard rails.
+- `retire` (def) - Take a model out of use at once: assessments go back to the rules.
+- `disagreements` (def) - Assessments where the shadow model and the rules disagreed (newest first), with what a reviewer decided, if any.
 
 ## services/compliance/analytics/performance_service.py (323 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
 - `_env_float` (def)
@@ -502,13 +763,17 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `SignalFinding` (class)
 - `findings` (def) - Rule-like findings from the signals.
 
-## services/compliance/analytics/public_mood_service.py (946 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+## services/compliance/analytics/public_mood_service.py (1076 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - `_env_float` (def)
 - `_get_client` (def)
 - `_source_label` (def)
-- `_x_json_mtime` (def)
 - `_sync_topics` (def) - Refresh the topic list from the listening source when it's older than a day (or empty, or asked to, or
 - `_sync_topic_vectors` (def) - Keep one vector document per live topic (only new or changed text is embedded), and none for removed ones.
+- `sync_conversations` (def) - Record and index the scraped conversations now (embedding can take a minute or more under the quota).
+- `record_conversations` (def) - Only record the collected items (quick).
+- `index_conversations` (def) - Bring the vector index up to date with the recorded items (slow under the embedding quota).
+- `_index_conversations_soon` (def) - The same, in the background and one run at a time, for callers that shouldn't wait (an import).
+- `_sync_conversation_vectors` (def) - Record the scraped feed's articles and posts (kept even when a later feed lacks them) and, unless index=False,
 - `_effective_keywords` (def) - The source's keywords minus the ones the team switched off, plus the team's own.
 - `_load_topics` (def) - Live topics from the current source, with the keywords that count for matching.
 - `_meaning_scores` (def) - How close the post is in meaning to each topic: the raw score, and its margin over the post's median score
@@ -516,6 +781,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_match` (def) - Topics the post is about, strongest first: (topic, keywords found, similarity, close in meaning).
 - `_is_fresh` (def)
 - `_latest_snapshots` (def)
+- `_with_trend` (def) - Mentions per day, and the change in them, from the stories collected over the last days (every scrape so far, one
 - `_fresh_snapshots` (def) - The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale.
 - `_snapshot_model` (def)
 - `_overall_post_recommendation` (def) - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
@@ -525,12 +791,20 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_summary_model` (def)
 - `_with_feedback` (def)
 - `get_public_mood` (def)
+- `mark_conversation_unrelated` (def) - A reviewer says a retrieved item is not about this post: it is left out of this draft's assessments.
+- `restore_conversation_item` (def)
+- `correct_conversation_recommendation` (def) - A reviewer says the assessment's recommendation was wrong, and why (recorded; the assessment is unchanged).
+- `confirm_conversation_recommendation` (def) - A reviewer says the assessment's recommendation is right.
+- `resolve_conversation_decision` (def) - A lead reviewer settles a disagreement between reviewers about an assessment's recommendation.
+- `mark_conversation_sentiment` (def)
+- `clear_conversation_sentiment` (def)
+- `clear_conversation_correction` (def)
 - `dismiss_topic` (def) - Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones).
 - `restore_topic` (def)
 - `rate_summary` (def) - Say whether a summary helped (or take the vote back with no data).
 - `list_topics` (def) - Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly.
 - `list_trend_opportunities` (def) - See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
-- `ingest_x_json` (def) - Save scraped/collected X (Twitter) topics and raw comments to `.data/x_listening_feed.json`,
+- `ingest_x_json` (def) - Save scraped/collected X (Twitter) topics and raw comments as the current feed (the vector database's
 - `_clean_words` (def)
 - `update_topic` (def)
 - `match_test` (def) - Which topics a piece of text would match and why, with the near misses, for tuning keywords.
@@ -1007,6 +1281,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `load_rules` (def)
 - `is_ceo_content` (def) - Shaun's own thought leadership: posted through his account or checked against his rule set.
 
+## services/compliance/submissions/duplicate_service.py (189 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
+- `normalize_caption` (def) - Captions compare without case or spacing differences.
+- `details_of` (def) - The post's Submission Details values, as keys (brand codes, account ids, audience codes...).
+- `compare_details` (def) - Per dropdown: the values both posts have, and the values only this post has.
+- `same_publish_date` (def) - Same calendar day (UTC), or neither has a date.
+- `_sha256` (def)
+- `_content_hashes` (def) - Each post's main files as sorted content hashes.
+- `_labels` (def) - Display names for the dropdown values, by field.
+- `find` (def) - Posts already sent for approval with the same content and caption as this one, and how their details overlap.
+
 ## services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
 - `_doc` (def)
 - `_remember` (def)
@@ -1065,7 +1349,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `query_text` (def) - The text a post is matched on: the same parts that are stored for past reviews.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (2678 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (2704 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_json` (def)
 - `_account_option` (def)
 - `_accounts` (def)
@@ -1118,6 +1402,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_mirror_to_script_version` (def) - A check saved on the post while its script is with the reviewer is also the script version's check, so both
 - `run_initial_check` (def)
 - `_missing_for_submit` (def)
+- `_require_not_duplicate` (def) - The same content and caption, already sent for approval to the same place on the same date, can't be sent
 - `_review_job` (def)
 - `submit_for_review` (def)
 - `withdraw` (def) - Pull a submission back to draft so the creator can edit and resubmit: from review, or after approval for a
@@ -1246,6 +1531,31 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `_consume_in_memory` (def)
     - `close` (def)
 
+## services/notifications/teams_service.py (358 lines) - Microsoft Teams direct messages: the portal's notifications, delivered to people's Teams chat by a bot.
+- `_app_id` (def)
+- `_password` (def)
+- `_tenant` (def)
+- `enabled` (def) - Whether the bot is set up.
+- `portal_url` (def)
+- `safe_service_url` (def) - The address Teams told us to reply to, when it is a Microsoft one over https (else None).
+- `_signing_key` (def)
+- `verify_inbound` (def) - Whether a request really comes from the Bot Framework, for this bot, about the address it names.
+- `_bot_token` (def)
+- `_conversation_path` (def)
+- `_call` (def) - A call to the Bot Connector with the bot's token: a fresh token on 401, one more try after a 429.
+- `card` (def) - An Adaptive Card: the title, the message and a button that opens the page in the portal.
+- `_post_card` (def)
+- `_say` (def)
+- `_member_email` (def) - The person's email, from the chat's roster (Teams sends only ids in the activity).
+- `_save_conversation` (def) - Remember the chat, linked to the portal user it belongs to.
+- `_set_enabled` (def)
+- `_deactivate` (def)
+- `_command` (def)
+- `handle_activity` (def) - React to what Teams sends the bot: a person installing it, or writing to it.
+- `notify_user` (def) - Post a portal notification to its user's Teams chat, if they have one and haven't paused it.
+- `status_for` (def) - What the portal shows a person about their Teams messages.
+- `set_enabled_for` (def)
+
 ## services/shared/auth/auth_service.py (617 lines) - auth service (shared auth)
 - `_update_last_activity_async` (def)
 - `create_access_token` (def)
@@ -1347,721 +1657,6 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `log_background_task_result` (def) - Log a task that exits unexpectedly instead of losing its exception.
 - `asyncio_exception_handler` (def) - Capture detached asyncio failures that would otherwise only reach stderr.
 
-## tests/test_ai_down_approval.py (102 lines) - test ai down approval
-- `finding` (def)
-- `UnreadableFindingTests` (class)
-    - `test_a_critical_rule_stays_a_violation_when_no_model_can_read_it` (def)
-    - `test_other_rules_are_still_only_a_needs_review` (def)
-- `ApprovalGateTests` (class)
-    - `row` (def)
-    - `approve` (def)
-    - `test_no_approval_while_the_ai_review_could_not_run` (def)
-    - `test_no_approval_while_the_post_is_still_being_read` (def)
-- `ScriptApprovalGateTests` (class)
-    - `test_a_script_checked_without_the_ai_cannot_be_approved` (def)
-- `AiRecheckTests` (class)
-    - `run_pass` (def)
-    - `test_every_check_is_retried_once_the_ai_is_back` (def)
-    - `test_it_stops_at_the_first_one_that_still_cannot_be_read` (def)
-    - `test_nothing_to_retry_is_a_quiet_pass` (def)
-
-## tests/test_ai_health.py (94 lines) - test ai health
-- `call` (def)
-- `FakeError` (class)
-    - `__init__` (def)
-- `AiStatusTests` (class)
-    - `test_no_calls_yet_is_fine` (def)
-    - `test_the_latest_call_working_is_fine` (def)
-    - `test_one_model_failing_just_after_another_worked_is_the_fallback_not_an_outage` (def)
-    - `test_everything_failing_for_a_while_is_down_and_says_why` (def)
-    - `test_a_key_problem_outranks_a_quota_one` (def)
-    - `test_a_used_up_quota_says_so` (def)
-    - `test_no_key_configured_is_down_without_looking_at_calls` (def)
-    - `test_it_comes_back_as_soon_as_a_call_works` (def)
-- `ClassifyTests` (class)
-    - `test_kinds` (def)
-- `CheckWithoutTheAiTests` (class) - With no working AI the check must say so, not hand back a clean 100.
-    - `run_check` (def)
-    - `test_no_key_marks_the_check_as_not_fully_read` (def)
-    - `test_the_meaning_check_switched_off_on_purpose_is_not_a_failure` (def)
-
-## tests/test_ai_unavailable.py (45 lines) - test ai unavailable
-- `job` (def)
-- `AiUnavailableTests` (class)
-    - `test_flag_comes_from_the_stored_check` (def)
-    - `test_a_review_job_has_no_score_while_the_ai_is_unavailable` (def)
-    - `test_messages_say_there_is_no_score` (def)
-    - `test_listing_sql_hides_the_score` (def)
-
-## tests/test_analysis_pending.py (50 lines) - test analysis pending
-- `job` (def)
-- `AnalysisPendingTests` (class)
-    - `test_pending_while_the_transcript_or_image_text_is_being_read` (def)
-    - `test_done_once_everything_is_read_or_could_not_be_read` (def)
-    - `test_the_stored_flag_wins` (def)
-    - `test_a_review_job_has_no_score_until_the_post_is_read` (def)
-    - `test_messages_say_under_review_instead_of_a_score` (def)
-
-## tests/test_analysis_progress.py (112 lines) - test analysis progress
-- `file` (def)
-- `image` (def)
-- `EstimateTests` (class)
-    - `test_a_video_being_read_counts_down_from_when_it_started` (def)
-    - `test_a_queued_video_hasnt_started_and_small_ones_get_the_floor` (def)
-    - `test_images_are_read_a_few_at_a_time` (def)
-    - `test_the_score_waits_for_the_slowest_step` (def)
-    - `test_finished_and_failed_reads_are_not_steps` (def)
-    - `test_a_huge_video_is_capped` (def)
-- `TimingsTests` (class)
-    - `setUp` (def)
-    - `tearDown` (def)
-    - `test_defaults_until_there_are_enough_finished_reads` (def)
-    - `test_recent_reads_set_the_estimate_and_are_cached` (def)
-    - `test_progress_for_several_posts_in_one_query` (def)
-    - `test_no_posts_no_query` (def)
-
-## tests/test_audiences.py (81 lines) - test audiences
-- `AudiencesTests` (class)
-    - `test_a_post_can_target_several_audiences_and_the_first_is_the_primary` (def)
-    - `test_a_single_audience_still_works` (def)
-    - `test_rules_for_any_of_the_audiences_are_checked` (def)
-    - `test_no_audience_checks_every_rule` (def)
-    - `test_stored_rows_without_the_list_use_their_single_audience` (def)
-    - `test_a_path_for_any_audience_of_the_post_gives_its_approvers` (def)
-    - `test_hashtags_from_every_audience_are_offered` (def)
-    - `test_a_post_can_be_for_several_brands_and_the_first_is_the_primary` (def)
-    - `test_a_path_for_any_brand_of_the_post_gives_its_approvers` (def)
-    - `test_tags_from_every_brand_are_offered` (def)
-- `CashtagSuggestionTests` (class)
-    - `test_the_cashtag_is_suggested_first_when_the_post_is_for_investors` (def)
-    - `test_otherwise_the_cashtag_is_an_option_at_the_end` (def)
-
-## tests/test_cheaper_recall.py (95 lines) - test cheaper recall
-- `ClaimGateTests` (class)
-    - `test_posts_that_make_claims_are_worth_the_extra_pass` (def)
-    - `test_a_greeting_or_an_event_notice_is_not` (def)
-    - `test_the_mode_comes_from_the_environment` (def)
-- `SentenceSplitTests` (class)
-    - `test_long_enough_sentences_once_in_order` (def)
-    - `test_it_stops_at_the_limit` (def)
-- `rule` (def)
-- `SentenceSearchTests` (class)
-    - `test_a_rule_found_only_by_one_sentence_is_picked` (def)
-- `TriggerPhraseTests` (class)
-    - `test_soft_claim_phrases_are_added_to_the_rules` (def)
-    - `test_none_is_so_generic_it_would_match_everything` (def)
-
-## tests/test_citation_finder.py (115 lines) - Finding what a post cites as its source: links, "Source:" lines on a caption or an image, named documents.
-- `refs` (def)
-- `TestLinks` (class)
-    - `test_a_read_the_full_article_link_is_a_citation_and_a_cut_short_one_says_so` (def)
-    - `test_a_whole_link_is_not_cut_short` (def)
-    - `test_a_call_to_action_home_page_is_not_a_citation` (def)
-    - `test_a_learn_more_link_to_an_article_is_one` (def)
-    - `test_a_source_cue_makes_even_a_home_page_a_citation` (def)
-    - `test_social_profiles_are_not_citations` (def)
-    - `test_a_bare_domain_with_a_path_is_found` (def)
-    - `test_trailing_punctuation_is_not_part_of_the_link` (def)
-    - `test_the_same_link_twice_is_one_citation` (def)
-- `TestNamedSources` (class)
-    - `test_a_source_line_printed_on_an_image_runs_over_its_line_breaks` (def)
-    - `test_the_same_source_in_the_caption_is_where_caption` (def)
-    - `test_several_sources_are_split` (def)
-    - `test_hashtags_and_cashtags_after_a_source_are_left_out` (def)
-    - `test_a_source_line_does_not_swallow_the_next_sentence` (def)
-    - `test_according_to_names_the_source` (def)
-    - `test_per_needs_a_name_after_it` (def)
-    - `test_a_source_in_brackets_in_a_sentence` (def)
-- `TestNothingToFind` (class)
-    - `test_a_post_with_no_citation` (def)
-    - `test_empty` (def)
-    - `test_at_most_six` (def)
-
-## tests/test_claim_checks.py (203 lines) - The text read from the "$25M contract" graphic, line breaks and all.
-- `fired` (def) - The checks that fire, by key: a check's rule number can be shared with another check.
-- `ClaimCheckTests` (class)
-    - `test_the_contract_graphic_trips_every_check` (def)
-    - `test_measured_results_and_figures_need_a_source_but_cost_nothing` (def)
-    - `test_ordinary_posts_are_left_alone` (def)
-    - `test_safe_harbor_wording_clears_the_forward_looking_check` (def)
-    - `test_the_words_forward_looking_alone_are_not_safe_harbor` (def)
-    - `test_an_approval_that_names_its_issuer_is_fine` (def)
-    - `test_each_check_keeps_the_same_id_so_dismissals_stick` (def)
-    - `test_each_check_is_labelled_with_its_rulebook_rule` (def)
-- `ScoreWithClaimChecksTests` (class)
-    - `check` (def)
-    - `test_the_contract_graphic_no_longer_scores_100` (def)
-    - `test_a_clean_caption_still_scores_100` (def)
-    - `test_figures_need_a_source_but_are_not_violations` (def)
-    - `test_semantic_matches_are_things_to_check_not_violations` (def)
-    - `test_a_claim_the_meaning_check_says_only_needs_a_source_costs_the_evidence_penalty` (def)
-
-## tests/test_compliance_scoring.py (405 lines) - These tests are about the wording-based rules, so the vector store and the model that match rules by meaning are
-- `setUpModule` (def)
-- `tearDownModule` (def)
-- `rule` (def)
-- `padded` (def)
-- `PhraseMatchingTests` (class)
-    - `test_phrases_match_regardless_of_case_and_punctuation` (def)
-    - `test_wildcard_stands_for_up_to_three_words` (def)
-    - `test_an_exception_phrase_cancels_a_match_inside_it` (def)
-    - `test_a_disclaimer_counts_when_nearly_word_for_word` (def)
-    - `test_a_disclaimers_words_scattered_across_the_post_are_not_the_disclaimer` (def)
-- `RuleScopeTests` (class)
-    - `test_a_rule_applies_unless_limited_to_other_values` (def)
-- `ScoringTests` (class)
-    - `check` (def) - check_compliance against exactly these rules (no database).
-    - `test_clean_text_scores_100` (def)
-    - `test_each_finding_takes_its_penalty_off_100` (def)
-    - `test_a_finding_from_a_green_rule_is_still_yellow` (def)
-    - `test_a_critical_finding_blocks_and_caps_the_score` (def)
-    - `test_a_missing_disclaimer_is_a_yellow_finding` (def)
-    - `test_the_same_words_flagged_by_two_rules_cost_points_once` (def)
-    - `test_rules_for_other_rule_sets_are_skipped` (def)
-- `PostSignalScoringTests` (class)
-    - `test_a_phrase_in_a_camel_case_hashtag_is_flagged` (def)
-    - `test_a_phrase_run_together_in_a_hashtag_is_flagged` (def)
-    - `test_a_hashtag_can_trigger_a_required_disclaimer` (def)
-    - `test_tagging_the_military_is_a_yellow_finding` (def)
-    - `test_a_missing_dod_disclaimer_and_a_tag_count_once` (def)
-    - `test_signals_and_notes_are_returned` (def)
-- `ManualReviewRuleTests` (class)
-    - `test_rules_with_nothing_to_look_for_in_text_are_listed_not_passed` (def)
-- `AppliesToTests` (class)
-    - `test_content_types_map_to_the_parts_rules_name` (def)
-    - `test_a_rule_limited_to_video_skips_image_posts` (def)
-    - `test_a_ceo_only_rule_runs_on_shauns_posts_only` (def)
-    - `test_default_rules_apply_to_everything` (def)
-    - `test_applies_to_is_validated` (def)
-- `RulesCacheTests` (class) - Every check loads the rulebook; it's read from the database once, until a rule changes.
-    - `row` (def)
-    - `asyncSetUp` (def)
-    - `asyncTearDown` (def)
-    - `test_the_rulebook_is_read_once_until_a_rule_changes` (def)
-    - `test_filtered_searches_always_query` (def)
-    - `test_rows_read_while_a_rule_changed_arent_kept` (def)
-    - `test_the_rulebook_version_is_cached_with_the_rules` (def)
-- `CashtagAudienceTests` (class)
-    - `test_a_cashtag_brings_in_the_investor_rules` (def)
-    - `test_no_audience_still_checks_every_audience` (def)
-    - `test_investor_posts_need_no_note` (def)
-- `RuleSetsFromWordingTests` (class) - Investor and defense wording brings in the Public Company Disclosure and ZenaDrone Defense rule sets.
-    - `test_a_cashtag_on_a_general_post_adds_the_disclosure_rules` (def)
-    - `test_investor_wording_without_a_cashtag_adds_them_too` (def)
-    - `test_a_general_post_with_no_investor_wording_is_left_alone` (def)
-    - `test_defense_wording_adds_the_defense_rules` (def)
-    - `test_a_hashtag_is_reported_once` (def)
-    - `test_nothing_is_added_when_already_chosen_or_none_are_chosen` (def)
-    - `test_both_reasons_are_given_investors_first` (def)
-
-## tests/test_dashboard_summary.py (152 lines) - In the order dashboard_summary asks: post decisions, the average score, then script decisions.
-- `DashboardSummaryTests` (class)
-    - `summarise` (def)
-    - `test_every_query_is_limited_to_what_the_viewer_can_see` (def)
-    - `test_creators_only_see_their_own_content` (def)
-    - `test_creator_view_narrows_a_reviewer_to_their_own_content` (def)
-    - `test_results_are_returned_as_the_dashboard_needs_them` (def)
-    - `test_script_decisions_count_toward_the_review_totals` (def)
-    - `test_no_content_sent_for_review_has_no_average` (def)
-- `MyPostsOrderTests` (class)
-    - `order_clause` (def)
-    - `test_a_script_with_a_reviewer_waits_with_content_in_review_not_with_drafts` (def)
-    - `test_what_needs_the_creator_comes_first_then_the_soonest_deadline` (def)
-- `ReviewQueueScopeTests` (class)
-    - `queue` (def)
-    - `test_reviewers_see_everyones_content_by_default` (def)
-    - `test_creator_view_shows_only_the_users_own_content` (def)
-
-## tests/test_deadlines.py (56 lines) - test deadlines
-- `hours` (def)
-- `DeadlineTests` (class)
-    - `test_a_date_the_reviewer_picked_is_kept_even_past_the_publish_time` (def)
-    - `test_working_days_are_still_pulled_in_by_a_close_publish_time` (def)
-    - `test_a_date_in_the_past_is_refused` (def)
-    - `test_the_video_has_no_deadline_unless_one_is_given` (def)
-    - `test_a_script_deadline_shows_only_at_its_step` (def)
-    - `test_the_video_notices_read_naturally` (def)
-
-## tests/test_delete_draft.py (36 lines) - test delete draft
-- `WhoCanBeDeletedTests` (class)
-    - `test_a_draft_can_be_deleted_by_whoever_may` (def)
-    - `test_content_in_review_or_approved_cannot` (def)
-    - `test_a_draft_whose_script_is_with_a_reviewer_cannot` (def)
-    - `test_a_draft_whose_script_is_being_sent_cannot` (def)
-    - `test_a_script_that_was_sent_back_or_never_sent_does_not_stop_it` (def)
-    - `test_a_stuck_send_does_not_stop_it_forever` (def)
-
-## tests/test_document_text.py (83 lines) - test document text
-- `docx` (def) - A minimal .docx with these paragraphs ("\\t" and "\\n" become a tab and a line break).
-    - `run` (def)
-- `ReadTests` (class)
-    - `setUp` (def)
-    - `write` (def)
-    - `test_docx_paragraphs_are_read_in_order` (def)
-    - `test_a_line_break_inside_a_paragraph_starts_a_new_line` (def)
-    - `test_text_files_in_common_encodings` (def)
-    - `test_old_word_files_and_broken_docx_say_what_to_do` (def)
-    - `test_pdfs_are_left_to_the_model` (def)
-    - `test_long_text_is_capped` (def)
-- `WhichFilesTests` (class)
-    - `test_scripts_and_article_files_are_read` (def)
-
-## tests/test_evidence_penalty.py (57 lines) - test evidence penalty
-- `finding` (def)
-- `UnsupportedClaimTests` (class)
-    - `test_a_claim_that_needs_a_source_costs_five_points` (def)
-    - `test_the_same_words_under_two_rules_cost_once_at_the_stricter_rule` (def)
-    - `test_the_total_is_capped_at_ten` (def)
-    - `test_checks_for_a_person_cost_nothing` (def)
-    - `test_dismissing_the_flag_gives_the_points_back` (def)
-    - `test_dismissing_the_stricter_flag_makes_the_other_rule_carry_the_claim` (def)
-
-## tests/test_extra_claims.py (46 lines) - test extra claims
-- `ExtraClaimTests` (class) - Uses the scoring tests' no-database check helper.
-    - `rules` (def)
-    - `test_one_claim_costs_the_rule_penalty_only` (def)
-    - `test_overlapping_phrases_are_one_claim` (def)
-    - `test_a_second_separate_claim_costs_five_more` (def)
-    - `test_extra_claims_add_a_little_each` (def)
-    - `test_extra_claims_are_capped` (def)
-    - `test_a_denied_phrase_is_not_a_claim` (def)
-
-## tests/test_full_rule_pass.py (81 lines) - test full rule pass
-- `rule` (def)
-- `FullRulePassTests` (class)
-    - `run_pass` (def)
-    - `test_every_applicable_rule_is_put_to_the_ai_even_when_the_search_found_none` (def)
-    - `test_a_rule_the_wording_already_caught_is_not_asked_again` (def)
-    - `test_switched_off_it_asks_nothing_when_the_search_found_nothing` (def)
-    - `test_the_prompt_asks_for_soft_claims` (def)
-
-## tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
-- `rule` (def)
-- `LibraryTests` (class)
-    - `test_brand_and_audience_tags_with_the_cashtag_on_its_own` (def)
-    - `test_the_strictest_platform_sets_the_limit` (def)
-    - `test_only_allowed_tags_are_offered` (def)
-    - `test_an_unknown_brand_gets_the_company_tags` (def)
-- `FlaggedTagTests` (class)
-    - `test_a_tag_the_rules_flag_is_reported_with_its_rule` (def)
-    - `test_a_disclaimer_rule_does_not_flag_a_tag` (def)
-
-## tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
-- `result` (def)
-- `api_error` (def)
-- `SentimentModelChainTests` (class)
-    - `generate` (def) - Run the chain where each model either answers or raises; returns (result or error, models tried).
-    - `test_the_first_model_is_used_when_it_answers` (def)
-    - `test_a_used_up_daily_limit_moves_to_the_next_model_and_says_so` (def)
-    - `test_a_retired_model_is_skipped` (def)
-    - `test_a_model_that_stays_overloaded_is_skipped` (def)
-    - `test_when_every_limit_is_used_up_the_run_can_be_scheduled` (def)
-    - `test_an_inputs_saved_model_goes_first_then_the_chain` (def)
-    - `test_testing_one_model_never_falls_back` (def)
-- `SentimentErrorClassificationTests` (class)
-    - `run_one` (def)
-    - `run_one_with` (def)
-    - `test_a_daily_quota_error_is_reported_as_quota` (def)
-    - `test_a_retired_model_fails_fast_without_retrying` (def)
-    - `test_a_timed_out_call_hands_over_without_waiting_again` (def)
-    - `test_each_call_has_a_time_limit` (def)
-    - `test_a_model_still_overloaded_after_retries_hands_over` (def)
-- `ImageTextModelChainTests` (class)
-    - `test_the_next_light_model_is_tried_when_one_is_out_of_quota` (def)
-
-## tests/test_performance_period.py (86 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
-- `PeriodTests` (class)
-    - `test_last_n_days_ends_now` (def)
-    - `test_a_custom_range_covers_whole_days_in_the_team_time_zone` (def)
-    - `test_a_one_day_range_is_that_whole_day` (def)
-- `RangeRequestTests` (class)
-    - `call` (def)
-    - `test_a_custom_range_is_passed_on` (def)
-    - `test_last_n_days_still_works` (def)
-    - `assert_refused` (def)
-    - `test_both_dates_are_needed` (def)
-    - `test_start_cant_be_after_end` (def)
-    - `test_a_range_is_at_most_a_year` (def)
-- `LivePostsWindowTests` (class)
-    - `test_the_query_uses_the_window` (def)
-
-## tests/test_post_signals.py (93 lines) - test post signals
-- `ExtractTests` (class)
-    - `test_cashtags_hashtags_mentions_and_links_are_read` (def)
-    - `test_money_and_numbers_are_not_cashtags_or_hashtags` (def)
-    - `test_an_email_address_is_not_a_mention_or_a_link` (def)
-    - `test_outside_links_are_listed_and_noted` (def)
-    - `test_a_hashtag_wall_is_noted` (def)
-- `HashtagWordTests` (class)
-    - `test_camel_case_hashtags_split_into_words` (def)
-    - `test_phrases_and_keys` (def)
-- `GovernmentTests` (class)
-    - `test_government_and_military_handles` (def)
-    - `test_lookalikes_and_our_own_accounts_are_not` (def)
-    - `test_government_domains` (def)
-    - `test_tagging_the_military_is_a_finding` (def)
-    - `test_the_no_endorsement_wording_clears_it` (def)
-    - `test_not_only_is_not_a_disclaimer` (def)
-    - `test_ordinary_posts_have_no_findings` (def)
-
-## tests/test_resume_reads.py (47 lines) - test resume reads
-- `ResumeInterruptedReadTests` (class)
-    - `test_images_cut_off_by_a_restart_are_read_again` (def)
-    - `test_documents_cut_off_by_a_restart_are_read_again` (def)
-    - `test_nothing_to_resume_is_quiet` (def)
-- `StuckReadRetriedTests` (class)
-    - `test_only_stuck_reads_older_than_the_limit_are_retried` (def)
-
-## tests/test_retired_models.py (36 lines) - test retired models
-- `RetiredModelTests` (class)
-    - `test_retired_models_are_dropped_in_order` (def)
-    - `test_a_list_of_only_retired_models_is_left_as_given` (def)
-    - `test_the_account_list_in_env_cannot_bring_them_back` (def)
-    - `test_no_route_tries_a_retired_model_first` (def)
-    - `test_a_route_set_in_env_is_filtered_too` (def)
-
-## tests/test_review_decision.py (261 lines) - test review decision
-- `submission_row` (def)
-- `fake_pool` (def)
-- `approve_now` (def)
-- `ReviewDecisionTestCase` (class) - Runs decide_review with the database and everything around it replaced.
-    - `decide` (def)
-    - `job_update` (def) - The arguments of the UPDATE that records the decision on the review job.
-    - `assert_refused` (def)
-- `WhoMayDecideTests` (class)
-    - `test_only_reviewers_can_decide` (def)
-    - `test_reviewer_cant_decide_on_their_own_content` (def)
-    - `test_super_admin_can_approve_their_own_content` (def)
-    - `test_only_content_in_review_can_be_decided` (def)
-    - `test_only_a_named_approver_can_give_final_approval` (def)
-    - `test_any_reviewer_can_request_changes_on_a_named_path` (def)
-- `ApprovalRequirementTests` (class)
-    - `test_open_critical_flag_blocks_approval` (def)
-    - `test_a_score_below_the_minimum_blocks_approval` (def)
-    - `test_the_minimum_itself_is_enough` (def)
-    - `test_a_low_score_doesnt_stop_requesting_changes` (def)
-    - `test_content_with_no_score_yet_isnt_held_by_the_minimum` (def)
-    - `test_approving_needs_a_publish_time` (def)
-    - `test_publish_time_must_be_in_the_future` (def)
-    - `test_requesting_changes_needs_a_note_or_open_comment` (def)
-- `ManualRuleChecklistTests` (class)
-    - `test_approving_requires_confirming_every_rule_the_check_cant_test` (def)
-    - `test_confirmed_rules_are_recorded_with_the_approval` (def)
-    - `test_requesting_changes_needs_no_confirmations` (def)
-    - `test_checks_saved_before_the_checklist_need_no_confirmations` (def)
-- `ScoreAfterDismissalsTests` (class) - The approval score: dismissed flags give their points back.
-    - `flag` (def)
-    - `score` (def)
-    - `test_dismissed_flags_give_their_points_back` (def)
-    - `test_the_critical_cap_lasts_only_while_a_critical_flag_is_open` (def)
-    - `test_dismissing_the_stricter_of_two_flags_on_the_same_words_doesnt_make_them_free` (def)
-    - `test_no_score_yet_or_an_old_check_without_points` (def)
-
-## tests/test_review_penalty.py (68 lines) - test review penalty
-- `rule` (def)
-- `to_check` (def)
-- `charge` (def)
-- `ReviewPenaltyTests` (class)
-    - `test_sure_costs_half_the_violation_points` (def)
-    - `test_a_missing_disclaimer_costs_half_of_its_rules_points` (def)
-    - `test_fairly_sure_costs_five` (def)
-    - `test_unsure_costs_nothing` (def)
-    - `test_only_the_models_own_judgment_counts` (def)
-    - `test_other_statuses_are_left_alone` (def)
-    - `test_it_is_a_warning_so_no_critical_cap_and_dismissing_gives_points_back` (def)
-
-## tests/test_reviewer_choice.py (186 lines) - test reviewer choice
-- `submission_row` (def)
-- `WhoMayOpenItTests` (class)
-    - `load` (def)
-    - `test_a_reviewer_it_was_sent_to_can_open_it` (def)
-    - `test_other_reviewers_cant_open_it` (def)
-    - `test_content_sent_to_no_one_in_particular_is_open_to_every_reviewer` (def)
-    - `test_its_creator_and_super_admins_can_still_open_it` (def)
-    - `test_lists_and_queues_use_the_same_rule` (def)
-- `WhoIsNotifiedTests` (class)
-    - `recipients` (def)
-    - `test_only_the_reviewers_it_was_sent_to` (def)
-    - `test_someone_who_can_no_longer_review_is_left_out` (def)
-    - `test_every_reviewer_on_the_brand_when_nobody_was_picked` (def)
-    - `test_deadline_reminders_go_to_the_same_people` (def)
-    - `test_a_script_goes_to_the_same_people` (def)
-- `PickingReviewersTests` (class)
-    - `update` (def)
-    - `test_picked_reviewers_are_saved_once_each` (def)
-    - `test_a_super_admin_can_pick_themselves` (def)
-    - `test_someone_who_cant_review_the_brand_cant_be_picked` (def)
-    - `test_clearing_the_choice_sends_it_to_every_reviewer_again` (def)
-- `ReviewersAreRequiredTests` (class)
-    - `missing` (def)
-    - `test_a_post_cant_be_sent_without_picking_reviewers` (def)
-    - `test_a_script_cant_be_sent_without_picking_reviewers` (def)
-- `ReviewerOptionsTests` (class)
-    - `test_reviewers_and_super_admins_are_offered_by_name` (def)
-    - `test_a_super_admin_is_offered_to_themselves_too` (def)
-
-## tests/test_rule25_guidance.py (26 lines) - test rule25 guidance
-- `ForwardLookingGuidanceTests` (class)
-    - `test_rule_25_tells_the_ai_generic_enthusiasm_is_not_forward_looking` (def)
-    - `test_rule_25_still_requires_the_safe_harbor_for_real_projections` (def)
-    - `test_guidance_is_only_added_where_a_rule_has_none` (def)
-
-## tests/test_rulebook_check_coverage.py (165 lines) - test rulebook check coverage
-- `submission_row` (def)
-- `image` (def)
-- `RulebookCheckReadsImageTextTests` (class)
-    - `run_check` (def)
-    - `test_text_in_images_is_checked_with_the_caption_in_order` (def)
-    - `test_unread_images_are_read_now_and_reported_as_pending` (def)
-    - `test_unreadable_images_are_reported_not_hidden` (def)
-    - `test_a_post_without_images_reports_none` (def)
-- `ImageTextReaderTests` (class)
-    - `setUp` (def)
-    - `tearDown` (def)
-    - `read` (def)
-    - `test_read_text_is_saved_and_the_post_is_rechecked` (def)
-    - `test_a_failed_read_is_saved_as_failed_and_still_rechecks` (def)
-    - `test_an_image_already_being_read_is_left_alone` (def)
-- `ImageTextHelperTests` (class)
-    - `test_only_a_posts_own_images_are_read` (def)
-- `ImageTextSchedulingTests` (class)
-    - `test_only_unread_or_abandoned_images_are_scheduled` (def)
-    - `test_nothing_to_schedule_makes_no_query` (def)
-
-## tests/test_script_match.py (73 lines) - test script match
-- `ScriptMatchTests` (class)
-    - `test_same_words_match` (def)
-    - `test_small_transcription_noise_still_matches` (def)
-    - `test_added_claim_is_listed` (def)
-    - `test_dropped_passage_is_listed` (def)
-    - `test_different_video_is_a_mismatch` (def)
-    - `test_nothing_to_compare` (def)
-- `FlagMismatchTests` (class)
-    - `result` (def)
-    - `test_a_mismatch_becomes_a_needs_review_flag_without_points` (def)
-    - `test_a_red_check_stays_red` (def)
-    - `test_a_matching_or_partial_video_is_not_flagged` (def)
-
-## tests/test_script_queue.py (107 lines) - test script queue
-- `script_row` (def)
-- `QueueTests` (class)
-    - `setUp` (def)
-    - `run_queue` (def)
-    - `test_the_list_answers_from_what_is_saved_without_checking_inline` (def)
-    - `test_an_up_to_date_script_is_not_refreshed` (def)
-- `BackgroundRefreshTests` (class)
-    - `setUp` (def)
-    - `test_the_same_script_is_only_refreshed_once_at_a_time` (def)
-    - `test_a_refresh_saves_the_new_check` (def)
-    - `test_a_failed_refresh_does_not_stop_the_rest` (def)
-- `CheckTextFlagTests` (class)
-    - `check` (def)
-    - `test_a_script_the_ai_could_not_read_is_flagged` (def)
-    - `test_a_script_the_ai_read_is_not` (def)
-
-## tests/test_script_send.py (160 lines) - test script send
-- `processing` (def)
-- `SendStateTests` (class)
-    - `test_nothing_in_progress` (def)
-    - `test_processing_then_timed_out` (def)
-    - `test_a_resumed_send_counts_from_when_it_was_picked_up` (def)
-    - `test_failed_keeps_its_reason` (def)
-- `RequiredDetailsTests` (class)
-    - `test_a_complete_post_has_nothing_missing` (def)
-    - `test_empty_details_are_listed_by_their_form_names` (def)
-    - `test_the_script_is_refused_until_they_are_filled_in` (def)
-- `FailSendTests` (class)
-    - `test_a_send_that_already_finished_is_not_marked_failed_or_announced` (def)
-    - `test_a_running_send_that_fails_tells_the_creator` (def)
-- `ProcessSendTests` (class)
-    - `patches` (def)
-    - `run_with` (def)
-    - `test_a_readable_script_is_scored_then_sent` (def)
-    - `test_an_unreadable_script_says_it_couldnt_be_read` (def)
-    - `test_a_scoring_error_says_the_score_couldnt_be_calculated` (def)
-    - `test_a_missing_file_fails_instead_of_hanging` (def)
-- `ScriptSentNoticeTests` (class)
-    - `send` (def)
-    - `test_the_reviewers_and_the_creator_are_both_told` (def)
-    - `test_the_confirmation_counts_several_reviewers` (def)
-
-## tests/test_security_fixes.py (133 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
-- `CaptionSanitizerTests` (class)
-    - `test_keeps_editor_formatting` (def)
-    - `test_drops_scripts_handlers_and_styles` (def)
-    - `test_links_only_keep_safe_schemes` (def)
-    - `test_text_is_escaped_and_tags_closed` (def)
-- `FakeConn` (class) - Answers the guard's queries: is the actor a super admin, and is any target one.
-    - `__init__` (def)
-    - `fetchval` (def)
-- `AccountGuardTests` (class)
-    - `test_non_super_admin_cannot_touch_a_super_admin` (def)
-    - `test_non_super_admin_cannot_change_own_roles_or_brands` (def)
-    - `test_ordinary_change_by_user_manager_is_allowed` (def)
-    - `test_super_admin_may_do_anything` (def)
-- `request` (def)
-- `LinkTokenTests` (class)
-    - `setUp` (def)
-    - `call` (def)
-    - `test_link_token_opens_media_by_url` (def)
-    - `test_a_stale_cookie_does_not_stop_the_link_token_opening_media` (def)
-    - `test_link_token_cannot_call_the_api` (def)
-    - `test_link_token_only_works_from_a_url` (def)
-    - `test_session_token_is_refused_in_a_url` (def)
-    - `test_tokens_issued_before_logout_stay_dead` (def)
-
-## tests/test_sentiment_strictness.py (70 lines) - test sentiment strictness
-- `inp` (def)
-- `StrictnessTests` (class)
-    - `test_everyday_posts_are_read_as_trends` (def)
-    - `test_defense_investor_and_ceo_content_keep_the_full_standard` (def)
-    - `test_a_cashtag_holds_a_general_post_to_the_investor_standard` (def)
-    - `test_defense_wording_holds_a_general_post_to_the_defense_standard` (def)
-    - `test_investor_wording_without_a_cashtag_says_why` (def)
-    - `test_relaxed_style_never_relaxes_claims` (def)
-
-## tests/test_sentiment_verification.py (147 lines) - test sentiment verification
-- `inp` (def)
-- `finding` (def)
-- `result` (def)
-- `QuoteVerificationTests` (class)
-    - `test_a_quote_thats_not_in_the_content_is_dropped` (def)
-    - `test_a_quote_is_found_despite_case_curly_quotes_and_punctuation` (def)
-    - `test_the_same_wording_is_flagged_once_keeping_the_most_severe` (def)
-    - `test_tone_evidence_not_in_the_content_is_removed` (def)
-- `TranscriptTimingTests` (class)
-    - `locate` (def)
-    - `test_a_quote_starting_a_segment_takes_only_that_segments_time` (def)
-    - `test_a_quote_ending_a_segment_doesnt_take_the_next_one` (def)
-    - `test_a_quote_across_segments_spans_both` (def)
-- `ImageAndVideoFindingTests` (class)
-    - `test_a_finding_about_an_attached_image_is_kept` (def)
-    - `test_a_finding_about_an_image_that_wasnt_attached_is_dropped` (def)
-    - `test_wording_found_only_in_the_single_image_is_kept_against_it` (def)
-    - `test_a_video_finding_needs_the_video_and_a_time` (def)
-- `FindingBookkeepingTests` (class)
-    - `test_cited_rules_are_matched_to_the_applicable_rule_numbers` (def)
-    - `test_finding_ids_are_stable_and_distinguish_images` (def)
-    - `test_findings_get_ids_and_controversy_is_cleared_when_it_doesnt_apply` (def)
-    - `test_precedent_labels_become_past_review_names` (def)
-- `QuotaResetTests` (class)
-    - `test_the_daily_quota_resets_at_midnight_pacific` (def)
-
-## tests/test_social_post_no_video.py (48 lines) - test social post no video
-- `SocialPostMediaTests` (class)
-    - `test_a_social_post_takes_images_not_video` (def)
-    - `test_other_types_are_unchanged` (def)
-    - `missing` (def)
-    - `test_a_social_post_with_a_video_cant_be_sent` (def)
-    - `test_a_social_post_with_an_image_or_none_can` (def)
-    - `test_a_paid_ad_with_a_video_is_still_fine` (def)
-
-## tests/test_source_check.py (435 lines) - Source check: reading what a post cites and comparing it with the post's claims.
-- `run` (def)
-- `answer` (def)
-- `result` (def)
-- `FiguresTests` (class)
-    - `test_a_figure_in_the_source_in_any_form_is_found` (def)
-    - `test_a_figure_the_source_never_mentions_is_missing` (def)
-    - `test_number_words_in_the_claim_are_not_figures` (def)
-- `AuthorityTests` (class)
-    - `test_who_published_it` (def)
-- `SafeguardTests` (class)
-    - `test_supported_with_evidence_and_the_figures_stays_supported` (def)
-    - `test_supported_without_evidence_becomes_unclear` (def)
-    - `test_supported_with_low_confidence_becomes_unclear` (def)
-    - `test_supported_with_a_figure_not_in_the_source_becomes_unclear` (def)
-    - `test_a_contradiction_is_kept_as_it_is` (def)
-    - `test_an_unknown_verdict_is_unclear` (def)
-- `MatchingTests` (class)
-    - `test_an_attached_memo_stands_in_for_the_named_source` (def)
-    - `test_an_unrelated_document_does_not` (def)
-- `RunTests` (class)
-    - `go` (def)
-    - `test_nothing_cited_costs_nothing` (def)
-    - `test_a_cited_article_is_opened_and_its_claims_are_compared` (def)
-    - `test_a_claim_that_overstates_its_source_is_a_finding_that_costs_points` (def)
-    - `test_a_claim_the_source_doesnt_settle_is_for_a_person_at_no_cost` (def)
-    - `test_a_cut_short_link_cant_be_opened_and_says_why` (def)
-    - `test_a_page_that_cant_be_read_is_reported_with_its_reason` (def)
-    - `test_a_page_that_tries_to_steer_the_review_is_not_used` (def)
-    - `test_a_named_source_with_nothing_attached_needs_a_copy` (def)
-    - `test_an_attached_memo_is_read_in_place_of_the_named_source` (def)
-    - `test_when_no_model_can_answer_nothing_is_marked_supported` (def)
-    - `test_switched_off` (def)
-- `finding` (def)
-- `ClearingTests` (class)
-    - `checks` (def)
-    - `test_a_supported_claim_clears_its_needs_a_source_finding` (def)
-    - `test_a_claim_about_something_else_leaves_it_alone` (def)
-    - `test_a_contradicted_claim_clears_nothing` (def)
-    - `test_only_needs_a_source_findings_are_cleared` (def)
-- `InTheCheckTests` (class) - The source check inside check_compliance: its findings, its score and its place in the response.
-    - `check` (def)
-    - `read` (def)
-    - `test_a_contradicted_claim_takes_20_points_and_the_response_carries_the_source_check` (def)
-    - `test_a_supported_claim_costs_nothing` (def)
-    - `test_a_source_that_couldnt_be_checked_is_for_a_person_and_costs_nothing` (def)
-    - `test_a_supported_figure_no_longer_needs_a_source` (def)
-    - `test_a_source_no_model_could_read_makes_the_check_incomplete` (def)
-- `FetchSafetyTests` (class)
-    - `refused` (def)
-    - `test_private_and_local_addresses_are_refused` (def)
-    - `test_other_schemes_ports_and_logins_are_refused` (def)
-    - `test_a_redirect_to_a_private_address_is_not_followed` (def)
-    - `test_a_page_is_read_and_remembered` (def)
-    - `test_a_connection_that_doesnt_get_through_is_tried_again` (def)
-    - `test_a_site_that_never_answers_is_reported_as_too_slow` (def)
-    - `test_missing_and_walled_pages_say_what_happened` (def)
-- `HtmlTests` (class)
-    - `test_the_article_is_read_without_menus_scripts_or_footers` (def)
-    - `test_a_page_with_no_article_element_gives_its_visible_text` (def)
-
-## tests/test_submission_access.py (155 lines) - test submission access
-- `submission_row` (def)
-- `OwnedRowAccessTests` (class)
-    - `load` (def)
-    - `assert_hidden` (def)
-    - `test_creator_sees_their_own_content` (def)
-    - `test_creator_cant_see_someone_elses_content` (def)
-    - `test_reviewer_sees_others_content_on_their_brands` (def)
-    - `test_reviewer_cant_see_other_brands` (def)
-    - `test_reviewer_without_brand_limits_sees_every_brand` (def)
-    - `test_reviewers_only_see_others_content_where_the_screen_allows_it` (def)
-    - `test_deleted_content_is_never_returned` (def)
-- `SubmitRequirementTests` (class)
-    - `missing` (def)
-    - `test_a_complete_post_has_nothing_missing` (def)
-    - `test_every_missing_field_is_reported` (def)
-    - `test_image_posts_need_their_image` (def)
-    - `test_a_caption_is_needed_even_with_an_image` (def)
-- `FlagDismissalTests` (class)
-    - `dismiss` (def)
-    - `assert_refused` (def)
-    - `test_reviewer_can_dismiss_flags_on_content_in_review` (def)
-    - `test_creator_cant_dismiss_flags` (def)
-    - `test_reviewer_cant_dismiss_flags_on_their_own_content` (def)
-    - `test_flags_can_only_be_dismissed_while_in_review` (def)
-    - `test_a_reason_of_other_needs_a_note` (def)
-
-## tests/test_test_login.py (56 lines) - auth_router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
-- `request` (def)
-- `TestLoginGuardTests` (class)
-    - `allowed` (def)
-    - `test_on_only_when_switched_on_in_development_at_localhost` (def)
-    - `test_off_unless_switched_on` (def)
-    - `test_never_in_production` (def)
-    - `test_never_from_a_real_address` (def)
-    - `test_signing_in_is_refused_while_off` (def)
-    - `test_only_the_two_test_users_can_be_asked_for` (def)
-
-## tests/test_x_sentiment_listening.py (178 lines) - test x sentiment listening
-- `XSentimentAndPublicMoodTests` (class)
-    - `test_comment_sentiment_classifies_positive_negative_and_neutral_with_vader_lexicon` (def)
-    - `test_publishing_decision_rules_post_wait_and_hold` (def)
-    - `test_x_json_provider_reads_and_scores_comments` (def)
-    - `test_load_submission_includes_script_and_video_transcript_for_attack_drone_screening` (def)
-
 ## tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
 - `ai_status` (def) [GET /ai/status] - The AI's state: available, or why it isn't (key, quota, models, busy).
 
@@ -2079,15 +1674,21 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `design_thumbnail` (def) [GET /designs/{design_id}/thumbnail] - A small PNG preview of the design for the picker.
 - `simulate_edit` (def) [POST /designs/{design_id}/simulate-edit] - Mock Canva only: pretend the design was edited, so its next export is a new revision.
 
-## tools/compliance/analytics/listening_router.py (91 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
+## tools/compliance/analytics/listening_router.py (173 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
 - `list_topics` (def) [GET /topics] - Every topic with its current mood, the team's keyword tuning and how often it was matched wrongly.
 - `sync_topics` (def) [POST /topics/sync] - Pull the topic list from the listening source now instead of waiting for the daily sync.
 - `update_topic` (def) [PUT /topics/{topic_id}]
 - `match_test` (def) [POST /match-test] - Which topics this text would match and why, including the near misses.
+- `feedback_reasons` (def) [GET /feedback-reasons] - The reasons a reviewer can give when marking a match unrelated or correcting a recommendation (code -> label).
+- `mood_model_status` (def) [GET /model/status] - The decision model: whether xgboost is installed, which model is registered and loaded, what it was trained on,
 - `get_trends` (def) [GET /trends] - What is trending right now, whether sentiment is positive or negative, and whether the team can jump on
 - `ingest_x_comments` (def) [POST /x-ingest] - Ingest scraped or collected X (Twitter) topics and comments, classify each comment as POSITIVE/NEGATIVE/NEUTRAL
-- `_run_scrape_and_refresh` (def)
-- `trigger_live_scrape` (def) [POST /scrape] - Trigger live scraping of public X posts and news trends via Playwright + VADER,
+- `_now` (def)
+- `_run_scraper_process` (def) - The scraper in its own Python process.
+- `_collection_summary` (def) - How the scrape that just finished went (status and per-source results, as the scraper recorded them), read from
+- `_run_scrape_and_refresh` (def) - Scrape, then bring the topics, trends and conversation index up to date.
+- `trigger_live_scrape` (def) [POST /scrape] - The scrape button: collect public X posts and news now, then refresh topics, trends and the conversation index
+- `scrape_status` (def) [GET /scrape/status] - Whether a scrape is running, and how the last one went: state (idle | running | finished | failed), start and
 
 ## tools/compliance/analytics/performance_router.py (45 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - `performance` (def) [GET ] - Live posts (one row per platform) with their numbers and health, problems first, plus totals.
@@ -2140,7 +1741,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
 - `resolve_script_highlights` (def) [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
-## tools/compliance/submissions/submission_router.py (463 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submissions/submission_router.py (549 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
 - `list_reviewers` (def) [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
 - `get_hashtag_library` (def) [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
@@ -2164,6 +1765,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `listen` (def)
     - `work` (def)
     - `lines` (def)
+- `find_duplicates` (def) [GET /{submission_id}/duplicates] - Posts already sent for approval with the same content and caption as this draft, with how their Submission
 - `submit_for_review` (def) [POST /{submission_id}/submit] - Validate required information, snapshot a new version and create a review job.
 - `withdraw` (def) [POST /{submission_id}/withdraw] - Pull a submission back to draft to edit it: from review, or after approval for a late fix (the approval
 - `get_version` (def) [GET /{submission_id}/versions/{version}] - One submitted version as it was: snapshot, video, automated check and decision.
@@ -2175,6 +1777,15 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `summarise_public_mood` (def) [POST /{submission_id}/public-mood/summary] - An AI reading of how this post is likely to land given the current mood.
 - `dismiss_public_mood_topic` (def) [PUT /{submission_id}/public-mood/topics/{topic_id}/dismissal] - This post isn't about that topic": leave it out here, and count it against the topic's keywords.
 - `restore_public_mood_topic` (def) [DELETE /{submission_id}/public-mood/topics/{topic_id}/dismissal]
+- `mark_conversation_unrelated` (def) - This retrieved item is not about the post: it is left out of this post's conversation assessments from now on.
+- `restore_conversation_item` (def) [DELETE /{submission_id}/public-mood/conversations/items/{item_id}/unrelated] - Put a left-out item back.
+- `correct_conversation_recommendation` (def) [PUT /{submission_id}/public-mood/conversations/{assessment_id}/correction] - This recommendation is wrong: what it should have been and why.
+- `confirm_conversation_recommendation` (def) [PUT /{submission_id}/public-mood/conversations/{assessment_id}/confirmation] - This recommendation is right.
+- `resolve_conversation_decision` (def) [PUT /{submission_id}/public-mood/conversations/{assessment_id}/resolution] - A lead reviewer settles a disagreement between reviewers about an assessment: until then an assessment whose
+- `mark_conversation_sentiment` (def) - This item's sentiment is read wrongly: what it should be.
+- `clear_conversation_sentiment` (def)
+- `clear_conversation_correction` (def) [DELETE /{submission_id}/public-mood/conversations/{assessment_id}/correction]
+- `conversation_evidence_of` (def) [GET /{submission_id}/public-mood/conversations/{assessment_id}/evidence] - Every item an assessment looked at, as it read when the assessment ran (even if the feed has changed since),
 - `rate_public_mood` (def) [PUT /{submission_id}/public-mood/summary/{summary_id}/feedback] - Whether the summary helped; one vote per person, changeable.
 - `unrate_public_mood` (def) [DELETE /{submission_id}/public-mood/summary/{summary_id}/feedback]
 - `schedule_sentiment` (def) [POST /{submission_id}/sentiment/{analysis_id}/schedule] - Run an analysis stopped by Gemini's daily limit again automatically once the limit resets.
@@ -2211,6 +1822,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `api_clear_all` (def) [DELETE /notifications/all]
 - `api_notification_stream` (def) [GET /notifications/stream]
     - `event_generator` (def)
+
+## tools/notifications/teams_router.py (55 lines) - Microsoft Teams: the endpoint the bot's messages arrive on, and a person's own on/off switch for them.
+- `receive` (def) [POST /teams/messages]
+- `TeamsPreference` (class)
+- `my_status` (def) [GET /teams/status]
+- `set_my_status` (def) [PUT /teams/status]
 
 ## tools/shared/auth/auth_router.py (412 lines) - auth router (shared auth)
 - `_sha256` (def)

@@ -3,15 +3,16 @@
 The platform talks to one interface. Today that's a mock of Sprout Social Listening or an X (Twitter) JSON feed
 collected via Playwright/API and scored per comment with VADER (`vaderSentiment`). When the real Sprout API
 is available, implement SproutProvider and set SOCIAL_LISTENING_PROVIDER=sprout; for X JSON listening, set
-SOCIAL_LISTENING_PROVIDER=x_json (or load `.data/x_listening_feed.json`).
+SOCIAL_LISTENING_PROVIDER=x_json (the default whenever the vector database holds a collected feed).
 """
 
 import hashlib
 import json
+import logging
 import os
 import random
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -19,7 +20,8 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 _VADER = SentimentIntensityAnalyzer()
 
-DEFAULT_X_JSON_PATH = Path(__file__).resolve().parents[2] / ".data" / "x_listening_feed.json"
+# <repo>/.data/x_listening_feed.json, next to the app's other data (this file is <repo>/services/compliance/analytics/).
+DEFAULT_X_JSON_PATH = Path(__file__).resolve().parents[3] / ".data" / "x_listening_feed.json"
 
 # VADER's built-in lexicon rates words from -4.0 (most negative) to +4.0 (most positive).
 # Words with a lexicon valence <= -2.0 represent severe negative/crisis intensity.
@@ -27,12 +29,100 @@ SEVERE_VALENCE_THRESHOLD = -2.0
 SEVERE_COMPOUND_THRESHOLD = -0.60
 
 
+# Google News appends the outlet to a headline (" - The New York Times"); the same story from two outlets is one story.
+PUBLISHER_SUFFIX = re.compile(r"\s+[-|\u2013\u2014]\s+[^-|\u2013\u2014]{2,60}$")
+
+
+def clean_headline(text: str) -> str:
+    """The headline without its outlet, lowercased, letters and digits only: equal for the same story."""
+    return " ".join(re.sub(r"[^a-z0-9 ]+", " ", PUBLISHER_SUFFIX.sub("", (text or "").strip()).lower()).split())
+
+
+# A change in mentions is claimed only with enough to compare: at least this many stories in the three earlier days
+# (3 stories becoming 7 is +133%, but it is noise, and a noisy spike would push a topic towards HOLD).
+MIN_TREND_BASE = int(os.getenv("PUBLIC_MOOD_TREND_MIN_BASE", "10"))
+
+
+def volume_change(daily: List[int]) -> Optional[float]:
+    """Percent change in mentions: the last three complete days against the three before them, from `daily` (oldest
+    first, ending today). Today is left out because it is still filling up, and the two periods are the same length, so
+    a steady volume reads as steady. None when there is too little in the earlier days to compare with."""
+    if len(daily) < 7:
+        return None
+    prior, recent = sum(daily[-7:-4]), sum(daily[-4:-1])
+    if prior < MIN_TREND_BASE:
+        return None
+    return round((recent - prior) / prior * 100, 1)
+
+
+LOCAL_MODEL_NAME = os.getenv("SENTIMENT_MODEL", "cardiffnlp/twitter-roberta-base-sentiment-latest").strip()
+_local_model: Any = None  # (tokenizer, model), False once loading failed (VADER is used from then on)
+
+
+def _load_local_model() -> Any:
+    """The trained sentiment model, loaded once. False when it's switched off (SENTIMENT_MODEL=vader), the packages
+    aren't installed, or it can't be downloaded: callers then use VADER."""
+    global _local_model
+    if _local_model is None:
+        if not LOCAL_MODEL_NAME or LOCAL_MODEL_NAME.lower() == "vader":
+            _local_model = False
+        else:
+            try:
+                import torch  # noqa: F401
+                from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+                tok = AutoTokenizer.from_pretrained(LOCAL_MODEL_NAME)
+                mdl = AutoModelForSequenceClassification.from_pretrained(LOCAL_MODEL_NAME).eval()
+                _local_model = (tok, mdl)
+            except Exception as e:
+                logging.getLogger(__name__).warning("Local sentiment model unavailable, using VADER: %s", e)
+                _local_model = False
+    return _local_model
+
+
+def _model_probs(text: str) -> Optional[Dict[str, float]]:
+    """{'POSITIVE': p, 'NEUTRAL': p, 'NEGATIVE': p} from the trained model, or None to fall back to VADER."""
+    loaded = _load_local_model()
+    if not loaded:
+        return None
+    try:
+        import torch
+
+        tok, mdl = loaded
+        with torch.no_grad():
+            enc = tok(text, return_tensors="pt", truncation=True, max_length=256)
+            probs = torch.softmax(mdl(**enc).logits[0], dim=-1).tolist()
+        labels = [mdl.config.id2label[i].upper() for i in range(len(probs))]
+        out = {l: p for l, p in zip(labels, probs)}
+        return out if {"POSITIVE", "NEUTRAL", "NEGATIVE"} <= set(out) else None
+    except Exception as e:
+        logging.getLogger(__name__).warning("Local sentiment model failed on a text, using VADER: %s", e)
+        return None
+
+
 def classify_comment_sentiment(text: str) -> Dict[str, Any]:
-    """Classify an individual X comment/post as POSITIVE, NEGATIVE, or NEUTRAL with confidence (0-100%)
-    and extract severe negative terms directly from VADER's 7,500-word valence lexicon."""
+    """Classify an individual X comment/post as POSITIVE, NEGATIVE, or NEUTRAL with confidence (0-100%).
+    A trained local model (SENTIMENT_MODEL, default twitter-roberta) decides when it's available; otherwise VADER.
+    `compound` is -1..1 either way (the model's P(positive) - P(negative)); crisis words come from VADER's valence
+    lexicon (with the model, only when it reads the text as negative)."""
     cleaned = (text or "").strip()
     if not cleaned:
         return {"sentiment": "NEUTRAL", "confidence": 50.0, "compound": 0.0, "crisis_flags": []}
+
+    tokens = re.findall(r"[a-z0-9'-]+", cleaned.lower())
+    flags = list(dict.fromkeys(w for w in tokens if _VADER.lexicon.get(w, 0.0) <= SEVERE_VALENCE_THRESHOLD))
+    probs = _model_probs(cleaned)
+    if probs:
+        label = max(("POSITIVE", "NEUTRAL", "NEGATIVE"), key=lambda k: probs[k])
+        return {
+            "sentiment": label,
+            "confidence": round(min(99.0, probs[label] * 100.0), 1),
+            "compound": round(probs["POSITIVE"] - probs["NEGATIVE"], 3),
+            # Crisis words only count where the model also reads the text as negative: "kill enemy drone threats" in
+            # a defence contract headline isn't a crisis.
+            "crisis_flags": flags if label == "NEGATIVE" else [],
+            "model": LOCAL_MODEL_NAME,
+        }
 
     scores = _VADER.polarity_scores(cleaned)
     compound = float(scores["compound"])
@@ -131,9 +221,69 @@ class ListeningUnavailable(Exception):
     """The listening source can't be reached or isn't configured."""
 
 
+# ---------------------------------------------------------------------------
+# Where the collected X / news feed lives
+#
+# In the vector database (the `x_feed_data` collection) whenever it is configured (MONGODB_URI): the JSON file is then
+# neither written nor read, so an old file on disk can't be mistaken for the feed. Without a vector database, or when a
+# file is asked for explicitly (a path, or X_LISTENING_JSON_PATH), the feed is a JSON file as it used to be.
+# ---------------------------------------------------------------------------
+
+def _x_feed_store():
+    from services.ai.core import x_feed_store  # imported when needed: it pulls in the vector store and its clients
+    return x_feed_store
+
+
+def feed_in_database(file_path: Optional[Path] = None) -> bool:
+    return file_path is None and _x_feed_store().is_enabled()
+
+
+async def load_feed(file_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """The latest collected feed ({"collected_at", "collection", "topics": [...]}), or None if there is none yet."""
+    if feed_in_database(file_path):
+        return await _x_feed_store().read_feed()
+    path = file_path or DEFAULT_X_JSON_PATH
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        raise ListeningUnavailable(f"Couldn't read the X listening feed file {path}: {e}")
+    return data if isinstance(data, dict) else {"topics": data}
+
+
+async def save_feed(payload: Dict[str, Any], file_path: Optional[Path] = None) -> str:
+    """Store a collected feed as the current one; says where it went."""
+    if feed_in_database(file_path):
+        store = _x_feed_store()
+        await store.write_feed(payload)
+        return f"the vector database ({store.collection_name()})"
+    path = file_path or DEFAULT_X_JSON_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return str(path)
+
+
+async def feed_stamp(file_path: Optional[Path] = None) -> Optional[datetime]:
+    """When the current feed was stored: the cue that topics and snapshots built from an earlier one are out of date."""
+    if feed_in_database(file_path):
+        return await _x_feed_store().written_at()
+    try:
+        return datetime.fromtimestamp((file_path or DEFAULT_X_JSON_PATH).stat().st_mtime, tz=timezone.utc)
+    except OSError:
+        return None
+
+
 class ListeningProvider:
     name = "base"
     is_mock = False
+
+    async def feed_stamp(self) -> Optional[datetime]:
+        """When this source's data was last collected, if it is collected rather than fetched live."""
+        return None
+
+    async def collection_info(self) -> Optional[Dict[str, Any]]:
+        return None
 
     async def list_topics(self) -> List[Dict[str, Any]]:
         """Topics the account tracks: [{external_id, name, description, keywords}]. The description says what the
@@ -265,13 +415,21 @@ def analyze_raw_x_topic(topic_data: Dict[str, Any], days: int = 7) -> Dict[str, 
     scored_posts: List[Dict[str, Any]] = []
     counts = {"POSITIVE": 0, "NEUTRAL": 0, "NEGATIVE": 0}
 
+    seen_stories = set()
     for idx, c in enumerate(raw_comments):
         text = (c.get("text") or "").strip()
         if not text:
             continue
-        cls = classify_comment_sentiment(text)
-        sentiment = c.get("sentiment") if c.get("sentiment") in counts else cls["sentiment"]
-        confidence = float(c.get("confidence") if c.get("confidence") is not None else cls["confidence"])
+        story = clean_headline(text)
+        if story in seen_stories:  # the same story from another outlet, or the same post twice, counts once
+            continue
+        seen_stories.add(story)
+        if c.get("sentiment") in counts and c.get("confidence") is not None:
+            sentiment, confidence = c["sentiment"], float(c["confidence"])  # already scored: don't run the model again
+        else:
+            cls = classify_comment_sentiment(text)
+            sentiment = c.get("sentiment") if c.get("sentiment") in counts else cls["sentiment"]
+            confidence = float(c.get("confidence") if c.get("confidence") is not None else cls["confidence"])
         counts[sentiment] += 1
         scored_posts.append({
             "network": c.get("network") or "X",
@@ -280,7 +438,8 @@ def analyze_raw_x_topic(topic_data: Dict[str, Any], days: int = 7) -> Dict[str, 
             "sentiment": sentiment,
             "confidence": confidence,
             "engagements": int(c.get("engagements") or 0),
-            "posted_on": c.get("posted_on") or date.today().isoformat(),
+            # Only a date the source gave us: never today's date standing in for an unknown one.
+            "posted_on": c.get("posted_on") or None,
         })
 
     total = sum(counts.values())
@@ -289,25 +448,20 @@ def analyze_raw_x_topic(topic_data: Dict[str, Any], days: int = 7) -> Dict[str, 
         neg = round(counts["NEGATIVE"] / total * 100, 1)
         neu = round(max(0.0, 100.0 - pos - neg), 1)
     else:
-        pos = float(topic_data.get("positive", 34.0))
-        neu = float(topic_data.get("neutral", 33.0))
-        neg = round(max(0.0, 100.0 - pos - neu), 1)
+        # Nothing was collected: say so (all zeros, volume 0) rather than inventing a mood.
+        pos = neu = neg = 0.0
 
-    volume = int(topic_data.get("volume") if topic_data.get("volume") is not None else max(total * 45, 10))
-    daily = list(topic_data.get("daily_volume") or [])
-    if len(daily) < days:
-        avg = max(1, volume // max(days, 1))
-        daily = [avg] * days
-    else:
-        daily = [int(x) for x in daily[-days:]]
+    # Volume is what was actually collected unless the source reports its own mention count. Daily counts and the
+    # change since the previous window exist only when the source supplies them: they are never estimated.
+    volume = int(topic_data.get("volume") if topic_data.get("volume") is not None else total)
+    supplied = [int(x) for x in (topic_data.get("daily_volume") or [])]
+    daily = supplied[-days:] if len(supplied) >= days else []
 
     change = topic_data.get("volume_change_pct")
-    if change is None:
-        first_half = sum(daily[: max(1, days // 2)]) or 1
-        second_half = sum(daily[max(1, days // 2):])
-        change = round((second_half - first_half) / first_half * 100, 1)
-    else:
+    if change is not None:
         change = float(change)
+    elif daily:
+        change = volume_change(daily)
 
     scored_posts.sort(key=lambda p: p["engagements"], reverse=True)
     return {
@@ -322,32 +476,44 @@ def analyze_raw_x_topic(topic_data: Dict[str, Any], days: int = 7) -> Dict[str, 
 
 
 class XJsonListeningProvider(ListeningProvider):
-    """Reads scraped or API-collected X (Twitter) comments & trends from a JSON file
-    (`.data/x_listening_feed.json` by default) and classifies each comment with VADER."""
+    """Reads the collected X (Twitter) posts and news trends, and classifies each with the sentiment model. The feed
+    comes from the vector database (`x_feed_data`) when it is configured, else from a JSON file (see load_feed)."""
 
     name = "x_json"
     is_mock = False
 
     def __init__(self, json_path: Optional[Path] = None) -> None:
         env_path = os.getenv("X_LISTENING_JSON_PATH")
-        self.json_path = Path(env_path) if env_path else (json_path or DEFAULT_X_JSON_PATH)
+        # An explicit file (argument or environment) means "use this file"; None means the default source.
+        self.json_path: Optional[Path] = Path(env_path) if env_path else json_path
 
-    def _load_feed(self) -> List[Dict[str, Any]]:
-        if not self.json_path.exists():
+    async def _feed(self) -> Dict[str, Any]:
+        feed = await load_feed(self.json_path)
+        if not feed:
             raise ListeningUnavailable(
-                f"X listening JSON file not found at {self.json_path}. Run scripts/scrape_x_playwright.py or POST /listening/x-ingest first."
+                "No X feed has been collected yet. Click Scrape X to collect one (or POST /listening/x-ingest)."
             )
-        try:
-            data = json.loads(self.json_path.read_text(encoding="utf-8"))
-        except Exception as e:
-            raise ListeningUnavailable(f"Couldn't read X listening JSON file: {e}")
-        topics = data.get("topics") if isinstance(data, dict) else data
+        return feed
+
+    async def _load_feed(self) -> List[Dict[str, Any]]:
+        topics = (await self._feed()).get("topics")
         if not isinstance(topics, list) or not topics:
-            raise ListeningUnavailable("X listening JSON file has no topics.")
+            raise ListeningUnavailable("The collected X feed has no topics.")
         return topics
 
+    async def feed_stamp(self) -> Optional[datetime]:
+        return await feed_stamp(self.json_path)
+
+    async def collection_info(self) -> Optional[Dict[str, Any]]:
+        """How the last collection went (status per source and overall), when the scraper recorded it."""
+        try:
+            info = (await self._feed()).get("collection")
+        except ListeningUnavailable:
+            return None
+        return info if isinstance(info, dict) else None
+
     async def list_topics(self) -> List[Dict[str, Any]]:
-        topics = self._load_feed()
+        topics = await self._load_feed()
         return [
             {
                 "external_id": str(t["external_id"]),
@@ -360,10 +526,10 @@ class XJsonListeningProvider(ListeningProvider):
         ]
 
     async def snapshot(self, external_id: str, days: int = 7) -> Dict[str, Any]:
-        topics = self._load_feed()
+        topics = await self._load_feed()
         topic = next((t for t in topics if str(t.get("external_id")) == external_id), None)
         if not topic:
-            raise ListeningUnavailable(f"Topic {external_id} not found in X JSON feed")
+            raise ListeningUnavailable(f"Topic {external_id} not found in the collected X feed")
         return analyze_raw_x_topic(topic, days=days)
 
 
@@ -404,7 +570,8 @@ def get_provider() -> ListeningProvider:
             _provider = SproutProvider()
         elif mode in ("x_json", "x", "twitter"):
             _provider = XJsonListeningProvider()
-        elif not mode and DEFAULT_X_JSON_PATH.exists():
+        elif not mode and (_x_feed_store().is_enabled() or DEFAULT_X_JSON_PATH.exists()):
+            # With a vector database the feed is there (or not collected yet): never made-up data.
             _provider = XJsonListeningProvider()
         else:
             _provider = MockSproutProvider()

@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from models.compliance.canva_model import CanvaImportRequest, CanvaReimportRequest
 from models.compliance.caption_model import CaptionSuggestions, CaptionSuggestRequest
-from models.compliance.public_mood_model import MoodFeedbackIn, PublicMood
+from models.compliance.public_mood_model import CorrectionIn, MoodFeedbackIn, PublicMood, SentimentCorrectionIn, UnrelatedIn
 from models.compliance.sentiment_model import FindingFeedback, FindingFeedbackIn, SentimentAnalysis
 from models.compliance.submission_model import (
     DashboardSummary,
@@ -43,12 +43,12 @@ from services.ai.observability import ai_observability
 from services.compliance.submissions import duplicate_service
 from services.ai.observability import ai_usage_service
 from services.compliance.media import caption_service
-from services.compliance.analytics import public_mood_service
+from services.compliance.analytics import conversation_evidence, conversation_feedback, public_mood_service
 from services.compliance.analytics import sentiment_service
 from services.compliance.submissions import flag_review_service
 from services.compliance.submissions import submission_service as svc
 from models.compliance.flag_review_model import FindingVerdict, FlagConfirmRequest, FlagDismissRequest, FlagReview
-from services.shared.auth.auth_service import get_current_user_id_dependency
+from services.shared.auth.auth_service import get_current_user_id_dependency, require_permission
 from services.compliance.media.hashtag_library import HashtagLibrary
 
 logger = logging.getLogger(__name__)
@@ -336,6 +336,79 @@ async def dismiss_public_mood_topic(submission_id: UUID, topic_id: UUID, user_id
 async def restore_public_mood_topic(submission_id: UUID, topic_id: UUID, user_id: CurrentUser):
     await svc.get_submission(submission_id, user_id)  # access check
     return await public_mood_service.restore_topic(submission_id, topic_id, user_id)
+
+
+@router.put("/{submission_id}/public-mood/conversations/{assessment_id}/items/{item_id}/unrelated",
+            response_model=PublicMood)
+async def mark_conversation_unrelated(submission_id: UUID, assessment_id: UUID, item_id: UUID, data: UnrelatedIn,
+                                      user_id: CurrentUser):
+    """This retrieved item is not about the post: it is left out of this post's conversation assessments from now on.
+    The reason is saved against the assessment the reviewer was looking at (see GET /listening/feedback-reasons)."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.mark_conversation_unrelated(submission_id, assessment_id, item_id, user_id, data)
+
+
+@router.delete("/{submission_id}/public-mood/conversations/items/{item_id}/unrelated", response_model=PublicMood)
+async def restore_conversation_item(submission_id: UUID, item_id: UUID, user_id: CurrentUser):
+    """Put a left-out item back."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.restore_conversation_item(submission_id, item_id, user_id)
+
+
+@router.put("/{submission_id}/public-mood/conversations/{assessment_id}/correction", response_model=PublicMood)
+async def correct_conversation_recommendation(submission_id: UUID, assessment_id: UUID, data: CorrectionIn,
+                                              user_id: CurrentUser):
+    """This recommendation is wrong: what it should have been and why. Recorded beside the assessment, one per person,
+    changeable; the assessment itself stays as it was (public mood is advisory)."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.correct_conversation_recommendation(submission_id, assessment_id, user_id, data)
+
+
+@router.put("/{submission_id}/public-mood/conversations/{assessment_id}/confirmation", response_model=PublicMood)
+async def confirm_conversation_recommendation(submission_id: UUID, assessment_id: UUID, user_id: CurrentUser):
+    """This recommendation is right. Recorded as the reviewer's decision, so the system also learns from agreement."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.confirm_conversation_recommendation(submission_id, assessment_id, user_id)
+
+
+@router.put("/{submission_id}/public-mood/conversations/{assessment_id}/resolution", response_model=PublicMood)
+async def resolve_conversation_decision(submission_id: UUID, assessment_id: UUID, data: CorrectionIn,
+                                        user_id: Annotated[UUID, Depends(require_permission("CONFIG_ROLES_UPDATE"))]):
+    """A lead reviewer settles a disagreement between reviewers about an assessment: until then an assessment whose
+    reviewers disagree is left out of training. Needs the same permission as tuning the listening topics."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.resolve_conversation_decision(submission_id, assessment_id, user_id, data)
+
+
+@router.put("/{submission_id}/public-mood/conversations/{assessment_id}/items/{item_id}/sentiment",
+            response_model=PublicMood)
+async def mark_conversation_sentiment(submission_id: UUID, assessment_id: UUID, item_id: UUID,
+                                      data: SentimentCorrectionIn, user_id: CurrentUser):
+    """This item's sentiment is read wrongly: what it should be. Recorded to improve the sentiment analysis."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.mark_conversation_sentiment(submission_id, assessment_id, item_id, user_id, data)
+
+
+@router.delete("/{submission_id}/public-mood/conversations/{assessment_id}/items/{item_id}/sentiment",
+               response_model=PublicMood)
+async def clear_conversation_sentiment(submission_id: UUID, assessment_id: UUID, item_id: UUID, user_id: CurrentUser):
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.clear_conversation_sentiment(submission_id, assessment_id, item_id, user_id)
+
+
+@router.delete("/{submission_id}/public-mood/conversations/{assessment_id}/correction", response_model=PublicMood)
+async def clear_conversation_correction(submission_id: UUID, assessment_id: UUID, user_id: CurrentUser):
+    await svc.get_submission(submission_id, user_id)  # access check
+    return await public_mood_service.clear_conversation_correction(submission_id, assessment_id, user_id)
+
+
+@router.get("/{submission_id}/public-mood/conversations/{assessment_id}/evidence")
+async def conversation_evidence_of(submission_id: UUID, assessment_id: UUID, user_id: CurrentUser):
+    """Every item an assessment looked at, as it read when the assessment ran (even if the feed has changed since),
+    with the verdict on each."""
+    await svc.get_submission(submission_id, user_id)  # access check
+    await conversation_feedback.assessment_of(submission_id, assessment_id)  # 404 unless it belongs to this post
+    return await conversation_evidence.assessment_evidence(assessment_id)
 
 
 @router.put("/{submission_id}/public-mood/summary/{summary_id}/feedback", response_model=PublicMood)

@@ -14,6 +14,7 @@
 Advisory only: nothing here affects the compliance score or approval.
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -29,6 +30,7 @@ from google.genai import types
 from pydantic import ValidationError
 
 from models.compliance.public_mood_model import (
+    CorrectionIn,
     DismissedTopic,
     ListeningTopic,
     ListeningTopicUpdate,
@@ -39,7 +41,9 @@ from models.compliance.public_mood_model import (
     PublicMood,
     PublicMoodResult,
     PublicMoodSummary,
+    SentimentCorrectionIn,
     TopicSnapshot,
+    UnrelatedIn,
     XIngestRequest,
     XTrendOpportunity,
 )
@@ -47,14 +51,16 @@ from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.observability import ai_usage_service
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
+from services.compliance.analytics import conversation_evidence, conversation_feedback
 from services.compliance.evaluation.compliance_service import _matches, _normalize
 from services.compliance.analytics.listening_providers import (
-    DEFAULT_X_JSON_PATH,
     ListeningUnavailable,
     analyze_raw_x_topic,
     evaluate_publishing_decision,
     get_provider,
     reset_provider_cache,
+    save_feed,
+    volume_change,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,32 +112,23 @@ def _source_label(provider_name: str) -> str:
     return "Sprout Social"
 
 
-def _x_json_mtime(provider_name: str) -> Optional[datetime]:
-    if provider_name == "x_json" and DEFAULT_X_JSON_PATH.exists():
-        try:
-            return datetime.fromtimestamp(DEFAULT_X_JSON_PATH.stat().st_mtime, tz=timezone.utc)
-        except OSError:
-            return None
-    return None
-
-
 # ---------------------------------------------------------------------------
 # Topics and snapshots
 # ---------------------------------------------------------------------------
 
 async def _sync_topics(force: bool = False) -> None:
     """Refresh the topic list from the listening source when it's older than a day (or empty, or asked to, or
-    when the scraped X JSON file on disk is newer than the last sync). The team's own keywords and watch settings are kept."""
+    when the collected X feed is newer than the last sync). The team's own keywords and watch settings are kept."""
     provider = get_provider()
     row = await fetch_one(
         "SELECT max(synced_at) AS at FROM listening_topics WHERE provider = $1 AND is_mock = $2 AND deleted_at IS NULL",
         provider.name, provider.is_mock,
     )
-    file_mtime = _x_json_mtime(provider.name)
-    file_newer = bool(file_mtime and (not row or not row["at"] or file_mtime > row["at"]))
+    feed_at = await provider.feed_stamp()
+    feed_newer = bool(feed_at and (not row or not row["at"] or feed_at > row["at"]))
     if (
         not force
-        and not file_newer
+        and not feed_newer
         and row
         and row["at"]
         and row["at"] > datetime.now(timezone.utc) - timedelta(hours=TOPIC_SYNC_HOURS)
@@ -184,6 +181,52 @@ async def _sync_topic_vectors() -> None:
         await store.delete([f"{TOPIC_KIND}:{r['id']}" for r in rows if r["deleted_at"] is not None])
     except Exception as e:
         logger.warning("Couldn't update listening topics in the vector store (keyword matching still works): %s", e)
+    # Collected conversations are NOT indexed here: that costs embedding quota, so it happens only when someone asks
+    # for it (the scrape button, or an import), see sync_conversations().
+
+
+_conversation_sync: Optional[asyncio.Task] = None
+
+
+async def sync_conversations() -> None:
+    """Record and index the scraped conversations now (embedding can take a minute or more under the quota). Runs only
+    when asked: after the scrape button's scrape, or after an import. Never on a page view or a schedule."""
+    await _sync_conversation_vectors()
+
+
+async def record_conversations() -> None:
+    """Only record the collected items (quick). Done before topic snapshots are refreshed, which count them."""
+    await _sync_conversation_vectors(index=False)
+
+
+async def index_conversations() -> None:
+    """Bring the vector index up to date with the recorded items (slow under the embedding quota)."""
+    try:
+        await conversation_evidence.sync_index()
+    except Exception as e:
+        logger.warning("Couldn't index the collected conversations (topic matching still works): %s", e)
+
+
+def _index_conversations_soon() -> None:
+    """The same, in the background and one run at a time, for callers that shouldn't wait (an import)."""
+    global _conversation_sync
+    if _conversation_sync is None or _conversation_sync.done():
+        _conversation_sync = asyncio.create_task(index_conversations())
+
+
+async def _sync_conversation_vectors(index: bool = True) -> None:
+    """Record the scraped feed's articles and posts (kept even when a later feed lacks them) and, unless index=False,
+    bring the vector index up to date. Only for the X feed: the mock source has no real conversations."""
+    provider = get_provider()
+    if provider.name != "x_json":
+        return
+    try:
+        info = await provider.collection_info() or {}
+        note = json.dumps({"sources": info.get("sources"), "note": info.get("note")}) if info else None
+        await conversation_evidence.record_feed(
+            await provider._load_feed(), provider.name, status=info.get("status"), note=note, index=index)
+    except Exception as e:
+        logger.warning("Couldn't record scraped conversations (topic matching still works): %s", e)
 
 
 def _effective_keywords(t: Dict[str, Any]) -> List[str]:
@@ -292,8 +335,8 @@ def _match(text: str, topics: List[Dict[str, Any]], meaning: Optional[Dict[str, 
     return [(t, terms, score, close) for t, terms, score, close, _ in found[:MAX_TOPICS]]
 
 
-def _is_fresh(snap: Dict[str, Any], now: datetime, watched: bool = False, file_mtime: Optional[datetime] = None) -> bool:
-    if file_mtime and snap["fetched_at"] < file_mtime:
+def _is_fresh(snap: Dict[str, Any], now: datetime, watched: bool = False, feed_at: Optional[datetime] = None) -> bool:
+    if feed_at and snap["fetched_at"] < feed_at:  # built from an earlier collected feed
         return False
     hours = SPIKE_FRESH_HOURS if snap["is_spike"] or watched else FRESH_HOURS
     return snap["fetched_at"] > now - timedelta(hours=hours) and snap["window_days"] == WINDOW_DAYS
@@ -311,19 +354,41 @@ async def _latest_snapshots(topic_ids: List[UUID]) -> Dict[UUID, Dict[str, Any]]
     return {r["topic_id"]: dict(r) for r in rows}
 
 
+async def _with_trend(snapshot: Dict[str, Any], topic: Dict[str, Any]) -> Dict[str, Any]:
+    """Mentions per day, and the change in them, from the stories collected over the last days (every scrape so far, one
+    story once), instead of from the latest scrape alone: a single scrape can't say whether a topic is heating up. The
+    counts are mentions we collected, not all mentions, and a change is only given with enough earlier stories to
+    compare with (volume_change), otherwise it stays unknown. A source's own figures are kept when it gives them."""
+    if get_provider().name != "x_json":
+        return snapshot  # the sample source makes its own numbers up and says so
+    try:
+        daily = await conversation_evidence.topic_daily_counts(topic["external_id"], WINDOW_DAYS)
+    except Exception as e:
+        logger.warning("Couldn't count %s's collected mentions per day: %s", topic["name"], e)
+        return snapshot
+    if not any(daily):
+        return snapshot
+    out = dict(snapshot)
+    if not out.get("daily_volume"):
+        out["daily_volume"] = daily
+    if out.get("volume_change_pct") is None:
+        out["volume_change_pct"] = volume_change(out["daily_volume"])
+    return out
+
+
 async def _fresh_snapshots(topics: List[Dict[str, Any]], force: bool = False) -> Dict[UUID, Dict[str, Any]]:
     """The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale. If the
     source can't be reached, the last snapshot (however old) is used rather than nothing."""
     latest = await _latest_snapshots([t["id"] for t in topics])
     now = datetime.now(timezone.utc)
     provider = get_provider()
-    file_mtime = _x_json_mtime(provider.name)
+    feed_at = await provider.feed_stamp()  # snapshots built from an earlier feed are out of date
     if force:
         stale = list(topics)
     else:
         stale = [
             t for t in topics
-            if not (t["id"] in latest and _is_fresh(latest[t["id"]], now, bool(t.get("is_watched")), file_mtime))
+            if not (t["id"] in latest and _is_fresh(latest[t["id"]], now, bool(t.get("is_watched")), feed_at))
         ]
     if not stale:
         return latest
@@ -334,6 +399,7 @@ async def _fresh_snapshots(topics: List[Dict[str, Any]], force: bool = False) ->
         except ListeningUnavailable as e:
             logger.warning("Couldn't refresh listening topic %s: %s", t["name"], e)
             continue
+        s = await _with_trend(s, t)
         change = s.get("volume_change_pct")
         fetched.append({
             **s,
@@ -458,7 +524,7 @@ async def _load(submission_id: UUID) -> Dict[str, Any]:
     return row
 
 
-async def _gather(submission_id: UUID) -> Tuple[Dict[str, Any], PublicMood]:
+async def _gather(submission_id: UUID, viewer: Optional[UUID] = None) -> Tuple[Dict[str, Any], PublicMood]:
     """The post, its matched topics and their current snapshots."""
     row = await _load(submission_id)
     provider = get_provider()
@@ -485,6 +551,12 @@ async def _gather(submission_id: UUID) -> Tuple[Dict[str, Any], PublicMood]:
     mood.dismissed = [DismissedTopic(**dict(d)) for d in dismissed]
     left_out = {d["topic_id"] for d in dismissed}
     matches = _match(row["text"], [t for t in topics if t["id"] not in left_out], meaning)
+    # Advisory second reading, from the conversations found for this draft (it needs the matched topics to judge
+    # relevance, and is independent of the topic snapshots below).
+    if provider.name == "x_json":  # the mock source has no real conversations to assess
+        mood.conversation_mood = await conversation_evidence.conversation_mood(
+            row, submission_id, topics, {t["id"] for t, _, _, _ in matches}, viewer
+        )
     if not matches:
         if mood.connected:
             mood.message = "None of the topics being listened to come up in this post."
@@ -548,7 +620,7 @@ async def _with_feedback(summary: PublicMoodSummary, viewer: Optional[UUID]) -> 
 
 
 async def get_public_mood(submission_id: UUID, viewer: Optional[UUID] = None) -> PublicMood:
-    row, mood = await _gather(submission_id)
+    row, mood = await _gather(submission_id, viewer)
     saved = await fetch_one(
         """
         SELECT * FROM public_mood_summaries
@@ -560,6 +632,58 @@ async def get_public_mood(submission_id: UUID, viewer: Optional[UUID] = None) ->
     if saved:
         mood.summary = await _with_feedback(_summary_model(dict(saved), _input_hash(row, mood), mood.topics), viewer)
     return mood
+
+
+async def mark_conversation_unrelated(submission_id: UUID, assessment_id: UUID, item_id: UUID, user_id: UUID,
+                                      data: UnrelatedIn) -> PublicMood:
+    """A reviewer says a retrieved item is not about this post: it is left out of this draft's assessments."""
+    await conversation_feedback.mark_unrelated(submission_id, assessment_id, item_id, user_id, data.reason_code, data.note)
+    return await get_public_mood(submission_id, user_id)
+
+
+async def restore_conversation_item(submission_id: UUID, item_id: UUID, user_id: UUID) -> PublicMood:
+    await conversation_feedback.restore_item(submission_id, item_id)
+    return await get_public_mood(submission_id, user_id)
+
+
+async def correct_conversation_recommendation(submission_id: UUID, assessment_id: UUID, user_id: UUID,
+                                              data: CorrectionIn) -> PublicMood:
+    """A reviewer says the assessment's recommendation was wrong, and why (recorded; the assessment is unchanged)."""
+    await conversation_feedback.correct_recommendation(
+        submission_id, assessment_id, user_id, data.recommendation, data.reason_code, data.note)
+    return await get_public_mood(submission_id, user_id)
+
+
+async def confirm_conversation_recommendation(submission_id: UUID, assessment_id: UUID, user_id: UUID) -> PublicMood:
+    """A reviewer says the assessment's recommendation is right."""
+    await conversation_feedback.confirm_recommendation(submission_id, assessment_id, user_id)
+    return await get_public_mood(submission_id, user_id)
+
+
+async def resolve_conversation_decision(submission_id: UUID, assessment_id: UUID, user_id: UUID,
+                                        data: CorrectionIn) -> PublicMood:
+    """A lead reviewer settles a disagreement between reviewers about an assessment's recommendation."""
+    await conversation_feedback.correct_recommendation(
+        submission_id, assessment_id, user_id, data.recommendation, data.reason_code, data.note, resolution=True)
+    return await get_public_mood(submission_id, user_id)
+
+
+async def mark_conversation_sentiment(submission_id: UUID, assessment_id: UUID, item_id: UUID, user_id: UUID,
+                                      data: SentimentCorrectionIn) -> PublicMood:
+    await conversation_feedback.mark_wrong_sentiment(
+        submission_id, assessment_id, item_id, user_id, data.correct_sentiment, data.note)
+    return await get_public_mood(submission_id, user_id)
+
+
+async def clear_conversation_sentiment(submission_id: UUID, assessment_id: UUID, item_id: UUID,
+                                       user_id: UUID) -> PublicMood:
+    await conversation_feedback.clear_wrong_sentiment(submission_id, assessment_id, item_id, user_id)
+    return await get_public_mood(submission_id, user_id)
+
+
+async def clear_conversation_correction(submission_id: UUID, assessment_id: UUID, user_id: UUID) -> PublicMood:
+    await conversation_feedback.clear_correction(submission_id, assessment_id, user_id)
+    return await get_public_mood(submission_id, user_id)
 
 
 async def dismiss_topic(submission_id: UUID, topic_id: UUID, user_id: UUID) -> PublicMood:
@@ -609,7 +733,10 @@ async def rate_summary(submission_id: UUID, summary_id: UUID, user_id: UUID, dat
 
 async def list_topics(refresh: bool = False) -> List[ListeningTopic]:
     """Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly."""
-    await _sync_topics(force=refresh)
+    try:
+        await _sync_topics(force=refresh)
+    except ListeningUnavailable as e:  # nothing collected yet: show whatever is stored (possibly nothing)
+        logger.info("Listening topics not refreshed: %s", e)
     topics = await _load_topics()
     snaps = await _fresh_snapshots(topics, force=refresh) if topics else {}
     stats = {
@@ -699,9 +826,9 @@ async def list_trend_opportunities(refresh: bool = False) -> List[XTrendOpportun
 
 
 async def ingest_x_json(req: XIngestRequest) -> List[XTrendOpportunity]:
-    """Save scraped/collected X (Twitter) topics and raw comments to `.data/x_listening_feed.json`,
-    score every comment with VADER + crisis detection, and sync into the listening database."""
-    DEFAULT_X_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
+    """Save scraped/collected X (Twitter) topics and raw comments as the current feed (the vector database's
+    x_feed_data collection, or the JSON file when there is no vector database), score every comment with the
+    sentiment model + crisis detection, and sync into the listening database."""
     raw_topics = []
     for t in req.topics:
         topic_dict = t.model_dump(mode="json")
@@ -730,11 +857,14 @@ async def ingest_x_json(req: XIngestRequest) -> List[XTrendOpportunity]:
         "collected_at": datetime.now(timezone.utc).isoformat(),
         "topics": raw_topics,
     }
-    DEFAULT_X_JSON_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    await save_feed(payload)
     os.environ["SOCIAL_LISTENING_PROVIDER"] = "x_json"
     reset_provider_cache()
     _meaning_cache.clear()
-    return await list_trend_opportunities(refresh=True)
+    await record_conversations()  # an import is an explicit request to collect: recorded first so the trend counts them
+    trends = await list_trend_opportunities(refresh=True)
+    _index_conversations_soon()
+    return trends
 
 
 def _clean_words(words: List[str]) -> List[str]:

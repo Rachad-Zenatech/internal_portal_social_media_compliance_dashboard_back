@@ -1,0 +1,9 @@
+{
+  "_about": "What to listen for about the company itself, besides the market topics. Edit this file (or point LISTENING_QUERIES_PATH at another) to add products, events and competitors. An empty list is reported as NOT_CONFIGURED, never guessed. The seeds come from the hashtag library and the own-domain rule (zenatech.com).",
+  "company": ["ZenaTech", "ZenaDrone"],
+  "hashtags": ["#ZenaTech", "#ZenaDrone", "#DroneAsAService", "#ZooOffice"],
+  "products": ["ZooOffice"],
+  "links": ["zenatech.com"],
+  "events": [],
+  "competitors": []
+}

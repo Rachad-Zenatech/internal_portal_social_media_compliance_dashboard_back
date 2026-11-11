@@ -42,3 +42,11 @@ tzdata>=2024.1
 # Social Listening & X (Twitter) Sentiment Testing
 vaderSentiment>=3.3.2
 playwright>=1.49.0
+# Local trained sentiment model for scraped X posts and headlines (VADER is the fallback when these aren't installed).
+# In Docker/Linux use the CPU build to avoid a multi-GB CUDA download: pip install torch --index-url https://download.pytorch.org/whl/cpu
+transformers>=4.45.0
+torch>=2.4.0
+
+# Decision model for public mood (trained offline by scripts/mood_ml.py from reviewed assessments, never in a request).
+# Until a model is promoted the rules decide; without xgboost installed the app still runs on the rules.
+xgboost>=2.1.0
