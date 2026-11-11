@@ -272,6 +272,8 @@ class ApprovalStanding:
     # The score counting only open flags (see score_after_dismissals); None when there's none yet.
     score: Optional[int]
     min_score: int = MIN_APPROVAL_SCORE
+    # Yellow flags (a person has to check them) that nobody has confirmed as right or dismissed as a false alarm.
+    open_yellow: int = 0
 
     @property
     def score_too_low(self) -> bool:
@@ -295,6 +297,17 @@ async def approval_standing(rows: Iterable[Dict[str, Any]]) -> Dict[UUID, Approv
     done: Dict[UUID, Set[str]] = {}
     for d in dismissed:
         done.setdefault(d["submission_id"], set()).add(str(d["rule_id"]))
+    confirmed = await fetch_all(
+        """
+        SELECT v.submission_id, v.rule_id FROM finding_verdicts v
+        JOIN content_submissions s ON s.id = v.submission_id AND s.current_version = v.version_number
+        WHERE v.submission_id = ANY($1::uuid[]) AND v.verdict = 'CORRECT'
+        """,
+        [r["id"] for r in rows],
+    )
+    agreed: Dict[UUID, Set[str]] = {}
+    for d in confirmed:
+        agreed.setdefault(d["submission_id"], set()).add(str(d["rule_id"]))
     out: Dict[UUID, ApprovalStanding] = {}
     for r in rows:
         check = _json(r.get("latest_check")) or {}
@@ -305,6 +318,11 @@ async def approval_standing(rows: Iterable[Dict[str, Any]]) -> Dict[UUID, Approv
                 if v.get("traffic_light") == "RED" and str(v.get("rule_id")) not in mine
             ),
             score=score_after_dismissals(check, mine),
+            open_yellow=sum(
+                1 for v in check.get("violations") or []
+                if v.get("traffic_light") == "YELLOW"
+                and str(v.get("rule_id")) not in mine and str(v.get("rule_id")) not in agreed.get(r["id"], set())
+            ),
         )
     return out
 

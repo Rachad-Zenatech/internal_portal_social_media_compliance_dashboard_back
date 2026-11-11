@@ -124,6 +124,8 @@ def _same_value(new: Any, old: Any) -> bool:
         return parsed == old
     if isinstance(new, UUID) or isinstance(old, UUID):
         return str(new) == str(old)
+    if isinstance(new, dict):
+        return new == (_json(old) or {})
     return new == old
 
 
@@ -411,6 +413,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         **_due(row),
         caption_html=row["caption_html"],
         caption_text=row["caption_text"],
+        platform_captions=_platform_captions(row),
         rule_sets=list(row["rule_sets"] or []),
         reviewer_route=list(row["reviewer_route"] or []),
         reviewer_ids=list(row.get("reviewer_ids") or []),
@@ -735,6 +738,15 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["caption_html"] = sanitize_caption_html(payload["caption_html"])
     if "caption_text" in payload:
         fields["caption_text"] = payload["caption_text"]
+    if payload.get("platform_captions") is not None:
+        captions = payload["platform_captions"]
+        bad = [p for p in captions if p not in PLATFORMS]
+        if bad:
+            raise HTTPException(status_code=422, detail=f"Unknown platform(s): {', '.join(bad)}")
+        if any(len(c) > 100_000 for c in captions.values()):
+            raise HTTPException(status_code=422, detail="A platform caption is too long")
+        # An empty caption means that platform uses the main one.
+        fields["platform_captions"] = {p: c for p, c in captions.items() if c.strip()}
     if payload.get("rule_sets") is not None:
         bad = [r for r in payload["rule_sets"] if r not in RULE_SETS]
         if bad:
@@ -766,7 +778,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
 
     columns = list(fields.keys())
     sets = ", ".join(f"{c} = ${i + 2}" for i, c in enumerate(columns))
-    params = [submission_id, *fields.values(), user_id]
+    params = [submission_id, *(json.dumps(v) if isinstance(v, dict) else v for v in fields.values()), user_id]
     # Changing anything the checks read makes their results out of date; who reviews it and by when does not.
     edited = ", content_edited_at = NOW()" if content_changed(row, fields) else ""
     pool = get_pool()
@@ -1180,6 +1192,19 @@ def analysis_pending(check: Optional[Dict[str, Any]]) -> bool:
             or (check.get("documents_pending") or 0) > 0)
 
 
+def reads_failed(check: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """What of the post couldn't be read (video, image or document), so its wording was never checked. Checks saved
+    before this was recorded say it through their own counts."""
+    if not check:
+        return []
+    if "reads_failed" in check:
+        return list(check["reads_failed"] or [])
+    out = [{"what": "image text", "name": "an image", "error": None}] * int(check.get("images_failed") or 0)
+    out += [{"what": "document", "name": d.get("name") or "a document", "error": d.get("error")}
+            for d in check.get("documents_failed") or []]
+    return out
+
+
 def ai_unavailable(check: Optional[Dict[str, Any]]) -> bool:
     """Whether the AI couldn't read part of the post, so the check has no score to show."""
     return bool(check and check.get("ai_unavailable"))
@@ -1198,16 +1223,25 @@ def _pending_sql(column: str) -> str:
     )
 
 
+def _platform_captions(row: Dict[str, Any]) -> Dict[str, str]:
+    # The post's own caption for some platforms, kept only for platforms it still posts to.
+    captions = _json(row.get("platform_captions")) or {}
+    platforms = set(row.get("platforms") or [])
+    return {p: c for p, c in captions.items() if p in platforms and isinstance(c, str) and c.strip()}
+
+
 def _check_text(row: Dict[str, Any]) -> str:
-    return "\n\n".join(p for p in [row["title"], row["caption_text"]] if p and p.strip())
+    # Every caption that will be posted is screened: the main one and each platform's own.
+    return "\n\n".join(p for p in [row["title"], row["caption_text"], *_platform_captions(row).values()] if p and p.strip())
 
 
 def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: bool,
-                  sources: Sequence[ProvidedSource] = ()) -> ComplianceCheckRequest:
+                  sources: Sequence[ProvidedSource] = (), disclaimer_text: Optional[str] = None) -> ComplianceCheckRequest:
     """The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
     documents attached as evidence for the source check."""
     return ComplianceCheckRequest(
         text=text,
+        disclaimer_text=disclaimer_text,
         sources=list(sources),
         video_title=row["title"],
         content_type=f"{row['content_type']}_{(row['platforms'] or ['GENERAL'])[0]}",
@@ -1250,7 +1284,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     flags for the reviewer's timeline, and says what was read and which rules need a person."""
     video = await fetch_one(
         """
-        SELECT transcript, transcript_status FROM content_submission_files
+        SELECT original_name, transcript, transcript_status, transcript_error FROM content_submission_files
         WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL AND mime_type LIKE 'video/%'
         ORDER BY created_at DESC LIMIT 1
         """,
@@ -1264,7 +1298,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     # The post's images, in the order it shows them; any never read are read now and re-checked when done.
     images = await fetch_all(
         """
-        SELECT id, image_text, image_text_status FROM content_submission_files
+        SELECT id, original_name, image_text, image_text_status, image_text_error FROM content_submission_files
         WHERE submission_id = $1 AND kind = ANY($2::text[]) AND deleted_at IS NULL AND mime_type LIKE 'image/%'
         ORDER BY (kind <> 'MAIN'), created_at
         """,
@@ -1320,8 +1354,17 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         ProvidedSource(name=d["original_name"], text=d["doc_text"])
         for d in evidence if d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
     ]
+    # A required disclaimer has to be in what gets published: the captions, what the video says, the text in the images
+    # and a blog's article. Not the title, and not a script (the video is what's published, and it's read once it's in).
+    published = document_layout.plain_text("\n\n".join(p for p in [
+        *([row["caption_text"]] if row["caption_text"] else []), *_platform_captions(row).values(),
+        spoken, *image_texts,
+        *[f"{d['doc_text']}" for d in documents
+          if d["kind"] != "SCRIPT" and d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()],
+    ] if p and str(p).strip()))
     result = await check_compliance(
-        check_request(row, text, has_video=bool(video), has_images=bool(images), sources=sources)
+        check_request(row, text, has_video=bool(video), has_images=bool(images), sources=sources,
+                      disclaimer_text=published)
     )
     # Does the video say what the approved script says? Only once the script is approved and the transcript read.
     match = script_match.compare(script, spoken) if script and segments else None
@@ -1350,6 +1393,15 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
             for d in documents if d["doc_text_status"] == "FAILED"
         ],
         "segment_flags": flag_segments(segments, result.violations),
+        # Everything that couldn't be read, so its wording was never checked. Approval waits for these (see reads_failed).
+        "reads_failed": [
+            *([{"what": "video transcript", "name": video.get("original_name"), "error": video.get("transcript_error")}]
+              if video and video["transcript_status"] == "FAILED" else []),
+            *({"what": "image text", "name": i.get("original_name"), "error": i.get("image_text_error")}
+              for i in images if i["image_text_status"] == "FAILED"),
+            *({"what": "document", "name": d.get("original_name"), "error": d.get("doc_text_error")}
+              for d in documents if d["doc_text_status"] == "FAILED"),
+        ],
         # A context rule matched but no AI model could read it (key out of credits, quota used up, service down):
         # the score would be a guess, so screens show a message instead of it (re-run the check once the AI is back).
         "ai_unavailable": result.ai_unavailable,
@@ -1603,6 +1655,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
         "approval_needed_by": needed_by.isoformat() if needed_by else None,
         "caption_html": row["caption_html"],
         "caption_text": row["caption_text"],
+        "platform_captions": _platform_captions(row),
         "script_text": script_text,
         "rule_sets": list(row["rule_sets"] or []),
         "reviewer_route": list(row["reviewer_route"] or []),
@@ -2252,10 +2305,26 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
         # Nothing can be approved on a check that wasn't read in full: with the AI down every finding is only a
         # "needs review", so there'd be no score to hold to the minimum.
         saved = _json(row["latest_check"]) or {}
+        if saved and saved.get("rulebook_version") != await compliance_rulebook_version():
+            # The rulebook changed after this was checked (a re-check may still be queued): approve on today's rules.
+            await _recheck_one(dict(row), lambda before, result, check: None)
+            row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
+            if row["status"] != "IN_REVIEW":
+                raise HTTPException(status_code=409, detail="The post changed while it was re-checked; open it again")
+            saved = _json(row["latest_check"]) or {}
         if analysis_pending(saved):
             raise HTTPException(
                 status_code=422,
                 detail="The post is still being read, so it has no compliance score yet. Approve it once the check has finished.",
+            )
+        failed = reads_failed(saved)
+        if failed:
+            names = ", ".join(sorted({f"{f['what']} ({f['name']})" for f in failed})[:4])
+            raise HTTPException(
+                status_code=422,
+                detail=f"Part of the post couldn't be read, so its wording was never checked: {names}. It's tried again "
+                       "automatically when the cause was a temporary outage. Otherwise ask the creator to upload it "
+                       "again, or request changes.",
             )
         if ai_unavailable(saved):
             raise HTTPException(
@@ -2270,6 +2339,13 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                 status_code=422,
                 detail=f"{open_critical} critical compliance flag{'s are' if open_critical > 1 else ' is'} still open. "
                        "Request changes to fix it, or dismiss the flag with a reason if it's a false alarm.",
+            )
+        open_yellow = standing.open_yellow if standing else 0
+        if open_yellow:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{open_yellow} flag{'s need' if open_yellow > 1 else ' needs'} a person's answer. Confirm each "
+                       "one is right, or dismiss it with a reason if it's a false alarm, then approve.",
             )
         # Flags dismissed as false alarms give their points back; what's left must reach the minimum.
         if standing and standing.score_too_low:
@@ -2616,15 +2692,43 @@ _rulebook_recheck: Optional["asyncio.Task[None]"] = None
 RULEBOOK_RECHECK_DELAY_SEC = 3
 
 
+async def _check_still_current(conn, row: Dict[str, Any], started: datetime) -> bool:
+    """Whether a check that began at `started` on `row` may still be saved. A re-check reads the post, then runs for
+    tens of seconds; if the post moved on meanwhile (edited, sent back, approved, a newer version, or a newer check
+    saved), saving it would put an older result over a newer one. Locks the row, so nothing moves between this
+    answer and the save that follows in the same transaction."""
+    cur = await conn.fetchrow(
+        "SELECT status, current_version, content_edited_at, latest_check FROM content_submissions "
+        "WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
+        row["id"],
+    )
+    if not cur:
+        return False
+    if (cur["status"], cur["current_version"], cur["content_edited_at"]) != (
+        row["status"], row["current_version"], row.get("content_edited_at")
+    ):
+        return False
+    saved_at = (_json(cur["latest_check"]) or {}).get("checked_at")
+    try:
+        newer = bool(saved_at) and datetime.fromisoformat(saved_at) > started
+    except (TypeError, ValueError):
+        newer = False
+    return not newer
+
+
 async def _recheck_one(row: Dict[str, Any], describe) -> Tuple[Any, Dict[str, Any], bool]:
     """Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
     describe(before, result, check) returns (log line, details) to log on the item, or None to log nothing."""
     before = _json(row["latest_check"]) or {}
+    started = datetime.now(timezone.utc)
     result, check = await _run_check(row)
     logged = describe(before, result, check)
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            if not await _check_still_current(conn, row, started):
+                logger.info("Not saving a re-check of %s: the post changed while it ran", row["id"])
+                return result, check, False
             await conn.execute(
                 "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1", row["id"], json.dumps(check)
             )
@@ -2707,6 +2811,42 @@ async def recheck_ai_unavailable() -> int:
     return read
 
 
+# A read that failed for one of these reasons (a quota, a busy or down service) is worth another try; a corrupt file is not.
+_TRANSIENT_READ_ERROR = (
+    "quota|rate.?limit|429|503|502|504|unavailable|overloaded|timed? ?out|timeout|deadline|resource.?exhausted|"
+    "try again|temporar|connection|network|not found for api version|404"
+)
+READ_RETRY_AFTER_MINUTES = 10
+
+
+async def retry_failed_reads() -> int:
+    """Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
+    post isn't left unchecked for good. The check re-runs by itself when each read finishes. Returns how many."""
+    due = []
+    for status, error, updated, scheduler in (
+        ("transcript_status", "transcript_error", "transcript_updated_at", transcription_service),
+        ("image_text_status", "image_text_error", "image_text_updated_at", image_text_service),
+        ("doc_text_status", "doc_text_error", "doc_text_updated_at", document_text_service),
+    ):
+        rows = await fetch_all(
+            f"""
+            UPDATE content_submission_files f SET {status} = NULL
+            FROM content_submissions s
+            WHERE s.id = f.submission_id AND s.deleted_at IS NULL AND f.deleted_at IS NULL
+              AND (s.status IN ('IN_REVIEW', 'CHANGES_REQUESTED')
+                   OR (s.status = 'DRAFT' AND s.script_status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'EDITS_PROPOSED')))
+              AND f.{status} = 'FAILED' AND f.{error} ~* $1
+              AND f.{updated} < NOW() - INTERVAL '{READ_RETRY_AFTER_MINUTES} minutes'
+            RETURNING f.id
+            """,
+            _TRANSIENT_READ_ERROR,
+        )
+        if rows:
+            await scheduler.schedule_missing([r["id"] for r in rows])
+            due += rows
+    return len(due)
+
+
 async def ai_recheck_loop() -> None:
     """Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it."""
     import asyncio
@@ -2718,6 +2858,9 @@ async def ai_recheck_loop() -> None:
             read = await recheck_ai_unavailable()
             if read:
                 logger.info("Re-checked %d submission(s) the AI couldn't read earlier", read)
+            retried = await retry_failed_reads()
+            if retried:
+                logger.info("Reading %d file(s) again that failed because of an outage or a quota", retried)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -2789,6 +2932,7 @@ async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
         )
         if not sub:
             return
+        started = datetime.now(timezone.utc)
         result, check = await _run_check(sub)
         # Tell the creator the first time the video turns out not to match their approved script.
         was_mismatch = ((_json(sub["latest_check"]) or {}).get("script_match") or {}).get("status") == "MISMATCH"
@@ -2796,6 +2940,9 @@ async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
         pool = get_pool()
         async with pool.acquire() as conn:
             async with conn.transaction():
+                if not await _check_still_current(conn, sub, started):
+                    logger.info("Not saving a re-check of %s: the post changed while it ran", sub["id"])
+                    return
                 await conn.execute(
                     "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1",
                     sub["id"], json.dumps(check),

@@ -34,6 +34,7 @@ from postgresql_db.database import execute, fetch_all, fetch_one, get_pool
 from services.compliance.media import document_layout
 from services.compliance.media import document_text_service
 from services.compliance.submissions import review_deadline_service
+from services.compliance.submissions.flag_review_service import MIN_APPROVAL_SCORE
 from services.compliance.submissions import submission_service as subs
 from services.compliance.evaluation.compliance_service import check_compliance, rulebook_version
 from services.shared.core.audit_service import log_audit_event
@@ -427,6 +428,22 @@ async def decide(submission_id: UUID, user_id: UUID, req: ScriptDecisionRequest)
             detail="The AI review couldn't run on this script, so it has no compliance score and can't be approved yet. "
                    "It's re-checked automatically once the AI is back. You can still send it back.",
         )
+    if req.decision == "APPROVE":
+        # The same standing a post needs: no open critical flag, and a score that reaches the minimum.
+        sent_check = sent.check or {}
+        critical = [v for v in sent_check.get("violations") or [] if v.get("traffic_light") == "RED"]
+        if critical:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{len(critical)} critical compliance flag{'s are' if len(critical) > 1 else ' is'} on this script. "
+                       "Send it back with what to change, or edit the wording yourself.",
+            )
+        if sent_check.get("score") is not None and int(sent_check["score"]) < MIN_APPROVAL_SCORE:
+            raise HTTPException(
+                status_code=422,
+                detail=f"The script's rulebook score is {sent_check['score']}/100; approval needs at least "
+                       f"{MIN_APPROVAL_SCORE}. Send it back with what to change, or edit the wording yourself.",
+            )
     if req.decision == "APPROVE" and has_edits:
         raise HTTPException(status_code=422,
                             detail="You changed the script, so it goes back to the creator to accept. Send it back instead.")
