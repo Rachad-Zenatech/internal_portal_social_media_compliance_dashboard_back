@@ -112,6 +112,19 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `XIngestTopicInput` (class)
 - `XIngestRequest` (class)
 
+## models/compliance/script_batch_model.py (118 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
+- `BatchDetails` (class) - What every post made from the batch shares.
+- `BatchUpdate` (class)
+- `BatchItemCreate` (class)
+- `BatchItemUpdate` (class)
+- `BatchItem` (class)
+- `Batch` (class)
+- `BatchSummary` (class)
+- `ItemDecision` (class)
+- `BatchReviewRequest` (class)
+- `ItemResult` (class)
+- `BatchReviewResult` (class)
+
 ## models/compliance/script_review_model.py (131 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class)
 - `ScriptStage` (class)
@@ -249,7 +262,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def) - Create the tables and add any missing baseline rules.
 - `_main` (def)
 
-## postgresql_db/schemas/setup_context_schema.py (225 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
+## postgresql_db/schemas/setup_context_schema.py (299 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
 - `setup` (def)
 
 ## postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
@@ -266,6 +279,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_main` (def)
 
 ## postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
+- `setup` (def)
+
+## postgresql_db/schemas/setup_script_batches_schema.py (60 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
 - `setup` (def)
 
 ## postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
@@ -344,7 +360,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `embedding_quota_left` (def) - None if embeddings work; otherwise why not.
 - `main` (def)
 
-## server.py (693 lines) - server
+## server.py (700 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -921,7 +937,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_apply` (def) - Put the model's answer on the finding, through the safeguards.
 - `evaluate` (def) - Read each candidate in context and set its status (in place).
 
-## services/compliance/evaluation/context_service.py (188 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
+## services/compliance/evaluation/context_service.py (200 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - `_out` (def)
 - `_newest_first` (def)
 - `list_entries` (def)
@@ -929,10 +945,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `create_entry` (def)
 - `update_entry` (def)
 - `delete_entry` (def) - Soft delete, so a removed starter entry isn't seeded again and the audit trail still resolves.
+- `with_thought_leadership` (def) - The brands whose context applies: a post on a thought leadership account (Shaun's channel) also gets the
 - `_applies` (def)
 - `for_content` (def) - The active entries that apply to this content, in prompt order, trimmed to a sensible total size.
 
-## services/compliance/evaluation/newsroom_sync_service.py (290 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.
+## services/compliance/evaluation/newsroom_sync_service.py (311 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.
 - `_get_client` (def)
 - `_text` (def)
 - `parse_list` (def) - The articles on the newsroom page: url, title and date, newest first, one per url.
@@ -954,6 +971,39 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `sync_soon` (def) - Re-sync in the background after a change (a change made while a sync is running triggers one more).
     - `run` (def)
 - `search` (def)
+
+## services/compliance/evaluation/script_batch_service.py (589 lines) - Script batches.
+- `missing_details` (def) - The details still empty, by their names on the form.
+- `_json` (def)
+- `_details` (def)
+- `post_row` (def) - The batch's details shaped like a post row, so a script is checked against the rules scoped to its posts.
+- `read_upload` (def) - The text of an uploaded document (PDF, Word or text), or a message the creator can act on.
+- `_load` (def)
+- `_reviewer_may_see` (def)
+- `_may_see` (def)
+- `_owned` (def)
+- `_reviewer_may_act` (def)
+- `_item_out` (def)
+- `_out` (def)
+- `get_batch` (def)
+- `list_batches` (def) - Batches the user uploaded ("mine"), or those waiting for or done by reviewers ("review").
+- `create_batch` (def) - Split an uploaded document into scripts and start a batch of them (a draft the creator can still change).
+- `update_batch` (def)
+- `_editable_item` (def)
+- `add_item` (def)
+- `update_item` (def)
+- `delete_item` (def)
+- `delete_batch` (def) - Remove a batch that hasn't produced any posts (nothing has been approved from it).
+- `send` (def) - Send the scripts that are waiting (new ones, and ones sent back) to the reviewers.
+- `_check_item` (def)
+- `_process_send` (def) - Check each waiting script, then hand the batch to the reviewers (or say what went wrong).
+- `_notify_reviewers` (def)
+- `_refresh_checks` (def) - Check again the waiting scripts whose check was made without the AI, or against an older rulebook, so a reviewer
+- `_needs_recheck` (def)
+- `approval_block` (def) - Why a script can't be approved yet, or None.
+- `_make_post` (def) - The post for an approved script: a video post of the creator's, with the batch's details and the script already
+- `review` (def) - Decide on any number of the batch's scripts at once.
+- `_refresh_status` (def) - IN_REVIEW while any script waits for a reviewer, CHANGES_REQUESTED while only the creator has something to do,
 
 ## services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
 - `_words` (def)
@@ -993,6 +1043,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_highlights` (def) - The reviewer's highlights and notes on a script version, for anyone who can read the post.
 - `save_highlights` (def) - Replace the highlights on a script version.
 - `resolve_highlights` (def) - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
+
+## services/compliance/evaluation/script_split.py (113 lines) - Splitting one document into the scripts it holds.
+- `_clip` (def)
+- `_first_line` (def) - The first filled line as a title candidate, and the lines after it.
+- `_by_starts` (def) - Chunks that begin at each start line (its own title, if the marker line carried one).
+- `_by_dividers` (def)
+- `split_scripts` (def) - (title, body) for each script in the document, in order.
 
 ## services/compliance/evaluation/source_check_service.py (494 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - `claim_id` (def) - The id of one claim's finding: its kind's id and the claim's own wording.
@@ -1074,7 +1131,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `thumbnail` (def) - A small PNG of the design's first scene, for the picker.
 - `design_kind_ok` (def) - Whether an export of this kind can be the main file of a submission that takes these extensions.
 
-## services/compliance/media/caption_service.py (332 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
+## services/compliance/media/caption_service.py (337 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
 - `get_hashtag_library` (def) - The hashtag library for a post, minus any tag the rules that apply to it would flag.
 - `_wants_cashtag` (def) - The cashtag goes on investor posts, or when the writer asks for it.
 - `_lower_first` (def)
@@ -1193,7 +1250,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 
-## services/compliance/sentiment/config.py (350 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
+## services/compliance/sentiment/config.py (358 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
 - `_get_client` (def)
 - `_enum` (def)
 - `next_quota_reset` (def) - The next midnight Pacific time, when Gemini's daily quotas reset (in UTC).
@@ -1233,7 +1290,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_eval_cases` (def)
 - `delete_eval_case` (def)
 
-## services/compliance/sentiment/input_builder.py (354 lines) - Input building and prompt construction for sentiment analysis.
+## services/compliance/sentiment/input_builder.py (358 lines) - Input building and prompt construction for sentiment analysis.
 - `_load_submission` (def)
 - `_load_images` (def) - The post's images in order: the main ones (e.g.
 - `_json` (def)
@@ -1832,6 +1889,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `CashtagSuggestionTests` (class)
     - `test_the_cashtag_is_suggested_first_when_the_post_is_for_investors` (def)
     - `test_otherwise_the_cashtag_is_an_option_at_the_end` (def)
+
+## tests/test_brand_guide.py (69 lines) - The ZenaTech Brand Manual as brand voice for the thought leadership accounts, and how the analysis uses it.
+- `BrandGuideSeedTests` (class)
+    - `test_the_manual_is_four_brand_voice_entries_for_thought_leadership` (def)
+    - `test_the_manual_values_are_kept_exactly` (def)
+    - `test_entries_fit_the_editor_limits` (def)
+    - `test_seed_keys_are_unique` (def)
+- `ThoughtLeadershipScopeTests` (class)
+    - `test_a_thought_leadership_account_gets_the_guide_under_any_brand` (def)
+- `AnalysisUsesTheGuideTests` (class)
+    - `test_the_prompt_lists_the_guide_with_its_source` (def)
+    - `test_brand_alignment_checks_the_visual_identity` (def)
 
 ## tests/test_cheaper_recall.py (95 lines) - test cheaper recall
 - `ClaimGateTests` (class)
@@ -2736,6 +2805,32 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_the_feed_lives_in_the_repo_data_folder_next_to_the_apps_other_data` (def)
     - `test_the_scraper_and_the_app_share_one_way_of_storing_and_loading_the_feed` (def)
 
+## tests/test_script_batch.py (95 lines) - test script batch
+- `DetailsTests` (class)
+    - `test_every_shared_detail_is_needed_before_sending` (def)
+    - `test_a_filled_in_batch_is_ready` (def)
+    - `test_an_empty_list_counts_as_missing` (def)
+    - `test_the_scripts_are_checked_as_video_posts_with_the_batchs_details` (def)
+- `ApprovalBlockTests` (class)
+    - `test_a_clean_script_can_be_approved` (def)
+    - `test_the_minimum_itself_is_enough` (def)
+    - `test_a_low_score_blocks` (def)
+    - `test_a_critical_flag_blocks` (def)
+    - `test_a_script_the_ai_could_not_read_blocks` (def)
+    - `test_a_script_with_no_check_blocks` (def)
+- `RecheckTests` (class)
+    - `test_a_script_with_no_check_is_checked` (def)
+    - `test_a_check_from_an_older_rulebook_is_checked_again` (def)
+    - `test_an_ai_down_check_is_retried_but_not_on_every_page_load` (def)
+- `UploadTests` (class)
+    - `refused` (def)
+    - `test_a_text_file_is_read` (def)
+    - `test_other_file_types_are_refused` (def)
+    - `test_an_empty_file_is_refused` (def)
+    - `test_a_file_with_no_text_is_refused` (def)
+    - `test_a_very_large_file_is_refused` (def)
+    - `test_an_old_word_file_says_what_to_do` (def)
+
 ## tests/test_script_match.py (73 lines) - test script match
 - `ScriptMatchTests` (class)
     - `test_same_words_match` (def)
@@ -2792,6 +2887,20 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `send` (def)
     - `test_the_reviewers_and_the_creator_are_both_told` (def)
     - `test_the_confirmation_counts_several_reviewers` (def)
+
+## tests/test_script_split.py (67 lines) - test script split
+- `SplitScriptsTests` (class)
+    - `test_numbered_markers_split_the_scripts_and_keep_their_titles` (def)
+    - `test_marker_styles_all_count` (def)
+    - `test_divider_lines_split_the_scripts_and_the_first_line_is_the_title` (def)
+    - `test_markdown_headings_split_the_scripts` (def)
+    - `test_title_lines_split_the_scripts` (def)
+    - `test_markers_win_over_dividers` (def)
+    - `test_a_document_with_nothing_to_split_on_is_one_script` (def)
+    - `test_a_single_marker_is_not_a_split` (def)
+    - `test_a_title_page_is_not_a_script_but_a_long_intro_is` (def)
+    - `test_empty_chunks_are_dropped_and_line_endings_do_not_matter` (def)
+    - `test_nothing_in_nothing_out` (def)
 
 ## tests/test_security_fixes.py (133 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - `CaptionSanitizerTests` (class)
@@ -3175,6 +3284,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `create_entry` (def) [POST ]
 - `update_entry` (def) [PUT /{entry_id}]
 - `delete_entry` (def) [DELETE /{entry_id}]
+
+## tools/compliance/submissions/script_batch_router.py (81 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
+- `list_batches` (def) [GET ] - The batches you uploaded, or (reviewers) the batches sent for review.
+- `upload_batch` (def) [POST ] - Upload one document holding several scripts; it is split into scripts the creator can still change.
+- `get_batch` (def) [GET /{batch_id}]
+- `update_batch` (def) [PATCH /{batch_id}] - Rename the batch, or set the details every post made from it shares.
+- `delete_batch` (def) [DELETE /{batch_id}]
+- `add_item` (def) [POST /{batch_id}/items]
+- `update_item` (def) [PATCH /{batch_id}/items/{item_id}]
+- `delete_item` (def) [DELETE /{batch_id}/items/{item_id}]
+- `send_batch` (def) [POST /{batch_id}/send] - Send the waiting scripts to the reviewers (checked against the rulebook in the background).
+- `review_batch` (def) [POST /{batch_id}/review] - Approve or send back any number of the batch's scripts at once; each approved script becomes a post.
 
 ## tools/compliance/submissions/script_review_router.py (88 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `script_queue` (def) [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
