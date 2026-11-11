@@ -42,21 +42,33 @@ def fake_pool(row):
 
 
 class DelegateTests(unittest.IsolatedAsyncioTestCase):
-    async def run_delegate(self, row, *, user=REVIEWER, to=DELEGATE, eligible=(DELEGATE,), is_reviewer=True):
+    async def run_delegate(self, row, *, user=REVIEWER, to=DELEGATE, eligible=(DELEGATE,), is_reviewer=True,
+                           already=False):
         pool, conn = fake_pool(row)
         with (
             patch(f"{SUBS}._get_owned_row", new=AsyncMock(return_value=row)),
             patch(f"{SUBS}._can_review", new=AsyncMock(return_value=is_reviewer)),
             patch(f"{SUBS}._is_super_admin", new=AsyncMock(return_value=False)),
             patch(f"{SUBS}._creator_exclusion", new=AsyncMock(return_value=CREATOR)),
-            patch(f"{SUBS}._reviewer_ids", new=AsyncMock(return_value=list(eligible))),
+            patch(f"{SUBS}._reviewer_ids", new=AsyncMock(return_value=list(eligible))) as reviewer_ids,
+            patch(f"{DEL}.has_delegated", new=AsyncMock(return_value=already)),
             patch(f"{SUBS}._notify", new=AsyncMock()) as notify,
             patch(f"{SUBS}.get_submission", new=AsyncMock(return_value="updated")),
             patch(f"{DEL}.get_pool", return_value=pool),
             patch(f"{DEL}.log_audit_event", new=AsyncMock()),
         ):
             result = await delegation_service.delegate(row["id"], user, DelegateRequest(to_user_id=to, note="Please"))
+        self.reviewer_ids = reviewer_ids
         return result, conn, notify
+
+    async def test_any_reviewer_can_take_it_whatever_their_brands(self):
+        await self.run_delegate(submission_row())
+        self.reviewer_ids.assert_awaited_once_with(exclude=CREATOR)
+
+    async def test_each_person_delegates_a_version_once(self):
+        with self.assertRaises(HTTPException) as caught:
+            await self.run_delegate(submission_row(), already=True)
+        self.assertEqual(caught.exception.status_code, 409)
 
     async def test_the_delegate_joins_the_reviewers_and_the_delegator_stays(self):
         result, conn, notify = await self.run_delegate(submission_row())

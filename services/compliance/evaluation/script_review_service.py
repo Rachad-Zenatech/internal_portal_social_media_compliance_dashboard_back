@@ -627,8 +627,8 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
         ) v ON true
         LEFT JOIN users u ON u.id = s.created_by
         WHERE {where} AND s.script_required AND s.content_type = 'VIDEO'
-          AND s.deleted_at IS NULL AND ($1::text[] IS NULL OR s.brand_codes && $1::text[])
-          AND (s.created_by = $2 OR {subs._sent_to("$2")})
+          AND s.deleted_at IS NULL
+          AND (s.created_by = $2 OR {subs._reviewer_sees("$2", "$1")})
         ORDER BY {order}
         LIMIT 100
         """,

@@ -48,6 +48,27 @@ class WhoMayOpenItTests(unittest.IsolatedAsyncioTestCase):
         row = submission_row(status="IN_REVIEW")
         self.assertIs(await self.load(row, OTHER_REVIEWER), row)
 
+    async def test_someone_it_was_delegated_to_can_open_it_outside_their_brands(self):
+        row = submission_row(status="IN_REVIEW", reviewer_ids=[PICKED, OTHER_REVIEWER])
+        with patch(f"{SVC}._brand_scope", new=AsyncMock(return_value=["SOFTWARE"])):
+            with (
+                patch(f"{SVC}.fetch_one", new=AsyncMock(return_value=row)),
+                patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=False)),
+                patch(f"{SVC}._can_see_team_content", new=AsyncMock(return_value=True)),
+            ):
+                self.assertIs(await submission_service._get_owned_row(row["id"], OTHER_REVIEWER, manager_can_read=True), row)
+
+    async def test_other_brands_stay_hidden_from_reviewers_not_named_on_it(self):
+        row = submission_row(status="IN_REVIEW")
+        with (
+            patch(f"{SVC}.fetch_one", new=AsyncMock(return_value=row)),
+            patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=False)),
+            patch(f"{SVC}._can_see_team_content", new=AsyncMock(return_value=True)),
+            patch(f"{SVC}._brand_scope", new=AsyncMock(return_value=["SOFTWARE"])),
+        ):
+            with self.assertRaises(HTTPException):
+                await submission_service._get_owned_row(row["id"], OTHER_REVIEWER, manager_can_read=True)
+
     async def test_its_creator_and_super_admins_can_still_open_it(self):
         row = submission_row(status="IN_REVIEW", reviewer_ids=[PICKED])
         self.assertIs(await self.load(row, CREATOR), row)

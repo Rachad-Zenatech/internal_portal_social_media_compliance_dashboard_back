@@ -1358,10 +1358,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `load_rules` (def)
 - `is_ceo_content` (def) - Shaun's own thought leadership: posted through his account or checked against his rule set.
 
-## services/compliance/submissions/delegation_service.py (179 lines) - Review delegation: a reviewer hands a post in review to someone else.
+## services/compliance/submissions/delegation_service.py (203 lines) - Review delegation: a reviewer hands a post in review to someone else.
 - `extend` (def) - Named final approvers plus whoever they delegated the post to (and on down the chain).
 - `edges_for` (def) - Each post's hand-offs as (from, to) pairs, for many posts in one query.
 - `with_delegates` (def)
+- `has_delegated` (def) - Whether this person already delegated this version of the post (each person delegates a version once).
+- `delegated_by` (def) - Of these posts ({id: current version}), the ones this person already delegated at that version.
 - `delegate` (def)
 - `_out` (def)
 - `list_delegations` (def) - Hand-offs the user made or received, newest first, with where each post stands now.
@@ -1445,7 +1447,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_photo_text` (def) - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (2969 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (2978 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_same_value` (def) - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
 - `content_changed` (def) - Whether saving these fields changes anything the checks read.
 - `_json` (def)
@@ -1459,6 +1461,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_can_review` (def) - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
 - `_can_see_team_content` (def) - Content Managers and reviewers can read everyone's submissions.
 - `_brand_scope` (def) - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
+- `_reviewer_sees` (def) - SQL: a reviewer sees content on their brands that was sent to them (or to no one in particular), and
 - `_sent_to` (def) - SQL: the content was sent to this user (picked, or delegated to them), or to no one in particular (every
 - `_get_owned_row` (def) - Load a submission the user may access (creator or super admin; managers and reviewers too when
 - `_approvers` (def) - The named final approvers for a submission row (empty: any reviewer on its brand).
@@ -2680,11 +2683,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_dismissing_the_stricter_of_two_flags_on_the_same_words_doesnt_make_them_free` (def)
     - `test_no_score_yet_or_an_old_check_without_points` (def)
 
-## tests/test_review_delegation.py (111 lines) - Review delegation: a reviewer hands a post in review to someone else and stays on it.
+## tests/test_review_delegation.py (123 lines) - Review delegation: a reviewer hands a post in review to someone else and stays on it.
 - `submission_row` (def)
 - `fake_pool` (def)
 - `DelegateTests` (class)
     - `run_delegate` (def)
+    - `test_any_reviewer_can_take_it_whatever_their_brands` (def)
+    - `test_each_person_delegates_a_version_once` (def)
     - `test_the_delegate_joins_the_reviewers_and_the_delegator_stays` (def)
     - `test_a_super_admin_who_wasnt_on_it_stays_on_it_too` (def)
     - `test_only_content_in_review` (def)
@@ -2721,13 +2726,15 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_other_statuses_are_left_alone` (def)
     - `test_it_is_a_warning_so_no_critical_cap_and_dismissing_gives_points_back` (def)
 
-## tests/test_reviewer_choice.py (186 lines) - test reviewer choice
+## tests/test_reviewer_choice.py (207 lines) - test reviewer choice
 - `submission_row` (def)
 - `WhoMayOpenItTests` (class)
     - `load` (def)
     - `test_a_reviewer_it_was_sent_to_can_open_it` (def)
     - `test_other_reviewers_cant_open_it` (def)
     - `test_content_sent_to_no_one_in_particular_is_open_to_every_reviewer` (def)
+    - `test_someone_it_was_delegated_to_can_open_it_outside_their_brands` (def)
+    - `test_other_brands_stay_hidden_from_reviewers_not_named_on_it` (def)
     - `test_its_creator_and_super_admins_can_still_open_it` (def)
     - `test_lists_and_queues_use_the_same_rule` (def)
 - `WhoIsNotifiedTests` (class)
