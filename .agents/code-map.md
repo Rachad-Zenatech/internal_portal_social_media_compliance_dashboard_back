@@ -132,11 +132,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ItemResult` (class)
 - `BatchReviewResult` (class)
 
-## models/compliance/script_review_model.py (131 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+## models/compliance/script_review_model.py (138 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class)
 - `ScriptStage` (class)
 - `ScriptDecisionRequest` (class) - The reviewer's call on the script.
 - `ScriptReviseRequest` (class)
+- `ScriptSubmitRequest` (class)
 - `ScriptCheckRequest` (class)
 - `ScriptQueueItem` (class) - A script waiting for a reviewer, as the Content Screener's Scripts tab lists it.
 - `ScriptHighlight` (class) - A stretch of the script the reviewer highlighted, with an optional note on it.
@@ -1053,7 +1054,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 - `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/evaluation/script_review_service.py (721 lines) - Script stage of a video post.
+## services/compliance/evaluation/script_review_service.py (774 lines) - Script stage of a video post.
 - `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
@@ -1069,6 +1070,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_lock_status` (def) - Lock the post and make sure the script is still where the caller saw it (two people can act at once).
 - `_send_to_reviewers` (def) - Tell the reviewers it was sent to; returns who was told.
 - `_missing_details` (def) - The required submission details still empty, by their names on the form.
+- `_require_not_duplicate` (def) - The same script, already sent for review for the same place and publish date, can't be sent again; for another
+- `_repost_confirmed` (def) - Whether the creator confirmed sending this script again for another date (kept with the send in progress).
 - `submit` (def) - Accept the uploaded script for review and answer at once.
 - `_fail_send` (def) - The background send couldn't finish: record which step failed and why, and tell the creator.
 - `resume_interrupted_sends` (def) - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
@@ -1412,7 +1415,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `submission_delegations` (def) - Every hand-off on one post, for anyone who can open it.
 - `delegation_count` (def) - Delegated-to-me posts still waiting for a decision, for the sidebar badge.
 
-## services/compliance/submissions/duplicate_service.py (189 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
+## services/compliance/submissions/duplicate_service.py (237 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
 - `normalize_caption` (def) - Captions compare without case or spacing differences.
 - `details_of` (def) - The post's Submission Details values, as keys (brand codes, account ids, audience codes...).
 - `compare_details` (def) - Per dropdown: the values both posts have, and the values only this post has.
@@ -1421,6 +1424,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_content_hashes` (def) - Each post's main files as sorted content hashes.
 - `_labels` (def) - Display names for the dropdown values, by field.
 - `find` (def) - Posts already sent for approval with the same content and caption as this one, and how their details overlap.
+- `_report` (def) - How each matching post's details overlap with this one's, and whether that blocks it or asks for a repost.
+- `normalize_script` (def) - A script's text as compared: case and spacing (line breaks included) don't make it different.
+- `find_script` (def) - Other posts whose script, as last sent for review, is the same text as this one, and how their details overlap
 
 ## services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
 - `_doc` (def)
@@ -2938,7 +2944,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_script_the_ai_could_not_read_is_flagged` (def)
     - `test_a_script_the_ai_read_is_not` (def)
 
-## tests/test_script_send.py (160 lines) - test script send
+## tests/test_script_send.py (161 lines) - test script send
 - `processing` (def)
 - `SendStateTests` (class)
     - `test_nothing_in_progress` (def)
@@ -3380,7 +3386,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `send_batch` (def) [POST /{batch_id}/send] - Send the waiting scripts to the reviewers (checked against the rulebook in the background).
 - `review_batch` (def) [POST /{batch_id}/review] - Approve or send back any number of the batch's scripts at once; each approved script becomes a post.
 
-## tools/compliance/submissions/script_review_router.py (88 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+## tools/compliance/submissions/script_review_router.py (90 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `script_queue` (def) [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
 - `get_script` (def) [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
 - `submit_script` (def) [POST /{submission_id}/script/submit] - Send the uploaded script for review.

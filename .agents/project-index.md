@@ -20,7 +20,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
 - models/compliance/public_mood_model.py (328 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - models/compliance/script_batch_model.py (118 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
-- models/compliance/script_review_model.py (131 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+- models/compliance/script_review_model.py (138 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - models/compliance/sentiment_model.py (213 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - models/compliance/submission_model.py (627 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
@@ -85,7 +85,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - services/compliance/evaluation/script_batch_service.py (589 lines) - Script batches.
 - services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
-- services/compliance/evaluation/script_review_service.py (721 lines) - Script stage of a video post.
+- services/compliance/evaluation/script_review_service.py (774 lines) - Script stage of a video post.
 - services/compliance/evaluation/script_split.py (113 lines) - Splitting one document into the scripts it holds.
 - services/compliance/evaluation/source_check_service.py (494 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_fetch_service.py (321 lines) - Source fetcher: opens a link a post cites and returns its readable text.
@@ -110,7 +110,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/submissions/analysis_progress_service.py (195 lines) - How long a post's rulebook check has left.
 - services/compliance/submissions/approval_path_service.py (170 lines) - Approval paths: who gives final approval for which content.
 - services/compliance/submissions/delegation_service.py (203 lines) - Review delegation: a reviewer hands a post in review to someone else.
-- services/compliance/submissions/duplicate_service.py (189 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
+- services/compliance/submissions/duplicate_service.py (237 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
 - services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
 - services/compliance/submissions/flag_review_service.py (364 lines) - Reviewers' calls on automated compliance flags.
 - services/compliance/submissions/post_steps_service.py (117 lines) - The five steps a creator works through, and how far each post has got.
@@ -183,7 +183,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_script_batch.py (95 lines) - test script batch
 - tests/test_script_match.py (73 lines) - test script match
 - tests/test_script_queue.py (107 lines) - test script queue
-- tests/test_script_send.py (160 lines) - test script send
+- tests/test_script_send.py (161 lines) - test script send
 - tests/test_script_split.py (67 lines) - test script split
 - tests/test_security_fixes.py (133 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - tests/test_sentiment_strictness.py (70 lines) - test sentiment strictness
@@ -206,7 +206,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tools/compliance/submissions/compliance_router.py (172 lines) - Compliance Rules & Governance Router Endpoints for managing ("build on it and remove") and checking compliance rules.
 - tools/compliance/submissions/context_router.py (96 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
 - tools/compliance/submissions/script_batch_router.py (81 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
-- tools/compliance/submissions/script_review_router.py (88 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+- tools/compliance/submissions/script_review_router.py (90 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - tools/compliance/submissions/submission_router.py (579 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/notifications/notification_router.py (87 lines) - notification router (notifications)
