@@ -12,8 +12,41 @@ try:
     load_dotenv(os.path.join(_root_dir, ".env.local"), override=True)
 except ImportError:
     pass
+
+
+def acquire_timeout() -> float:
+    """Seconds to wait for a free pooled connection before failing, as in the administration backend."""
+    return float(os.getenv("DB_POOL_ACQUIRE_TIMEOUT", "10.0"))
+
+
+class PoolWrapper:
+    """Wraps an asyncpg.Pool so every acquire() has a default timeout: when the pool is exhausted by stuck connections,
+    requests fail fast instead of queueing forever."""
+
+    def __init__(self, pool: asyncpg.Pool):
+        self._pool = pool
+
+    def acquire(self, *, timeout=None):
+        return self._pool.acquire(timeout=acquire_timeout() if timeout is None else timeout)
+
+    async def close(self):
+        return await self._pool.close()
+
+    def terminate(self):
+        return self._pool.terminate()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+    def __getattr__(self, name):
+        return getattr(self._pool, name)
+
+
 # Global reference to the connection pool
-_pool: asyncpg.Pool | None = None
+_pool: PoolWrapper | None = None
 logger = logging.getLogger(__name__)
 
 async def create_pool():
@@ -28,7 +61,7 @@ async def create_pool():
                 max_size = int(os.getenv("DB_POOL_MAX_SIZE", "10"))
                 max_queries = int(os.getenv("DB_POOL_MAX_QUERIES", "50000"))
                 max_inactive_lifetime = float(os.getenv("DB_POOL_MAX_INACTIVE_LIFETIME", "300.0"))
-                cmd_timeout = float(os.getenv("DB_COMMAND_TIMEOUT", "120.0"))
+                cmd_timeout = float(os.getenv("DB_COMMAND_TIMEOUT", "60.0"))
 
                 ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
                 if ssl_env in ("false", "0", "no", "disable", "off"):
@@ -43,11 +76,13 @@ async def create_pool():
                     "tcp_keepalives_idle": "30",
                     "tcp_keepalives_interval": "10",
                     "tcp_keepalives_count": "3",
-                    # A request that dies mid-transaction must not keep its row locks forever.
-                    "idle_in_transaction_session_timeout": os.getenv("DB_IDLE_IN_TX_TIMEOUT_MS", "60000"),
+                    # Same guards as the administration backend: never wait long on a lock, and a request that dies
+                    # mid-transaction must not keep its row locks.
+                    "lock_timeout": os.getenv("DB_LOCK_TIMEOUT_MS", "5000"),
+                    "idle_in_transaction_session_timeout": os.getenv("DB_IDLE_IN_TX_TIMEOUT_MS", "30000"),
                 }
 
-                _pool = await asyncpg.create_pool(
+                raw_pool = await asyncpg.create_pool(
                     dsn=os.environ["DATABASE_URL"],
                     ssl=ssl_mode,
                     min_size=min_size,
@@ -58,6 +93,7 @@ async def create_pool():
                     max_inactive_connection_lifetime=float(os.getenv("DB_POOL_MAX_INACTIVE_LIFETIME", "60.0")),
                     server_settings=server_settings,
                 )
+                _pool = PoolWrapper(raw_pool)
                 break
             except Exception as e:
                 if "EMAXCONNSESSION" in str(e) and attempt < retries - 1:
@@ -91,7 +127,7 @@ async def reset_pool():
     return await create_pool()
 
 
-def get_pool() -> asyncpg.Pool:
+def get_pool() -> "PoolWrapper":
     if _pool is None:
         raise RuntimeError("Database pool not initialised. Call create_pool() first.")
     return _pool

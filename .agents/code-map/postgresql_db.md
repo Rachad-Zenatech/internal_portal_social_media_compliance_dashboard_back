@@ -4,15 +4,15 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## postgresql_db/database.py (146 lines) - Optional dotenv import for loading .env and local overrides during development
+## postgresql_db/database.py (148 lines) - Optional dotenv import for loading .env and local overrides during development
 - `create_pool` (def) L19 - Creates the connection pool if it doesn't exist yet, then returns it.
-- `close_pool` (def) L71
-- `reset_pool` (def) L79 - Drop the current pool and create a fresh one after connection failures.
-- `get_pool` (def) L92
-- `get_conn` (def) L99
-- `fetch_one` (def) L109
-- `fetch_all` (def) L119
-- `execute` (def) L129
-- `execute_many` (def) L139
+- `close_pool` (def) L73
+- `reset_pool` (def) L81 - Drop the current pool and create a fresh one after connection failures.
+- `get_pool` (def) L94
+- `get_conn` (def) L101
+- `fetch_one` (def) L111
+- `fetch_all` (def) L121
+- `execute` (def) L131
+- `execute_many` (def) L141
 
 ## postgresql_db/schema_metadata.py (328 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.

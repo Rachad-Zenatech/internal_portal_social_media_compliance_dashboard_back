@@ -329,17 +329,23 @@ async def heartbeat(
 ):
     pool = get_pool()
     async with pool.acquire() as conn:
+        # Only write last_activity_at when it is older than 30s: the heartbeat fires often, and a write per call
+        # is needless row contention on users.
         user = await conn.fetchrow(
             """
-            UPDATE users
-            SET last_activity_at = now()
-            WHERE id = $1
-              AND deleted_at IS NULL
-              AND is_active = TRUE
+            UPDATE users SET last_activity_at = now()
+            WHERE id = $1 AND deleted_at IS NULL AND is_active = TRUE
+              AND (last_activity_at IS NULL OR last_activity_at < now() - interval '30 seconds')
             RETURNING is_super_admin
             """,
             user_id,
         )
+        if not user:
+            # Either touched within the last 30s (nothing to write) or the user is gone/inactive.
+            user = await conn.fetchrow(
+                "SELECT is_super_admin FROM users WHERE id = $1 AND deleted_at IS NULL AND is_active = TRUE",
+                user_id,
+            )
     if not user:
         raise HTTPException(status_code=401, detail="User is inactive or no longer exists")
     refreshed_token = create_access_token(user_id, bool(user["is_super_admin"]))
