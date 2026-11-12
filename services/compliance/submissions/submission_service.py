@@ -656,8 +656,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
                  END,
                  coalesce(s.due_at, s.approval_needed_by, s.publish_at) ASC NULLS LAST,
                  s.updated_at DESC
-        -- High enough that nobody's list is cut short; the page shows it 25 at a time.
-        LIMIT 2000
+        LIMIT 2000  -- High enough that nobody's list is cut short; the page shows it 25 at a time.
         """,
         user_id,
         status_filter,
@@ -2037,8 +2036,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
           AND (s.created_by = $1 OR ($2 AND {_reviewer_sees("$1", "$3")}))
           AND ($4 = '' OR s.title ILIKE '%' || $4 || '%' OR s.reference_code ILIKE '%' || $4 || '%')
         ORDER BY {_QUEUE_ORDER[tab]}
-        -- High enough that no tab is cut short; the screener shows it 20 at a time.
-        LIMIT 1000
+        LIMIT 1000  -- High enough that no tab is cut short; the screener shows it 20 at a time.
         """,
         user_id,
         see_all,
