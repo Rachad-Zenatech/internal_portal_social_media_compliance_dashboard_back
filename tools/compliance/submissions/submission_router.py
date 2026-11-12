@@ -263,8 +263,15 @@ async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser):
 @router.get("/{submission_id}/duplicates", response_model=DuplicateReport)
 async def find_duplicates(submission_id: UUID, user_id: CurrentUser):
     """Posts already sent for approval with the same content and caption as this draft, with how their Submission
-    Details overlap. Submitting is refused while one overlaps on every detail and the publish date."""
+    Details overlap. Sending is refused while one overlaps on every detail and the publish date. It is looked up as soon
+    as the details are filled in, not only when the post is sent. A video post that is still at its script stage is
+    compared by its script (the uploaded one, once read)."""
     row = await svc._get_owned_row(submission_id, user_id)
+    if svc.script_stage_on(row) and row.get("script_status") != "APPROVED":
+        from services.compliance.evaluation import script_review_service
+
+        body = await script_review_service.current_script_text(row)
+        return await duplicate_service.find_script(row, body) if body else DuplicateReport()
     return await duplicate_service.find(row)
 
 
@@ -275,13 +282,6 @@ async def submit_for_review(submission_id: UUID, user_id: CurrentUser, body: Opt
     submission, job = await svc.submit_for_review(submission_id, user_id,
                                                   confirm_repost=bool(body and body.confirm_repost))
     return SubmitResult(submission=submission, review_job=job)
-
-
-@router.post("/{submission_id}/withdraw", response_model=Submission)
-async def withdraw(submission_id: UUID, user_id: CurrentUser):
-    """Pull a submission back to draft to edit it: from review, or after approval for a late fix (the approval
-    no longer applies and it's reviewed again)."""
-    return await svc.withdraw(submission_id, user_id)
 
 
 @router.get("/{submission_id}/versions/{version}", response_model=VersionView)
