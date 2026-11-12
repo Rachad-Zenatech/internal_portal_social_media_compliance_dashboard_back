@@ -827,12 +827,15 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
             raise HTTPException(status_code=422, detail=f"Unknown reviewer route(s): {', '.join(bad)}")
         fields["reviewer_route"] = list(dict.fromkeys(payload["reviewer_route"]))
     if payload.get("reviewer_ids") is not None:
-        picked = list(dict.fromkeys(payload["reviewer_ids"]))
+        # Sent back for changes: the reviewers and suggesting reviewers who asked for them stay on the post.
+        # More people can be added; nobody is taken off.
+        kept = list(row.get("reviewer_ids") or []) if row.get("status") == "CHANGES_REQUESTED" else []
+        picked = [r for r in dict.fromkeys(payload["reviewer_ids"]) if r not in kept]
         out, on = await _creator_exclusion(row["created_by"]), fields.get("brand_codes", brands_of(row))
         allowed = set(await _reviewer_ids(exclude=out, brand_codes=on)) | set(await _suggester_ids(exclude=out, brand_codes=on))
         if any(r not in allowed for r in picked):
             raise HTTPException(status_code=422, detail="Some of those people can't review content on this brand")
-        fields["reviewer_ids"] = picked
+        fields["reviewer_ids"] = kept + picked
     for name in data.clear_fields:
         fields[name] = None
         if name == "account_id":
