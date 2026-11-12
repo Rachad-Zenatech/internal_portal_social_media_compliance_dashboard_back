@@ -105,6 +105,8 @@ class WhoIsNotifiedTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_script_goes_to_the_same_people(self):
         row = submission_row(reviewer_ids=[PICKED])
         with (
+            # A creator who isn't a super admin isn't told about their own script.
+            patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=False)),
             patch(f"{SVC}._review_recipients", new=AsyncMock(return_value=[PICKED])),
             patch(f"{SVC}._notify", new=AsyncMock()) as notify,
         ):

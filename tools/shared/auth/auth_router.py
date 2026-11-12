@@ -220,6 +220,8 @@ TEST_USERS = {
     # More reviewers, to try brand-based routing (give each a brand in Role Assignments).
     "reviewer2": ("test.reviewer2@example.com", "Test Reviewer 2", "REVIEWER"),
     "reviewer3": ("test.reviewer3@example.com", "Test Reviewer 3", "REVIEWER"),
+    # Comments and suggests script edits on what is sent to them by name; can't approve or schedule.
+    "suggester": ("test.suggester@example.com", "Test Suggester", "SUGGESTING_REVIEWER"),
 }
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]"}
 
@@ -233,7 +235,7 @@ def _test_login_allowed(request: Request) -> bool:
 
 
 class TestLoginRequest(BaseModel):
-    as_: str = Field(alias="as", pattern="^(creator|reviewer|manager|reviewer2|reviewer3)$")
+    as_: str = Field(alias="as", pattern="^(creator|reviewer|manager|reviewer2|reviewer3|suggester)$")
 
 
 @router.get("/auth/test-login")
