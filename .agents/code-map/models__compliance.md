@@ -161,7 +161,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `EvalCaseIn` (class) L293 - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class) L301
 
-## models/compliance/submission_model.py (634 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (656 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class) L50
 - `AccountOption` (class) L55
 - `SubmissionOptions` (class) L67
@@ -184,17 +184,18 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `DelegateRequest` (class) L412 - A reviewer hands the post in review to someone else; they stay on it and still see its status.
 - `Delegation` (class) L421 - One hand-off of a post in review, with where the post stands now.
 - `ReviewCommentCreate` (class) L446
-- `ReviewCommentUpdate` (class) L453
-- `ReviewComment` (class) L457
-- `SubmissionEvent` (class) L475
-- `SubmissionHistory` (class) L484
-- `ReviewQueueItem` (class) L490 - A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it.
-- `ReviewQueueCounts` (class) L548
-- `DashboardActivity` (class) L559 - One recent thing that happened to content the viewer can see.
-- `DashboardFinding` (class) L571 - A rulebook rule and how often it was flagged on content sent for review.
-- `DashboardSummary` (class) L578 - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
-- `DuplicateDetail` (class) L592 - One Submission Details dropdown, compared with an earlier post that has the same content and caption.
-- `DuplicateMatch` (class) L602 - A post already sent for approval with the same content and caption.
-- `DuplicateReport` (class) L617 - Earlier posts with the same content and caption.
-- `SubmitRequest` (class) L626
-- `SubmitResult` (class) L631
+    - `_region_is_whole` (def) L459
+- `ReviewCommentUpdate` (class) L470
+- `ReviewComment` (class) L474
+- `SubmissionEvent` (class) L497
+- `SubmissionHistory` (class) L506
+- `ReviewQueueItem` (class) L512 - A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it.
+- `ReviewQueueCounts` (class) L570
+- `DashboardActivity` (class) L581 - One recent thing that happened to content the viewer can see.
+- `DashboardFinding` (class) L593 - A rulebook rule and how often it was flagged on content sent for review.
+- `DashboardSummary` (class) L600 - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
+- `DuplicateDetail` (class) L614 - One Submission Details dropdown, compared with an earlier post that has the same content and caption.
+- `DuplicateMatch` (class) L624 - A post already sent for approval with the same content and caption.
+- `DuplicateReport` (class) L639 - Earlier posts with the same content and caption.
+- `SubmitRequest` (class) L648
+- `SubmitResult` (class) L653

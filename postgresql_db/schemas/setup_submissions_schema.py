@@ -336,6 +336,12 @@ async def setup():
                 ON content_review_comments(submission_id, created_at) WHERE deleted_at IS NULL;
             -- Whether the author wrote it as the reviewer (a super admin can review their own upload)
             ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS from_reviewer BOOLEAN;
+            -- A comment on an area of an image: which image, and the box as fractions (0 to 1) of its width and height.
+            ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS file_id UUID;
+            ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS region_x REAL;
+            ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS region_y REAL;
+            ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS region_w REAL;
+            ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS region_h REAL;
 
             -- Review delegations: a reviewer hands a post in review to someone else. The delegate is added to the
             -- post's reviewers; the delegator stays on it, so they still see its status (and can still decide).

@@ -2643,6 +2643,8 @@ def _comment_out(r: Dict[str, Any], viewer: UUID, viewer_is_super: bool) -> Revi
         body=r["body"],
         start_sec=float(r["start_sec"]) if r["start_sec"] is not None else None,
         end_sec=float(r["end_sec"]) if r["end_sec"] is not None else None,
+        file_id=r.get("file_id"),
+        region_x=r.get("region_x"), region_y=r.get("region_y"), region_w=r.get("region_w"), region_h=r.get("region_h"),
         author_id=r["author_id"],
         author_name=r.get("author_name"),
         # Stored when written; older comments fall back to "anyone but the creator".
@@ -2685,19 +2687,29 @@ async def add_comment(submission_id: UUID, user_id: UUID, data: ReviewCommentCre
     row = await _comment_access(submission_id, user_id)
     if data.start_sec is not None and data.end_sec is not None and data.end_sec < data.start_sec:
         raise HTTPException(status_code=422, detail="The end time is before the start time")
+    if data.file_id is not None:
+        image = await fetch_one(
+            "SELECT id FROM content_submission_files WHERE id = $1 AND submission_id = $2 AND deleted_at IS NULL "
+            "AND mime_type LIKE 'image/%'",
+            data.file_id, submission_id,
+        )
+        if not image:
+            raise HTTPException(status_code=422, detail="That image isn't part of this post")
     # Someone else's comment is a reviewer's. The creator's own counts as a reviewer's only when they review it
     # themselves (a super admin, while it's in review); otherwise it's a reply.
     from_reviewer = row["created_by"] != user_id or (row["status"] == "IN_REVIEW" and await _can_review(user_id))
     saved = await fetch_one(
         """
         INSERT INTO content_review_comments
-            (submission_id, version_number, author_id, category, body, start_sec, end_sec, from_reviewer)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            (submission_id, version_number, author_id, category, body, start_sec, end_sec, from_reviewer,
+             file_id, region_x, region_y, region_w, region_h)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING id
         """,
         # A draft's notes belong to the version it becomes, so the first one is version 1, not 0.
         submission_id, max(row["current_version"], 1), user_id, data.category, data.body.strip(),
         data.start_sec, data.end_sec, from_reviewer,
+        data.file_id, data.region_x, data.region_y, data.region_w, data.region_h,
     )
     full = await fetch_one(_COMMENT_SELECT + " WHERE c.id = $1", saved["id"])
     return _comment_out(full, user_id, await _is_super_admin(user_id))

@@ -123,115 +123,115 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_photo_text` (def) L179 - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) L200 - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (3019 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
-- `_same_value` (def) L114 - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
-- `content_changed` (def) L133 - Whether saving these fields changes anything the checks read.
-- `_json` (def) L143
-- `_account_option` (def) L154
-- `_accounts` (def) L185
-- `_account_ids` (def) L192
-- `_account_covers` (def) L196 - Whether an account publishes to one of the platforms.
-- `_file_out` (def) L201
-- `_cached_user_fact` (def) L232
-- `_is_super_admin` (def) L246
-    - `load` (def) L247
-- `_can_manage_team_content` (def) L254 - Super admins and roles with "Manage Team Drafts" (Content Manager, Administrator) see everyone's content
-- `_can_review` (def) L261 - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
-- `_can_suggest` (def) L268 - Everyone who can comment on and suggest edits to review content: reviewers, and suggesting reviewers ("Suggest on
-- `_is_suggester` (def) L275 - A suggesting reviewer only: someone who can suggest but neither review nor manage content.
-- `_can_see_team_content` (def) L281 - Content Managers, reviewers and suggesting reviewers can read other people's submissions (a suggesting reviewer
-- `_brand_scope` (def) L287 - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
-    - `load` (def) L294
-- `_reviewer_sees` (def) L313 - SQL: a reviewer sees content on their brands that was sent to them (or to no one in particular), and
-- `_sent_to` (def) L320 - SQL: the content was sent to this user (picked, or delegated to them), or to no one in particular (every
-- `_get_owned_row` (def) L326 - Load a submission the user may access (creator or super admin; managers and reviewers too when
-- `_approvers` (def) L358 - The named final approvers for a submission row (empty: any reviewer on its brand).
-- `_may_approve` (def) L365
-- `_approval_fields` (def) L369
-- `_require_editable` (def) L379
-- `_add_event` (def) L387
-- `_list_files` (def) L401
-- `_due` (def) L415 - The open deadline, if the content is still at the step it belongs to.
-- `_context_picks` (def) L432
-- `_clean_context_picks` (def) L437 - Only known kinds, and only active entries of that kind; the order the creator picked them in.
-- `_to_submission` (def) L450
-- `_connected_accounts` (def) L490 - Those of the given publishing accounts that are connected and not expired, in the order given.
-- `get_options` (def) L510 - Choices for the submission form, limited to the brands the user works on (and those brands' accounts).
-- `create_submission` (def) L545
-- `list_submissions` (def) L565 - The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers.
-- `get_submission` (def) L704
-- `update_submission` (def) L738
-- `_script_with_reviewer` (def) L875 - A video post's script is with a reviewer, or being sent to them: the post is still a draft, but it has been sent
-- `_can_delete` (def) L887 - Only a draft that hasn't gone to a reviewer: not in review, not approved, and no script out with a reviewer.
-- `delete_draft` (def) L892 - Delete a draft.
-- `_safe_name` (def) L950
-- `add_file` (def) L956
-- `_require_script_stage_allows` (def) L1008 - On a post with a script stage, the video waits for the approved script.
-- `_record_file` (def) L1016 - Save a stored file to the submission (an upload or a Canva export): replace the main file or script it
-- `_store_canva_export` (def) L1115 - Write a Canva export into the submission's storage and record it as the main file.
-- `import_from_canva` (def) L1141 - Export a Canva design and add it as the submission's main file, like an upload.
-- `reimport_from_canva` (def) L1153 - Bring in the latest revision of the Canva design the main file came from, replacing it.
-- `retranscribe` (def) L1180 - Generate the speech transcript again, e.g.
-- `remove_file` (def) L1207
-- `get_file_for_download` (def) L1233
-- `analysis_pending` (def) L1252 - Whether the post is still being analysed: its video transcript or the text in its images isn't read yet.
-- `reads_failed` (def) L1263 - What of the post couldn't be read (video, image or document), so its wording was never checked.
-- `ai_unavailable` (def) L1276 - Whether the AI couldn't read part of the post, so the check has no score to show.
-- `_unavailable_sql` (def) L1281
-- `_pending_sql` (def) L1285 - SQL for analysis_pending() on a stored check (older checks only have the two parts).
-- `_platform_captions` (def) L1294
-- `_check_text` (def) L1301
-- `check_request` (def) L1306 - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
-- `script_stage_on` (def) L1332 - Video posts created since the script stage existed have their script approved before the video.
-- `approved_script` (def) L1337 - The approved script's text, when the post went through the script stage and it was approved.
-- `_run_check` (def) L1348 - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
-- `_mirror_to_script_version` (def) L1483 - A check saved on the post while its script is with the reviewer is also the script version's check, so both
-- `run_initial_check` (def) L1498
-    - `record` (def) L1511
-- `_missing_for_submit` (def) L1538
-- `details_missing` (def) L1582 - What the post still needs before its compliance check, sentiment analysis and public mood can be run.
-- `require_details_complete` (def) L1587 - The three tools read a finished post, so they are refused until its details are filled in.
-- `require_details_complete_for` (def) L1600
-- `_require_not_duplicate` (def) L1604 - The same content and caption, already sent for approval to the same place on the same date, can't be sent
-- `_review_job` (def) L1630
-- `submit_for_review` (def) L1650
-- `_queue_filter` (def) L1846
-- `dashboard_summary` (def) L1869 - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
-- `review_queue_counts` (def) L1962 - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
-- `review_queue` (def) L1988 - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
-- `get_version` (def) L2110 - A past (or the current) submitted version, for looking back at what it was and how it was decided.
-- `get_history` (def) L2159
-- `_reviewer_ids` (def) L2202 - Active users who can review: super admins and roles with "Review & Publish Content".
-- `_suggester_ids` (def) L2235 - Active suggesting reviewers ("Suggest on Content") on any of the brands, who can be attached to a post.
-- `_creator_exclusion` (def) L2240 - Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
-- `reviewer_options` (def) L2246 - The people a creator can send content to: reviewers and super admins (on any of the brands, when given).
-- `_review_recipients` (def) L2263 - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
-- `_notify` (def) L2275
-- `_score_line` (def) L2292 - The check's score for a message, or that it's still being analysed.
-- `_check_summary` (def) L2301
-- `_notify_reviewers` (def) L2309
-- `decide_review` (def) L2333 - A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
-- `_approved_row_for_reviewer` (def) L2512 - An approved submission the user may manage as a reviewer (not their own upload, unless super admin).
-- `reopen_approved` (def) L2524 - A reviewer takes back an approval (for example a late legal concern) and sends the content to its creator
-- `reschedule_approved` (def) L2590 - A reviewer moves approved content to a new publish time.
-- `_comment_out` (def) L2626
-- `list_comments` (def) L2655
-- `_comment_access` (def) L2665 - Reviewers, suggesting reviewers and the creator can comment and resolve comments.
-- `add_comment` (def) L2673
-- `set_comment_resolved` (def) L2695
-- `delete_comment` (def) L2713
-- `_check_still_current` (def) L2736 - Whether a check that began at `started` on `row` may still be saved.
-- `_recheck_one` (def) L2760 - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
-- `recheck_open_submissions` (def) L2789 - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
-    - `describe` (def) L2797
-- `recheck_ai_unavailable` (def) L2823 - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
-    - `describe` (def) L2837
-- `retry_failed_reads` (def) L2863 - Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
-- `ai_recheck_loop` (def) L2891 - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
-- `recheck_outdated_on_start` (def) L2912 - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
-- `schedule_rulebook_recheck` (def) L2928 - Re-check open content shortly after a rule changes; a burst of edits leads to one pass.
-    - `run` (def) L2934
-- `recheck_after_transcript` (def) L2946 - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
-- `recheck_after_image_text` (def) L2952 - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
-- `recheck_after_document_text` (def) L2957 - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
-- `_recheck_for_file` (def) L2962 - Re-run the check of the open submission a file belongs to, after something about the file was read.
+## services/compliance/submissions/submission_service.py (3042 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- `_same_value` (def) L115 - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
+- `content_changed` (def) L134 - Whether saving these fields changes anything the checks read.
+- `_json` (def) L144
+- `_account_option` (def) L155
+- `_accounts` (def) L186
+- `_account_ids` (def) L193
+- `_account_covers` (def) L197 - Whether an account publishes to one of the platforms.
+- `_file_out` (def) L202
+- `_cached_user_fact` (def) L233
+- `_is_super_admin` (def) L247
+    - `load` (def) L248
+- `_can_manage_team_content` (def) L255 - Super admins and roles with "Manage Team Drafts" (Content Manager, Administrator) see everyone's content
+- `_can_review` (def) L262 - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
+- `_can_suggest` (def) L269 - Everyone who can comment on and suggest edits to review content: reviewers, and suggesting reviewers ("Suggest on
+- `_is_suggester` (def) L276 - A suggesting reviewer only: someone who can suggest but neither review nor manage content.
+- `_can_see_team_content` (def) L282 - Content Managers, reviewers and suggesting reviewers can read other people's submissions (a suggesting reviewer
+- `_brand_scope` (def) L288 - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
+    - `load` (def) L295
+- `_reviewer_sees` (def) L314 - SQL: a reviewer sees content on their brands that was sent to them (or to no one in particular), and
+- `_sent_to` (def) L321 - SQL: the content was sent to this user (picked, or delegated to them), or to no one in particular (every
+- `_get_owned_row` (def) L327 - Load a submission the user may access (creator or super admin; managers and reviewers too when
+- `_approvers` (def) L359 - The named final approvers for a submission row (empty: any reviewer on its brand).
+- `_may_approve` (def) L366
+- `_approval_fields` (def) L370
+- `_require_editable` (def) L380
+- `_add_event` (def) L388
+- `_list_files` (def) L402
+- `_due` (def) L416 - The open deadline, if the content is still at the step it belongs to.
+- `_context_picks` (def) L433
+- `_clean_context_picks` (def) L438 - Only known kinds, and only active entries of that kind; the order the creator picked them in.
+- `_to_submission` (def) L451
+- `_connected_accounts` (def) L491 - Those of the given publishing accounts that are connected and not expired, in the order given.
+- `get_options` (def) L511 - Choices for the submission form, limited to the brands the user works on (and those brands' accounts).
+- `create_submission` (def) L546
+- `list_submissions` (def) L566 - The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers.
+- `get_submission` (def) L705
+- `update_submission` (def) L739
+- `_script_with_reviewer` (def) L886 - A video post's script is with a reviewer, or being sent to them: the post is still a draft, but it has been sent
+- `_can_delete` (def) L898 - Only a draft that hasn't gone to a reviewer: not in review, not approved, and no script out with a reviewer.
+- `delete_draft` (def) L903 - Delete a draft.
+- `_safe_name` (def) L961
+- `add_file` (def) L967
+- `_require_script_stage_allows` (def) L1019 - On a post with a script stage, the video waits for the approved script.
+- `_record_file` (def) L1027 - Save a stored file to the submission (an upload or a Canva export): replace the main file or script it
+- `_store_canva_export` (def) L1126 - Write a Canva export into the submission's storage and record it as the main file.
+- `import_from_canva` (def) L1152 - Export a Canva design and add it as the submission's main file, like an upload.
+- `reimport_from_canva` (def) L1164 - Bring in the latest revision of the Canva design the main file came from, replacing it.
+- `retranscribe` (def) L1191 - Generate the speech transcript again, e.g.
+- `remove_file` (def) L1218
+- `get_file_for_download` (def) L1244
+- `analysis_pending` (def) L1263 - Whether the post is still being analysed: its video transcript or the text in its images isn't read yet.
+- `reads_failed` (def) L1274 - What of the post couldn't be read (video, image or document), so its wording was never checked.
+- `ai_unavailable` (def) L1287 - Whether the AI couldn't read part of the post, so the check has no score to show.
+- `_unavailable_sql` (def) L1292
+- `_pending_sql` (def) L1296 - SQL for analysis_pending() on a stored check (older checks only have the two parts).
+- `_platform_captions` (def) L1305
+- `_check_text` (def) L1312
+- `check_request` (def) L1317 - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
+- `script_stage_on` (def) L1343 - Video posts created since the script stage existed have their script approved before the video.
+- `approved_script` (def) L1348 - The approved script's text, when the post went through the script stage and it was approved.
+- `_run_check` (def) L1359 - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
+- `_mirror_to_script_version` (def) L1494 - A check saved on the post while its script is with the reviewer is also the script version's check, so both
+- `run_initial_check` (def) L1509
+    - `record` (def) L1522
+- `_missing_for_submit` (def) L1549
+- `details_missing` (def) L1593 - What the post still needs before its compliance check, sentiment analysis and public mood can be run.
+- `require_details_complete` (def) L1598 - The three tools read a finished post, so they are refused until its details are filled in.
+- `require_details_complete_for` (def) L1611
+- `_require_not_duplicate` (def) L1615 - The same content and caption, already sent for approval to the same place on the same date, can't be sent
+- `_review_job` (def) L1641
+- `submit_for_review` (def) L1661
+- `_queue_filter` (def) L1857
+- `dashboard_summary` (def) L1880 - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
+- `review_queue_counts` (def) L1973 - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
+- `review_queue` (def) L1999 - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
+- `get_version` (def) L2121 - A past (or the current) submitted version, for looking back at what it was and how it was decided.
+- `get_history` (def) L2170
+- `_reviewer_ids` (def) L2213 - Active users who can review: super admins and roles with "Review & Publish Content".
+- `_suggester_ids` (def) L2246 - Active suggesting reviewers ("Suggest on Content") on any of the brands, who can be attached to a post.
+- `_creator_exclusion` (def) L2251 - Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
+- `reviewer_options` (def) L2257 - The people a creator can send content to: reviewers and super admins (on any of the brands, when given).
+- `_review_recipients` (def) L2274 - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
+- `_notify` (def) L2286
+- `_score_line` (def) L2303 - The check's score for a message, or that it's still being analysed.
+- `_check_summary` (def) L2312
+- `_notify_reviewers` (def) L2320
+- `decide_review` (def) L2344 - A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
+- `_approved_row_for_reviewer` (def) L2523 - An approved submission the user may manage as a reviewer (not their own upload, unless super admin).
+- `reopen_approved` (def) L2535 - A reviewer takes back an approval (for example a late legal concern) and sends the content to its creator
+- `reschedule_approved` (def) L2601 - A reviewer moves approved content to a new publish time.
+- `_comment_out` (def) L2637
+- `list_comments` (def) L2668
+- `_comment_access` (def) L2678 - Reviewers, suggesting reviewers and the creator can comment and resolve comments.
+- `add_comment` (def) L2686
+- `set_comment_resolved` (def) L2718
+- `delete_comment` (def) L2736
+- `_check_still_current` (def) L2759 - Whether a check that began at `started` on `row` may still be saved.
+- `_recheck_one` (def) L2783 - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
+- `recheck_open_submissions` (def) L2812 - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
+    - `describe` (def) L2820
+- `recheck_ai_unavailable` (def) L2846 - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    - `describe` (def) L2860
+- `retry_failed_reads` (def) L2886 - Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
+- `ai_recheck_loop` (def) L2914 - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
+- `recheck_outdated_on_start` (def) L2935 - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
+- `schedule_rulebook_recheck` (def) L2951 - Re-check open content shortly after a rule changes; a burst of edits leads to one pass.
+    - `run` (def) L2957
+- `recheck_after_transcript` (def) L2969 - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
+- `recheck_after_image_text` (def) L2975 - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
+- `recheck_after_document_text` (def) L2980 - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
+- `_recheck_for_file` (def) L2985 - Re-run the check of the open submission a file belongs to, after something about the file was read.
