@@ -22,6 +22,7 @@ SCHEMA_SETUPS = [
     ("setup_performance_schema", "Post performance schema setup note"),
     ("setup_ai_observability_schema", "AI observability schema setup note"),
     ("setup_script_batches_schema", "Script batch schema setup note"),
+    ("setup_script_docs_schema", "Script document schema setup note"),
     ("setup_teams_schema", "Teams schema setup note"),
 ]
 

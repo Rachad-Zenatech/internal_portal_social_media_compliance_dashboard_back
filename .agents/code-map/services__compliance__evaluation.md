@@ -238,6 +238,84 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_notify_reviewers` (def) L589
 - `review` (def) L610 - Decide on any number of the batch's scripts at once, with the same rules as deciding on one script on its own
 
+## services/compliance/evaluation/script_doc_pages.py (237 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
+- `_approved` (def) L32 - The script was approved: it becomes a post for the creator to attach a video to.
+- `_make_posts` (def) L44 - The video post for an approved script, with the document's details and the approved wording as its approved
+- `create_posts` (def) L76 - Make the post that couldn't be made when the script was approved (the creator retries).
+- `_pages` (def) L89
+- `_owned_set` (def) L102 - The script and the id of the document it belongs to (made on the spot for a script that has none), for the creator.
+- `_make_set` (def) L113
+- `_new_page` (def) L120
+- `add_page` (def) L131 - A new page: another script in the same document, on its own page with its own table, sent for review on its own.
+- `_add_uploaded` (def) L140 - Read an uploaded file, split it into scripts as an uploaded batch is, and add each as a page of the document.
+- `upload_pages` (def) L160 - Upload a file into an existing document: each script in it becomes a page.
+- `create_from_upload` (def) L166 - Attach a script: a new document made from an uploaded file, one page for each script in it.
+- `submit_all` (def) L179 - Send every page that can be sent (or the ones listed) for review at once, each as its own script.
+- `list_sets` (def) L200 - The creator's documents for the hub, with how their scripts stand.
+- `delete_set` (def) L223 - Delete a whole document of the creator's, only while every script in it is still a draft.
+
+## services/compliance/evaluation/script_doc_reads.py (86 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
+- `list_docs` (def) L15 - The hub's list.
+- `history` (def) L61
+- `check` (def) L73 - The rulebook check of the script as it reads now (or the text given), judged by the script's details.
+
+## services/compliance/evaluation/script_doc_realtime.py (250 lines) - Live editing of script documents.
+- `Conn` (class) L42
+    - `__init__` (def) L43
+- `_deliver_local` (def) L55
+- `_notify` (def) L61
+- `publish` (def) L72 - Send a message to everyone who has the script open, on every worker.
+- `_on_remote` (def) L78
+- `start_listener` (def) L97 - Background task: receives other workers' messages (reconnects when the connection drops).
+    - `handler` (def) L106
+- `_refresh_access` (def) L134
+- `_send_loop` (def) L143 - Sends what's queued for this connection, plus a keep-alive ping (not a poll: nothing is read from the database).
+- `run` (def) L158 - One person's live connection to a script, until they close it.
+
+## services/compliance/evaluation/script_doc_service.py (482 lines) - Script documents.
+- `templates` (def) L57
+- `_color` (def) L61
+- `_name` (def) L67
+- `_event` (def) L74
+- `_notify` (def) L82
+- `_managers` (def) L98 - Everyone who can make the final decision: super admins and roles with "Manage Team Drafts".
+- `_doc` (def) L103
+- `_reviewers` (def) L112
+- `_access` (def) L125 - What the user may do with the script, or None when they may not see it.
+- `_all_checked` (def) L167
+- `_state` (def) L172 - What every open editor is told when the review's state moves.
+- `_broadcast_state` (def) L181
+- `get_access` (def) L186 - For the live connection: the script, and what the user may do with it.
+- `_detail` (def) L196
+- `get` (def) L218
+- `create` (def) L233 - A new document from a template: the document and its first script (page).
+- `update` (def) L250
+- `delete` (def) L268
+- `save_snapshot` (def) L281 - An editor saves the script as it reads now (for lists, the check and history); the live editor itself is kept as updates.
+- `reviewer_options` (def) L293
+- `submit` (def) L299
+- `note_change` (def) L352 - Someone changed the script or its notes.
+- `check_in` (def) L377
+- `withdraw_check_in` (def) L400
+- `_votes` (def) L410
+- `_stamp_version` (def) L418
+- `_close` (def) L425
+- `finalize` (def) L435 - Everyone has checked in: send it to the Content Manager (level 2), or approve it back to the creator.
+- `decide` (def) L462 - The Content Manager's final decision (level 2, or earlier: they can decide at any point in review).
+- `_pages_module` (def) L478 - The pages module (it imports this one, so it is loaded when first needed).
+
+## services/compliance/evaluation/script_doc_split.py (37 lines) - Splitting a script document into the scripts it holds.
+- `html_to_text` (def) L18
+- `split_document` (def) L23 - (title, html, text) for each script, in order.
+
+## services/compliance/evaluation/script_doc_templates.py (92 lines) - Script templates: a table of beats, each with what is seen, what is said and the text on screen.
+- `_t` (def) L10
+- `get_template` (def) L25
+- `_esc` (def) L29
+- `template_html` (def) L33 - The starting text of a script made from the template: for the blank script, an empty page.
+- `empty_script_html` (def) L49 - A new page: the same format as the template (numbered heading, storyline, facts line, table of beats), empty.
+- `text_to_html` (def) L61 - The editor's page for an uploaded script's text (as read from the file: "| a | b |" table rows, "# " headings).
+
 ## services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
 - `_words` (def) L27
 - `_shown` (def) L32

@@ -52,6 +52,7 @@ from tools.compliance.submissions.compliance_router import router as compliance_
 from tools.compliance.submissions.submission_router import router as submission_router
 from tools.compliance.submissions.script_review_router import router as script_review_router
 from tools.compliance.submissions.script_batch_router import router as script_batch_router
+from tools.compliance.submissions.script_doc_router import router as script_doc_router
 from tools.compliance.analytics.canva_router import router as canva_router
 from tools.ai.vector_store_router import router as vector_store_router
 from tools.ai.ai_status_router import router as ai_status_router
@@ -101,6 +102,10 @@ async def lifespan(app: FastAPI):
 
     # 1. Start distributed cache invalidation listener (LISTEN/NOTIFY)
     spawn_background(background_tasks, start_cache_invalidation_listener(), "cache-listener")
+
+    # 1b. Relay live script editing between workers
+    from services.compliance.evaluation.script_doc_realtime import start_listener as start_script_doc_relay
+    spawn_background(background_tasks, start_script_doc_relay(), "script-doc-relay")
 
     # 2. Sync MCP tools to PostgreSQL table
     spawn_background(background_tasks, sync_mcp_tools_to_vector_db(), "mcp-tool-sync")
@@ -373,6 +378,7 @@ app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"])
 app.include_router(compliance_router, prefix="/api", tags=["Compliance Rules & Governance"])
 app.include_router(script_review_router, prefix="/api", tags=["Script Review"])
 app.include_router(script_batch_router, prefix="/api", tags=["Script Batches"])
+app.include_router(script_doc_router, prefix="/api", tags=["Script Documents"])
 app.include_router(submission_router, prefix="/api", tags=["Content Submissions"])
 app.include_router(ai_status_router, prefix="/api", tags=["AI Status"], dependencies=authenticated)
 app.include_router(approval_path_router, prefix="/api", tags=["Approval Paths"])

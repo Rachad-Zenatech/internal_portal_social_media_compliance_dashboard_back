@@ -4,23 +4,23 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## server.py (624 lines) - server
-- `_graph_background_sync_enabled` (def) L70
-- `_env_flag` (def) L74
-- `lifespan` (def) L79
-    - `resume_reads` (def) L150
-- `MessageItem` (class) L251
-- `ChatRequest` (class) L255
-- `ai_chat` (def) L262 [POST /ai/chat]
-- `root` (def) L308 [GET /]
-- `health_live` (def) L312 [GET /health/live]
-- `health_ready` (def) L316 [GET /health/ready]
-- `integration_status` (def) L325 [GET /api/integration-status, GET /api/integration/status]
-- `_sweep_rate_buckets` (def) L415
-- `_client_ip` (def) L419
-- `_session_identity` (def) L425
-- `rate_limit` (def) L438
-- `security_headers` (def) L504
-- `_slow_request_threshold_ms` (def) L519
-- `_should_log_request_completion` (def) L528
-- `request_observability` (def) L534
+## server.py (630 lines) - server
+- `_graph_background_sync_enabled` (def) L71
+- `_env_flag` (def) L75
+- `lifespan` (def) L80
+    - `resume_reads` (def) L155
+- `MessageItem` (class) L256
+- `ChatRequest` (class) L260
+- `ai_chat` (def) L267 [POST /ai/chat]
+- `root` (def) L313 [GET /]
+- `health_live` (def) L317 [GET /health/live]
+- `health_ready` (def) L321 [GET /health/ready]
+- `integration_status` (def) L330 [GET /api/integration-status, GET /api/integration/status]
+- `_sweep_rate_buckets` (def) L421
+- `_client_ip` (def) L425
+- `_session_identity` (def) L431
+- `rate_limit` (def) L444
+- `security_headers` (def) L510
+- `_slow_request_threshold_ms` (def) L525
+- `_should_log_request_completion` (def) L534
+- `request_observability` (def) L540

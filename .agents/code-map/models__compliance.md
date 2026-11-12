@@ -114,6 +114,32 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ItemResult` (class) L120
 - `BatchReviewResult` (class) L129
 
+## models/compliance/script_doc_model.py (233 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
+- `TemplateRow` (class) L18
+- `ScriptTemplate` (class) L25
+- `DocCreate` (class) L34
+- `DocUpdate` (class) L39
+- `DocSnapshot` (class) L45 - The script as the live editor shows it, saved by an editor.
+- `ReviewerPick` (class) L51
+- `DocSubmit` (class) L56
+- `CheckIn` (class) L64
+- `Finalize` (class) L71 - Once every reviewer has checked in: where the script goes next.
+- `ManagerDecision` (class) L77
+- `DocReviewer` (class) L82
+- `DocAccess` (class) L94 - What the viewer may do with this script right now.
+- `DocEvent` (class) L106
+- `DocVersion` (class) L115
+- `DocSummary` (class) L125
+- `DocPost` (class) L142 - A post made from one script of an approved document.
+- `DocPage` (class) L150 - One script (page) of the creator's document, for the page list beside the editor.
+- `DocSetSummary` (class) L161 - A creator's document in the hub: how its scripts stand.
+- `BulkSubmit` (class) L175 - Send several scripts of the document for review at once (all that can be sent, or the ones listed).
+- `BulkFailure` (class) L182
+- `BulkResult` (class) L188
+- `UploadedPages` (class) L193
+- `DocDetail` (class) L197
+- `DocHistory` (class) L230
+
 ## models/compliance/script_review_model.py (233 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class) L15
 - `ScriptSuggestion` (class) L33 - A suggesting reviewer's own suggestion on a script version: their edited wording and their notes on it.

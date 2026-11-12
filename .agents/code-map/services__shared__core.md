@@ -30,6 +30,6 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `log_background_task_result` (def) L89 - Log a task that exits unexpectedly instead of losing its exception.
 - `asyncio_exception_handler` (def) L106 - Capture detached asyncio failures that would otherwise only reach stderr.
 
-## services/shared/core/startup_service.py (45 lines) - Server startup pieces: the schema setups it runs, and the background tasks it starts and tracks.
-- `run_schema_setups` (def) L29 - Make sure every schema's tables exist.
-- `spawn_background` (def) L39 - Start a background task whose failure is logged, and keep it in `tasks` so shutdown can cancel it.
+## services/shared/core/startup_service.py (46 lines) - Server startup pieces: the schema setups it runs, and the background tasks it starts and tracks.
+- `run_schema_setups` (def) L30 - Make sure every schema's tables exist.
+- `spawn_background` (def) L40 - Start a background task whose failure is logged, and keep it in `tasks` so shutdown can cancel it.
