@@ -158,5 +158,26 @@ class SuggestingOnAScript(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any("content_script_versions" in sql for sql in executed))
 
 
+class TheSuggestersDashboard(unittest.IsolatedAsyncioTestCase):
+    async def test_someone_who_cannot_suggest_or_review_gets_no_dashboard(self):
+        with patch.object(srs.subs, "_can_suggest", new=AsyncMock(return_value=False)):
+            with self.assertRaises(HTTPException) as caught:
+                await srs.suggester_dashboard(USER)
+        self.assertEqual(caught.exception.status_code, 403)
+
+    async def test_it_lists_what_is_sent_to_them_with_their_own_progress(self):
+        from datetime import datetime, timezone
+        at = datetime(2026, 11, 12, tzinfo=timezone.utc)
+        item = {"id": SUB, "reference_code": "SUB-1", "title": "Hangar tour", "brand_code": "ZENADRONE", "platforms": ["INSTAGRAM"],
+                "approval_needed_by": at, "creator_name": "Sam", "is_script": True, "version_number": 2, "script_sent_at": at,
+                "submitted_at": None, "updated_at": at, "batch_id": None, "my_comments": 3, "my_suggestion_at": at}
+        recent = {"kind": "comment", "submission_id": SUB, "reference_code": "SUB-1", "title": "Hangar tour", "at": at, "snippet": "Shorter?"}
+        with patch.object(srs.subs, "_can_suggest", new=AsyncMock(return_value=True)),              patch.object(srs, "fetch_all", new=AsyncMock(side_effect=[[item], [recent]])):
+            dash = await srs.suggester_dashboard(USER)
+        self.assertEqual((dash.items[0].kind, dash.items[0].my_comments, dash.items[0].version_number), ("script", 3, 2))
+        self.assertIsNotNone(dash.items[0].my_suggestion_at)
+        self.assertEqual(dash.recent[0].snippet, "Shorter?")
+
+
 if __name__ == "__main__":
     unittest.main()

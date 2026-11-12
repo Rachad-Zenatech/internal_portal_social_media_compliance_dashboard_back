@@ -35,6 +35,9 @@ from models.compliance.script_review_model import (
     ScriptSuggestion,
     ScriptSuggestionRequest,
     ScriptVersion,
+    SuggesterActivity,
+    SuggesterDashboard,
+    SuggesterItem,
 )
 from postgresql_db.database import execute, fetch_all, fetch_one, get_pool
 from services.compliance.media import document_layout
@@ -852,6 +855,59 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
         ))
     _refresh_in_background(stale)
     return items
+
+
+async def suggester_dashboard(user_id: UUID) -> SuggesterDashboard:
+    """What is sent to a suggesting reviewer by name and still in review, and their latest comments and suggestions."""
+    if not await subs._can_suggest(user_id):
+        raise HTTPException(status_code=403, detail="Only reviewers can see this")
+    items_sql = """
+        SELECT s.id, s.reference_code, s.title, s.brand_code, s.platforms, s.approval_needed_by, u.full_name AS creator_name,
+               (s.script_required AND s.content_type = 'VIDEO' AND s.script_status = 'IN_REVIEW') AS is_script,
+               v.version_number, v.created_at AS script_sent_at, s.submitted_at, s.updated_at, bi.batch_id,
+               (SELECT count(*) FROM content_review_comments c
+                 WHERE c.submission_id = s.id AND c.author_id = $1 AND c.deleted_at IS NULL) AS my_comments,
+               (SELECT g.updated_at FROM content_script_suggestions g
+                 WHERE g.submission_id = s.id AND g.author_id = $1 AND g.version_number = v.version_number) AS my_suggestion_at
+        FROM content_submissions s
+        LEFT JOIN users u ON u.id = s.created_by
+        LEFT JOIN content_script_batch_items bi ON bi.submission_id = s.id
+        LEFT JOIN LATERAL (
+            SELECT version_number, created_at FROM content_script_versions sv
+            WHERE sv.submission_id = s.id ORDER BY version_number DESC LIMIT 1
+        ) v ON true
+        WHERE s.deleted_at IS NULL AND $1 = ANY(s.reviewer_ids)
+          AND (s.status = 'IN_REVIEW' OR (s.script_required AND s.content_type = 'VIDEO' AND s.script_status = 'IN_REVIEW'))
+        ORDER BY s.approval_needed_by NULLS LAST, s.updated_at DESC
+        LIMIT 200
+    """
+    recent_sql = """
+        SELECT * FROM (
+            SELECT 'comment' AS kind, s.id AS submission_id, s.reference_code, s.title, c.created_at AS at, c.body AS snippet
+            FROM content_review_comments c JOIN content_submissions s ON s.id = c.submission_id
+            WHERE c.author_id = $1 AND c.deleted_at IS NULL AND s.deleted_at IS NULL
+            UNION ALL
+            SELECT 'suggestion', s.id, s.reference_code, s.title, g.updated_at, NULL
+            FROM content_script_suggestions g JOIN content_submissions s ON s.id = g.submission_id
+            WHERE g.author_id = $1 AND s.deleted_at IS NULL
+        ) x ORDER BY at DESC LIMIT 8
+    """
+    rows, recent = await asyncio.gather(fetch_all(items_sql, user_id), fetch_all(recent_sql, user_id))
+    items = [
+        SuggesterItem(
+            id=r["id"], kind="script" if r["is_script"] else "post", reference_code=r["reference_code"], title=r["title"],
+            creator_name=r["creator_name"], brand_code=r["brand_code"], platforms=list(r["platforms"] or []),
+            due_at=r["approval_needed_by"], sent_at=r["script_sent_at"] if r["is_script"] else (r["submitted_at"] or r["updated_at"]),
+            batch_id=r["batch_id"], version_number=r["version_number"] if r["is_script"] else None,
+            my_comments=int(r["my_comments"] or 0), my_suggestion_at=r["my_suggestion_at"] if r["is_script"] else None,
+        )
+        for r in rows
+    ]
+    return SuggesterDashboard(
+        items=items,
+        recent=[SuggesterActivity(kind=x["kind"], submission_id=x["submission_id"], reference_code=x["reference_code"], title=x["title"],
+                                  at=x["at"], snippet=(x["snippet"] or "")[:160] or None) for x in recent],
+    )
 
 
 async def _my_suggestion(submission_id: UUID, user_id: UUID, version: int) -> Optional[ScriptSuggestion]:

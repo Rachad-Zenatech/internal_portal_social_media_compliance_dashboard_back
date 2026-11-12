@@ -133,7 +133,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ItemResult` (class)
 - `BatchReviewResult` (class)
 
-## models/compliance/script_review_model.py (200 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+## models/compliance/script_review_model.py (233 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class)
 - `ScriptSuggestion` (class) - A suggesting reviewer's own suggestion on a script version: their edited wording and their notes on it.
 - `ScriptBatchRef` (class) - Where this script sits in the batch it was uploaded with, for stepping through the batch one script at a time.
@@ -150,6 +150,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ScriptResolutionsRequest` (class)
 - `ScriptSuggestionRequest` (class) - What a suggesting reviewer saves: their edited wording and their notes on it.
 - `ScriptHighlightsRequest` (class)
+- `SuggesterItem` (class) - A post or script sent to a suggesting reviewer, and what they have done on it so far.
+- `SuggesterActivity` (class) - One thing the suggesting reviewer did: a comment, or a saved suggestion.
+- `SuggesterDashboard` (class)
 
 ## models/compliance/sentiment_model.py (314 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - `Tone` (class)
@@ -1124,7 +1127,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 - `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/evaluation/script_review_service.py (1040 lines) - Script stage of a video post.
+## services/compliance/evaluation/script_review_service.py (1096 lines) - Script stage of a video post.
 - `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
@@ -1164,6 +1167,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_refresh_stale_scripts` (def) - Re-check scripts that were checked against an older rulebook, one at a time, and save the result.
 - `_refresh_in_background` (def)
 - `queue` (def) - Scripts for one Content Screener tab, on the brands the viewer works on.
+- `suggester_dashboard` (def) - What is sent to a suggesting reviewer by name and still in review, and their latest comments and suggestions.
 - `_my_suggestion` (def) - A suggesting reviewer's own suggestion on a script version (nobody else sees it yet).
 - `_suggestable` (def) - The post and the script version a suggesting reviewer may suggest on: the one in review, sent to them.
 - `save_suggestion` (def) - Save a suggesting reviewer's edited wording and notes for the script in review.
@@ -3422,7 +3426,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_flags_can_only_be_dismissed_while_in_review` (def)
     - `test_a_reason_of_other_needs_a_note` (def)
 
-## tests/test_suggesting_reviewer.py (163 lines) - A suggesting reviewer: sees what is sent to them by name, comments and suggests edits to scripts, can't decide.
+## tests/test_suggesting_reviewer.py (184 lines) - A suggesting reviewer: sees what is sent to them by name, comments and suggests edits to scripts, can't decide.
 - `role` (def) - Patches for one person's permissions.
     - `access` (def)
 - `WhoIsASuggester` (class)
@@ -3450,6 +3454,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_nothing_can_be_suggested_once_the_script_is_not_in_review` (def)
     - `test_a_script_nobody_sent_has_nothing_to_suggest_on` (def)
     - `test_the_suggestion_is_kept_apart_from_the_script_and_the_same_wording_with_no_notes_is_nothing` (def)
+- `TheSuggestersDashboard` (class)
+    - `test_someone_who_cannot_suggest_or_review_gets_no_dashboard` (def)
+    - `test_it_lists_what_is_sent_to_them_with_their_own_progress` (def)
 
 ## tests/test_teams_service.py (287 lines) - Teams direct messages: checking what Teams sends, saving chats, and delivering notifications.
 - `token` (def)
@@ -3695,8 +3702,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `send_batch` (def) [POST /{batch_id}/send] - Send the waiting scripts to the reviewers (checked against the rulebook in the background).
 - `review_batch` (def) [POST /{batch_id}/review] - Approve or send back any number of the batch's scripts at once; each approved script becomes a post.
 
-## tools/compliance/submissions/script_review_router.py (117 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+## tools/compliance/submissions/script_review_router.py (124 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `suggest_fix` (def) [POST /scripts/suggest-fix] - A compliant rewrite of one flagged passage of a script, for the creator to use or not.
+- `suggester_dashboard` (def) [GET /scripts/suggester-dashboard] - A suggesting reviewer's dashboard: what is sent to them, and what they have done on it.
 - `script_queue` (def) [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
 - `get_script` (def) [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
 - `submit_script` (def) [POST /{submission_id}/script/submit] - Send the uploaded script for review.
@@ -3809,7 +3817,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `my_status` (def) [GET /teams/status]
 - `set_my_status` (def) [PUT /teams/status]
 
-## tools/shared/auth/auth_router.py (417 lines) - auth router (shared auth)
+## tools/shared/auth/auth_router.py (419 lines) - auth router (shared auth)
 - `_sha256` (def)
 - `microsoft_login` (def) [GET /auth/microsoft/login]
 - `microsoft_callback` (def) [GET /auth/microsoft/callback]

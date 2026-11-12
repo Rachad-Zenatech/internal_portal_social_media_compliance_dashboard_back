@@ -194,6 +194,39 @@ class ScriptHighlightsRequest(BaseModel):
     highlights: List[ScriptHighlight] = Field(default_factory=list, max_length=500)
 
 
+class SuggesterItem(BaseModel):
+    """A post or script sent to a suggesting reviewer, and what they have done on it so far."""
+    id: UUID
+    kind: Literal["post", "script"]
+    reference_code: str
+    title: str
+    creator_name: Optional[str] = None
+    brand_code: Optional[str] = None
+    platforms: List[str] = Field(default_factory=list)
+    due_at: Optional[datetime] = None
+    sent_at: Optional[datetime] = None
+    batch_id: Optional[UUID] = None
+    version_number: Optional[int] = None
+    my_comments: int = 0
+    # When they last saved a suggestion on the script as it stands now (None: none, or on an older version).
+    my_suggestion_at: Optional[datetime] = None
+
+
+class SuggesterActivity(BaseModel):
+    """One thing the suggesting reviewer did: a comment, or a saved suggestion."""
+    kind: Literal["comment", "suggestion"]
+    submission_id: UUID
+    reference_code: str
+    title: str
+    at: datetime
+    snippet: Optional[str] = None
+
+
+class SuggesterDashboard(BaseModel):
+    items: List[SuggesterItem] = Field(default_factory=list)
+    recent: List[SuggesterActivity] = Field(default_factory=list)
+
+
 # ScriptSuggestion refers to ScriptHighlight, defined further down.
 ScriptSuggestion.model_rebuild()
 ScriptStage.model_rebuild()

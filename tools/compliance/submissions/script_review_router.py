@@ -20,6 +20,7 @@ from models.compliance.script_review_model import (
     ScriptReviseRequest,
     ScriptStage,
     ScriptSuggestionRequest,
+    SuggesterDashboard,
 )
 from services.compliance.evaluation import script_review_service as svc
 from services.shared.auth.auth_service import get_current_user_id_dependency
@@ -33,6 +34,12 @@ CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 async def suggest_fix(req: FlagFixRequest, user_id: CurrentUser):
     """A compliant rewrite of one flagged passage of a script, for the creator to use or not."""
     return await svc.suggest_fix(req)
+
+
+@router.get("/scripts/suggester-dashboard", response_model=SuggesterDashboard)
+async def suggester_dashboard(user_id: CurrentUser):
+    """A suggesting reviewer's dashboard: what is sent to them, and what they have done on it."""
+    return await svc.suggester_dashboard(user_id)
 
 
 @router.get("/scripts/queue", response_model=List[ScriptQueueItem])
