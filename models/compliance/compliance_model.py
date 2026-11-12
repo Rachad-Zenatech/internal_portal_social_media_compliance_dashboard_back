@@ -255,6 +255,8 @@ class SourceClaim(BaseModel):
     where: Literal["caption", "image"] = "caption"
     # What the source says about it, in the model's words or a short quote: not always word for word.
     evidence: Optional[str] = None
+    # Where in the article/source the evidence appears (section heading, paragraph, page, etc.).
+    source_location: Optional[str] = None
     # What to change or check, when the verdict isn't SUPPORTED.
     note: Optional[str] = None
     confidence: float = 0.0

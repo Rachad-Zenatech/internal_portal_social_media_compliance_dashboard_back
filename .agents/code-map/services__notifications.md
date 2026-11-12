@@ -69,7 +69,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_prefetch_count` (def) L135
 - `_build_hub_application` (def) L172
 
-## services/notifications/rabbitmq_hub_status.py (487 lines) - Message Hub behaviour for RabbitMQManager: SSE fan-out, shutdown, presence heartbeats, peer monitoring and live status snapshots.
+## services/notifications/rabbitmq_hub_status.py (493 lines) - Message Hub behaviour for RabbitMQManager: SSE fan-out, shutdown, presence heartbeats, peer monitoring and live status snapshots.
 - `HubStatusMixin` (class) L37 - Methods mixed into RabbitMQManager; relies on its connection/registry attributes.
     - `subscribe_sse` (def) L43
     - `unsubscribe_sse` (def) L48
@@ -82,7 +82,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `_peer_status_monitor_loop` (def) L147 - Every 2.5s re-evaluates all hub servers; pushes SSE updates and announces peers that dropped/returned.
     - `_run_active_queue_and_stream_probe` (def) L179 - Round-trips a message through a temporary queue and publishes a healthcheck event to the events exchange.
     - `get_hub_live_status` (def) L238 - Live Message Hub snapshot, cached for HUB_STATUS_CACHE_TTL seconds with single-flight refresh.
-    - `_build_hub_live_status` (def) L263 - Live Message Hub snapshot (same shape as the other portal backends) for the topbar servers dropdown.
+    - `_maybe_reconnect` (def) L263
+    - `_build_hub_live_status` (def) L271 - Live Message Hub snapshot (same shape as the other portal backends) for the topbar servers dropdown.
 
 ## services/notifications/rabbitmq_in_memory.py (46 lines) - In-memory fallback broker used when no live RabbitMQ is available.
 - `InMemoryMessageBroker` (class) L7 - In-memory fallback & mock broker for unit testing and offline development

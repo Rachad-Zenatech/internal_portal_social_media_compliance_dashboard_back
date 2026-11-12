@@ -260,11 +260,17 @@ class HubStatusMixin:
             self._hub_status_cached_at = time.monotonic()
             return snapshot
 
-    async def _build_hub_live_status(self, active_test: bool = False) -> Dict[str, Any]:
-        """Live Message Hub snapshot (same shape as the other portal backends) for the topbar servers dropdown."""
-        if not self.is_connected and not self._shutting_down and time.monotonic() - self._last_reconnect_attempt > 10.0:
+    async def _maybe_reconnect(self, active_test: bool) -> None:
+        if active_test and not self.is_connected and not self._shutting_down:
             self._last_reconnect_attempt = time.monotonic()
             await self.connect(max_retries=1, retry_delay=0.3)
+        elif not self.is_connected and not self._shutting_down and time.monotonic() - self._last_reconnect_attempt > 60.0:
+            self._last_reconnect_attempt = time.monotonic()
+            asyncio.create_task(self.connect(max_retries=1, retry_delay=0.3))
+
+    async def _build_hub_live_status(self, active_test: bool = False) -> Dict[str, Any]:
+        """Live Message Hub snapshot (same shape as the other portal backends) for the topbar servers dropdown."""
+        await self._maybe_reconnect(active_test)
 
         if active_test and self.is_connected:
             await self._run_active_queue_and_stream_probe()

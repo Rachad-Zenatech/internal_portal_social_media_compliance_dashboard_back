@@ -99,6 +99,8 @@ For each claim return:
     UNCLEAR: it could be read either way. Say why in the note.
 - evidence: what the source says about it, in your own words or as a short quote (it need not be word for word). Leave it
   empty only for NOT_FOUND.
+- source_location: where in the article or source this appears (for example, the section heading, paragraph/page/slide,
+  or "Opening summary" / "Conclusion") so a reader can find it quickly. Leave null only for NOT_FOUND.
 - note: for anything but SUPPORTED, one sentence telling the author or reviewer what differs and what to change or check. Otherwise null.
 - confidence: 0 to 1.
 
@@ -119,6 +121,7 @@ class _Result(BaseModel):
     where: str = "caption"
     verdict: str
     evidence: Optional[str] = None
+    source_location: Optional[str] = None
     note: Optional[str] = None
     confidence: float = Field(0.0, ge=0.0, le=1.0)
 
@@ -139,6 +142,7 @@ RESPONSE_SCHEMA: Dict[str, Any] = {
                     "where": {"type": "STRING", "enum": ["caption", "image"]},
                     "verdict": {"type": "STRING", "enum": ["SUPPORTED", "CONTRADICTED", "NOT_FOUND", "UNCLEAR"]},
                     "evidence": {"type": "STRING", "nullable": True},
+                    "source_location": {"type": "STRING", "nullable": True},
                     "note": {"type": "STRING", "nullable": True},
                     "confidence": {"type": "NUMBER"},
                 },
@@ -298,9 +302,11 @@ def _to_claims(results: Sequence[_Result], source_text: str) -> List[SourceClaim
                 note = (note + " " if note else "") + (
                     f"The source's text doesn't contain {', '.join(lacking)}, so a person should confirm it."
                 )
+        loc = (r.source_location or "").strip() or None
         out.append(SourceClaim(
             claim=(r.claim or "").strip()[:400], verdict=verdict, where="image" if r.where == "image" else "caption",
-            evidence=evidence[:600] if evidence else None, note=note[:400] if note else None,
+            evidence=evidence[:600] if evidence else None, source_location=loc[:240] if loc else None,
+            note=note[:400] if note else None,
             confidence=round(r.confidence, 2),
         ))
     return [c for c in out if c.claim]

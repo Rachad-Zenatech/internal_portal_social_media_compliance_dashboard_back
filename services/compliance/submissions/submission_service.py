@@ -57,7 +57,7 @@ from models.compliance.submission_model import (
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.core.audit_service import log_audit_event
 from services.ai.observability import ai_observability, ai_usage_service
-from services.compliance.submissions import approval_path_service
+from services.compliance.submissions import approval_path_service, source_link_service
 from services.compliance.submissions import delegation_service
 from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
@@ -473,6 +473,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         context_picks=_context_picks(row),
         platform_captions=_platform_captions(row),
         rule_sets=list(row["rule_sets"] or []),
+        source_links=list(row.get("source_links") or []),
         reviewer_route=list(row["reviewer_route"] or []),
         reviewer_ids=list(row.get("reviewer_ids") or []),
         status=row["status"],
@@ -816,11 +817,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
             raise HTTPException(status_code=422, detail="A platform caption is too long")
         # An empty caption means that platform uses the main one.
         fields["platform_captions"] = {p: c for p, c in captions.items() if c.strip()}
-    if payload.get("rule_sets") is not None:
-        bad = [r for r in payload["rule_sets"] if r not in RULE_SETS]
-        if bad:
-            raise HTTPException(status_code=422, detail=f"Unknown rule set(s): {', '.join(bad)}")
-        fields["rule_sets"] = list(dict.fromkeys(payload["rule_sets"]))
+    source_link_service.apply_update_fields(payload, fields, RULE_SETS)
     if payload.get("reviewer_route") is not None:
         bad = [r for r in payload["reviewer_route"] if r not in REVIEWER_ROUTES]
         if bad:
@@ -1415,7 +1412,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         document_texts.insert(0, f"Script:\n{script}")
     # Scripts and articles carry their page, heading and table marks; the check reads the wording only.
     text = document_layout.plain_text(
-        "\n\n".join(p for p in [_check_text(row), *document_texts, spoken, *image_texts] if p)
+        "\n\n".join(p for p in source_link_service.with_source_links(row, [_check_text(row), *document_texts, spoken, *image_texts]) if p)
     ) or row["title"]
     # Documents attached as evidence (Supporting documents): what the post's claims are checked against, with the links it
     # cites. Read in the background like the script, and re-checked when done.

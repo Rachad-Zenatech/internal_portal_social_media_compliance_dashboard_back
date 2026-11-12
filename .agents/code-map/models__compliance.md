@@ -29,7 +29,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `CaptionSuggestion` (class) L23
 - `CaptionSuggestions` (class) L32
 
-## models/compliance/compliance_model.py (324 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (326 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class) L11
 - `ComplianceRuleCreate` (class) L57
 - `ComplianceRuleUpdate` (class) L61
@@ -44,9 +44,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ManualReviewRule` (class) L224 - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
 - `CheckSignals` (class) L233 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
 - `SourceClaim` (class) L249 - One claim the post makes, and whether the source it cites backs it up.
-- `SourceCheck` (class) L263 - A source the post cites (or that was attached), and what reading it showed.
-- `AddedRuleSet` (class) L282 - A rule set checked because of what the post says, not because it was chosen.
-- `ComplianceCheckResponse` (class) L288
+- `SourceCheck` (class) L265 - A source the post cites (or that was attached), and what reading it showed.
+- `AddedRuleSet` (class) L284 - A rule set checked because of what the post says, not because it was chosen.
+- `ComplianceCheckResponse` (class) L290
 
 ## models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - `ContextEntryIn` (class) L12
@@ -190,6 +190,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `FeedbackSummaryRow` (class) L284 - How reviewers rated one kind of finding: mostly "not an issue" means that kind is mostly noise.
 - `EvalCaseIn` (class) L293 - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class) L301
+
+## models/compliance/source_link_model.py (17 lines) - Models for submission source links and quick AI link checks.
+- `SourceLinksMixin` (class) L7
+- `SourceLinksUpdateMixin` (class) L11
+- `SourceLinkCheckRequest` (class) L15
 
 ## models/compliance/submission_model.py (663 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class) L50

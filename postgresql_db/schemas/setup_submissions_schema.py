@@ -1,14 +1,13 @@
-"""
-Setup Content Submission Schema
+"""Setup Content Submission Schema
 Creates content_submissions with their files, versions, review jobs and activity events,
 and (in development only) seeds clearly marked demo social accounts so the
-"connected accounts only" picker has something to show before real OAuth exists.
-"""
+"connected accounts only" picker has something to show before real OAuth exists."""
 import asyncio
 import logging
 import os
 
 from postgresql_db.database import get_pool, close_pool
+from postgresql_db.schemas.setup_source_links_schema import ensure_source_links_column
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -457,6 +456,7 @@ async def setup():
 
 
 async def _sync_script_checks(conn):
+    await ensure_source_links_column(conn)
     """While a script is still being decided, the post's saved check and its latest script version's check are the same
     check (see script_review_service._adopt_check). Brings older rows into line: the newer of the two is copied to the
     other, so the creator and the reviewer see one score. Safe on every start: matching rows are left as they are."""

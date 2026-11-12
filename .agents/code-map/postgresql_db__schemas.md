@@ -49,9 +49,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `setup` (def) L13
 - `_main` (def) L119
 
+## postgresql_db/schemas/setup_source_links_schema.py (10 lines) - Schema helper for submission source_links column.
+- `ensure_source_links_column` (def) L6
+
 ## postgresql_db/schemas/setup_submissions_schema.py (707 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
-- `setup` (def) L17
-- `_sync_script_checks` (def) L459 - While a script is still being decided, the post's saved check and its latest script version's check are the same
+- `setup` (def) L16
+- `_sync_script_checks` (def) L458
 - `_retire_product_brands` (def) L489 - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
 - `_account_key` (def) L596 - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
 - `_retire_demo_social_accounts` (def) L620 - Remove the earlier demo accounts.

@@ -1,12 +1,12 @@
 """Content Submission Pydantic Models
 Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 """
-
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
+from models.compliance.source_link_model import SourceLinksMixin, SourceLinksUpdateMixin
 
 # AD: paid social ads. Only the type and its rule set exist so far; ad-specific fields and rules (claims,
 # targeting, platform ad policies) are still to be defined.
@@ -89,7 +89,7 @@ class SubmissionCreate(BaseModel):
     content_type: ContentType
 
 
-class SubmissionUpdate(BaseModel):
+class SubmissionUpdate(SourceLinksUpdateMixin):
     title: Optional[str] = Field(None, min_length=1, max_length=300)
     content_type: Optional[ContentType] = None
     # Every brand it's for, primary first. brand_code alone still works and means just that one.
@@ -266,7 +266,7 @@ class SubmissionSummary(BaseModel):
     steps: Optional[SubmissionSteps] = None
 
 
-class Submission(BaseModel):
+class Submission(SourceLinksMixin):
     id: UUID
     reference_code: str
     title: str

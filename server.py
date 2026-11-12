@@ -50,6 +50,7 @@ from tools.microsoft_graph.graph_router import router as graph_router
 from tools.shared.auth.oauth_router import router as oauth_router
 from tools.compliance.submissions.compliance_router import router as compliance_router
 from tools.compliance.submissions.submission_router import router as submission_router
+from tools.compliance.submissions.source_link_router import router as source_link_router
 from tools.compliance.submissions.script_review_router import router as script_review_router
 from tools.compliance.submissions.script_batch_router import router as script_batch_router
 from tools.compliance.submissions.script_doc_router import router as script_doc_router
@@ -380,6 +381,7 @@ app.include_router(script_review_router, prefix="/api", tags=["Script Review"])
 app.include_router(script_batch_router, prefix="/api", tags=["Script Batches"])
 app.include_router(script_doc_router, prefix="/api", tags=["Script Documents"])
 app.include_router(submission_router, prefix="/api", tags=["Content Submissions"])
+app.include_router(source_link_router, prefix="/api/submissions", tags=["Content Submissions"])
 app.include_router(ai_status_router, prefix="/api", tags=["AI Status"], dependencies=authenticated)
 app.include_router(approval_path_router, prefix="/api", tags=["Approval Paths"])
 app.include_router(context_router, prefix="/api", tags=["Messaging Context"])

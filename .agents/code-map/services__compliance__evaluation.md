@@ -380,30 +380,30 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_by_dividers` (def) L54
 - `split_scripts` (def) L67 - (title, body) for each script in the document, in order.
 
-## services/compliance/evaluation/source_check_service.py (494 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+## services/compliance/evaluation/source_check_service.py (500 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - `claim_id` (def) L75 - The id of one claim's finding: its kind's id and the claim's own wording.
-- `_Result` (class) L117
-- `_Response` (class) L126
-- `SourceCheckResult` (class) L154
-- `authority_of` (def) L170
-    - `on` (def) L174
-- `_digits` (def) L198 - Text with figures in one form: no thousands commas, and the common number words as digits.
-- `missing_figures` (def) L204 - Figures and years in the claim that the source's text never mentions (in digits or as words).
-- `_post_key` (def) L218
-- `_ask` (def) L222
-- `_compare` (def) L245 - The model's claim-by-claim answer for one source (None when no model could give one), and the model's name.
-- `_to_claims` (def) L282 - The model's answers, through the safeguards.
-- `_distinct_words` (def) L316
-- `_matches` (def) L320 - Whether an attached document looks like the one a "Source:" line names: most of the line's distinctive words appear
-- `_read_link` (def) L330 - The check for a cited link, and (label, text) for the model when it could be read.
-- `run` (def) L352 - Find the sources a post cites, read them, and compare the post's claims with each.
-    - `compare` (def) L385
-- `_finding` (def) L404
-- `_label` (def) L418
-- `findings` (def) L422 - The findings the sources produce: claims that contradict their source cost points; claims the source doesn't
-- `_tokens` (def) L453
-- `_same_claim` (def) L457 - Whether a supported claim is the one a "needs a source" finding is about.
-- `clear_supported` (def) L471 - A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place).
+- `_Result` (class) L119
+- `_Response` (class) L129
+- `SourceCheckResult` (class) L158
+- `authority_of` (def) L174
+    - `on` (def) L178
+- `_digits` (def) L202 - Text with figures in one form: no thousands commas, and the common number words as digits.
+- `missing_figures` (def) L208 - Figures and years in the claim that the source's text never mentions (in digits or as words).
+- `_post_key` (def) L222
+- `_ask` (def) L226
+- `_compare` (def) L249 - The model's claim-by-claim answer for one source (None when no model could give one), and the model's name.
+- `_to_claims` (def) L286 - The model's answers, through the safeguards.
+- `_distinct_words` (def) L322
+- `_matches` (def) L326 - Whether an attached document looks like the one a "Source:" line names: most of the line's distinctive words appear
+- `_read_link` (def) L336 - The check for a cited link, and (label, text) for the model when it could be read.
+- `run` (def) L358 - Find the sources a post cites, read them, and compare the post's claims with each.
+    - `compare` (def) L391
+- `_finding` (def) L410
+- `_label` (def) L424
+- `findings` (def) L428 - The findings the sources produce: claims that contradict their source cost points; claims the source doesn't
+- `_tokens` (def) L459
+- `_same_claim` (def) L463 - Whether a supported claim is the one a "needs a source" finding is about.
+- `clear_supported` (def) L477 - A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place).
 
 ## services/compliance/evaluation/source_fetch_service.py (321 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - `FetchedSource` (class) L54

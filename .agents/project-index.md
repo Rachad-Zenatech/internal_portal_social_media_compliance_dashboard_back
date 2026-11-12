@@ -14,7 +14,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/brand_voice_model.py (59 lines) - Brand voice per brand: the brand manual (PDF) and what was read from it (voice, colours, typefaces, logo).
 - models/compliance/canva_model.py (41 lines) - Canva Integration Models Connecting a Canva account, picking a design and importing (or reimporting) its export into a submission.
 - models/compliance/caption_model.py (39 lines) - Caption suggestions: Gemini drafts a few captions from the post itself, checked against the rulebook.
-- models/compliance/compliance_model.py (324 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+- models/compliance/compliance_model.py (326 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - models/compliance/flag_review_model.py (67 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
@@ -23,6 +23,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/script_doc_model.py (233 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - models/compliance/script_review_model.py (233 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - models/compliance/sentiment_model.py (314 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
+- models/compliance/source_link_model.py (17 lines) - Models for submission source links and quick AI link checks.
 - models/compliance/submission_model.py (663 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
 - models/shared/oauth_connection_model.py (127 lines) - Pydantic models for Organization, Company, and OAuth connections.
@@ -41,6 +42,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
 - postgresql_db/schemas/setup_script_docs_schema.py (139 lines) - Script documents: scripts written in the platform from a template (not attached to a post), reviewed together by several reviewers at onc...
 - postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
+- postgresql_db/schemas/setup_source_links_schema.py (10 lines) - Schema helper for submission source_links column.
 - postgresql_db/schemas/setup_submissions_schema.py (707 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
@@ -48,7 +50,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/scrape_x_playwright.py (621 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
-- server.py (630 lines) - server
+- server.py (632 lines) - server
 - services/ai/core/assistant_chat_service.py (258 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/gemini_service.py (149 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
@@ -99,7 +101,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
 - services/compliance/evaluation/script_review_service.py (1107 lines) - Script stage of a video post.
 - services/compliance/evaluation/script_split.py (113 lines) - Splitting one document into the scripts it holds.
-- services/compliance/evaluation/source_check_service.py (494 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+- services/compliance/evaluation/source_check_service.py (500 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_fetch_service.py (321 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - services/compliance/media/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
 - services/compliance/media/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
@@ -128,7 +130,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/post_steps_service.py (117 lines) - The five steps a creator works through, and how far each post has got.
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - services/compliance/submissions/review_memory_service.py (229 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
-- services/compliance/submissions/submission_service.py (3054 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/source_link_service.py (107 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
+- services/compliance/submissions/submission_service.py (3051 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
 - services/notifications/ceo_event_publisher.py (50 lines) - Cross-application event publisher for CEO Dashboard integration.
@@ -136,7 +139,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/notifications/mqtt_presence.py (320 lines) - MQTT Service Presence & Event-Driven Messaging Component for Social Media Compliance.
 - services/notifications/notification_service.py (186 lines) - notification service (notifications)
 - services/notifications/rabbitmq_config.py (196 lines) - RabbitMQ / Message Hub configuration: env-driven connection settings, exchange names and the hub server registry.
-- services/notifications/rabbitmq_hub_status.py (487 lines) - Message Hub behaviour for RabbitMQManager: SSE fan-out, shutdown, presence heartbeats, peer monitoring and live status snapshots.
+- services/notifications/rabbitmq_hub_status.py (493 lines) - Message Hub behaviour for RabbitMQManager: SSE fan-out, shutdown, presence heartbeats, peer monitoring and live status snapshots.
 - services/notifications/rabbitmq_in_memory.py (46 lines) - In-memory fallback broker used when no live RabbitMQ is available.
 - services/notifications/rabbitmq_service.py (521 lines) - RabbitMQ Service & Topology Manager Provides resilient connection management, topology declaration, publisher confirmations, and dead-let...
 - services/notifications/teams_service.py (358 lines) - Microsoft Teams direct messages: the portal's notifications, delivered to people's Teams chat by a bot.
@@ -160,6 +163,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - tools/compliance/submissions/script_doc_router.py (206 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
 - tools/compliance/submissions/script_review_router.py (125 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+- tools/compliance/submissions/source_link_router.py (18 lines) - Router for quick AI checking of submission source links.
 - tools/compliance/submissions/submission_router.py (589 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/notifications/message_hub_router.py (57 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
