@@ -31,7 +31,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
 - postgresql_db/schemas/setup_compliance_schema.py (1226 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
-- postgresql_db/schemas/setup_context_schema.py (447 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
+- postgresql_db/schemas/setup_context_schema.py (456 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
 - postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
 - postgresql_db/schemas/setup_listening_schema.py (217 lines) - Public mood: topics from the social listening source (Sprout Social, mocked for now), dated snapshots of how people feel about each one, ...
 - postgresql_db/schemas/setup_login_codes_schema.py (28 lines) - One-time sign-in codes: after Microsoft sign-in the browser gets a short-lived code in the redirect (never the session token), and swaps ...
@@ -46,7 +46,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/scrape_x_playwright.py (621 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
-- server.py (719 lines) - server
+- server.py (624 lines) - server
 - services/ai/core/assistant_chat_service.py (258 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/gemini_service.py (149 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
@@ -85,6 +85,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/context_evaluator.py (367 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/evaluation/context_service.py (226 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/evaluation/newsroom_sync_service.py (311 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.
+- services/compliance/evaluation/policy_watch_service.py (439 lines) - Policy watch: keeps the platform content-policy norms (Messaging Context entries seeded as "policy:...") up to date.
 - services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - services/compliance/evaluation/script_batch_service.py (663 lines) - Script batches.
 - services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
@@ -119,7 +120,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/post_steps_service.py (117 lines) - The five steps a creator works through, and how far each post has got.
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - services/compliance/submissions/review_memory_service.py (229 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
-- services/compliance/submissions/submission_service.py (3054 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (3057 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
 - services/notifications/ceo_event_publisher.py (50 lines) - Cross-application event publisher for CEO Dashboard integration.
@@ -181,6 +182,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tests/test_mood_xgboost_port.py (328 lines) - The XGBoost model as carried over from the administration project's approach, fitted to this project: training rows with the required att...
 - tests/test_no_sample_data.py (58 lines) - Public mood never shows invented numbers: with no listening source it shows that there is none.
 - tests/test_performance_period.py (86 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
+- tests/test_policy_watch.py (120 lines) - Policy watch: platform content-policy norms kept up to date from the platforms' policy pages, approved by super admins only.
 - tests/test_post_queries.py (123 lines) - Searches come from what each draft says, not from a fixed topic list.
 - tests/test_post_query_plan.py (136 lines) - The plan keeps only what the post supports, falls back without inventing, and splits direct from context.
 - tests/test_post_signals.py (93 lines) - test post signals
@@ -192,7 +194,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tests/test_review_delegation.py (123 lines) - Review delegation: a reviewer hands a post in review to someone else and stays on it.
 - tests/test_review_memory_text.py (88 lines) - What is stored for a past post, and what a new post is compared on, must be the same set of text.
 - tests/test_review_penalty.py (68 lines) - test review penalty
-- tests/test_reviewer_choice.py (212 lines) - test reviewer choice
+- tests/test_reviewer_choice.py (217 lines) - test reviewer choice
 - tests/test_rule25_guidance.py (26 lines) - test rule25 guidance
 - tests/test_rulebook_check_coverage.py (165 lines) - test rulebook check coverage
 - tests/test_scrape_button.py (188 lines) - The scrape button: scraping starts only from it, runs outside the server's event loop, and reports how it went.

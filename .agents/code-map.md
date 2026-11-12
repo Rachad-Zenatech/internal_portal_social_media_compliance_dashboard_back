@@ -22,7 +22,7 @@ to find the right file.
 | .agents/code-map/services__ai__core.md | 7 | 6 KB |
 | .agents/code-map/services__ai__observability.md | 5 | 4 KB |
 | .agents/code-map/services__compliance__analytics.md | 19 | 26 KB |
-| .agents/code-map/services__compliance__evaluation.md | 14 | 23 KB |
+| .agents/code-map/services__compliance__evaluation.md | 15 | 25 KB |
 | .agents/code-map/services__compliance__media.md | 10 | 10 KB |
 | .agents/code-map/services__compliance__sentiment.md | 8 | 7 KB |
 | .agents/code-map/services__compliance__submissions.md | 10 | 19 KB |
@@ -73,6 +73,7 @@ to find the right file.
 | .agents/code-map/tests__test_mood_xgboost_port.md | 1 | 3 KB |
 | .agents/code-map/tests__test_no_sample_data.md | 1 | 1 KB |
 | .agents/code-map/tests__test_performance_period.md | 1 | 1 KB |
+| .agents/code-map/tests__test_policy_watch.md | 1 | 1 KB |
 | .agents/code-map/tests__test_post_queries.md | 1 | 2 KB |
 | .agents/code-map/tests__test_post_query_plan.md | 1 | 1 KB |
 | .agents/code-map/tests__test_post_signals.md | 1 | 1 KB |

@@ -7,7 +7,6 @@ import sys
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from functools import partial
 from typing import List, Optional
 from uuid import UUID, uuid4
 
@@ -25,10 +24,10 @@ from postgresql_db.database import close_pool, create_pool, fetch_one
 from services.shared.core.logging_service import (
     asyncio_exception_handler,
     configure_logging,
-    log_background_task_result,
     request_id_ctx,
 )
 from services.shared.core.cache_service import start_cache_invalidation_listener
+from services.shared.core.startup_service import run_schema_setups, spawn_background
 from services.shared.auth.auth_service import (
     current_user_id_ctx,
     get_current_user_id_dependency,
@@ -91,61 +90,7 @@ async def lifespan(app: FastAPI):
         )
         if should_auto_migrate:
             logger.info("Running automated schema verification and migration", extra={"event": "schema_migration_start"})
-            try:
-                from postgresql_db.schemas.setup_pbac_schema import setup as setup_schema
-                await setup_schema()
-            except Exception as schema_err:
-                logger.warning(f"Schema verification note: {schema_err}")
-            try:
-                from postgresql_db.schemas.setup_social_media_schema import setup as setup_social_media_schema
-                await setup_social_media_schema()
-            except Exception as sm_err:
-                logger.warning(f"Social media schema setup note: {sm_err}")
-            try:
-                from postgresql_db.schemas.setup_compliance_schema import setup as setup_compliance_schema
-                await setup_compliance_schema()
-            except Exception as comp_err:
-                logger.warning(f"Compliance schema setup note: {comp_err}")
-            try:
-                from postgresql_db.schemas.setup_submissions_schema import setup as setup_submissions_schema
-                await setup_submissions_schema()
-            except Exception as sub_err:
-                logger.warning(f"Submission schema setup note: {sub_err}")
-            try:
-                from postgresql_db.schemas.setup_context_schema import setup as setup_context_schema
-                await setup_context_schema()
-            except Exception as ctx_err:
-                logger.warning(f"Messaging context schema setup note: {ctx_err}")
-            try:
-                from postgresql_db.schemas.setup_listening_schema import setup as setup_listening_schema
-                await setup_listening_schema()
-            except Exception as listen_err:
-                logger.warning(f"Listening schema setup note: {listen_err}")
-            try:
-                from postgresql_db.schemas.setup_login_codes_schema import setup as setup_login_codes_schema
-                await setup_login_codes_schema()
-            except Exception as login_err:
-                logger.warning(f"Login codes schema setup note: {login_err}")
-            try:
-                from postgresql_db.schemas.setup_performance_schema import setup as setup_performance_schema
-                await setup_performance_schema()
-            except Exception as perf_err:
-                logger.warning(f"Post performance schema setup note: {perf_err}")
-            try:
-                from postgresql_db.schemas.setup_ai_observability_schema import setup as setup_ai_observability_schema
-                await setup_ai_observability_schema()
-            except Exception as ai_err:
-                logger.warning(f"AI observability schema setup note: {ai_err}")
-            try:
-                from postgresql_db.schemas.setup_script_batches_schema import setup as setup_script_batches_schema
-                await setup_script_batches_schema()
-            except Exception as batch_err:
-                logger.warning(f"Script batch schema setup note: {batch_err}")
-            try:
-                from postgresql_db.schemas.setup_teams_schema import setup as setup_teams_schema
-                await setup_teams_schema()
-            except Exception as teams_err:
-                logger.warning(f"Teams schema setup note: {teams_err}")
+            await run_schema_setups()
         else:
             logger.info("Skipping startup schema auto-migration (AUTO_MIGRATE_SCHEMA=false or production mode)", extra={"event": "schema_migration_skipped"})
     except Exception:
@@ -155,26 +100,14 @@ async def lifespan(app: FastAPI):
     background_tasks = []
 
     # 1. Start distributed cache invalidation listener (LISTEN/NOTIFY)
-    cache_task = asyncio.create_task(start_cache_invalidation_listener(), name="cache-listener")
-    cache_task.add_done_callback(
-        partial(log_background_task_result, task_name="cache-listener")
-    )
-    background_tasks.append(cache_task)
+    spawn_background(background_tasks, start_cache_invalidation_listener(), "cache-listener")
 
     # 2. Sync MCP tools to PostgreSQL table
-    sync_task = asyncio.create_task(sync_mcp_tools_to_vector_db(), name="mcp-tool-sync")
-    sync_task.add_done_callback(
-        partial(log_background_task_result, task_name="mcp-tool-sync")
-    )
-    background_tasks.append(sync_task)
+    spawn_background(background_tasks, sync_mcp_tools_to_vector_db(), "mcp-tool-sync")
 
     # 3. Microsoft Graph user sync (if enabled)
     if _graph_background_sync_enabled():
-        graph_sync_task = asyncio.create_task(graph_sync_loop(), name="graph-user-sync")
-        graph_sync_task.add_done_callback(
-            partial(log_background_task_result, task_name="graph-user-sync")
-        )
-        background_tasks.append(graph_sync_task)
+        spawn_background(background_tasks, graph_sync_loop(), "graph-user-sync")
     else:
         logger.info(
             "Graph background sync disabled (set GRAPH_BACKGROUND_SYNC_ENABLED=true to enable)",
@@ -183,55 +116,35 @@ async def lifespan(app: FastAPI):
 
     # 3b. Review and revision deadline reminders
     from services.compliance.submissions.review_deadline_service import deadline_loop
-    deadline_task = asyncio.create_task(deadline_loop(), name="review-deadlines")
-    deadline_task.add_done_callback(
-        partial(log_background_task_result, task_name="review-deadlines")
-    )
-    background_tasks.append(deadline_task)
+    spawn_background(background_tasks, deadline_loop(), "review-deadlines")
 
     # 3c. Sentiment analyses scheduled to run once Gemini's daily limit resets
     from services.compliance.analytics.sentiment_service import scheduled_runs_loop
-    sentiment_task = asyncio.create_task(scheduled_runs_loop(), name="sentiment-scheduled-runs")
-    sentiment_task.add_done_callback(
-        partial(log_background_task_result, task_name="sentiment-scheduled-runs")
-    )
-    background_tasks.append(sentiment_task)
+    spawn_background(background_tasks, scheduled_runs_loop(), "sentiment-scheduled-runs")
 
     # 3d. Review memory: past review decisions as precedent for sentiment analysis (catches up on anything new)
     from services.compliance.submissions.review_memory_service import remember_all_in_background
-    memory_task = asyncio.create_task(remember_all_in_background(), name="review-memory-sync")
-    memory_task.add_done_callback(partial(log_background_task_result, task_name="review-memory-sync"))
-    background_tasks.append(memory_task)
+    spawn_background(background_tasks, remember_all_in_background(), "review-memory-sync")
 
     # 3d'. Reviewers' verdicts on flags, as examples for the contextual check (indexes any given while it was off)
     from services.compliance.submissions.finding_precedent_service import remember_all_in_background as remember_verdicts
-    verdict_task = asyncio.create_task(remember_verdicts(), name="finding-precedent-sync")
-    verdict_task.add_done_callback(partial(log_background_task_result, task_name="finding-precedent-sync"))
-    background_tasks.append(verdict_task)
+    spawn_background(background_tasks, remember_verdicts(), "finding-precedent-sync")
 
     # 3e. Open content checked against an older rulebook or older built-in claim checks is re-checked
     from services.compliance.submissions.submission_service import recheck_outdated_on_start
-    recheck_task = asyncio.create_task(recheck_outdated_on_start(), name="outdated-check-recheck")
-    recheck_task.add_done_callback(partial(log_background_task_result, task_name="outdated-check-recheck"))
-    background_tasks.append(recheck_task)
+    spawn_background(background_tasks, recheck_outdated_on_start(), "outdated-check-recheck")
 
     # 3e0. Facts from the ZenaTech newsroom, re-read once a day
     from services.compliance.evaluation.newsroom_sync_service import newsroom_sync_loop
-    newsroom_task = asyncio.create_task(newsroom_sync_loop(), name="newsroom-sync")
-    newsroom_task.add_done_callback(partial(log_background_task_result, task_name="newsroom-sync"))
-    background_tasks.append(newsroom_task)
+    spawn_background(background_tasks, newsroom_sync_loop(), "newsroom-sync")
 
     # 3e0b. Platform content policies: their policy pages re-read weekly; changes drafted for a super admin to approve
     from services.compliance.evaluation.policy_watch_service import policy_watch_loop
-    policy_watch_task = asyncio.create_task(policy_watch_loop(), name="policy-watch")
-    policy_watch_task.add_done_callback(partial(log_background_task_result, task_name="policy-watch"))
-    background_tasks.append(policy_watch_task)
+    spawn_background(background_tasks, policy_watch_loop(), "policy-watch")
 
     # 3e1. Checks the AI couldn't read (key out of credits, quota, down) are retried until it can
     from services.compliance.submissions.submission_service import ai_recheck_loop
-    ai_recheck_task = asyncio.create_task(ai_recheck_loop(), name="ai-unavailable-recheck")
-    ai_recheck_task.add_done_callback(partial(log_background_task_result, task_name="ai-unavailable-recheck"))
-    background_tasks.append(ai_recheck_task)
+    spawn_background(background_tasks, ai_recheck_loop(), "ai-unavailable-recheck")
 
     # 3e1b. Image and document reads that a restart cut off are started again
     async def resume_reads() -> None:
@@ -247,27 +160,19 @@ async def lifespan(app: FastAPI):
         if manuals:
             logger.info("Resumed reading %d brand manual(s) interrupted by a restart", manuals)
 
-    resume_reads_task = asyncio.create_task(resume_reads(), name="resume-interrupted-reads")
-    resume_reads_task.add_done_callback(partial(log_background_task_result, task_name="resume-interrupted-reads"))
-    background_tasks.append(resume_reads_task)
+    spawn_background(background_tasks, resume_reads(), "resume-interrupted-reads")
 
     # 3e2. A script being sent when the server last stopped is picked up again, not left "processing"
     from services.compliance.evaluation.script_review_service import resume_interrupted_sends
-    resume_task = asyncio.create_task(resume_interrupted_sends(), name="script-send-resume")
-    resume_task.add_done_callback(partial(log_background_task_result, task_name="script-send-resume"))
-    background_tasks.append(resume_task)
+    spawn_background(background_tasks, resume_interrupted_sends(), "script-send-resume")
 
     # 3e3. The comment sentiment model: loaded in a worker thread now, so the first public-mood view doesn't load it
     # on the event loop (that froze every request for minutes)
     from services.compliance.analytics.listening_providers import warm_up_sentiment_model
-    sentiment_model_task = asyncio.create_task(warm_up_sentiment_model(), name="sentiment-model-warm-up")
-    sentiment_model_task.add_done_callback(partial(log_background_task_result, task_name="sentiment-model-warm-up"))
-    background_tasks.append(sentiment_model_task)
+    spawn_background(background_tasks, warm_up_sentiment_model(), "sentiment-model-warm-up")
 
     # 3f. AI traces and prompt logs: written in batches as they arrive (waits on a queue, no polling)
-    trace_task = asyncio.create_task(ai_observability.writer_loop(), name="ai-trace-writer")
-    trace_task.add_done_callback(partial(log_background_task_result, task_name="ai-trace-writer"))
-    background_tasks.append(trace_task)
+    spawn_background(background_tasks, ai_observability.writer_loop(), "ai-trace-writer")
 
     # 3g. Reference index: rulebook and Messaging Context in the vector store for the assistant's search
     from services.compliance.evaluation.reference_index_service import sync_soon as sync_reference_index

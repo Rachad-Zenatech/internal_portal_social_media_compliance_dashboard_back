@@ -311,10 +311,8 @@ SEED_ENTRIES = [
 ]
 
 
-async def setup() -> None:
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("""
+# The tables: the entries, the sources they are read from, brand voice, and the policies that are watched.
+_SCHEMA_SQL = """
             CREATE TABLE IF NOT EXISTS messaging_context (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 kind VARCHAR(30) NOT NULL,
@@ -425,22 +423,33 @@ async def setup() -> None:
                 decided_by UUID REFERENCES users(id) ON DELETE SET NULL
             );
             CREATE INDEX IF NOT EXISTS idx_policy_norm_proposals_status ON policy_norm_proposals(status, created_at DESC);
-        """)
-        await conn.execute(
-            """
-            INSERT INTO messaging_context (seed_key, kind, title, body, do_examples, dont_examples, brands, audiences,
-                                           platforms, source)
-            SELECT e.seed_key, e.kind, e.title, e.body, e.do_examples, e.dont_examples,
-                   ARRAY(SELECT jsonb_array_elements_text(coalesce(e.brands, '[]'))),
-                   ARRAY(SELECT jsonb_array_elements_text(coalesce(e.audiences, '[]'))),
-                   ARRAY(SELECT jsonb_array_elements_text(coalesce(e.platforms, '[]'))),
-                   e.source
-            FROM jsonb_to_recordset($1::jsonb) AS e(
-                seed_key text, kind text, title text, body text, do_examples text, dont_examples text,
-                brands jsonb, audiences jsonb, platforms jsonb, source text
-            )
-            ON CONFLICT (seed_key) DO NOTHING
-            """,
-            json.dumps(SEED_ENTRIES),
+"""
+
+
+async def _seed_starter_entries(conn) -> None:
+    """The starter entries, added once each (by their key); what people edit or turn off is left alone."""
+    await conn.execute(
+        """
+        INSERT INTO messaging_context (seed_key, kind, title, body, do_examples, dont_examples, brands, audiences,
+                                       platforms, source)
+        SELECT e.seed_key, e.kind, e.title, e.body, e.do_examples, e.dont_examples,
+               ARRAY(SELECT jsonb_array_elements_text(coalesce(e.brands, '[]'))),
+               ARRAY(SELECT jsonb_array_elements_text(coalesce(e.audiences, '[]'))),
+               ARRAY(SELECT jsonb_array_elements_text(coalesce(e.platforms, '[]'))),
+               e.source
+        FROM jsonb_to_recordset($1::jsonb) AS e(
+            seed_key text, kind text, title text, body text, do_examples text, dont_examples text,
+            brands jsonb, audiences jsonb, platforms jsonb, source text
         )
+        ON CONFLICT (seed_key) DO NOTHING
+        """,
+        json.dumps(SEED_ENTRIES),
+    )
+
+
+async def setup() -> None:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(_SCHEMA_SQL)
+        await _seed_starter_entries(conn)
     logger.info("Messaging context schema ready")

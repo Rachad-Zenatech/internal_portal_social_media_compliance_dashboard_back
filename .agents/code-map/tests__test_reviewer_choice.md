@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## tests/test_reviewer_choice.py (212 lines) - test reviewer choice
+## tests/test_reviewer_choice.py (217 lines) - test reviewer choice
 - `submission_row` (def) L19
 - `WhoMayOpenItTests` (class) L28
     - `load` (def) L29
@@ -23,15 +23,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `test_deadline_reminders_go_to_the_same_people` (def) L99
     - `test_a_script_goes_to_the_same_people` (def) L105
 - `PickingReviewersTests` (class) L117
-    - `update` (def) L118
-    - `test_picked_reviewers_are_saved_once_each` (def) L136
-    - `test_a_super_admin_can_pick_themselves` (def) L144
-    - `test_someone_who_cant_review_the_brand_cant_be_picked` (def) L149
-    - `test_clearing_the_choice_sends_it_to_every_reviewer_again` (def) L154
-- `ReviewersAreRequiredTests` (class) L159
-    - `missing` (def) L160
-    - `test_a_post_cant_be_sent_without_picking_reviewers` (def) L169
-    - `test_a_script_cant_be_sent_without_picking_reviewers` (def) L173
-- `ReviewerOptionsTests` (class) L182
-    - `test_reviewers_and_super_admins_are_offered_by_name` (def) L183
-    - `test_a_super_admin_is_offered_to_themselves_too` (def) L199
+    - `reviewers_update` (def) L119 - The statement that saves who it was sent to (a lock timeout is set before it).
+    - `update` (def) L123
+    - `test_picked_reviewers_are_saved_once_each` (def) L141
+    - `test_a_super_admin_can_pick_themselves` (def) L149
+    - `test_someone_who_cant_review_the_brand_cant_be_picked` (def) L154
+    - `test_clearing_the_choice_sends_it_to_every_reviewer_again` (def) L159
+- `ReviewersAreRequiredTests` (class) L164
+    - `missing` (def) L165
+    - `test_a_post_cant_be_sent_without_picking_reviewers` (def) L174
+    - `test_a_script_cant_be_sent_without_picking_reviewers` (def) L178
+- `ReviewerOptionsTests` (class) L187
+    - `test_reviewers_and_super_admins_are_offered_by_name` (def) L188
+    - `test_a_super_admin_is_offered_to_themselves_too` (def) L204

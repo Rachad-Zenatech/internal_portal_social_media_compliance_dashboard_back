@@ -170,6 +170,30 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `start` (def) L255 - Start a sync unless one is already running (a run left RUNNING for over an hour is treated as dead).
 - `newsroom_sync_loop` (def) L280 - Once a day: sync when the last finished sync is over a day old (checked hourly, so restarts don't skip a day).
 
+## services/compliance/evaluation/policy_watch_service.py (439 lines) - Policy watch: keeps the platform content-policy norms (Messaging Context entries seeded as "policy:...") up to date.
+- `_get_client` (def) L92
+- `page_text` (def) L106 - A policy page as plain text: one line per paragraph, scripts and styles dropped, spacing normalised.
+- `text_hash` (def) L111
+- `urls_of` (def) L115 - The policy pages a norm names in its source (one or more links).
+- `diff` (def) L120 - The lines removed and added between two versions of a page, or None when the change is only noise.
+- `_draft` (def) L132 - Gemini's updated norm for these page changes, or None when they don't affect the norm.
+- `_watched_norms` (def) L153
+- `_read` (def) L161 - Read one page and store it.
+- `_propose` (def) L203 - Save a drafted update, replacing an older one still waiting for this norm.
+- `_record` (def) L224
+- `run_check` (def) L229 - Read every watched page; draft an update for each norm whose pages changed in a way that matters.
+- `is_super_admin` (def) L270
+- `require_super_admin` (def) L274
+- `_latest` (def) L279
+- `start` (def) L290 - Start a check unless one is already running (a run left RUNNING for over an hour is treated as dead).
+- `policy_watch_loop` (def) L315 - Weekly: check when the last finished check is older than CHECK_EVERY (looked at hourly, so restarts don't skip
+- `_proposal` (def) L351
+- `overview` (def) L364
+- `check_now` (def) L385
+- `_pending` (def) L391
+- `approve` (def) L400 - Replace the norm's wording with the drafted update (or the super admin's edited version of it).
+- `reject` (def) L430
+
 ## services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - `_lines` (def) L27
 - `_context_doc` (def) L31
