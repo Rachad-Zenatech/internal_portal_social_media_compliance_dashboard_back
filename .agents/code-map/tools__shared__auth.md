@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## tools/shared/auth/auth_router.py (419 lines) - auth router (shared auth)
+## tools/shared/auth/auth_router.py (425 lines) - auth router (shared auth)
 - `_sha256` (def) L37
 - `microsoft_login` (def) L68 [GET /auth/microsoft/login]
 - `microsoft_callback` (def) L99 [GET /auth/microsoft/callback]
@@ -18,8 +18,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_all_navigation_items` (def) L313
 - `get_all_mcp_tools` (def) L319
 - `heartbeat` (def) L325 [POST /auth/heartbeat]
-- `link_token` (def) L349 [POST /auth/link-token] - A short-lived token for loading media and the notification stream by URL (<img>, <video>, EventSource
-- `logout` (def) L357 [POST /auth/logout]
+- `link_token` (def) L355 [POST /auth/link-token] - A short-lived token for loading media and the notification stream by URL (<img>, <video>, EventSource
+- `logout` (def) L363 [POST /auth/logout]
 
 ## tools/shared/auth/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
 - `list_organizations` (def) L38 [GET /organizations] - List all top-level organizations (e.g.

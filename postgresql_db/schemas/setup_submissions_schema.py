@@ -342,6 +342,9 @@ async def setup():
             ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS region_y REAL;
             ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS region_w REAL;
             ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS region_h REAL;
+            -- The comment this one replies to (quoted above it, like a chat reply)
+            ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS reply_to_id UUID
+                REFERENCES content_review_comments(id) ON DELETE SET NULL;
 
             -- Review delegations: a reviewer hands a post in review to someone else. The delegate is added to the
             -- post's reviewers; the delegator stays on it, so they still see its status (and can still decide).
