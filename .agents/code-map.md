@@ -1079,7 +1079,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `run` (def)
 - `search` (def)
 
-## services/compliance/evaluation/script_batch_service.py (658 lines) - Script batches.
+## services/compliance/evaluation/script_batch_service.py (660 lines) - Script batches.
 - `missing_details` (def) - The details still empty, by their names on the form.
 - `_json` (def)
 - `_details` (def)
@@ -1120,7 +1120,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 - `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/evaluation/script_review_service.py (894 lines) - Script stage of a video post.
+## services/compliance/evaluation/script_review_service.py (910 lines) - Script stage of a video post.
 - `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
@@ -1132,6 +1132,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_versions` (def)
 - `_script_file` (def)
 - `_require_stage` (def)
+- `_self_review_switched_on` (def) - Development only: ALLOW_SUPER_ADMIN_SELF_REVIEW=true, and never when APP_ENV is production (so a production
+- `may_review_own_script` (def) - A super admin may review and approve their own scripts in development (to test the flow alone).
 - `_reviewer_may_act` (def)
 - `only_sent_to_self` (def) - The script would go only to the person who wrote it.
 - `batch_ref` (def) - Where the script sits in the batch it was uploaded with, or None when it wasn't part of one.
@@ -2990,7 +2992,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_other_statuses_are_left_alone` (def)
     - `test_it_is_a_warning_so_no_critical_cap_and_dismissing_gives_points_back` (def)
 
-## tests/test_reviewer_choice.py (207 lines) - test reviewer choice
+## tests/test_reviewer_choice.py (210 lines) - test reviewer choice
 - `submission_row` (def)
 - `WhoMayOpenItTests` (class)
     - `load` (def)
@@ -3076,7 +3078,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_the_feed_lives_in_the_repo_data_folder_next_to_the_apps_other_data` (def)
     - `test_the_scraper_and_the_app_share_one_way_of_storing_and_loading_the_feed` (def)
 
-## tests/test_script_batch.py (147 lines) - test script batch
+## tests/test_script_batch.py (151 lines) - test script batch
 - `DetailsTests` (class)
     - `test_every_shared_detail_is_needed_before_sending` (def)
     - `test_a_filled_in_batch_is_ready` (def)
@@ -3157,11 +3159,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_script_the_ai_could_not_read_is_flagged` (def)
     - `test_a_script_the_ai_read_is_not` (def)
 
-## tests/test_script_self_review.py (27 lines) - test script self review
+## tests/test_script_self_review.py (63 lines) - test script self review
 - `ScriptSelfReviewTests` (class) - A script sent only to its own writer would sit in review for good: nobody else sees it, and they can't approve it.
     - `test_sent_only_to_the_creator_is_refused` (def)
     - `test_another_reviewer_alongside_the_creator_is_fine` (def)
     - `test_no_pick_is_left_to_the_required_field_check` (def)
+- `SelfReviewInDevelopmentTests` (class) - In development a super admin may review and approve their own scripts; never in production.
+    - `may` (def)
+    - `test_super_admin_in_development_with_the_flag` (def)
+    - `test_never_in_production_even_with_the_flag` (def)
+    - `test_not_without_the_flag` (def)
+    - `test_not_for_other_reviewers` (def)
+    - `test_the_creator_may_approve_only_when_switched_on` (def)
 
 ## tests/test_script_send.py (163 lines) - test script send
 - `processing` (def)

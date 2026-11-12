@@ -15,6 +15,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -168,11 +169,24 @@ def _require_stage(row: Dict[str, Any]) -> None:
         raise HTTPException(status_code=409, detail="This post doesn't have a script stage")
 
 
+def _self_review_switched_on() -> bool:
+    """Development only: ALLOW_SUPER_ADMIN_SELF_REVIEW=true, and never when APP_ENV is production (so a production
+    server that has the flag by mistake still keeps the rule)."""
+    flag = os.getenv("ALLOW_SUPER_ADMIN_SELF_REVIEW", "").strip().lower() in {"1", "true", "yes", "on"}
+    return flag and os.getenv("APP_ENV", "development").strip().lower() != "production"
+
+
+async def may_review_own_script(user_id: UUID) -> bool:
+    """A super admin may review and approve their own scripts in development (to test the flow alone). Everywhere
+    else nobody approves their own script, a super admin included."""
+    return _self_review_switched_on() and await subs._is_super_admin(user_id)
+
+
 async def _reviewer_may_act(row: Dict[str, Any], user_id: UUID) -> bool:
     if not await subs._can_review(user_id):
         return False
-    # Nobody approves their own script, a super admin included: another reviewer has to.
-    return row["created_by"] != user_id
+    # Nobody approves their own script, a super admin included: another reviewer has to (except in development).
+    return row["created_by"] != user_id or await may_review_own_script(user_id)
 
 
 SELF_REVIEW_MESSAGE = ("Send the script to a reviewer other than yourself: nobody approves their own script, "
@@ -300,7 +314,8 @@ async def _lock_status(conn, submission_id: UUID, allowed: tuple) -> None:
 
 async def _send_to_reviewers(row: Dict[str, Any], version: int, check: Dict[str, Any], user_id: UUID) -> List[UUID]:
     """Tell the reviewers it was sent to; returns who was told."""
-    reviewers = await subs._review_recipients(row, exclude=user_id)
+    # The creator is told too when they may review their own script (development, super admin).
+    reviewers = await subs._review_recipients(row, exclude=None if await may_review_own_script(user_id) else user_id)
     issues = check.get("violations_count") or 0
     score = "no score yet (the AI review couldn't run)" if check.get("ai_unavailable") else f"score {check.get('score')}/100"
     await subs._notify(
@@ -399,7 +414,7 @@ async def submit(submission_id: UUID, user_id: UUID, confirm_repost: bool = Fals
     missing = _missing_details(row)
     if missing:
         raise HTTPException(status_code=422, detail=f"Fill in the submission details first: {', '.join(missing)}.")
-    if only_sent_to_self(row.get("reviewer_ids"), row["created_by"]):
+    if only_sent_to_self(row.get("reviewer_ids"), row["created_by"]) and not await may_review_own_script(row["created_by"]):
         raise HTTPException(status_code=422, detail=SELF_REVIEW_MESSAGE)
     file = await _script_file(submission_id)
     if not file:
@@ -785,6 +800,7 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
     )
     if not team:
         return []
+    own_ok = await may_review_own_script(user_id)  # development: a super admin reviews their own scripts too
     where, order = _QUEUE_TABS[tab]
     rows = await fetch_all(
         f"""
@@ -824,7 +840,7 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
             traffic_light=check.get("traffic_light"),
             approval_needed_by=r["approval_needed_by"], script_status=r["script_status"],
             decided_at=r["reviewed_at"] or (r["updated_at"] if r["script_status"] != "IN_REVIEW" else None),
-            can_review=r["script_status"] == "IN_REVIEW" and is_reviewer and r["created_by"] != user_id,
+            can_review=r["script_status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or own_ok),
             batch_id=r.get("batch_id"),
         ))
     _refresh_in_background(stale)

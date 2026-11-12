@@ -1,3 +1,4 @@
+import os
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -105,6 +106,8 @@ class WhoIsNotifiedTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_script_goes_to_the_same_people(self):
         row = submission_row(reviewer_ids=[PICKED])
         with (
+            # The rule as everywhere but development (where ALLOW_SUPER_ADMIN_SELF_REVIEW may be on in .env).
+            patch.dict(os.environ, {"ALLOW_SUPER_ADMIN_SELF_REVIEW": ""}),
             patch(f"{SVC}._review_recipients", new=AsyncMock(return_value=[PICKED])),
             patch(f"{SVC}._notify", new=AsyncMock()) as notify,
         ):

@@ -1,3 +1,4 @@
+import os
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -122,7 +123,10 @@ class NobodyApprovesTheirOwnScripts(unittest.IsolatedAsyncioTestCase):
     """The creator of a script can't approve it, even as a super admin: another reviewer has to."""
 
     async def may_act(self, module, row, user, *, reviewer=True, super_admin=False):
-        with patch.object(module.subs, "_can_review", new=AsyncMock(return_value=reviewer)),              patch.object(module.subs, "_is_super_admin", new=AsyncMock(return_value=super_admin)):
+        # The rule as everywhere but development (where ALLOW_SUPER_ADMIN_SELF_REVIEW may be on in .env).
+        with patch.dict(os.environ, {"ALLOW_SUPER_ADMIN_SELF_REVIEW": ""}), \
+             patch.object(module.subs, "_can_review", new=AsyncMock(return_value=reviewer)), \
+             patch.object(module.subs, "_is_super_admin", new=AsyncMock(return_value=super_admin)):
             return await module._reviewer_may_act(row, user)
 
     async def test_a_single_scripts_creator_cannot_review_it_even_as_a_super_admin(self):

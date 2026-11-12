@@ -86,9 +86,9 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/evaluation/context_service.py (208 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/evaluation/newsroom_sync_service.py (311 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.
 - services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
-- services/compliance/evaluation/script_batch_service.py (658 lines) - Script batches.
+- services/compliance/evaluation/script_batch_service.py (660 lines) - Script batches.
 - services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
-- services/compliance/evaluation/script_review_service.py (894 lines) - Script stage of a video post.
+- services/compliance/evaluation/script_review_service.py (910 lines) - Script stage of a video post.
 - services/compliance/evaluation/script_split.py (113 lines) - Splitting one document into the scripts it holds.
 - services/compliance/evaluation/source_check_service.py (494 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_fetch_service.py (321 lines) - Source fetcher: opens a link a post cites and returns its readable text.
@@ -188,15 +188,15 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_review_delegation.py (123 lines) - Review delegation: a reviewer hands a post in review to someone else and stays on it.
 - tests/test_review_memory_text.py (88 lines) - What is stored for a past post, and what a new post is compared on, must be the same set of text.
 - tests/test_review_penalty.py (68 lines) - test review penalty
-- tests/test_reviewer_choice.py (207 lines) - test reviewer choice
+- tests/test_reviewer_choice.py (210 lines) - test reviewer choice
 - tests/test_rule25_guidance.py (26 lines) - test rule25 guidance
 - tests/test_rulebook_check_coverage.py (165 lines) - test rulebook check coverage
 - tests/test_scrape_button.py (188 lines) - The scrape button: scraping starts only from it, runs outside the server's event loop, and reports how it went.
-- tests/test_script_batch.py (147 lines) - test script batch
+- tests/test_script_batch.py (151 lines) - test script batch
 - tests/test_script_duplicates.py (74 lines) - Scripts follow the same duplicate rules as posts: the same script, already sent for review for the same place and publish date, is refuse...
 - tests/test_script_match.py (73 lines) - test script match
 - tests/test_script_queue.py (107 lines) - test script queue
-- tests/test_script_self_review.py (27 lines) - test script self review
+- tests/test_script_self_review.py (63 lines) - test script self review
 - tests/test_script_send.py (163 lines) - test script send
 - tests/test_script_split.py (67 lines) - test script split
 - tests/test_security_fixes.py (195 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
