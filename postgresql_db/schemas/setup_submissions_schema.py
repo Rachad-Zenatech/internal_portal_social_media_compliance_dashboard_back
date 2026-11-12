@@ -81,6 +81,9 @@ async def setup():
             -- The reviewers the creator sent it to. Empty: every reviewer on its brand. Otherwise only they (and its
             -- final approvers, added on submit) see it in the queue and get its notifications.
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS reviewer_ids UUID[] NOT NULL DEFAULT '{}';
+            -- The Messaging Context the creator chose for the analysis, by kind ({"FACT": [entry ids], ...}). A kind
+            -- left out is picked automatically (by the post's brand, audiences, platforms and wording).
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS context_picks JSONB NOT NULL DEFAULT '{}'::jsonb;
 
             -- Brands each user works on. A user with none listed (and every super admin) works on all brands.
             CREATE TABLE IF NOT EXISTS user_brands (

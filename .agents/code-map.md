@@ -91,7 +91,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `PerformanceSummary` (class)
 - `PerformanceReport` (class)
 
-## models/compliance/public_mood_model.py (328 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
+## models/compliance/public_mood_model.py (342 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - `ListeningPost` (class)
 - `TopicSnapshot` (class)
 - `MatchedTopic` (class)
@@ -108,6 +108,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `SentimentCorrectionIn` (class)
 - `CorrectionIn` (class)
 - `DismissedTopic` (class)
+- `ProcessStep` (class) - One step of how this post's public mood was made, for the page's process log.
 - `PublicMood` (class)
 - `ListeningTopic` (class)
 - `ListeningTopicUpdate` (class)
@@ -150,7 +151,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ScriptSuggestionRequest` (class) - What a suggesting reviewer saves: their edited wording and their notes on it.
 - `ScriptHighlightsRequest` (class)
 
-## models/compliance/sentiment_model.py (213 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
+## models/compliance/sentiment_model.py (314 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - `Tone` (class)
 - `BrandAlignment` (class)
 - `AudienceInterpretation` (class)
@@ -158,17 +159,29 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `SentimentFinding` (class)
 - `AudioAssessment` (class) - How the video sounds, when one was attached.
 - `Precedent` (class) - A past review of similar content that the analysis was given as precedent.
+- `EntryRef` (class) - The Messaging Context entry a judgement came from (filled in by the service from the prompt's [C1], [C2]...).
+- `VoiceLine` (class) - A line of the post that follows, or drifts from, the brand voice.
+- `BrandVoiceReport` (class)
+- `ClaimCheck` (class) - A claim in the post against the facts on file.
+- `FactsReport` (class)
+- `NormCheck` (class) - One thing a platform norm asks for (length, opening, hashtags...) and how the post does.
+- `NormsReport` (class)
+- `AudienceReading` (class)
+- `AudiencesReport` (class)
+- `ContextReport` (class) - How the post measures against its Messaging Context, kind by kind, each judgement naming its entry.
+- `VisualAlignment` (class) - Whether the post's graphic (images or video) says the same thing as its captions.
 - `SentimentResult` (class)
 - `FindingFeedback` (class) - Reviewers' votes on one finding, and the viewer's own.
 - `FindingFeedbackIn` (class)
 - `AnalysedImage` (class)
 - `SentimentComparison` (class) - How an analysis differs from the one before it (an earlier version, or an earlier run of this draft).
+- `ContextUse` (class) - A Messaging Context entry and what the analysis did with it, for the transparency table.
 - `SentimentAnalysis` (class)
 - `FeedbackSummaryRow` (class) - How reviewers rated one kind of finding: mostly "not an issue" means that kind is mostly noise.
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (629 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (634 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -301,7 +314,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (695 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (698 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -327,7 +340,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_main` (def)
 - `main` (def)
 
-## scripts/scrape_x_playwright.py (533 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
+## scripts/scrape_x_playwright.py (621 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - `snowflake_time` (def) - When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits).
 - `_extract_tweets_from_rendered_profile` (def) - Parse X posts from a rendered public X profile: text, link and real post time (from the post id).
 - `_page_status` (def) - Why a page gave what it gave: SUCCESS, EMPTY (loaded, nothing there), AUTH_REQUIRED or RATE_LIMITED.
@@ -345,6 +358,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `topic_score` (def) - How strongly a text belongs to a market topic: 2 per topic keyword phrase in it, 1 per shared word.
 - `assign_unique` (def) - One home for each story.
 - `_collect_watch` (def) - Searches about the company itself (names, hashtags, products, links, events, competitors).
+- `mentions_all` (def)
+- `_plain` (def)
+- `mentions_any` (def)
+- `mentions_topic` (def) - A headline is about a wider topic when it shares at least two of a term's main words ("military drone
+- `_collect_post_searches` (def) - News searches built from each draft's own words.
+- `read_post_searches` (def)
 - `build_live_x_listening_json` (def) - Launch Playwright headless Chromium and collect candidates for each market topic and for searches about the
     - `out_of_time` (def)
 - `main` (def)
@@ -373,7 +392,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `embedding_quota_left` (def) - None if embeddings work; otherwise why not.
 - `main` (def)
 
-## server.py (704 lines) - server
+## server.py (713 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -433,7 +452,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `find` (def)
 - `count` (def)
 
-## services/ai/core/semantic_cache.py (197 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
+## services/ai/core/semantic_cache.py (202 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
 - `_env_float` (def)
 - `is_enabled` (def)
 - `Hit` (class)
@@ -446,7 +465,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `store` (def) - Cache an answer for the question of an earlier lookup.
 - `clear` (def) - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
-## services/ai/core/vector_store_service.py (301 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+## services/ai/core/vector_store_service.py (340 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
 - `_setting` (def)
 - `database_name` (def)
 - `collection_name` (def)
@@ -456,6 +475,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `named_collection` (def) - Another collection in the same database, over the same connection, or None when MONGODB_URI isn't set.
 - `_collection` (def) - The project's collection, or None when MONGODB_URI isn't set.
 - `_gemini_client` (def)
+- `EmbeddingQuotaExhausted` (class) - The embedding quota is used up; raised without calling Gemini while the pause lasts.
+- `check_embedding_quota` (def) - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
+- `note_embedding_error` (def) - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
 - `embed` (def) - Gemini embeddings for the texts, in order, batched to keep requests few.
 - `_scope` (def) - An empty scope means every value.
 - `_hash` (def)
@@ -613,11 +635,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `excluded_for` (def)
 - `corrections_for` (def)
 
-## services/compliance/analytics/listening_providers.py (579 lines) - Social listening providers: where "public mood" data comes from.
+## services/compliance/analytics/listening_providers.py (524 lines) - Social listening providers: where "public mood" data comes from.
 - `clean_headline` (def) - The headline without its outlet, lowercased, letters and digits only: equal for the same story.
 - `volume_change` (def) - Percent change in mentions: the last three complete days against the three before them, from `daily` (oldest
 - `_load_local_model` (def) - The trained sentiment model, loaded once.
+- `warm_up_sentiment_model` (def) - Load the sentiment model in a worker thread at startup, so no request waits for it (or freezes the server).
+- `_load_local_model_locked` (def)
 - `_model_probs` (def) - {'POSITIVE': p, 'NEUTRAL': p, 'NEGATIVE': p} from the trained model, or None to fall back to VADER.
+- `_run_model` (def)
 - `classify_comment_sentiment` (def) - Classify an individual X comment/post as POSITIVE, NEGATIVE, or NEUTRAL with confidence (0-100%).
 - `evaluate_publishing_decision` (def) - Decide whether the team should POST, WAIT (review), or HOLD (escalate to human reviewer)
 - `ListeningUnavailable` (class) - The listening source can't be reached or isn't configured.
@@ -631,7 +656,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `collection_info` (def)
     - `list_topics` (def) - Topics the account tracks: [{external_id, name, description, keywords}].
     - `snapshot` (def) - Recent sentiment for a topic: positive/neutral/negative percentages, mention volume and change,
-- `MockSproutProvider` (class) - Plausible, made-up Sprout Listening data.
+- `UnconfiguredProvider` (class) - Used when there is nowhere to read public mood from.
     - `list_topics` (def)
     - `snapshot` (def)
 - `analyze_raw_x_topic` (def) - Score every comment in an X topic payload using VADER, compute aggregate
@@ -780,6 +805,30 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `metrics` (def)
 - `get_provider` (def)
 
+## services/compliance/analytics/post_queries.py (219 lines) - Searches built from what each draft actually says.
+- `_only_everyday_words` (def) - True when the word is everyday words run together ("digitaltransformation") or hyphenated ("ai-powered").
+- `_trim` (def) - The name without everyday words at its edges ("meet stacklens" -> "stacklens", "shaun test" -> "shaun").
+- `_is_subject` (def) - A name worth searching for: more than one word (and not only everyday ones), or one distinctive word.
+- `_hashtag_phrase` (def)
+- `_in_order` (def) - The phrases in the order they first appear in the text (a set has no order, and the first names matter most).
+- `queries_for_text` (def) - {"queries": [...], "keywords": [...]} for one draft, from its own words.
+- `combine_body` (def) - Everything the draft says besides its title and caption.
+- `active_draft_searches` (def) - One entry per active draft that gave at least one search: {id, title, queries, keywords}.
+- `write_file` (def) - Hand the searches to the scraper process (it has no database connection) through a temporary file.
+- `read_file` (def)
+- `topic_for_draft` (def) - The listening topic a draft's searches become, matched back to that draft by its own keywords.
+- `context_topics_for_draft` (def) - The wider topics around a draft's subject, one topic each: the public vibe about them, not coverage of this
+
+## services/compliance/analytics/post_query_plan.py (167 lines) - The searches for one draft: what its own subject is, and what the wider topic around it is.
+- `_norm` (def)
+- `text_hash` (def)
+- `validate` (def) - Keep only what the post's own text supports.
+- `rules_plan` (def)
+- `_ask_gemini` (def)
+- `contexts_of` (def) - The wider topics of a plan: [{topic, queries, terms}].
+- `read_cached` (def)
+- `plan_for_text` (def) - The plan for a draft: from the saved one if its text hasn't changed, else from Gemini, else from the rules.
+
 ## services/compliance/analytics/post_signals.py (217 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - `_key` (def)
 - `is_government_handle` (def)
@@ -796,7 +845,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `SignalFinding` (class)
 - `findings` (def) - Rule-like findings from the signals.
 
-## services/compliance/analytics/public_mood_service.py (1083 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+## services/compliance/analytics/public_mood_process.py (148 lines) - A plain-language log of how a post's public mood was made, shown on the page so a person can follow it: what was read from the post, whic...
+- `step` (def) - status: ok (worked), warn (worked with a limit), none (nothing to show), info.
+- `_age` (def)
+- `read_step` (def)
+- `search_step` (def)
+- `scrape_step` (def)
+- `topics_step` (def)
+- `scoring_step` (def)
+- `conversation_step` (def)
+- `build` (def)
+
+## services/compliance/analytics/public_mood_service.py (1125 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - `_env_float` (def)
 - `_get_client` (def)
 - `_source_label` (def)
@@ -819,7 +879,114 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_snapshot_model` (def)
 - `_overall_post_recommendation` (def) - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
 - `_load` (def)
+- `_topic_kind` (def)
+- `_may_show_on` (def) - A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
 - `_gather` (def) - The post, its matched topics and their current snapshots.
+    - `is_own` (def)
+- `_input_hash` (def)
+- `_summary_model` (def)
+- `_with_feedback` (def)
+- `get_public_mood` (def)
+- `mark_conversation_unrelated` (def) - A reviewer says a retrieved item is not about this post: it is left out of this draft's assessments.
+- `restore_conversation_item` (def)
+- `correct_conversation_recommendation` (def) - A reviewer says the assessment's recommendation was wrong, and why (recorded; the assessment is unchanged).
+- `confirm_conversation_recommendation` (def) - A reviewer says the assessment's recommendation is right.
+- `resolve_conversation_decision` (def) - A lead reviewer settles a disagreement between reviewers about an assessment's recommendation.
+- `mark_conversation_sentiment` (def)
+- `clear_conversation_sentiment` (def)
+- `clear_conversation_correction` (def)
+- `dismiss_topic` (def) - Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones).
+- `restore_topic` (def)
+- `rate_summary` (def) - Say whether a summary helped (or take the vote back with no data).
+- `list_topics` (def) - Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly.
+- `list_trend_opportunities` (def) - See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
+- `ingest_x_json` (def) - Save scraped/collected X (Twitter) topics and raw comments as the current feed (the vector database's
+- `_clean_words` (def)
+- `update_topic` (def)
+- `match_test` (def) - Which topics a piece of text would match and why, with the near misses, for tuning keywords.
+- `_enum` (def)
+- `_prompt` (def)
+- `summarise` (def) - Write (or reuse) the summary for the post's current version against the current moods.
+
+## services/compliance/analytics/public_mood_service.py (1125 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+- `_env_float` (def)
+- `_get_client` (def)
+- `_source_label` (def)
+- `_sync_topics` (def) - Refresh the topic list from the listening source when it's older than a day (or empty, or asked to, or
+- `_sync_topic_vectors` (def) - Keep one vector document per live topic (only new or changed text is embedded), and none for removed ones.
+- `sync_conversations` (def) - Record and index the scraped conversations now (embedding can take a minute or more under the quota).
+- `record_conversations` (def) - Only record the collected items (quick).
+- `index_conversations` (def) - Bring the vector index up to date with the recorded items (slow under the embedding quota).
+- `_index_conversations_soon` (def) - The same, in the background and one run at a time, for callers that shouldn't wait (an import).
+- `_sync_conversation_vectors` (def) - Record the scraped feed's articles and posts (kept even when a later feed lacks them) and, unless index=False,
+- `_effective_keywords` (def) - The source's keywords minus the ones the team switched off, plus the team's own.
+- `_load_topics` (def) - Live topics from the current source, with the keywords that count for matching.
+- `_meaning_scores` (def) - How close the post is in meaning to each topic: the raw score, and its margin over the post's median score
+- `_unambiguous` (def) - A phrase ("drone delivery") or a coined name ("ZenaDrone") rarely means anything else; a single everyday
+- `_match` (def) - Topics the post is about, strongest first: (topic, keywords found, similarity, close in meaning).
+- `_is_fresh` (def)
+- `_latest_snapshots` (def)
+- `_with_trend` (def) - Mentions per day, and the change in them, from the stories collected over the last days (every scrape so far, one
+- `_fresh_snapshots` (def) - The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale.
+- `_snapshot_model` (def)
+- `_overall_post_recommendation` (def) - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
+- `_load` (def)
+- `_topic_kind` (def)
+- `_may_show_on` (def) - A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
+- `_gather` (def) - The post, its matched topics and their current snapshots.
+    - `is_own` (def)
+- `_input_hash` (def)
+- `_summary_model` (def)
+- `_with_feedback` (def)
+- `get_public_mood` (def)
+- `mark_conversation_unrelated` (def) - A reviewer says a retrieved item is not about this post: it is left out of this draft's assessments.
+- `restore_conversation_item` (def)
+- `correct_conversation_recommendation` (def) - A reviewer says the assessment's recommendation was wrong, and why (recorded; the assessment is unchanged).
+- `confirm_conversation_recommendation` (def) - A reviewer says the assessment's recommendation is right.
+- `resolve_conversation_decision` (def) - A lead reviewer settles a disagreement between reviewers about an assessment's recommendation.
+- `mark_conversation_sentiment` (def)
+- `clear_conversation_sentiment` (def)
+- `clear_conversation_correction` (def)
+- `dismiss_topic` (def) - Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones).
+- `restore_topic` (def)
+- `rate_summary` (def) - Say whether a summary helped (or take the vote back with no data).
+- `list_topics` (def) - Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly.
+- `list_trend_opportunities` (def) - See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
+- `ingest_x_json` (def) - Save scraped/collected X (Twitter) topics and raw comments as the current feed (the vector database's
+- `_clean_words` (def)
+- `update_topic` (def)
+- `match_test` (def) - Which topics a piece of text would match and why, with the near misses, for tuning keywords.
+- `_enum` (def)
+- `_prompt` (def)
+- `summarise` (def) - Write (or reuse) the summary for the post's current version against the current moods.
+
+## services/compliance/analytics/public_mood_service.py (1125 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+- `_env_float` (def)
+- `_get_client` (def)
+- `_source_label` (def)
+- `_sync_topics` (def) - Refresh the topic list from the listening source when it's older than a day (or empty, or asked to, or
+- `_sync_topic_vectors` (def) - Keep one vector document per live topic (only new or changed text is embedded), and none for removed ones.
+- `sync_conversations` (def) - Record and index the scraped conversations now (embedding can take a minute or more under the quota).
+- `record_conversations` (def) - Only record the collected items (quick).
+- `index_conversations` (def) - Bring the vector index up to date with the recorded items (slow under the embedding quota).
+- `_index_conversations_soon` (def) - The same, in the background and one run at a time, for callers that shouldn't wait (an import).
+- `_sync_conversation_vectors` (def) - Record the scraped feed's articles and posts (kept even when a later feed lacks them) and, unless index=False,
+- `_effective_keywords` (def) - The source's keywords minus the ones the team switched off, plus the team's own.
+- `_load_topics` (def) - Live topics from the current source, with the keywords that count for matching.
+- `_meaning_scores` (def) - How close the post is in meaning to each topic: the raw score, and its margin over the post's median score
+- `_unambiguous` (def) - A phrase ("drone delivery") or a coined name ("ZenaDrone") rarely means anything else; a single everyday
+- `_match` (def) - Topics the post is about, strongest first: (topic, keywords found, similarity, close in meaning).
+- `_is_fresh` (def)
+- `_latest_snapshots` (def)
+- `_with_trend` (def) - Mentions per day, and the change in them, from the stories collected over the last days (every scrape so far, one
+- `_fresh_snapshots` (def) - The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale.
+- `_snapshot_model` (def)
+- `_overall_post_recommendation` (def) - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
+- `_load` (def)
+- `_topic_kind` (def)
+- `_may_show_on` (def) - A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
+- `_gather` (def) - The post, its matched topics and their current snapshots.
+    - `is_own` (def)
 - `_input_hash` (def)
 - `_summary_model` (def)
 - `_with_feedback` (def)
@@ -985,7 +1152,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_apply` (def) - Put the model's answer on the finding, through the safeguards.
 - `evaluate` (def) - Read each candidate in context and set its status (in place).
 
-## services/compliance/evaluation/context_service.py (200 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
+## services/compliance/evaluation/context_service.py (208 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - `_out` (def)
 - `_newest_first` (def)
 - `list_entries` (def)
@@ -1061,7 +1228,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 - `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/evaluation/script_review_service.py (1018 lines) - Script stage of a video post.
+## services/compliance/evaluation/script_review_service.py (1021 lines) - Script stage of a video post.
 - `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
@@ -1195,7 +1362,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `thumbnail` (def) - A small PNG of the design's first scene, for the picker.
 - `design_kind_ok` (def) - Whether an export of this kind can be the main file of a submission that takes these extensions.
 
-## services/compliance/media/caption_service.py (337 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
+## services/compliance/media/caption_service.py (338 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
 - `get_hashtag_library` (def) - The hashtag library for a post, minus any tag the rules that apply to it would flag.
 - `_wants_cashtag` (def) - The cashtag goes on investor posts, or when the writer asks for it.
 - `_lower_first` (def)
@@ -1314,7 +1481,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 
-## services/compliance/sentiment/config.py (358 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
+## services/compliance/sentiment/config.py (462 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
 - `_get_client` (def)
 - `_enum` (def)
 - `next_quota_reset` (def) - The next midnight Pacific time, when Gemini's daily quotas reset (in UTC).
@@ -1337,12 +1504,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_generate` (def) - Analyse with the first model in the chain that has allowance left and still exists.
 - `_generate_with` (def) - One model: retries brief rate limits and outages, and once on malformed output.
 
-## services/compliance/sentiment/evidence.py (153 lines) - Verification of quotes and rule references in sentiment findings.
+## services/compliance/sentiment/evidence.py (239 lines) - Verification of quotes and rule references in sentiment findings.
 - `_norm` (def)
 - `_locate` (def) - Where a quote appears: (source, start_sec, end_sec), or None if it isn't in the content.
 - `_match_rule` (def) - Map the model's citation ("Rule 1", "1", "Rule 1 (Challenge...)") to an applicable rule number.
 - `finding_id` (def) - Stable id for a finding within its analysis, so reviewer feedback can point at it.
 - `_verify` (def)
+- `_entry` (def) - The entry a [C1], [C2]...
+- `_cite` (def) - Name the entry a judgement came from; False when it names one the analysis wasn't given.
+- `_check_report` (def) - Every quote has to be the post's own words, and every judgement names an entry the analysis was given.
+- `_settle_verdicts` (def) - The headline verdicts follow the details under them, so a tile never contradicts its card.
 
 ## services/compliance/sentiment/feedback.py (146 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
 - `_feedback_map` (def)
@@ -1354,7 +1525,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_eval_cases` (def)
 - `delete_eval_case` (def)
 
-## services/compliance/sentiment/input_builder.py (360 lines) - Input building and prompt construction for sentiment analysis.
+## services/compliance/sentiment/input_builder.py (387 lines) - Input building and prompt construction for sentiment analysis.
 - `_load_submission` (def)
 - `_load_images` (def) - The post's images in order: the main ones (e.g.
 - `_json` (def)
@@ -1367,8 +1538,39 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_held_to_full_standard` (def) - Defense, investor and CEO content is assessed strictly; everyday general and commercial posts are not.
 - `_prompt` (def)
 - `_reference_context` (def) - The Messaging Context section of the prompt, grouped by kind, saying plainly what's missing.
+- `suggested_context` (def) - The Messaging Context the analysis would pick on its own for this post, by kind (what the picker suggests).
 
-## services/compliance/sentiment/jobs.py (467 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
+## services/compliance/sentiment/input_builder.py (387 lines) - Input building and prompt construction for sentiment analysis.
+- `_load_submission` (def)
+- `_load_images` (def) - The post's images in order: the main ones (e.g.
+- `_json` (def)
+- `_transcript_pending` (def)
+- `_build_input` (def) - Everything the analysis depends on.
+- `_hash` (def)
+- `_model_for` (def) - The model an input is analysed with (older inputs, saved before per-content models, used the default).
+- `_precedent_label` (def)
+- `_past_reviews` (def) - The PAST REVIEW DECISIONS section: similar posts this team already reviewed, and what they decided.
+- `_held_to_full_standard` (def) - Defense, investor and CEO content is assessed strictly; everyday general and commercial posts are not.
+- `_prompt` (def)
+- `_reference_context` (def) - The Messaging Context section of the prompt, grouped by kind, saying plainly what's missing.
+- `suggested_context` (def) - The Messaging Context the analysis would pick on its own for this post, by kind (what the picker suggests).
+
+## services/compliance/sentiment/input_builder.py (387 lines) - Input building and prompt construction for sentiment analysis.
+- `_load_submission` (def)
+- `_load_images` (def) - The post's images in order: the main ones (e.g.
+- `_json` (def)
+- `_transcript_pending` (def)
+- `_build_input` (def) - Everything the analysis depends on.
+- `_hash` (def)
+- `_model_for` (def) - The model an input is analysed with (older inputs, saved before per-content models, used the default).
+- `_precedent_label` (def)
+- `_past_reviews` (def) - The PAST REVIEW DECISIONS section: similar posts this team already reviewed, and what they decided.
+- `_held_to_full_standard` (def) - Defense, investor and CEO content is assessed strictly; everyday general and commercial posts are not.
+- `_prompt` (def)
+- `_reference_context` (def) - The Messaging Context section of the prompt, grouped by kind, saying plainly what's missing.
+- `suggested_context` (def) - The Messaging Context the analysis would pick on its own for this post, by kind (what the picker suggests).
+
+## services/compliance/sentiment/jobs.py (545 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - `_claim` (def) - Atomically move an analysis to PROCESSING unless another worker already has it.
 - `_finish` (def)
 - `run_analysis` (def)
@@ -1382,6 +1584,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `resume_unfinished` (def) - Restart work a restart may have interrupted: stale PENDING/PROCESSING rows, and waiting rows whose
 - `_result` (def) - The stored result, with finding ids filled in for analyses saved before findings had them.
 - `_to_model` (def)
+- `context_entries` (def) - The Messaging Context the analysis was given, with each entry's scope, date and source (flagged when it's over a
 - `_with_feedback` (def)
 - `get_analysis` (def)
 - `get_for_version` (def) - The most recent analysis of one version, as it was (looking back, so never flagged stale).
@@ -1408,7 +1611,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `build` (def) - The progress of one post from its files' reading states (the same parts _run_check waits on).
 - `for_submissions` (def) - Progress for each of these posts (only call with posts whose check is still pending).
 
-## services/compliance/submissions/approval_path_service.py (170 lines) - Approval paths: who gives final approval for which content.
+## services/compliance/submissions/approval_path_service.py (197 lines) - Approval paths: who gives final approval for which content.
 - `_out` (def)
 - `list_paths` (def)
 - `options` (def) - Who can be named an approver (anyone who can review) and what a path can match on.
@@ -1419,7 +1622,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ApprovalRules` (class) - All paths, loaded once per request, matched to as many submissions as needed.
     - `__init__` (def)
     - `approvers` (def) - Approvers from every path that fits.
+- `_forget_rules` (def)
 - `load_rules` (def)
+- `_load_rules` (def)
 - `is_ceo_content` (def) - Shaun's own thought leadership: posted through his account or checked against his rule set.
 
 ## services/compliance/submissions/delegation_service.py (203 lines) - Review delegation: a reviewer hands a post in review to someone else.
@@ -1514,7 +1719,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_photo_text` (def) - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (2953 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (3025 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_same_value` (def) - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
 - `content_changed` (def) - Whether saving these fields changes anything the checks read.
 - `_json` (def)
@@ -1523,13 +1728,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_account_ids` (def)
 - `_account_covers` (def) - Whether an account publishes to one of the platforms.
 - `_file_out` (def)
+- `_cached_user_fact` (def)
 - `_is_super_admin` (def)
+    - `load` (def)
 - `_can_manage_team_content` (def) - Super admins and roles with "Manage Team Drafts" (Content Manager, Administrator) see everyone's content
 - `_can_review` (def) - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
 - `_can_suggest` (def) - Everyone who can comment on and suggest edits to review content: reviewers, and suggesting reviewers ("Suggest on
 - `_is_suggester` (def) - A suggesting reviewer only: someone who can suggest but neither review nor manage content.
 - `_can_see_team_content` (def) - Content Managers, reviewers and suggesting reviewers can read other people's submissions (a suggesting reviewer
 - `_brand_scope` (def) - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
+    - `load` (def)
 - `_reviewer_sees` (def) - SQL: a reviewer sees content on their brands that was sent to them (or to no one in particular), and
 - `_sent_to` (def) - SQL: the content was sent to this user (picked, or delegated to them), or to no one in particular (every
 - `_get_owned_row` (def) - Load a submission the user may access (creator or super admin; managers and reviewers too when
@@ -1540,6 +1748,234 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_add_event` (def)
 - `_list_files` (def)
 - `_due` (def) - The open deadline, if the content is still at the step it belongs to.
+- `_context_picks` (def)
+- `_clean_context_picks` (def) - Only known kinds, and only active entries of that kind; the order the creator picked them in.
+- `_to_submission` (def)
+- `_connected_accounts` (def) - Those of the given publishing accounts that are connected and not expired, in the order given.
+- `get_options` (def) - Choices for the submission form, limited to the brands the user works on (and those brands' accounts).
+- `create_submission` (def)
+- `list_submissions` (def) - The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers.
+- `get_submission` (def)
+- `update_submission` (def)
+- `_script_with_reviewer` (def) - A video post's script is with a reviewer, or being sent to them: the post is still a draft, but it has been sent
+- `_can_delete` (def) - Only a draft that hasn't gone to a reviewer: not in review, not approved, and no script out with a reviewer.
+- `delete_draft` (def) - Delete a draft.
+- `_safe_name` (def)
+- `add_file` (def)
+- `_require_script_stage_allows` (def) - On a post with a script stage, the video waits for the approved script.
+- `_record_file` (def) - Save a stored file to the submission (an upload or a Canva export): replace the main file or script it
+- `_store_canva_export` (def) - Write a Canva export into the submission's storage and record it as the main file.
+- `import_from_canva` (def) - Export a Canva design and add it as the submission's main file, like an upload.
+- `reimport_from_canva` (def) - Bring in the latest revision of the Canva design the main file came from, replacing it.
+- `retranscribe` (def) - Generate the speech transcript again, e.g.
+- `remove_file` (def)
+- `get_file_for_download` (def)
+- `analysis_pending` (def) - Whether the post is still being analysed: its video transcript or the text in its images isn't read yet.
+- `reads_failed` (def) - What of the post couldn't be read (video, image or document), so its wording was never checked.
+- `ai_unavailable` (def) - Whether the AI couldn't read part of the post, so the check has no score to show.
+- `_unavailable_sql` (def)
+- `_pending_sql` (def) - SQL for analysis_pending() on a stored check (older checks only have the two parts).
+- `_platform_captions` (def)
+- `_check_text` (def)
+- `check_request` (def) - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
+- `script_stage_on` (def) - Video posts created since the script stage existed have their script approved before the video.
+- `approved_script` (def) - The approved script's text, when the post went through the script stage and it was approved.
+- `_run_check` (def) - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
+- `_mirror_to_script_version` (def) - A check saved on the post while its script is with the reviewer is also the script version's check, so both
+- `run_initial_check` (def)
+    - `record` (def)
+- `_missing_for_submit` (def)
+- `details_missing` (def) - What the post still needs before its compliance check, sentiment analysis and public mood can be run.
+- `require_details_complete` (def) - The three tools read a finished post, so they are refused until its details are filled in.
+- `require_details_complete_for` (def)
+- `_require_not_duplicate` (def) - The same content and caption, already sent for approval to the same place on the same date, can't be sent
+- `_review_job` (def)
+- `submit_for_review` (def)
+- `_queue_filter` (def)
+- `dashboard_summary` (def) - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
+- `review_queue_counts` (def) - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
+- `review_queue` (def) - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
+- `get_version` (def) - A past (or the current) submitted version, for looking back at what it was and how it was decided.
+- `get_history` (def)
+- `_reviewer_ids` (def) - Active users who can review: super admins and roles with "Review & Publish Content".
+- `_suggester_ids` (def) - Active suggesting reviewers ("Suggest on Content") on any of the brands, who can be attached to a post.
+- `_creator_exclusion` (def) - Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
+- `reviewer_options` (def) - The people a creator can send content to: reviewers and super admins (on any of the brands, when given).
+- `_review_recipients` (def) - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
+- `_notify` (def)
+- `_score_line` (def) - The check's score for a message, or that it's still being analysed.
+- `_check_summary` (def)
+- `_notify_reviewers` (def)
+- `decide_review` (def) - A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
+- `_approved_row_for_reviewer` (def) - An approved submission the user may manage as a reviewer (not their own upload, unless super admin).
+- `reopen_approved` (def) - A reviewer takes back an approval (for example a late legal concern) and sends the content to its creator
+- `reschedule_approved` (def) - A reviewer moves approved content to a new publish time.
+- `_comment_out` (def)
+- `list_comments` (def)
+- `_comment_access` (def) - Reviewers, suggesting reviewers and the creator can comment and resolve comments.
+- `add_comment` (def)
+- `set_comment_resolved` (def)
+- `delete_comment` (def)
+- `_check_still_current` (def) - Whether a check that began at `started` on `row` may still be saved.
+- `_recheck_one` (def) - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
+- `recheck_open_submissions` (def) - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
+    - `describe` (def)
+- `recheck_ai_unavailable` (def) - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    - `describe` (def)
+- `retry_failed_reads` (def) - Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
+- `ai_recheck_loop` (def) - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
+- `recheck_outdated_on_start` (def) - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
+- `schedule_rulebook_recheck` (def) - Re-check open content shortly after a rule changes; a burst of edits leads to one pass.
+    - `run` (def)
+- `recheck_after_transcript` (def) - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
+- `recheck_after_image_text` (def) - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
+- `recheck_after_document_text` (def) - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
+- `_recheck_for_file` (def) - Re-run the check of the open submission a file belongs to, after something about the file was read.
+
+## services/compliance/submissions/submission_service.py (3025 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- `_same_value` (def) - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
+- `content_changed` (def) - Whether saving these fields changes anything the checks read.
+- `_json` (def)
+- `_account_option` (def)
+- `_accounts` (def)
+- `_account_ids` (def)
+- `_account_covers` (def) - Whether an account publishes to one of the platforms.
+- `_file_out` (def)
+- `_cached_user_fact` (def)
+- `_is_super_admin` (def)
+    - `load` (def)
+- `_can_manage_team_content` (def) - Super admins and roles with "Manage Team Drafts" (Content Manager, Administrator) see everyone's content
+- `_can_review` (def) - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
+- `_can_suggest` (def) - Everyone who can comment on and suggest edits to review content: reviewers, and suggesting reviewers ("Suggest on
+- `_is_suggester` (def) - A suggesting reviewer only: someone who can suggest but neither review nor manage content.
+- `_can_see_team_content` (def) - Content Managers, reviewers and suggesting reviewers can read other people's submissions (a suggesting reviewer
+- `_brand_scope` (def) - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
+    - `load` (def)
+- `_reviewer_sees` (def) - SQL: a reviewer sees content on their brands that was sent to them (or to no one in particular), and
+- `_sent_to` (def) - SQL: the content was sent to this user (picked, or delegated to them), or to no one in particular (every
+- `_get_owned_row` (def) - Load a submission the user may access (creator or super admin; managers and reviewers too when
+- `_approvers` (def) - The named final approvers for a submission row (empty: any reviewer on its brand).
+- `_may_approve` (def)
+- `_approval_fields` (def)
+- `_require_editable` (def)
+- `_add_event` (def)
+- `_list_files` (def)
+- `_due` (def) - The open deadline, if the content is still at the step it belongs to.
+- `_context_picks` (def)
+- `_clean_context_picks` (def) - Only known kinds, and only active entries of that kind; the order the creator picked them in.
+- `_to_submission` (def)
+- `_connected_accounts` (def) - Those of the given publishing accounts that are connected and not expired, in the order given.
+- `get_options` (def) - Choices for the submission form, limited to the brands the user works on (and those brands' accounts).
+- `create_submission` (def)
+- `list_submissions` (def) - The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers.
+- `get_submission` (def)
+- `update_submission` (def)
+- `_script_with_reviewer` (def) - A video post's script is with a reviewer, or being sent to them: the post is still a draft, but it has been sent
+- `_can_delete` (def) - Only a draft that hasn't gone to a reviewer: not in review, not approved, and no script out with a reviewer.
+- `delete_draft` (def) - Delete a draft.
+- `_safe_name` (def)
+- `add_file` (def)
+- `_require_script_stage_allows` (def) - On a post with a script stage, the video waits for the approved script.
+- `_record_file` (def) - Save a stored file to the submission (an upload or a Canva export): replace the main file or script it
+- `_store_canva_export` (def) - Write a Canva export into the submission's storage and record it as the main file.
+- `import_from_canva` (def) - Export a Canva design and add it as the submission's main file, like an upload.
+- `reimport_from_canva` (def) - Bring in the latest revision of the Canva design the main file came from, replacing it.
+- `retranscribe` (def) - Generate the speech transcript again, e.g.
+- `remove_file` (def)
+- `get_file_for_download` (def)
+- `analysis_pending` (def) - Whether the post is still being analysed: its video transcript or the text in its images isn't read yet.
+- `reads_failed` (def) - What of the post couldn't be read (video, image or document), so its wording was never checked.
+- `ai_unavailable` (def) - Whether the AI couldn't read part of the post, so the check has no score to show.
+- `_unavailable_sql` (def)
+- `_pending_sql` (def) - SQL for analysis_pending() on a stored check (older checks only have the two parts).
+- `_platform_captions` (def)
+- `_check_text` (def)
+- `check_request` (def) - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
+- `script_stage_on` (def) - Video posts created since the script stage existed have their script approved before the video.
+- `approved_script` (def) - The approved script's text, when the post went through the script stage and it was approved.
+- `_run_check` (def) - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
+- `_mirror_to_script_version` (def) - A check saved on the post while its script is with the reviewer is also the script version's check, so both
+- `run_initial_check` (def)
+    - `record` (def)
+- `_missing_for_submit` (def)
+- `details_missing` (def) - What the post still needs before its compliance check, sentiment analysis and public mood can be run.
+- `require_details_complete` (def) - The three tools read a finished post, so they are refused until its details are filled in.
+- `require_details_complete_for` (def)
+- `_require_not_duplicate` (def) - The same content and caption, already sent for approval to the same place on the same date, can't be sent
+- `_review_job` (def)
+- `submit_for_review` (def)
+- `_queue_filter` (def)
+- `dashboard_summary` (def) - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
+- `review_queue_counts` (def) - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
+- `review_queue` (def) - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
+- `get_version` (def) - A past (or the current) submitted version, for looking back at what it was and how it was decided.
+- `get_history` (def)
+- `_reviewer_ids` (def) - Active users who can review: super admins and roles with "Review & Publish Content".
+- `_suggester_ids` (def) - Active suggesting reviewers ("Suggest on Content") on any of the brands, who can be attached to a post.
+- `_creator_exclusion` (def) - Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
+- `reviewer_options` (def) - The people a creator can send content to: reviewers and super admins (on any of the brands, when given).
+- `_review_recipients` (def) - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
+- `_notify` (def)
+- `_score_line` (def) - The check's score for a message, or that it's still being analysed.
+- `_check_summary` (def)
+- `_notify_reviewers` (def)
+- `decide_review` (def) - A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
+- `_approved_row_for_reviewer` (def) - An approved submission the user may manage as a reviewer (not their own upload, unless super admin).
+- `reopen_approved` (def) - A reviewer takes back an approval (for example a late legal concern) and sends the content to its creator
+- `reschedule_approved` (def) - A reviewer moves approved content to a new publish time.
+- `_comment_out` (def)
+- `list_comments` (def)
+- `_comment_access` (def) - Reviewers, suggesting reviewers and the creator can comment and resolve comments.
+- `add_comment` (def)
+- `set_comment_resolved` (def)
+- `delete_comment` (def)
+- `_check_still_current` (def) - Whether a check that began at `started` on `row` may still be saved.
+- `_recheck_one` (def) - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
+- `recheck_open_submissions` (def) - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
+    - `describe` (def)
+- `recheck_ai_unavailable` (def) - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    - `describe` (def)
+- `retry_failed_reads` (def) - Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
+- `ai_recheck_loop` (def) - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
+- `recheck_outdated_on_start` (def) - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
+- `schedule_rulebook_recheck` (def) - Re-check open content shortly after a rule changes; a burst of edits leads to one pass.
+    - `run` (def)
+- `recheck_after_transcript` (def) - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
+- `recheck_after_image_text` (def) - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
+- `recheck_after_document_text` (def) - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
+- `_recheck_for_file` (def) - Re-run the check of the open submission a file belongs to, after something about the file was read.
+
+## services/compliance/submissions/submission_service.py (3025 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- `_same_value` (def) - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
+- `content_changed` (def) - Whether saving these fields changes anything the checks read.
+- `_json` (def)
+- `_account_option` (def)
+- `_accounts` (def)
+- `_account_ids` (def)
+- `_account_covers` (def) - Whether an account publishes to one of the platforms.
+- `_file_out` (def)
+- `_cached_user_fact` (def)
+- `_is_super_admin` (def)
+    - `load` (def)
+- `_can_manage_team_content` (def) - Super admins and roles with "Manage Team Drafts" (Content Manager, Administrator) see everyone's content
+- `_can_review` (def) - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
+- `_can_suggest` (def) - Everyone who can comment on and suggest edits to review content: reviewers, and suggesting reviewers ("Suggest on
+- `_is_suggester` (def) - A suggesting reviewer only: someone who can suggest but neither review nor manage content.
+- `_can_see_team_content` (def) - Content Managers, reviewers and suggesting reviewers can read other people's submissions (a suggesting reviewer
+- `_brand_scope` (def) - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
+    - `load` (def)
+- `_reviewer_sees` (def) - SQL: a reviewer sees content on their brands that was sent to them (or to no one in particular), and
+- `_sent_to` (def) - SQL: the content was sent to this user (picked, or delegated to them), or to no one in particular (every
+- `_get_owned_row` (def) - Load a submission the user may access (creator or super admin; managers and reviewers too when
+- `_approvers` (def) - The named final approvers for a submission row (empty: any reviewer on its brand).
+- `_may_approve` (def)
+- `_approval_fields` (def)
+- `_require_editable` (def)
+- `_add_event` (def)
+- `_list_files` (def)
+- `_due` (def) - The open deadline, if the content is still at the step it belongs to.
+- `_context_picks` (def)
+- `_clean_context_picks` (def) - Only known kinds, and only active entries of that kind; the order the creator picked them in.
 - `_to_submission` (def)
 - `_connected_accounts` (def) - Those of the given publishing accounts that are connected and not expired, in the order given.
 - `get_options` (def) - Choices for the submission form, limited to the brands the user works on (and those brands' accounts).
@@ -1680,22 +2116,49 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `clear_read_notifications` (def)
 - `clear_all_notifications` (def)
 
-## services/notifications/rabbitmq_service.py (408 lines) - RabbitMQ Service & Topology Manager for Social Media Compliance.
+## services/notifications/rabbitmq_config.py (196 lines) - RabbitMQ / Message Hub configuration: env-driven connection settings, exchange names and the hub server registry.
 - `_sanitize_amqp_url` (def) - Mask password from AMQP URLs to prevent logging credentials.
+- `_explicit_url_parts` (def) - Parsed RABBITMQ_URL, or None if unset.
 - `get_rabbitmq_host` (def)
 - `get_rabbitmq_port` (def)
+- `get_rabbitmq_management_port` (def)
+- `get_hub_status_cache_ttl` (def) - Seconds a hub snapshot is reused (0 disables caching).
+- `hub_peer_http_probe_enabled` (def) - Whether peers must also pass an HTTP /health/live probe to count as online (default off: hub presence is authoritative).
 - `get_rabbitmq_user` (def)
 - `get_rabbitmq_password` (def)
+- `get_rabbitmq_vhost` (def) - Virtual host: from RABBITMQ_URL path, else RABBITMQ_VHOST / RABBITMQ_DEFAULT_VHOST, else '/'.
+- `_vhost_url_part` (def)
 - `get_rabbitmq_url` (def)
 - `get_commands_exchange` (def)
 - `get_events_exchange` (def)
 - `get_dlx_exchange` (def)
+- `get_presence_exchange` (def)
 - `get_prefetch_count` (def)
+- `_build_hub_application` (def)
+
+## services/notifications/rabbitmq_hub_status.py (487 lines) - Message Hub behaviour for RabbitMQManager: SSE fan-out, shutdown, presence heartbeats, peer monitoring and live status snapshots.
+- `HubStatusMixin` (class) - Methods mixed into RabbitMQManager; relies on its connection/registry attributes.
+    - `subscribe_sse` (def)
+    - `unsubscribe_sse` (def)
+    - `_broadcast_to_sse` (def)
+    - `notify_shutting_down` (def) - Wakes all SSE streams so Uvicorn exits without hanging, and announces offline to peers.
+    - `install_uvicorn_shutdown_hook` (def) - Hook Uvicorn's Server.handle_exit so SIGINT/SIGTERM closes SSE streams and broadcasts offline.
+    - `broadcast_server_status_update` (def) - Publishes a server online/offline message on the presence exchange so every peer updates its registry.
+    - `_publish_presence_event` (def)
+    - `_presence_heartbeat_loop` (def) - Announces this server's live status every 5 seconds.
+    - `_peer_status_monitor_loop` (def) - Every 2.5s re-evaluates all hub servers; pushes SSE updates and announces peers that dropped/returned.
+    - `_run_active_queue_and_stream_probe` (def) - Round-trips a message through a temporary queue and publishes a healthcheck event to the events exchange.
+    - `get_hub_live_status` (def) - Live Message Hub snapshot, cached for HUB_STATUS_CACHE_TTL seconds with single-flight refresh.
+    - `_build_hub_live_status` (def) - Live Message Hub snapshot (same shape as the other portal backends) for the topbar servers dropdown.
+
+## services/notifications/rabbitmq_in_memory.py (46 lines) - In-memory fallback broker used when no live RabbitMQ is available.
 - `InMemoryMessageBroker` (class) - In-memory fallback & mock broker for unit testing and offline development
     - `__init__` (def)
     - `get_queue` (def)
     - `publish` (def)
     - `clear` (def)
+
+## services/notifications/rabbitmq_service.py (521 lines) - RabbitMQ Service & Topology Manager Provides resilient connection management, topology declaration, publisher confirmations, and dead-let...
 - `RabbitMQManager` (class)
     - `__init__` (def)
     - `amqp_url` (def)
@@ -1703,6 +2166,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `is_connected` (def)
     - `connect` (def) - Attempts to connect to RabbitMQ broker and initialize topology.
     - `_setup_topology` (def) - Declares durable exchanges, queues, DLX, and bindings.
+    - `_setup_hub_streams` (def) - Declares RabbitMQ Streams.
+    - `_handle_incoming_presence_payload` (def)
+    - `_start_hub_consumers` (def) - Consumers for this server's command queue, the presence stream, and an instant status-notify queue.
     - `publish_message` (def) - Publishes a persistent message with publisher confirmations.
     - `publish_social_media_event` (def) - Convenience method to publish domain events to the service events exchange.
     - `consume_queue` (def) - Subscribes to a queue and processes messages with manual acknowledgments.
@@ -1813,7 +2279,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `log_audit_event` (def) - Records an event in the audit_logs table.
 - `get_audit_logs` (def)
 
-## services/shared/core/cache_service.py (200 lines) - Goes up on every invalidation.
+## services/shared/core/cache_service.py (201 lines) - Goes up on every invalidation.
 - `AsyncInMemoryCache` (class) - Lightweight in-memory cache with TTL expiration, LRU eviction, and key/prefix invalidation.
     - `__init__` (def)
     - `get` (def)
@@ -2157,6 +2623,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `test_who_reviews_and_by_when_never_counts` (def)
 - `test_a_field_the_post_did_not_have_counts` (def)
 
+## tests/test_context_picks.py (69 lines) - The Messaging Context the creator picks for a post's analysis: kinds they chose use exactly their entries; the rest are picked automatica...
+- `entry` (def)
+- `ForContentTests` (class)
+    - `titles` (def)
+    - `test_automatic_by_the_posts_brand_and_platforms` (def)
+    - `test_a_chosen_kind_uses_exactly_the_creators_entries` (def)
+    - `test_an_empty_choice_leaves_that_kind_out` (def)
+    - `test_entries_outside_the_posts_scope_can_be_chosen` (def)
+- `CleanPicksTests` (class)
+    - `test_only_active_entries_of_the_right_kind` (def)
+    - `test_unknown_kinds_are_refused` (def)
+
 ## tests/test_conversation_mood.py (424 lines) - Public mood from the conversations found for a post: relevance checks, stories, limits, saved assessments.
 - `_item` (def)
 - `_hit` (def)
@@ -2317,6 +2795,20 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `WhichFilesTests` (class)
     - `test_scripts_and_article_files_are_read` (def)
 
+## tests/test_duplicate_early.py (71 lines) - Duplicates are looked up as soon as the details are filled in, scripts included, not only when the post is sent.
+- `version` (def)
+- `CurrentScriptText` (class)
+    - `text` (def)
+    - `test_the_uploaded_script_is_compared_once_it_has_been_read` (def)
+    - `test_a_script_not_read_yet_falls_back_to_the_last_version_sent` (def)
+    - `test_no_script_at_all_has_nothing_to_compare` (def)
+- `DuplicatesEndpoint` (class)
+    - `look_up` (def)
+    - `test_a_video_post_at_its_script_stage_is_compared_by_its_script` (def)
+    - `test_without_a_script_yet_there_is_nothing_to_find` (def)
+    - `test_once_the_script_is_approved_the_post_is_compared_as_a_post` (def)
+    - `test_other_posts_are_compared_as_before` (def)
+
 ## tests/test_duplicate_posts.py (103 lines) - test duplicate posts
 - `post` (def)
 - `find` (def)
@@ -2429,6 +2921,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `setUpClass` (def)
     - `test_defence_headline_is_not_a_crisis` (def)
     - `test_clear_positive_and_negative` (def)
+
+## tests/test_message_hub_status.py (61 lines) - The message-hub dropdown asks this service for /api/message-hub/status (ported from the administration backend).
+- `HubStatusTests` (class)
+    - `test_this_service_is_the_compliance_app` (def)
+    - `test_offline_status_lists_every_hub_server_and_marks_itself` (def)
+    - `test_topology_keeps_the_social_media_queues` (def)
+    - `test_routes_exist` (def)
 
 ## tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
 - `result` (def)
@@ -2667,6 +3166,15 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `RouteTests` (class)
     - `test_the_model_status_is_an_administrators_view` (def)
 
+## tests/test_no_sample_data.py (58 lines) - Public mood never shows invented numbers: with no listening source it shows that there is none.
+- `run` (def)
+- `NoSourceTests` (class)
+    - `test_with_no_source_there_is_a_provider_that_has_no_data_and_says_so` (def)
+    - `test_no_database_and_no_feed_file_means_no_source_never_sample_data` (def)
+    - `test_the_topic_list_is_empty_not_invented_when_there_is_no_source` (def)
+    - `test_the_source_is_labelled_for_what_it_is` (def)
+    - `test_the_sample_data_code_is_gone` (def)
+
 ## tests/test_performance_period.py (86 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
 - `PeriodTests` (class)
     - `test_last_n_days_ends_now` (def)
@@ -2682,6 +3190,42 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_range_is_at_most_a_year` (def)
 - `LivePostsWindowTests` (class)
     - `test_the_query_uses_the_window` (def)
+
+## tests/test_post_queries.py (123 lines) - Searches come from what each draft says, not from a fixed topic list.
+- `QueryBuildingTests` (class)
+    - `test_queries_use_the_drafts_own_names_and_hashtags` (def)
+    - `test_a_draft_that_names_nothing_gets_no_search` (def)
+    - `test_different_drafts_give_different_searches` (def)
+    - `test_the_searches_survive_the_hand_off_to_the_scraper` (def)
+    - `test_the_draft_topic_is_matched_back_by_its_keywords` (def)
+- `NotUnrelatedTests` (class)
+    - `test_everyday_words_never_become_a_search` (def)
+    - `test_a_brand_phrase_and_a_name_still_search` (def)
+    - `test_the_scraper_drops_headlines_that_do_not_mention_the_drafts_names` (def)
+    - `test_unrelated_search_results_are_not_kept` (def)
+- `OnlyThisDraftsTopicTests` (class)
+    - `test_a_drafts_own_search_shows_only_on_that_draft` (def)
+- `ReadingDraftsTests` (class)
+    - `test_drafts_are_read_with_a_json_transcript_and_a_script_without_a_type_error` (def)
+    - `test_script_template_labels_are_not_searched` (def)
+- `ScraperUsesThemTests` (class)
+    - `test_a_search_runs_for_every_query_of_the_draft_and_files_items_under_its_topic` (def)
+    - `test_the_fixed_market_topics_are_off_unless_asked_for` (def)
+
+## tests/test_post_query_plan.py (136 lines) - The plan keeps only what the post supports, falls back without inventing, and splits direct from context.
+- `ValidateTests` (class)
+    - `test_only_what_the_posts_text_supports_is_kept` (def)
+    - `test_no_supported_context_term_means_no_wider_topic` (def)
+    - `test_at_most_six_wider_topics` (def)
+    - `test_a_plan_saved_with_one_wider_topic_still_reads` (def)
+- `PlanTests` (class)
+    - `test_gemini_failure_falls_back_to_the_rules_and_says_why` (def)
+    - `test_a_good_answer_is_saved_and_reused_without_asking_again` (def)
+    - `test_without_permission_to_ask_only_a_saved_plan_or_the_rules_are_used` (def)
+- `ScraperSplitsDirectFromContextTests` (class)
+    - `test_direct_needs_every_organisation_but_context_needs_a_context_term` (def)
+- `TopicScopingTests` (class)
+    - `test_every_wider_topic_of_a_post_belongs_to_that_post_only` (def)
 
 ## tests/test_post_signals.py (93 lines) - test post signals
 - `ExtractTests` (class)
@@ -2724,6 +3268,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_sent_post_is_locked_and_everything_is_done` (def)
     - `test_changes_requested_unlocks_it_and_the_steps_are_worked_out_again` (def)
     - `test_changes_requested_with_nothing_edited_can_be_resent` (def)
+
+## tests/test_public_mood_process.py (36 lines) - The process log reports what was done, and only that.
+- `StepTests` (class)
+    - `test_what_was_read_and_that_attachments_are_not` (def)
+    - `test_no_search_is_said_plainly` (def)
+    - `test_scrape_step_reports_found_dropped_and_kept_for_this_posts_searches` (def)
+    - `test_a_search_that_was_not_in_the_last_scrape_says_to_scrape` (def)
+    - `test_no_feed_means_nothing_collected` (def)
 
 ## tests/test_resume_reads.py (47 lines) - test resume reads
 - `ResumeInterruptedReadTests` (class)
@@ -3062,6 +3614,27 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_another_apps_token_is_refused` (def)
     - `test_the_idle_logout_follows_the_database_not_the_token` (def)
 
+## tests/test_sentiment_context_fit.py (166 lines) - The messaging context report (brand voice, facts, platform norms, audiences) and graphic vs captions: every quote is the post's own words...
+- `with_context` (def)
+- `report` (def)
+- `ReportTests` (class)
+    - `check` (def)
+    - `test_voice_lines_must_be_the_posts_words_and_name_their_entry` (def)
+    - `test_claims_are_checked_against_facts_only` (def)
+    - `test_no_fix_without_a_conflict` (def)
+    - `test_norms_and_audiences_need_an_entry_they_were_given` (def)
+- `VisualAlignmentTests` (class)
+    - `test_kept_when_there_is_a_graphic` (def)
+    - `test_dropped_when_nothing_visual_was_attached` (def)
+- `TransparencyTests` (class)
+    - `test_used_old_and_not_applied` (def)
+- `VerdictTests` (class)
+    - `settle` (def)
+    - `test_tiles_follow_their_cards` (def)
+    - `test_a_conflict_needs_a_fix_and_drifts_arent_on_voice` (def)
+    - `test_no_voice_entry_means_no_guide` (def)
+    - `test_mostly_adjust_needs_work` (def)
+
 ## tests/test_sentiment_strictness.py (70 lines) - test sentiment strictness
 - `inp` (def)
 - `StrictnessTests` (class)
@@ -3196,6 +3769,35 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_flags_can_only_be_dismissed_while_in_review` (def)
     - `test_a_reason_of_other_needs_a_note` (def)
 
+## tests/test_suggesting_reviewer.py (163 lines) - A suggesting reviewer: sees what is sent to them by name, comments and suggests edits to scripts, can't decide.
+- `role` (def) - Patches for one person's permissions.
+    - `access` (def)
+- `WhoIsASuggester` (class)
+    - `check` (def)
+    - `test_someone_with_only_the_suggest_permission_is_a_suggester` (def)
+    - `test_a_reviewer_can_suggest_but_is_not_only_a_suggester` (def)
+    - `test_a_reviewer_who_also_has_the_suggest_permission_is_not_a_suggester` (def)
+    - `test_a_content_manager_is_not_a_suggester` (def)
+    - `test_a_super_admin_is_not_a_suggester` (def)
+    - `test_someone_with_no_review_permission_cannot_suggest` (def)
+- `WhatASuggesterSees` (class)
+    - `test_they_work_on_no_brand_so_only_what_is_sent_to_them_by_name_shows` (def)
+    - `test_they_can_read_other_peoples_content` (def)
+    - `test_someone_sent_nothing_by_name_cannot_open_a_post_on_a_brand_they_do_not_work_on` (def)
+    - `test_a_post_sent_to_them_by_name_opens` (def)
+- `WhatASuggesterMayDo` (class)
+    - `comment_access` (def)
+    - `test_they_can_comment` (def)
+    - `test_someone_who_cannot_suggest_cannot_comment_on_someone_elses_post` (def)
+- `version` (def)
+- `SuggestingOnAScript` (class)
+    - `suggestable` (def)
+    - `test_a_suggester_can_suggest_on_the_script_in_review` (def)
+    - `test_only_a_suggester_suggests_reviewers_edit_the_script_themselves` (def)
+    - `test_nothing_can_be_suggested_once_the_script_is_not_in_review` (def)
+    - `test_a_script_nobody_sent_has_nothing_to_suggest_on` (def)
+    - `test_the_suggestion_is_kept_apart_from_the_script_and_the_same_wording_with_no_notes_is_nothing` (def)
+
 ## tests/test_teams_service.py (287 lines) - Teams direct messages: checking what Teams sends, saving chats, and delivering notifications.
 - `token` (def)
 - `activity` (def)
@@ -3304,7 +3906,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_search_skipped_for_time_says_so` (def)
     - `test_which_search_found_an_item_is_kept_with_it` (def)
 
-## tests/test_x_feed_store.py (243 lines) - The collected feed lives in the vector database's x_feed_data collection, and is read from there, not from a file.
+## tests/test_x_feed_store.py (244 lines) - The collected feed lives in the vector database's x_feed_data collection, and is read from there, not from a file.
 - `FakeCursor` (class)
     - `__init__` (def)
     - `sort` (def)
@@ -3363,7 +3965,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `design_thumbnail` (def) [GET /designs/{design_id}/thumbnail] - A small PNG preview of the design for the picker.
 - `simulate_edit` (def) [POST /designs/{design_id}/simulate-edit] - Mock Canva only: pretend the design was edited, so its next export is a new revision.
 
-## tools/compliance/analytics/listening_router.py (173 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
+## tools/compliance/analytics/listening_router.py (187 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
 - `list_topics` (def) [GET /topics] - Every topic with its current mood, the team's keyword tuning and how often it was matched wrongly.
 - `sync_topics` (def) [POST /topics/sync] - Pull the topic list from the listening source now instead of waiting for the daily sync.
 - `update_topic` (def) [PUT /topics/{topic_id}]
@@ -3456,7 +4058,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
 - `resolve_script_highlights` (def) [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
-## tools/compliance/submissions/submission_router.py (579 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submissions/submission_router.py (588 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
 - `list_reviewers` (def) [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
 - `get_hashtag_library` (def) [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
@@ -3482,6 +4084,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `listen` (def)
     - `work` (def)
     - `lines` (def)
+- `context_suggestions` (def) [GET /{submission_id}/context-suggestions] - The Messaging Context the analysis would pick on its own for this post, by kind (the picker's suggestions).
 - `find_duplicates` (def) [GET /{submission_id}/duplicates] - Posts already sent for approval with the same content and caption as this draft, with how their Submission
 - `submit_for_review` (def) [POST /{submission_id}/submit] - Validate required information, snapshot a new version and create a review job.
 - `get_version` (def) [GET /{submission_id}/versions/{version}] - One submitted version as it was: snapshot, video, automated check and decision.
@@ -3529,6 +4132,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - `GraphUserResult` (class)
 - `graph_user_search` (def)
+
+## tools/notifications/message_hub_router.py (57 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
+- `message_hub_status` (def) [GET /status] - Live RabbitMQ Message Hub snapshot for the topbar servers dropdown (same contract as the other portals).
+- `message_hub_test` (def) [POST /test]
+- `message_hub_stream` (def) [GET /stream] - SSE: an initial snapshot, then a new snapshot whenever any server's status changes.
+    - `_event_generator` (def)
 
 ## tools/notifications/notification_router.py (87 lines) - notification router (notifications)
 - `get_current_user_id` (def)

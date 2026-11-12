@@ -238,6 +238,7 @@ async def suggest(submission_id: UUID, user_id: UUID, req: CaptionSuggestRequest
     thought_leadership = bool(meta.get("is_ceo")) or sentiment.CEO_RULE_SET in (row["rule_sets"] or [])
     context = await context_service.for_content(
         context_service.with_thought_leadership(brands_of(row), thought_leadership), audiences_of(row), platforms,
+        picks=sentiment._json(row.get("context_picks")) or None,
     )
     rules = await applicable_rules(ComplianceCheckRequest(
         text="-", rule_sets=list(row["rule_sets"] or []), brand_codes=brands_of(row), audiences=audiences_of(row),

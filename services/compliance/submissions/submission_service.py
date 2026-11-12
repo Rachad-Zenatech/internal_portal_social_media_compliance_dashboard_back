@@ -222,9 +222,32 @@ def _file_out(submission_id: UUID, row: Dict[str, Any]) -> SubmissionFile:
     )
 
 
+# Facts about a user that nearly every request checks (super admin, brands), kept briefly in the permissions cache.
+# They live under the user's "perms:<id>" key, so a role or brand change (which invalidates that key on every
+# worker) clears them at once; the TTL only bounds anything changed outside the app.
+USER_FACT_TTL_SECONDS = 60
+
+
+async def _cached_user_fact(user_id: UUID, name: str, load):
+    from services.shared.core.cache_service import permission_cache
+
+    key = f"perms:{user_id}:{name}"
+    hit = await permission_cache.get(key)
+    if hit is not None:
+        return hit[0]
+    generation = permission_cache.generation
+    value = await load()
+    # Not stored if the user's permissions were invalidated while it was being read (it may already be stale).
+    await permission_cache.set_if_unchanged(key, (value,), generation, USER_FACT_TTL_SECONDS)
+    return value
+
+
 async def _is_super_admin(user_id: UUID) -> bool:
-    row = await fetch_one("SELECT is_super_admin FROM users WHERE id = $1", user_id)
-    return bool(row and row["is_super_admin"])
+    async def load() -> bool:
+        row = await fetch_one("SELECT is_super_admin FROM users WHERE id = $1", user_id)
+        return bool(row and row["is_super_admin"])
+
+    return await _cached_user_fact(user_id, "super_admin", load)
 
 
 async def _can_manage_team_content(user_id: UUID) -> bool:
@@ -266,19 +289,24 @@ async def _brand_scope(user_id: UUID) -> Optional[List[str]]:
     suggesting reviewer works on no brand (an empty list): they see only what was sent to them by name."""
     if await _is_suggester(user_id):
         return []
-    row = await fetch_one(
-        """
-        SELECT u.is_super_admin,
-               coalesce(array_agg(ub.brand_code) FILTER (WHERE ub.brand_code IS NOT NULL), '{}') AS brands
-        FROM users u LEFT JOIN user_brands ub ON ub.user_id = u.id
-        WHERE u.id = $1
-        GROUP BY u.id
-        """,
-        user_id,
-    )
-    if not row or row["is_super_admin"] or not row["brands"]:
-        return None
-    return list(row["brands"])
+
+    async def load() -> Optional[Tuple[str, ...]]:
+        row = await fetch_one(
+            """
+            SELECT u.is_super_admin,
+                   coalesce(array_agg(ub.brand_code) FILTER (WHERE ub.brand_code IS NOT NULL), '{}') AS brands
+            FROM users u LEFT JOIN user_brands ub ON ub.user_id = u.id
+            WHERE u.id = $1
+            GROUP BY u.id
+            """,
+            user_id,
+        )
+        if not row or row["is_super_admin"] or not row["brands"]:
+            return None
+        return tuple(row["brands"])
+
+    brands = await _cached_user_fact(user_id, "brands", load)
+    return list(brands) if brands is not None else None
 
 
 def _reviewer_sees(user_param: str, scope_param: str) -> str:
@@ -397,6 +425,27 @@ def _due(row: Dict[str, Any]) -> Dict[str, Any]:
     return {"due_at": None, "due_kind": None}
 
 
+CONTEXT_KINDS = ("BRAND_VOICE", "FACT", "PLATFORM_NORM", "AUDIENCE_PROFILE")
+
+
+def _context_picks(row: Dict[str, Any]) -> Dict[str, List[UUID]]:
+    raw = _json(row.get("context_picks")) or {}
+    return {k: [UUID(str(i)) for i in v] for k, v in raw.items() if k in CONTEXT_KINDS and isinstance(v, list)}
+
+
+async def _clean_context_picks(picks: Dict[str, List[UUID]]) -> Dict[str, List[str]]:
+    """Only known kinds, and only active entries of that kind; the order the creator picked them in."""
+    bad = [k for k in picks if k not in CONTEXT_KINDS]
+    if bad:
+        raise HTTPException(status_code=422, detail=f"Unknown Messaging Context kind(s): {', '.join(bad)}")
+    ids = list({i for v in picks.values() for i in v})
+    rows = await fetch_all(
+        "SELECT id, kind FROM messaging_context WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL AND is_active", ids,
+    ) if ids else []
+    kind_of = {r["id"]: r["kind"] for r in rows}
+    return {k: [str(i) for i in dict.fromkeys(v) if kind_of.get(i) == k] for k, v in picks.items()}
+
+
 async def _to_submission(row: Dict[str, Any]) -> Submission:
     files = await _list_files(row["id"])
     return Submission(
@@ -419,6 +468,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         **_due(row),
         caption_html=row["caption_html"],
         caption_text=row["caption_text"],
+        context_picks=_context_picks(row),
         platform_captions=_platform_captions(row),
         rule_sets=list(row["rule_sets"] or []),
         reviewer_route=list(row["reviewer_route"] or []),
@@ -459,20 +509,23 @@ async def _connected_accounts(account_ids: List[UUID]) -> List[AccountOption]:
 async def get_options(user_id: UUID) -> SubmissionOptions:
     """Choices for the submission form, limited to the brands the user works on (and those brands' accounts)."""
     scope = await _brand_scope(user_id)
-    brands = await fetch_all(
-        "SELECT code, name FROM brands WHERE is_active AND ($1::text[] IS NULL OR code = ANY($1::text[])) ORDER BY sort_order, name",
-        scope,
-    )
-    accounts = await fetch_all(
-        """
-        SELECT id, provider, account_name, connection_metadata
-        FROM oauth_connections
-        WHERE status = 'CONNECTED'
-          AND (expires_at IS NULL OR expires_at > NOW())
-          AND upper(provider) = ANY($1::text[])
-        ORDER BY account_name, provider
-        """,
-        list(PROVIDER_PLATFORMS.keys()),
+    # The brands and the accounts don't depend on each other: read both at once.
+    brands, accounts = await asyncio.gather(
+        fetch_all(
+            "SELECT code, name FROM brands WHERE is_active AND ($1::text[] IS NULL OR code = ANY($1::text[])) ORDER BY sort_order, name",
+            scope,
+        ),
+        fetch_all(
+            """
+            SELECT id, provider, account_name, connection_metadata
+            FROM oauth_connections
+            WHERE status = 'CONNECTED'
+              AND (expires_at IS NULL OR expires_at > NOW())
+              AND upper(provider) = ANY($1::text[])
+            ORDER BY account_name, provider
+            """,
+            list(PROVIDER_PLATFORMS.keys()),
+        ),
     )
     return SubmissionOptions(
         brands=[BrandOption(code=b["code"], name=b["name"]) for b in brands],
@@ -510,9 +563,11 @@ async def create_submission(data: SubmissionCreate, user_id: UUID) -> Submission
 
 async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, scope: str = "mine") -> List[SubmissionSummary]:
     """The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers."""
-    is_manager = await _can_manage_team_content(user_id)
-    is_reviewer = await _can_review(user_id)
-    is_super = await _is_super_admin(user_id)
+    # Independent lookups at once: one database round trip of waiting instead of five in a row.
+    is_manager, is_reviewer, is_super, brand_scope, rules = await asyncio.gather(
+        _can_manage_team_content(user_id), _can_review(user_id), _is_super_admin(user_id), _brand_scope(user_id),
+        approval_path_service.load_rules(),
+    )
     if scope == "all" and not (is_manager or is_reviewer):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only see your own content")
     rows = await fetch_all(
@@ -605,9 +660,8 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         status_filter,
         scope == "all",
         # Everyone else's content only for the brands the viewer works on.
-        await _brand_scope(user_id),
+        brand_scope,
     )
-    rules = await approval_path_service.load_rules()
     summaries = []
     edges = await delegation_service.edges_for([r["id"] for r in rows if r["status"] == "IN_REVIEW"])
     for r in rows:
@@ -749,6 +803,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["caption_html"] = sanitize_caption_html(payload["caption_html"])
     if "caption_text" in payload:
         fields["caption_text"] = payload["caption_text"]
+    if payload.get("context_picks") is not None:
+        fields["context_picks"] = json.dumps(await _clean_context_picks(payload["context_picks"]))
     if payload.get("platform_captions") is not None:
         captions = payload["platform_captions"]
         bad = [p for p in captions if p not in PLATFORMS]
@@ -1804,8 +1860,8 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
     """Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
     their brands for reviewers, Content Managers and super admins, otherwise their own (as in the Content Portal).
     mine=True limits it to the viewer's own content (a super admin viewing the app as a creator)."""
-    see_all = not mine and await _can_see_team_content(user_id)
-    scope = await _brand_scope(user_id)
+    team, scope = await asyncio.gather(_can_see_team_content(user_id), _brand_scope(user_id))
+    see_all = not mine and team
     visible = (
         f"s.deleted_at IS NULL AND (s.created_by = $1 OR ($2 AND {_reviewer_sees('$1', '$3')}))"
     )

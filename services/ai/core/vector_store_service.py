@@ -23,6 +23,8 @@ import asyncio
 import hashlib
 import logging
 import os
+import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
@@ -96,6 +98,38 @@ def _gemini_client() -> genai.Client:
     return _gemini
 
 
+# Once Gemini says the embedding quota is used up, embedding calls are skipped until it should be back, instead of
+# every search and index run asking again (and waiting on retries) only to be refused.
+EMBED_DAILY_QUOTA_PAUSE_SECONDS = float(os.getenv("EMBEDDING_DAILY_QUOTA_PAUSE_SECONDS", "1800"))
+_embed_paused_until = 0.0
+
+
+class EmbeddingQuotaExhausted(RuntimeError):
+    """The embedding quota is used up; raised without calling Gemini while the pause lasts."""
+
+
+def check_embedding_quota() -> None:
+    """Raise EmbeddingQuotaExhausted while embeddings are paused for the quota."""
+    left = _embed_paused_until - time.monotonic()
+    if left > 0:
+        raise EmbeddingQuotaExhausted(f"Embedding quota used up; embeddings paused for another {left:.0f}s")
+
+
+def note_embedding_error(error: Exception) -> None:
+    """Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
+    least EMBEDDING_DAILY_QUOTA_PAUSE_SECONDS (it won't come back within minutes)."""
+    global _embed_paused_until
+    text = str(error)
+    if "429" not in text and "RESOURCE_EXHAUSTED" not in text:
+        return
+    m = re.search(r"'retryDelay': '([0-9.]+)s'", text) or re.search(r"retry in ([0-9.]+)s", text)
+    wait = float(m.group(1)) if m else 60.0
+    if "perday" in text.lower().replace(" ", "").replace("_", ""):
+        wait = max(wait, EMBED_DAILY_QUOTA_PAUSE_SECONDS)
+    _embed_paused_until = max(_embed_paused_until, time.monotonic() + wait)
+    logger.warning("Gemini embedding quota reached; skipping embeddings for %.0fs", wait)
+
+
 async def embed(texts: List[str]) -> List[List[float]]:
     """Gemini embeddings for the texts, in order, batched to keep requests few."""
     vectors: List[List[float]] = []
@@ -105,9 +139,14 @@ async def embed(texts: List[str]) -> List[List[float]]:
         # One Content per text: gemini-embedding-2 is multimodal and would merge a plain list of strings into a
         # single input with one embedding.
         contents = [types.Content(parts=[types.Part(text=t)]) for t in batch]
+        check_embedding_quota()
         async with span("embedding", "gemini.embed_content", model=embedding_model(), texts=len(batch),
                         chars=sum(len(t) for t in batch)):
-            res = await client.aio.models.embed_content(model=embedding_model(), contents=contents)
+            try:
+                res = await client.aio.models.embed_content(model=embedding_model(), contents=contents)
+            except Exception as e:
+                note_embedding_error(e)
+                raise
         vectors += [list(e.values or []) for e in res.embeddings or []]
     if len(vectors) != len(texts):
         raise RuntimeError(f"Expected {len(texts)} embeddings, got {len(vectors)}")

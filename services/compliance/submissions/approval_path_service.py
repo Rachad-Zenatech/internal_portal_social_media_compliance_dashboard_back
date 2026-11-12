@@ -90,6 +90,7 @@ async def create_path(data: ApprovalPathIn, user_id: UUID) -> ApprovalPath:
         data.brand_code or None, data.audience or None, data.ceo_content, (data.label or "").strip() or None,
         list(dict.fromkeys(data.approver_ids)), user_id,
     )
+    await _forget_rules()
     await log_audit_event("approval_path", str(row["id"]), "CREATE_APPROVAL_PATH", user_id, data.model_dump(mode="json"))
     return _out(await fetch_one(_SELECT + " WHERE p.id = $1", row["id"]))
 
@@ -109,6 +110,7 @@ async def update_path(path_id: UUID, data: ApprovalPathIn, user_id: UUID) -> App
         path_id, data.brand_code or None, data.audience or None, data.ceo_content, (data.label or "").strip() or None,
         list(dict.fromkeys(data.approver_ids)), user_id,
     )
+    await _forget_rules()
     await log_audit_event("approval_path", str(path_id), "UPDATE_APPROVAL_PATH", user_id,
                           {"before": _out(before).model_dump(mode="json"), "after": data.model_dump(mode="json")})
     return _out(await fetch_one(_SELECT + " WHERE p.id = $1", path_id))
@@ -119,6 +121,7 @@ async def delete_path(path_id: UUID, user_id: UUID) -> None:
     if not before:
         raise HTTPException(status_code=404, detail="Approval path not found")
     await fetch_one("DELETE FROM approval_paths WHERE id = $1 RETURNING id", path_id)
+    await _forget_rules()
     await log_audit_event("approval_path", str(path_id), "DELETE_APPROVAL_PATH", user_id, _out(before).model_dump(mode="json"))
 
 
@@ -148,7 +151,31 @@ class ApprovalRules:
         return list(ids), sorted(set(ids.values()))
 
 
+# Every list, queue and post read needs the rules, and they change only when a path is edited (which clears this on
+# every worker) or an approver leaves (picked up within the TTL).
+_RULES_KEY = "approval_rules"
+RULES_TTL_SECONDS = 30
+
+
+async def _forget_rules() -> None:
+    from services.shared.core.cache_service import emit_cache_invalidation
+
+    await emit_cache_invalidation(scope="master_data", key=_RULES_KEY)
+
+
 async def load_rules() -> ApprovalRules:
+    from services.shared.core.cache_service import master_data_cache
+
+    cached = await master_data_cache.get(_RULES_KEY)
+    if cached is not None:
+        return cached
+    generation = master_data_cache.generation
+    rules = await _load_rules()
+    await master_data_cache.set_if_unchanged(_RULES_KEY, rules, generation, RULES_TTL_SECONDS)
+    return rules
+
+
+async def _load_rules() -> ApprovalRules:
     # Only active approvers count; ids and names come from the same filtered, ordered list so they stay aligned.
     # A path whose approvers have all left names nobody, so any brand reviewer can approve again.
     rows = await fetch_all(

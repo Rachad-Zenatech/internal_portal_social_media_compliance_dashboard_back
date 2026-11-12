@@ -333,6 +333,8 @@ def overall_status(sources: List[Dict[str, Any]], total_items: int, deadline_hit
     return "PARTIAL" if problem or deadline_hit else "SUCCESS"
 
 
+# The fixed market topics above are only collected when asked for; the default is to search what the drafts say.
+FIXED_TOPICS_ON = os.getenv("SCRAPE_FIXED_TOPICS", "off").strip().lower() in ("on", "1", "true", "yes")
 WATCH_SCORE = 1000  # a search about the company itself outranks a market topic's claim to the same story
 
 
@@ -387,6 +389,87 @@ async def _collect_watch(page, queries, sources, out_of_time, pool) -> List[Dict
     return topics
 
 
+def mentions_all(text: str, names: List[str]) -> bool:
+    return bool(names) and all(mentions_any(text, [n]) for n in names)
+
+
+def _plain(text: str) -> str:
+    return f" {re.sub(r'[^a-z0-9]+', ' ', (text or '').lower()).strip()} "
+
+
+def mentions_any(text: str, anchors: List[str]) -> bool:
+    low = _plain(text).replace(" u s ", " us ")  # "U.S. Army" and "US Army" are the same name
+    return any(_plain(a).replace(" u s ", " us ") in low for a in anchors if a.strip())
+
+
+def mentions_topic(text: str, terms: List[str]) -> bool:
+    """A headline is about a wider topic when it shares at least two of a term's main words ("military drone
+    operations" -> military + drone), or the whole term when it is short. Exact phrases are too rare in headlines."""
+    words = set(_plain(text).split())
+    for term in terms:
+        key = [w for w in _plain(term).split() if len(w) >= 4]
+        need = 2 if len(key) >= 2 else 1
+        if key and sum(1 for w in key if w in words or w.rstrip("s") in {x.rstrip("s") for x in words}) >= need:
+            return True
+    return False
+
+
+async def _collect_post_searches(page, searches, sources, out_of_time, pool) -> List[Dict[str, Any]]:
+    """News searches built from each draft's own words. Each draft gets a topic of its own; every search reports a
+    status. Returns the topics (drafts whose searches found nothing are dropped later, with the reason in sources)."""
+    from services.compliance.analytics.post_queries import context_topics_for_draft, topic_for_draft
+
+    topics: List[Dict[str, Any]] = []
+    for search in searches:
+        cfg = topic_for_draft(search)
+        found = 0
+        for q in search.get("queries") or []:
+            if out_of_time():
+                sources.append({"kind": "post:news", "name": q, "status": "SKIPPED", "items": 0})
+                continue
+            items, status = await _scrape_live_trend_news_playwright(page, q, limit=NEWS_LIMIT, drop_own_brand=False)
+            sources.append({"kind": "post:news", "name": q, "status": status, "items": len(items)})
+            # Google returns loose matches: keep only headlines that mention one of the draft's own names.
+            if cfg.get("require_all"):  # the post names several organisations: the story must name them all
+                about = [it for it in items if mentions_all(it["text"], cfg["require_all"])]
+            else:
+                about = [it for it in items if mentions_any(it["text"], cfg.get("anchors") or [])]
+            sources[-1]["dropped_unrelated"] = len(items) - len(about)
+            for it in about:
+                pool.append({"topic": cfg["external_id"], "score": WATCH_SCORE + topic_score(it["text"], cfg),
+                             "item": {**it, "category": "post", "collected_by": q}})
+            found += len(about)
+        print(f"[Playwright Live] draft {search['title'][:40]!r}: {found} candidates")
+        if search.get("queries"):
+            topics.append(cfg)
+        # The wider topic around the subject (what the public says about it, not about this announcement).
+        for ctx in context_topics_for_draft(search):
+            kept = 0
+            for q in ctx["queries"]:
+                if out_of_time():
+                    sources.append({"kind": "post:context", "name": q, "status": "SKIPPED", "items": 0})
+                    continue
+                items, status = await _scrape_live_trend_news_playwright(page, q, limit=NEWS_LIMIT, drop_own_brand=False)
+                # Two of the topic's key words are needed, even when the terms are single words ("drone", "army"):
+                # a phrase counts on its own, single words only together.
+                needs = [t for t in ctx["anchors"] if len(t.split()) >= 2] + [" ".join(ctx["anchors"])]
+                about = [it for it in items if mentions_topic(it["text"], needs)]
+                sources.append({"kind": "post:context", "name": q, "status": status, "items": len(items),
+                                "dropped_unrelated": len(items) - len(about)})
+                for it in about:
+                    pool.append({"topic": ctx["external_id"], "score": WATCH_SCORE - 1 + topic_score(it["text"], ctx),
+                                 "item": {**it, "category": "post-context", "collected_by": q}})
+                kept += len(about)
+            print(f"[Playwright Live] context {ctx['name'][:50]!r} for {search['title'][:30]!r}: {kept} candidates")
+            topics.append(ctx)
+    return topics
+
+
+def read_post_searches() -> List[Dict[str, Any]]:
+    from services.compliance.analytics.post_queries import read_file
+    return read_file()
+
+
 async def build_live_x_listening_json(output_path: Optional[Path] = None) -> Dict[str, Any]:
     """Launch Playwright headless Chromium and collect candidates for each market topic and for searches about the
     company itself (bounded by time and item limits), give every story one home, score each with the sentiment model,
@@ -409,7 +492,10 @@ async def build_live_x_listening_json(output_path: Optional[Path] = None) -> Dic
     handle_cache: Dict[str, List[Dict[str, Any]]] = {}
     sources: List[Dict[str, Any]] = []
     pool: List[Dict[str, Any]] = []
-    queries = build_queries(load_plan())
+    post_searches = read_post_searches()
+    market_topics = TRENDING_MARKET_TOPICS if FIXED_TOPICS_ON else []
+    if not post_searches:
+        sources.append({"kind": "post", "name": "drafts", "status": "NOT_CONFIGURED", "items": 0})
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -421,7 +507,7 @@ async def build_live_x_listening_json(output_path: Optional[Path] = None) -> Dic
         )
         page = await context.new_page()
 
-        unique_handles = list(dict.fromkeys(h for t in TRENDING_MARKET_TOPICS for h in t.get("x_handles", [])))
+        unique_handles = list(dict.fromkeys(h for t in market_topics for h in t.get("x_handles", [])))
         for handle in unique_handles:
             if out_of_time():
                 sources.append({"kind": "x_handle", "name": f"@{handle}", "status": "SKIPPED", "items": 0})
@@ -432,7 +518,7 @@ async def build_live_x_listening_json(output_path: Optional[Path] = None) -> Dic
             print(f"[Playwright Live] @{handle}: {len(posts)} X posts ({status})")
 
         # Market topics: news for each topic's query, and X posts from its accounts.
-        for topic_cfg in TRENDING_MARKET_TOPICS:
+        for topic_cfg in market_topics:
             tid = topic_cfg["external_id"]
             if out_of_time():
                 sources.append({"kind": "news", "name": topic_cfg["name"], "status": "SKIPPED", "items": 0})
@@ -451,11 +537,13 @@ async def build_live_x_listening_json(output_path: Optional[Path] = None) -> Dic
                         pool.append({"topic": tid, "score": topic_score(post["text"], topic_cfg),
                                      "item": {**post, "category": "market", "collected_by": f"@{h}"}})
 
-        # Searches about the company itself.
-        watch_topics = await _collect_watch(page, queries, sources, out_of_time, pool)
+        # Searches taken from what each draft says (title, caption, script): the main source.
+        post_topics = await _collect_post_searches(page, post_searches, sources, out_of_time, pool)
+
+        # No company-wide searches: only what the drafts themselves say is searched.
         await browser.close()
 
-    all_topics = [*watch_topics, *TRENDING_MARKET_TOPICS]  # the company's own searches first: they win ties
+    all_topics = [*post_topics, *market_topics]  # a draft's own searches first: they win ties
     homes = assign_unique(pool, [t["external_id"] for t in all_topics])
 
     topics_out: List[Dict[str, Any]] = []

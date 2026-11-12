@@ -1,18 +1,21 @@
 """Social listening providers: where "public mood" data comes from.
 
-The platform talks to one interface. Today that's a mock of Sprout Social Listening or an X (Twitter) JSON feed
-collected via Playwright/API and scored per comment with VADER (`vaderSentiment`). When the real Sprout API
-is available, implement SproutProvider and set SOCIAL_LISTENING_PROVIDER=sprout; for X JSON listening, set
-SOCIAL_LISTENING_PROVIDER=x_json (the default whenever the vector database holds a collected feed).
+The platform talks to one interface. Today that is the collected X (Twitter) and news feed, read from the vector
+database (or a feed file) and scored per item by the sentiment model (VADER as the fallback). When the real Sprout API
+is available, implement SproutProvider and set SOCIAL_LISTENING_PROVIDER=sprout; for the collected feed, set
+SOCIAL_LISTENING_PROVIDER=x_json (the default whenever the vector database holds one).
+
+There is no sample data: with no source, the provider says there is none (UnconfiguredProvider) rather than inventing
+a mood.
 """
 
-import hashlib
 import json
 import logging
 import os
-import random
 import re
+import threading
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -57,11 +60,27 @@ def volume_change(daily: List[int]) -> Optional[float]:
 
 LOCAL_MODEL_NAME = os.getenv("SENTIMENT_MODEL", "cardiffnlp/twitter-roberta-base-sentiment-latest").strip()
 _local_model: Any = None  # (tokenizer, model), False once loading failed (VADER is used from then on)
+# Loading takes a while (and may download the model); callers in worker threads wait for the one load.
+_model_lock = threading.Lock()
 
 
 def _load_local_model() -> Any:
     """The trained sentiment model, loaded once. False when it's switched off (SENTIMENT_MODEL=vader), the packages
     aren't installed, or it can't be downloaded: callers then use VADER."""
+    if _local_model is not None:
+        return _local_model
+    with _model_lock:
+        return _load_local_model_locked()
+
+
+async def warm_up_sentiment_model() -> None:
+    """Load the sentiment model in a worker thread at startup, so no request waits for it (or freezes the server)."""
+    import asyncio
+
+    await asyncio.to_thread(_load_local_model)
+
+
+def _load_local_model_locked() -> Any:
     global _local_model
     if _local_model is None:
         if not LOCAL_MODEL_NAME or LOCAL_MODEL_NAME.lower() == "vader":
@@ -85,6 +104,14 @@ def _model_probs(text: str) -> Optional[Dict[str, float]]:
     loaded = _load_local_model()
     if not loaded:
         return None
+    out = _run_model(text, loaded)
+    return dict(out) if out is not None else None
+
+
+# The same headlines are scored on every public-mood view; one model run is slow enough that repeating them in a
+# request stalled the whole server. Keyed by the loaded model too, so a different model never reuses old scores.
+@lru_cache(maxsize=20000)
+def _run_model(text: str, loaded: Tuple[Any, Any]) -> Optional[Dict[str, float]]:
     try:
         import torch
 
@@ -213,7 +240,8 @@ def evaluate_publishing_decision(
 
     return (
         "WAIT",
-        f"Mixed sentiment ({positive_pct:.0f}% positive, {neutral_pct:.0f}% neutral, {negative_pct:.0f}% negative). Review timing and angle before posting.",
+        f"Not enough positive evidence to recommend posting: {positive_pct:.0f}% positive, {neutral_pct:.0f}% neutral, "
+        f"{negative_pct:.0f}% negative (posting needs at least 55% positive and no more than 15% negative). Review timing and angle.",
     )
 
 
@@ -297,111 +325,25 @@ class ListeningProvider:
 
 
 # ---------------------------------------------------------------------------
-# Mock Sprout Social Listening
+# No source
 # ---------------------------------------------------------------------------
 
-_MOCK_TOPICS: List[Dict[str, Any]] = [
-    {"external_id": "mock-zenadrone", "description": "ZenaTech's ZenaDrone products: autonomous drones for inspection, agriculture, logistics and defense, including the ZenaDrone 1000 and IQ series.",
-     "name": "ZenaDrone", "keywords": ["zenadrone", "zena drone", "zenadrone 1000"],
-     "base": (74, 18), "volume": 900},
-    {"external_id": "mock-drone-delivery", "description": "Delivering parcels, food and medical supplies by drone; last-mile logistics, noise, safety and neighbourhood acceptance.",
-     "name": "Drone delivery", "keywords": ["drone delivery", "delivery drone", "delivery drones", "last mile"],
-     "base": (41, 38), "volume": 5200},
-    {"external_id": "mock-counter-uas", "description": "Detecting, tracking and stopping hostile or unauthorised drones; interceptor drones, airspace security, attack drones and military use.",
-     "name": "Counter-drone & Attack Drones (C-UAS)", "keywords": ["counter uas", "counter drone", "counter drones", "c uas", "interceptor", "interceptors", "attack drone", "attack drones", "military drone", "drone raid", "drone strike"],
-     "base": (22, 30), "volume": 6800, "spike": True},
-    {"external_id": "mock-ag-drones", "description": "Drones used on farms: crop monitoring, spraying, mapping fields, yield and precision agriculture.",
-     "name": "Agricultural drones", "keywords": ["agricultural drone", "agricultural drones", "crop", "crops", "farm", "farmers", "spraying", "precision agriculture"],
-     "base": (76, 16), "volume": 2400},
-    {"external_id": "mock-zoooffice", "description": "ZenaTech's ZooOffice: workplace and office software and services.",
-     "name": "ZooOffice", "keywords": ["zoooffice", "zoo office"],
-     "base": (47, 44), "volume": 310},
-    {"external_id": "mock-agentic-ai", "description": "AI agents that act on their own: automation, jobs, trust, safety and hype around autonomous AI.",
-     "name": "Agentic AI", "keywords": ["agentic ai", "ai agents", "ai agent", "agentic"],
-     "base": (72, 18), "volume": 48000, "spike": True},
-    {"external_id": "mock-daas", "description": "Drone as a Service: renting drone work (inspections, surveys, mapping) instead of buying drones; franchises and acquisitions.",
-     "name": "Drone as a Service", "keywords": ["daas", "drone as a service"],
-     "base": (73, 18), "volume": 640},
-    {"external_id": "mock-defense-procurement", "description": "Government and military buying of drones and defense technology: contracts, budgets, Pentagon and allied programmes.",
-     "name": "Defense procurement", "keywords": ["procurement", "pentagon", "dod", "defense contract", "defense budget"],
-     "base": (22, 48), "volume": 7300},
-    {"external_id": "mock-faa-rules", "description": "Drone regulation in the US: FAA Part 107, beyond-visual-line-of-sight (BVLOS) rules, waivers and certification.",
-     "name": "FAA drone rules", "keywords": ["faa", "part 107", "bvlos", "waiver", "drone regulation", "drone rules"],
-     "base": (25, 50), "volume": 1800},
-    {"external_id": "mock-zena-stock", "description": "ZenaTech as a public company (Nasdaq: ZENA): share price, investors, earnings and financing news.",
-     "name": "ZENA stock", "keywords": ["zena stock", "nasdaq zena", "nasdaq: zena", "zenatech stock", "investors", "shareholders"],
-     "base": (35, 40), "volume": 1200, "spike": True},
-]
-
-_MOCK_POSTS = {
-    "positive": [
-        "Really impressed by what {t} is doing lately. Amazing breakthrough and great service!",
-        "Saw a demo of {t} today. Faster and quieter than I expected. Game-changer for the team.",
-        "{t} keeps coming up in our team chats, mostly great things and solid results.",
-    ],
-    "neutral": [
-        "Anyone have numbers on how {t} actually performs outside of pilots?",
-        "Reading up on {t} this week. Curious where the regulation lands.",
-    ],
-    "negative": [
-        "Still not convinced by the hype around {t}. Show me results, not renders.",
-        "Concerned about privacy and safety with {t}. Who's accountable when it goes wrong?",
-    ],
-}
+NO_SOURCE_MESSAGE = ("No listening source is configured: there is no vector database holding a collected feed and no "
+                     "feed file. Connect MongoDB and click Scrape X to collect one.")
 
 
-class MockSproutProvider(ListeningProvider):
-    """Plausible, made-up Sprout Listening data. Stable within a day, drifting a little day to day, so freshness and
-    reuse can be tested. Never shown without a "mock data" label."""
+class UnconfiguredProvider(ListeningProvider):
+    """Used when there is nowhere to read public mood from. It has no data and says so. There is deliberately no sample
+    data to fall back on: a mood that was not measured is not shown, so nobody can mistake an invented number for one."""
 
-    name = "sprout"
-    is_mock = True
+    name = "unconfigured"
+    is_mock = False
 
     async def list_topics(self) -> List[Dict[str, Any]]:
-        return [
-            {"external_id": t["external_id"], "name": t["name"], "description": t["description"], "keywords": t["keywords"]}
-            for t in _MOCK_TOPICS
-        ]
+        raise ListeningUnavailable(NO_SOURCE_MESSAGE)
 
     async def snapshot(self, external_id: str, days: int = 7) -> Dict[str, Any]:
-        topic = next((t for t in _MOCK_TOPICS if t["external_id"] == external_id), None)
-        if not topic:
-            raise ListeningUnavailable(f"Unknown topic {external_id}")
-        seed = int(hashlib.sha256(f"{external_id}:{date.today().isoformat()}".encode()).hexdigest()[:8], 16)
-        rnd = random.Random(seed)
-        pos = max(5, min(85, topic["base"][0] + rnd.randint(-3, 3)))
-        neu = max(5, min(90 - pos, topic["base"][1] + rnd.randint(-3, 3)))
-        neg = 100 - pos - neu
-        base = topic["volume"]
-        daily = [max(0, int(base / 7 * rnd.uniform(0.7, 1.3))) for _ in range(days * 2)]
-        if topic.get("spike"):
-            daily[-2:] = [int(v * 2.6) for v in daily[-2:]]
-        recent, previous = sum(daily[-days:]), sum(daily[:days]) or 1
-        change = round((recent - previous) / previous * 100, 1)
-        posts = []
-        pool = [(mood, text) for mood, texts in _MOCK_POSTS.items() for text in texts]
-        authors = rnd.sample(range(100, 1000), 3)
-        for (mood, text), author in zip(rnd.sample(pool, 3), authors):
-            formatted = text.format(t=topic["name"])
-            scored = classify_comment_sentiment(formatted)
-            posts.append({
-                "network": rnd.choice(["X", "LINKEDIN", "TIKTOK", "INSTAGRAM"]),
-                "author": f"@mock_user_{author}",
-                "text": formatted,
-                "sentiment": mood.upper(),
-                "confidence": scored["confidence"],
-                "engagements": rnd.randint(20, 4000),
-                "posted_on": (date.today() - timedelta(days=rnd.randint(0, days - 1))).isoformat(),
-            })
-        return {
-            "positive": pos,
-            "neutral": neu,
-            "negative": neg,
-            "volume": recent,
-            "volume_change_pct": change,
-            "daily_volume": daily[-days:],
-            "top_posts": posts,
-        }
+        raise ListeningUnavailable(NO_SOURCE_MESSAGE)
 
 
 # ---------------------------------------------------------------------------
@@ -530,7 +472,10 @@ class XJsonListeningProvider(ListeningProvider):
         topic = next((t for t in topics if str(t.get("external_id")) == external_id), None)
         if not topic:
             raise ListeningUnavailable(f"Topic {external_id} not found in the collected X feed")
-        return analyze_raw_x_topic(topic, days=days)
+        # Scoring runs the sentiment model on each new comment: in a worker thread, so other requests keep moving.
+        import asyncio
+
+        return await asyncio.to_thread(analyze_raw_x_topic, topic, days)
 
 
 # ---------------------------------------------------------------------------
@@ -574,5 +519,5 @@ def get_provider() -> ListeningProvider:
             # With a vector database the feed is there (or not collected yet): never made-up data.
             _provider = XJsonListeningProvider()
         else:
-            _provider = MockSproutProvider()
+            _provider = UnconfiguredProvider()
     return _provider

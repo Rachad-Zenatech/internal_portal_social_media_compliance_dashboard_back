@@ -108,6 +108,9 @@ class SubmissionUpdate(BaseModel):
     approval_needed_by: Optional[datetime] = None
     caption_html: Optional[str] = Field(None, max_length=200_000)
     caption_text: Optional[str] = Field(None, max_length=100_000)
+    # Messaging Context the creator chose for the analysis, by kind (BRAND_VOICE, FACT, PLATFORM_NORM,
+    # AUDIENCE_PROFILE). A kind left out is automatic; an empty list means none of that kind.
+    context_picks: Optional[Dict[str, List[UUID]]] = None
     # A different caption for some platforms, as plain text by platform; the others use caption_text. {} clears them.
     platform_captions: Optional[Dict[str, str]] = Field(None, max_length=len(PLATFORMS))
     rule_sets: Optional[List[str]] = Field(None, max_length=len(RULE_SETS))
@@ -287,6 +290,8 @@ class Submission(BaseModel):
     due_kind: Optional[Literal["REVIEW", "REVISION", "VIDEO"]] = None
     caption_html: Optional[str] = None
     caption_text: Optional[str] = None
+    # Messaging Context the creator chose for the analysis, by kind; a kind left out is automatic.
+    context_picks: Dict[str, List[UUID]] = Field(default_factory=dict)
     platform_captions: Dict[str, str] = Field(default_factory=dict)
     rule_sets: List[str] = Field(default_factory=list)
     reviewer_route: List[str] = Field(default_factory=list)

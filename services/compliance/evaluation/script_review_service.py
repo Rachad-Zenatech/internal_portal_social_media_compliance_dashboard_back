@@ -781,10 +781,14 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
     """Scripts for one Content Screener tab, on the brands the viewer works on."""
     if tab not in _QUEUE_TABS:
         raise HTTPException(status_code=422, detail="Unknown queue tab")
-    if not await subs._can_see_team_content(user_id):
+    # Independent lookups at once, not one round trip after another.
+    team, is_super, is_reviewer, brand_scope, current_rb = await asyncio.gather(
+        subs._can_see_team_content(user_id), subs._is_super_admin(user_id), subs._can_review(user_id),
+        subs._brand_scope(user_id),
+        rulebook_version() if tab in ("review", "sent_back") else asyncio.sleep(0, result=None),
+    )
+    if not team:
         return []
-    is_super = await subs._is_super_admin(user_id)
-    is_reviewer = await subs._can_review(user_id)
     where, order = _QUEUE_TABS[tab]
     rows = await fetch_all(
         f"""
@@ -805,10 +809,9 @@ async def queue(user_id: UUID, tab: str = "review") -> List[ScriptQueueItem]:
         ORDER BY {order}
         LIMIT 100
         """,
-        await subs._brand_scope(user_id),
+        brand_scope,
         user_id,
     )
-    current_rb = await rulebook_version() if tab in ("review", "sent_back") else None
     items = []
     stale: List[Dict[str, Any]] = []
     for r in rows:

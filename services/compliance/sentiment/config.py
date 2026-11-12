@@ -61,7 +61,7 @@ from services.ai.core.gemini_service import is_rotatable_model_error, without_re
 logger = logging.getLogger(__name__)
 
 # v10: brand alignment also checks images and video against the visual identity in the brand voice entries.
-PROMPT_VERSION = "sentiment-v10"
+PROMPT_VERSION = "sentiment-v14"
 # Gemini processes an uploaded video before it can be used in a prompt.
 VIDEO_READY_TIMEOUT_SEC = 300
 # Models to analyse with, in order of preference. Gemini's free tier gives each model its own small daily allowance
@@ -218,6 +218,40 @@ Rules for your assessment:
   transcript), say so in information_gaps and use INSUFFICIENT_GUIDANCE / INSUFFICIENT_INFORMATION rather than guess.
 - overall_assessment: NO_CONCERNS when nothing needs attention; REVIEW_SUGGESTED for issues an editor should look at;
   SIGNIFICANT_CONCERNS only for wording likely to cause real reputational, credibility or offense problems.
+- context_report: how the post measures against the REFERENCE CONTEXT, kind by kind, for a creator to read at a
+  glance. Entries are labelled [C1], [C2], ...: set ref to the label of the entry each judgement comes from. Quote the
+  post's own words exactly wherever a quote is asked for.
+  - brand_voice: verdict ON_VOICE, MOSTLY_ON_VOICE, OFF_VOICE or NO_GUIDE (no brand voice entry); headline: a few
+    words (e.g. "Sounds like ZenaTech"); summary: one sentence. Go through the post line by line (title, captions,
+    script) against each brand voice entry, its description, its "Works well" and above all its "Avoid" list: hype
+    words, exclamation-heavy copy, boasting, vague superlatives, claims beyond the product's stage, off-tone phrasing.
+    drifts: every line that drifts from the voice, however small (quote, why in a few words, rule: the voice rule it
+    breaks in a few words such as "Avoid: hype words", rewrite: the line rewritten in the voice, keeping its point).
+    follows: up to 3 lines that are clearly in the voice (quote, why in a few words, ref).
+  - facts: verdict CHECKS_OUT, NEEDS_FIX or NO_CLAIMS; summary: one sentence. claims: every factual claim in the post
+    (products and their stage, numbers, dates, places, partners, things said to be happening or done; quote it), result MATCHES (a fact on file supports it; ref = that fact), CONFLICTS (a fact on file says
+    otherwise; ref = that fact; note says what the fact says) or NO_FACT (nothing on file either way; note says if it
+    needs a source or is only opinion). fix: one sentence on what to change before sending when anything conflicts,
+    else null.
+  - platform_norms: verdict FITS, MOSTLY_FITS, NEEDS_WORK or NO_NORMS; summary: one sentence. checks: for EACH
+    platform norm entry given, 3 to 5 checks drawn from what that norm asks for (length, opening or hook, tone,
+    hashtags, call to action, visuals, on-screen text...), using that platform's own caption when it has one:
+    aspect (a word or two), norm (what the norm asks, short), observation (how this post does, short), status FITS
+    or ADJUST, ref (that platform norm's label).
+  - audiences: verdict RESONATES, MIXED, CAUTIOUS or NO_PROFILES; summary: one sentence. readings: one per audience
+    profile given (audience name, reading: how they are likely to take it in a sentence, reaction RESONATES, NEUTRAL,
+    CAUTIOUS or NEGATIVE, ref).
+  - gaps: context the post needed that isn't here (an audience it speaks to with no profile, a claim no fact covers),
+    one short sentence each; empty when nothing is missing.
+- visual_alignment: when images or a video are attached, check that the graphic shows and supports what the captions
+  say (the main caption and every platform's own caption): the product, the claim, the numbers, the people, the
+  setting and the mood. ALIGNED only when the graphic actually shows the captions' subject; PARTIAL when it shows some
+  of it, or is generic imagery that doesn't show what the captions are about (a plain background, stock imagery,
+  an unrelated scene); MISMATCH when it shows something different from, or contradicting, the captions. Not
+  contradicting the captions is not enough to be ALIGNED. explanation in one or two sentences; mismatches lists each
+  specific gap or difference (e.g. "The image shows a quadcopter, the caption names the fixed-wing ZenaDrone 2000"
+  or "The image doesn't show a drone or a roof, which the caption is about"). Leave it null when nothing visual is
+  attached.
 - Keep the summary to two sentences. Return an empty findings list when there is nothing to flag."""
 
 
@@ -311,6 +345,76 @@ RESPONSE_SCHEMA: Dict[str, Any] = {
             },
         },
         "information_gaps": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "context_report": {
+            "type": "OBJECT",
+            "properties": {
+                "brand_voice": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "verdict": _enum("ON_VOICE", "MOSTLY_ON_VOICE", "OFF_VOICE", "NO_GUIDE"),
+                        "headline": {"type": "STRING"},
+                        "summary": {"type": "STRING"},
+                        "follows": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {
+                            "quote": {"type": "STRING"}, "why": {"type": "STRING"}, "ref": {"type": "STRING"},
+                        }, "required": ["quote", "why", "ref"]}},
+                        "drifts": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {
+                            "quote": {"type": "STRING"}, "why": {"type": "STRING"}, "ref": {"type": "STRING"},
+                            "rule": {"type": "STRING", "nullable": True}, "rewrite": {"type": "STRING", "nullable": True},
+                        }, "required": ["quote", "why", "ref", "rewrite"]}},
+                    },
+                    "required": ["verdict", "headline", "summary", "follows", "drifts"],
+                },
+                "facts": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "verdict": _enum("CHECKS_OUT", "NEEDS_FIX", "UNVERIFIED", "NO_CLAIMS"),
+                        "summary": {"type": "STRING"},
+                        "claims": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {
+                            "claim": {"type": "STRING"}, "result": _enum("MATCHES", "CONFLICTS", "NO_FACT"),
+                            "note": {"type": "STRING"}, "ref": {"type": "STRING", "nullable": True},
+                        }, "required": ["claim", "result", "note"]}},
+                        "fix": {"type": "STRING", "nullable": True},
+                    },
+                    "required": ["verdict", "summary", "claims"],
+                },
+                "platform_norms": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "verdict": _enum("FITS", "MOSTLY_FITS", "NEEDS_WORK", "NO_NORMS"),
+                        "summary": {"type": "STRING"},
+                        "checks": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {
+                            "aspect": {"type": "STRING"}, "norm": {"type": "STRING"}, "observation": {"type": "STRING"},
+                            "status": _enum("FITS", "ADJUST"), "ref": {"type": "STRING"},
+                        }, "required": ["aspect", "norm", "observation", "status", "ref"]}},
+                    },
+                    "required": ["verdict", "summary", "checks"],
+                },
+                "audiences": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "verdict": _enum("RESONATES", "MIXED", "CAUTIOUS", "NO_PROFILES"),
+                        "summary": {"type": "STRING"},
+                        "readings": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {
+                            "audience": {"type": "STRING"}, "reading": {"type": "STRING"},
+                            "reaction": _enum("RESONATES", "NEUTRAL", "CAUTIOUS", "NEGATIVE"), "ref": {"type": "STRING"},
+                        }, "required": ["audience", "reading", "reaction", "ref"]}},
+                    },
+                    "required": ["verdict", "summary", "readings"],
+                },
+                "gaps": {"type": "ARRAY", "items": {"type": "STRING"}},
+            },
+            "required": ["brand_voice", "facts", "platform_norms", "audiences", "gaps"],
+        },
+        "visual_alignment": {
+            "type": "OBJECT",
+            "nullable": True,
+            "properties": {
+                "verdict": _enum("ALIGNED", "PARTIAL", "MISMATCH"),
+                "explanation": {"type": "STRING"},
+                "mismatches": {"type": "ARRAY", "items": {"type": "STRING"}},
+            },
+            "required": ["verdict", "explanation"],
+        },
         "audio": {
             "type": "OBJECT",
             "nullable": True,
@@ -325,7 +429,7 @@ RESPONSE_SCHEMA: Dict[str, Any] = {
     },
     "required": [
         "summary", "overall_assessment", "reputational_concern", "tone", "brand_alignment",
-        "audience_interpretations", "controversy", "findings", "information_gaps",
+        "audience_interpretations", "controversy", "findings", "information_gaps", "context_report",
     ],
 }
 

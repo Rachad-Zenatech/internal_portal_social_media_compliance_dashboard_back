@@ -88,7 +88,8 @@ async def _apply_cache_invalidation(scope: str, key: Optional[str] = None) -> No
     try:
         if scope == "permissions":
             if key:
-                await permission_cache.invalidate(key)
+                # "perms:<id>" and the facts kept under it ("perms:<id>:brands", ...): all of that user's entries.
+                await permission_cache.invalidate_prefix(key)
             else:
                 await permission_cache.clear()
         elif scope in ("config", "roles"):
