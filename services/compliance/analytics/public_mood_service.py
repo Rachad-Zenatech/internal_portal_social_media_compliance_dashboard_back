@@ -649,6 +649,13 @@ async def _with_feedback(summary: PublicMoodSummary, viewer: Optional[UUID]) -> 
 
 async def get_public_mood(submission_id: UUID, viewer: Optional[UUID] = None) -> PublicMood:
     row, mood = await _gather(submission_id, viewer)
+    # The creator has now read the public mood for their draft: its step counts as done on My posts too.
+    if viewer is not None:
+        await fetch_one(
+            "UPDATE content_submissions SET mood_checked_at = NOW() WHERE id = $1 AND created_by = $2 "
+            "AND status IN ('DRAFT', 'CHANGES_REQUESTED') RETURNING id",
+            submission_id, viewer,
+        )
     try:
         mood.process = [ProcessStep(**s) for s in await public_mood_process.build(row, mood)]
     except Exception:  # the log is an extra: never let it break the result

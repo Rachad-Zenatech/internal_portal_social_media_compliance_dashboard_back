@@ -324,6 +324,10 @@ async def setup():
                  "Review everyone's submitted content, comment on it, request changes, and approve it for the "
                  "calendar or publish it.", 20,
                  [("CONTENT_REVIEW", "VIEW"), ("CONTENT_REVIEW", "APPROVE")]),
+                ("CONTENT_REVIEW_SUGGEST", "Suggest on Content",
+                 "See the content that was sent to them by name, comment on it and suggest edits to its script. They "
+                 "can't approve it, request changes or schedule anything.", 30,
+                 [("CONTENT_REVIEW", "VIEW"), ("CONTENT_REVIEW", "SUGGEST")]),
             ],
             "CONFIGURATIONS": [
                 ("CONFIG_VIEW_USERS", "View Users & Roles", "View all users, roles, and permission assignments.", 10, [("CONFIG_USERS", "VIEW"), ("CONFIG_ROLES", "VIEW")]),
@@ -369,6 +373,8 @@ async def setup():
             ("USER", "Standard User", "Standard system user with basic dashboard access", False),
             ("MANAGER", "Content Manager", "Oversees the team's content: sees everyone's submissions and can delete drafts", False),
             ("REVIEWER", "Content Reviewer", "Reviews submitted content, requests changes and approves it for publishing", False),
+            ("SUGGESTING_REVIEWER", "Suggesting Reviewer",
+             "Comments on and suggests edits to the content sent to them. Can't approve, request changes or schedule", False),
         ]
         new_roles = set()
         for r_code, r_name, r_desc, is_sys in roles_data:
@@ -398,6 +404,7 @@ async def setup():
             "USER": {"MAIN_VIEW_DASHBOARD"},
             "MANAGER": {"MAIN_VIEW_DASHBOARD", "CONTENT_MANAGE_DRAFTS", "CONTENT_REVIEW_PUBLISH"},
             "REVIEWER": {"MAIN_VIEW_DASHBOARD", "CONTENT_REVIEW_PUBLISH"},
+            "SUGGESTING_REVIEWER": {"MAIN_VIEW_DASHBOARD", "CONTENT_REVIEW_SUGGEST"},
         }
         all_codes = [c for groups in groups_data.values() for c, *_ in groups]
         for r_code, wanted in default_grants.items():
