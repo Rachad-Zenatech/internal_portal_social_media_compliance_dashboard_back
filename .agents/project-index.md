@@ -69,7 +69,10 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/analytics/mood_training.py (375 lines) - Training and judging the decision model.
 - services/compliance/analytics/performance_service.py (323 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
 - services/compliance/analytics/post_metrics_providers.py (303 lines) - Where published posts' numbers come from, and what each platform's API can actually give us.
+- services/compliance/analytics/post_queries.py (219 lines) - Searches built from what each draft actually says.
+- services/compliance/analytics/post_query_plan.py (167 lines) - The searches for one draft: what its own subject is, and what the wider topic around it is.
 - services/compliance/analytics/post_signals.py (206 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
+- services/compliance/analytics/public_mood_process.py (148 lines) - A plain-language log of how a post's public mood was made, shown on the page so a person can follow it: what was read from the post, whic...
 - services/compliance/analytics/public_mood_service.py (1113 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - services/compliance/analytics/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 - services/compliance/evaluation/citation_finder.py (185 lines) - Citation finder: what a post says it got its claims from.
@@ -161,9 +164,13 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_mood_features_and_records.py (292 lines) - Steps 8 and 10: one feature function, and an insert-only record of every assessment made.
 - tests/test_mood_learning_pipeline.py (674 lines) - Steps 9, 11-14: reviews and conflicts, a fixed dataset, training, promotion, and the guarded decision.
 - tests/test_mood_xgboost_port.py (328 lines) - The XGBoost model as carried over from the administration project's approach, fitted to this project: training rows with the required att...
+- tests/test_no_sample_data.py (58 lines) - Public mood never shows invented numbers: with no listening source it shows that there is none.
 - tests/test_performance_period.py (86 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
+- tests/test_post_queries.py (123 lines) - Searches come from what each draft says, not from a fixed topic list.
+- tests/test_post_query_plan.py (136 lines) - The plan keeps only what the post supports, falls back without inventing, and splits direct from context.
 - tests/test_post_signals.py (93 lines) - test post signals
 - tests/test_post_steps.py (120 lines) - The five steps a creator works through: which are done, which are out of date, where to carry on, and when a post can be sent.
+- tests/test_public_mood_process.py (36 lines) - The process log reports what was done, and only that.
 - tests/test_resume_reads.py (47 lines) - test resume reads
 - tests/test_retired_models.py (36 lines) - test retired models
 - tests/test_review_decision.py (270 lines) - test review decision

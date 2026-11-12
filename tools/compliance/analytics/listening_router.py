@@ -21,7 +21,7 @@ from models.compliance.public_mood_model import (
     XIngestRequest,
     XTrendOpportunity,
 )
-from services.compliance.analytics import conversation_feedback, mood_model, public_mood_service as svc
+from services.compliance.analytics import conversation_feedback, mood_model, post_queries, public_mood_service as svc
 from services.compliance.analytics.listening_providers import feed_in_database, load_feed, reset_provider_cache
 from services.shared.auth.auth_service import get_current_user_id_dependency, require_permission
 
@@ -96,13 +96,14 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _run_scraper_process() -> "subprocess.CompletedProcess[str]":
+def _run_scraper_process(post_queries_file: Optional[str] = None) -> "subprocess.CompletedProcess[str]":
     """The scraper in its own Python process. Playwright needs an event loop that can start subprocesses, which the
     server's loop is not always (uvicorn --reload on Windows), and a crash or a hang there can't take the API down."""
     return subprocess.run(
         [sys.executable, "-m", "scripts.scrape_x_playwright"],
         cwd=str(ROOT_DIR), capture_output=True, text=True, encoding="utf-8", errors="replace",
-        timeout=SCRAPE_TIMEOUT_SECONDS, env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        timeout=SCRAPE_TIMEOUT_SECONDS,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8", **({post_queries.FILE_ENV: post_queries_file} if post_queries_file else {})},
     )
 
 
@@ -126,10 +127,23 @@ async def _run_scrape_and_refresh() -> None:
     """Scrape, then bring the topics, trends and conversation index up to date. Runs only from the scrape button."""
     _scrape.update(state="running", started_at=_now(), finished_at=None, error=None, collection=None)
     try:
+        # What to search comes from the drafts themselves: their titles, captions and scripts.
         try:
-            done = await asyncio.to_thread(_run_scraper_process)
+            searches = await post_queries.active_draft_searches()
+        except Exception:  # the scrape still runs (company searches); the sources list shows no draft was searched
+            logger.warning("Could not read the drafts to build searches from", exc_info=True)
+            searches = []
+        queries_file = post_queries.write_file(searches)
+        try:
+            done = await asyncio.to_thread(_run_scraper_process, queries_file)
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"The scrape took longer than {SCRAPE_TIMEOUT_SECONDS:.0f}s and was stopped.")
+        finally:
+            if queries_file:
+                try:
+                    os.remove(queries_file)
+                except OSError:
+                    pass
         if done.returncode != 0:
             tail = (done.stderr or done.stdout or "").strip().splitlines()[-3:]
             raise RuntimeError("The scraper failed: " + (" | ".join(tail)[:400] or f"exit code {done.returncode}"))

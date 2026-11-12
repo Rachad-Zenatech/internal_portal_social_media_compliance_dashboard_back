@@ -757,6 +757,30 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `metrics` (def)
 - `get_provider` (def)
 
+## services/compliance/analytics/post_queries.py (219 lines) - Searches built from what each draft actually says.
+- `_only_everyday_words` (def) - True when the word is everyday words run together ("digitaltransformation") or hyphenated ("ai-powered").
+- `_trim` (def) - The name without everyday words at its edges ("meet stacklens" -> "stacklens", "shaun test" -> "shaun").
+- `_is_subject` (def) - A name worth searching for: more than one word (and not only everyday ones), or one distinctive word.
+- `_hashtag_phrase` (def)
+- `_in_order` (def) - The phrases in the order they first appear in the text (a set has no order, and the first names matter most).
+- `queries_for_text` (def) - {"queries": [...], "keywords": [...]} for one draft, from its own words.
+- `combine_body` (def) - Everything the draft says besides its title and caption.
+- `active_draft_searches` (def) - One entry per active draft that gave at least one search: {id, title, queries, keywords}.
+- `write_file` (def) - Hand the searches to the scraper process (it has no database connection) through a temporary file.
+- `read_file` (def)
+- `topic_for_draft` (def) - The listening topic a draft's searches become, matched back to that draft by its own keywords.
+- `context_topics_for_draft` (def) - The wider topics around a draft's subject, one topic each: the public vibe about them, not coverage of this
+
+## services/compliance/analytics/post_query_plan.py (167 lines) - The searches for one draft: what its own subject is, and what the wider topic around it is.
+- `_norm` (def)
+- `text_hash` (def)
+- `validate` (def) - Keep only what the post's own text supports.
+- `rules_plan` (def)
+- `_ask_gemini` (def)
+- `contexts_of` (def) - The wider topics of a plan: [{topic, queries, terms}].
+- `read_cached` (def)
+- `plan_for_text` (def) - The plan for a draft: from the saved one if its text hasn't changed, else from Gemini, else from the rules.
+
 ## services/compliance/analytics/post_signals.py (206 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - `_key` (def)
 - `is_government_handle` (def)
@@ -772,6 +796,17 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `extract` (def) - Cashtags, hashtags, mentions and links in the post, each once, in the order they appear.
 - `SignalFinding` (class)
 - `findings` (def) - Rule-like findings from the signals.
+
+## services/compliance/analytics/public_mood_process.py (148 lines) - A plain-language log of how a post's public mood was made, shown on the page so a person can follow it: what was read from the post, whic...
+- `step` (def) - status: ok (worked), warn (worked with a limit), none (nothing to show), info.
+- `_age` (def)
+- `read_step` (def)
+- `search_step` (def)
+- `scrape_step` (def)
+- `topics_step` (def)
+- `scoring_step` (def)
+- `conversation_step` (def)
+- `build` (def)
 
 ## services/compliance/analytics/public_mood_service.py (1113 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - `_env_float` (def)
@@ -2476,6 +2511,15 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `RouteTests` (class)
     - `test_the_model_status_is_an_administrators_view` (def)
 
+## tests/test_no_sample_data.py (58 lines) - Public mood never shows invented numbers: with no listening source it shows that there is none.
+- `run` (def)
+- `NoSourceTests` (class)
+    - `test_with_no_source_there_is_a_provider_that_has_no_data_and_says_so` (def)
+    - `test_no_database_and_no_feed_file_means_no_source_never_sample_data` (def)
+    - `test_the_topic_list_is_empty_not_invented_when_there_is_no_source` (def)
+    - `test_the_source_is_labelled_for_what_it_is` (def)
+    - `test_the_sample_data_code_is_gone` (def)
+
 ## tests/test_performance_period.py (86 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
 - `PeriodTests` (class)
     - `test_last_n_days_ends_now` (def)
@@ -2491,6 +2535,42 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_range_is_at_most_a_year` (def)
 - `LivePostsWindowTests` (class)
     - `test_the_query_uses_the_window` (def)
+
+## tests/test_post_queries.py (123 lines) - Searches come from what each draft says, not from a fixed topic list.
+- `QueryBuildingTests` (class)
+    - `test_queries_use_the_drafts_own_names_and_hashtags` (def)
+    - `test_a_draft_that_names_nothing_gets_no_search` (def)
+    - `test_different_drafts_give_different_searches` (def)
+    - `test_the_searches_survive_the_hand_off_to_the_scraper` (def)
+    - `test_the_draft_topic_is_matched_back_by_its_keywords` (def)
+- `NotUnrelatedTests` (class)
+    - `test_everyday_words_never_become_a_search` (def)
+    - `test_a_brand_phrase_and_a_name_still_search` (def)
+    - `test_the_scraper_drops_headlines_that_do_not_mention_the_drafts_names` (def)
+    - `test_unrelated_search_results_are_not_kept` (def)
+- `OnlyThisDraftsTopicTests` (class)
+    - `test_a_drafts_own_search_shows_only_on_that_draft` (def)
+- `ReadingDraftsTests` (class)
+    - `test_drafts_are_read_with_a_json_transcript_and_a_script_without_a_type_error` (def)
+    - `test_script_template_labels_are_not_searched` (def)
+- `ScraperUsesThemTests` (class)
+    - `test_a_search_runs_for_every_query_of_the_draft_and_files_items_under_its_topic` (def)
+    - `test_the_fixed_market_topics_are_off_unless_asked_for` (def)
+
+## tests/test_post_query_plan.py (136 lines) - The plan keeps only what the post supports, falls back without inventing, and splits direct from context.
+- `ValidateTests` (class)
+    - `test_only_what_the_posts_text_supports_is_kept` (def)
+    - `test_no_supported_context_term_means_no_wider_topic` (def)
+    - `test_at_most_four_wider_topics` (def)
+    - `test_a_plan_saved_with_one_wider_topic_still_reads` (def)
+- `PlanTests` (class)
+    - `test_gemini_failure_falls_back_to_the_rules_and_says_why` (def)
+    - `test_a_good_answer_is_saved_and_reused_without_asking_again` (def)
+    - `test_without_permission_to_ask_only_a_saved_plan_or_the_rules_are_used` (def)
+- `ScraperSplitsDirectFromContextTests` (class)
+    - `test_direct_needs_every_organisation_but_context_needs_a_context_term` (def)
+- `TopicScopingTests` (class)
+    - `test_every_wider_topic_of_a_post_belongs_to_that_post_only` (def)
 
 ## tests/test_post_signals.py (93 lines) - test post signals
 - `ExtractTests` (class)
@@ -2533,6 +2613,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_sent_post_is_locked_and_everything_is_done` (def)
     - `test_changes_requested_unlocks_it_and_the_steps_are_worked_out_again` (def)
     - `test_changes_requested_with_nothing_edited_can_be_resent` (def)
+
+## tests/test_public_mood_process.py (36 lines) - The process log reports what was done, and only that.
+- `StepTests` (class)
+    - `test_what_was_read_and_that_attachments_are_not` (def)
+    - `test_no_search_is_said_plainly` (def)
+    - `test_scrape_step_reports_found_dropped_and_kept_for_this_posts_searches` (def)
+    - `test_a_search_that_was_not_in_the_last_scrape_says_to_scrape` (def)
+    - `test_no_feed_means_nothing_collected` (def)
 
 ## tests/test_resume_reads.py (47 lines) - test resume reads
 - `ResumeInterruptedReadTests` (class)
