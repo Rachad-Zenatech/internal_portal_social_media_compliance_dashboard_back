@@ -52,6 +52,7 @@ from tools.shared.auth.oauth_router import router as oauth_router
 from tools.compliance.submissions.compliance_router import router as compliance_router
 from tools.compliance.submissions.submission_router import router as submission_router
 from tools.compliance.submissions.script_review_router import router as script_review_router
+from tools.compliance.submissions.script_batch_router import router as script_batch_router
 from tools.compliance.analytics.canva_router import router as canva_router
 from tools.ai.vector_store_router import router as vector_store_router
 from tools.ai.ai_status_router import router as ai_status_router
@@ -136,6 +137,11 @@ async def lifespan(app: FastAPI):
             except Exception as ai_err:
                 logger.warning(f"AI observability schema setup note: {ai_err}")
             try:
+                from postgresql_db.schemas.setup_script_batches_schema import setup as setup_script_batches_schema
+                await setup_script_batches_schema()
+            except Exception as batch_err:
+                logger.warning(f"Script batch schema setup note: {batch_err}")
+            try:
                 from postgresql_db.schemas.setup_teams_schema import setup as setup_teams_schema
                 await setup_teams_schema()
             except Exception as teams_err:
@@ -209,6 +215,12 @@ async def lifespan(app: FastAPI):
     recheck_task.add_done_callback(partial(log_background_task_result, task_name="outdated-check-recheck"))
     background_tasks.append(recheck_task)
 
+    # 3e0. Facts from the ZenaTech newsroom, re-read once a day
+    from services.compliance.evaluation.newsroom_sync_service import newsroom_sync_loop
+    newsroom_task = asyncio.create_task(newsroom_sync_loop(), name="newsroom-sync")
+    newsroom_task.add_done_callback(partial(log_background_task_result, task_name="newsroom-sync"))
+    background_tasks.append(newsroom_task)
+
     # 3e1. Checks the AI couldn't read (key out of credits, quota, down) are retried until it can
     from services.compliance.submissions.submission_service import ai_recheck_loop
     ai_recheck_task = asyncio.create_task(ai_recheck_loop(), name="ai-unavailable-recheck")
@@ -224,6 +236,10 @@ async def lifespan(app: FastAPI):
         documents = await document_text_service.resume_interrupted()
         if images or documents:
             logger.info("Resumed %d image and %d document read(s) interrupted by a restart", images, documents)
+        from services.compliance.evaluation import brand_voice_service
+        manuals = await brand_voice_service.resume_interrupted()
+        if manuals:
+            logger.info("Resumed reading %d brand manual(s) interrupted by a restart", manuals)
 
     resume_reads_task = asyncio.create_task(resume_reads(), name="resume-interrupted-reads")
     resume_reads_task.add_done_callback(partial(log_background_task_result, task_name="resume-interrupted-reads"))
@@ -438,6 +454,7 @@ app.include_router(graph_router, prefix="/api", tags=["Microsoft Graph"], depend
 app.include_router(oauth_router, prefix="/api", tags=["OAuth & Integrations"])
 app.include_router(compliance_router, prefix="/api", tags=["Compliance Rules & Governance"])
 app.include_router(script_review_router, prefix="/api", tags=["Script Review"])
+app.include_router(script_batch_router, prefix="/api", tags=["Script Batches"])
 app.include_router(submission_router, prefix="/api", tags=["Content Submissions"])
 app.include_router(ai_status_router, prefix="/api", tags=["AI Status"], dependencies=authenticated)
 app.include_router(approval_path_router, prefix="/api", tags=["Approval Paths"])

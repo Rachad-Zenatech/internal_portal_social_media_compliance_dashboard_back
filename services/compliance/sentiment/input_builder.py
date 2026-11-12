@@ -141,7 +141,11 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
         "title": row["title"],
         "caption": (row["caption_text"] or "").strip()[:MAX_TEXT_CHARS],
         # Messaging Context that applies to this brand, audience and these platforms.
-        "context": await context_service.for_content(brands, audiences, platforms),
+        # A thought leadership post (Shaun's channel, or the CEO rule set) gets that brand guide whatever brand it's under.
+        "context": await context_service.for_content(
+            context_service.with_thought_leadership(brands, is_ceo or CEO_RULE_SET in rule_sets),
+            audiences, platforms, text=post_text,
+        ),
         "transcript": transcript,
         # The video itself is attached when the analysis runs; a replaced video makes earlier results stale.
         "video_file_id": str(row["video_id"]) if row["video_id"] else None,

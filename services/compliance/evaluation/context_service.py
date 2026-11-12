@@ -12,6 +12,7 @@ from fastapi import HTTPException
 from models.compliance.context_model import ContextEntry, ContextEntryIn
 from models.compliance.submission_model import AUDIENCES, PLATFORMS
 from postgresql_db.database import fetch_all, fetch_one
+from services.ai.core import vector_store_service
 from services.compliance.evaluation import reference_index_service
 from services.shared.core.audit_service import log_audit_event
 
@@ -19,6 +20,10 @@ from services.shared.core.audit_service import log_audit_event
 KIND_ORDER = ["BRAND_VOICE", "FACT", "PLATFORM_NORM", "AUDIENCE_PROFILE"]
 # Keep the prompt focused: at most this much context in total.
 MAX_PROMPT_CHARS = 9000
+# Facts are many (one per newsroom article): only the most relevant to the content come in, so there's room for the
+# platform norms and audience profiles too.
+MAX_FACTS = 12
+MAX_FACT_CHARS = 4500
 
 _SELECT = """
     SELECT m.*, u.full_name AS updated_by_name
@@ -32,7 +37,12 @@ def _out(r: Dict[str, Any]) -> ContextEntry:
         dont_examples=r["dont_examples"], brands=list(r["brands"] or []), audiences=list(r["audiences"] or []),
         platforms=list(r["platforms"] or []), source=r["source"], as_of=r["as_of"], is_active=r["is_active"],
         is_starter=r["seed_key"] is not None, updated_at=r["updated_at"], updated_by_name=r.get("updated_by_name"),
+        auto_source=r.get("auto_source"), source_url=r.get("source_url"),
     )
+
+
+def _newest_first(as_of: Any) -> int:
+    return -(as_of.toordinal() if as_of else 0)
 
 
 async def list_entries(kind: Optional[str] = None) -> List[ContextEntry]:
@@ -40,7 +50,11 @@ async def list_entries(kind: Optional[str] = None) -> List[ContextEntry]:
         _SELECT + " WHERE m.deleted_at IS NULL AND ($1::text IS NULL OR m.kind = $1) ORDER BY m.kind, m.title",
         kind,
     )
-    return sorted((_out(r) for r in rows), key=lambda e: (KIND_ORDER.index(e.kind), e.title.lower()))
+    # Facts newest first (the newsroom adds one per article); the rest by title.
+    return sorted(
+        (_out(r) for r in rows),
+        key=lambda e: (KIND_ORDER.index(e.kind), _newest_first(e.as_of) if e.kind == "FACT" else 0, e.title.lower()),
+    )
 
 
 async def _clean(data: ContextEntryIn) -> ContextEntryIn:
@@ -112,13 +126,27 @@ async def delete_entry(entry_id: UUID, user_id: UUID) -> None:
 # For the analysis
 # ---------------------------------------------------------------------------
 
+THOUGHT_LEADERSHIP_BRAND = "CEO_THOUGHT_LEADERSHIP"
+
+
+def with_thought_leadership(brand_codes: Sequence[str], thought_leadership: bool) -> List[str]:
+    """The brands whose context applies: a post on a thought leadership account (Shaun's channel) also gets the
+    thought leadership brand guide, even when it was filed under another brand."""
+    brands = list(brand_codes)
+    if thought_leadership and THOUGHT_LEADERSHIP_BRAND not in brands:
+        brands.append(THOUGHT_LEADERSHIP_BRAND)
+    return brands
+
+
 def _applies(values: List[str], content: List[str]) -> bool:
     return not values or bool(set(values) & set(content))
 
 
-async def for_content(brand_codes: Sequence[str], audiences: Sequence[str], platforms: List[str]) -> List[Dict[str, Any]]:
+async def for_content(brand_codes: Sequence[str], audiences: Sequence[str], platforms: List[str],
+                      text: str = "") -> List[Dict[str, Any]]:
     """The active entries that apply to this content, in prompt order, trimmed to a sensible total size. Platform
-    norms and audience profiles only come in when they match; brand voice and facts can also apply to everything."""
+    norms and audience profiles only come in when they match; brand voice and facts can also apply to everything.
+    Facts: the ones closest in meaning to the content's text first (when the vector store is on), then the newest."""
     rows = await fetch_all(
         "SELECT * FROM messaging_context WHERE deleted_at IS NULL AND is_active ORDER BY kind, title"
     )
@@ -146,13 +174,26 @@ async def for_content(brand_codes: Sequence[str], audiences: Sequence[str], plat
             "as_of": r["as_of"].isoformat() if r["as_of"] else None,
             # Editing an entry makes earlier analyses that used it out of date.
             "updated_at": r["updated_at"].isoformat(),
+            "_newest": _newest_first(r["as_of"]),
         })
-    picked.sort(key=lambda e: KIND_ORDER.index(e["kind"]))
-    kept, total = [], 0
+    relevant: Dict[str, int] = {}
+    if text.strip() and sum(1 for e in picked if e["kind"] == "FACT") > MAX_FACTS:
+        hits = await vector_store_service.search(
+            text[:4000], kinds=["FACT"], brand=list(brand_codes) or None, audience=list(audiences) or None,
+            platforms=platforms or None, limit=MAX_FACTS,
+        )
+        relevant = {h["source_id"]: n for n, h in enumerate(hits)}
+    picked.sort(key=lambda e: (KIND_ORDER.index(e["kind"]), relevant.get(e["id"], len(relevant)), e["_newest"]))
+    kept, total, facts, fact_chars = [], 0, 0, 0
     for e in picked:
         size = len(e["body"]) + len(e["do"] or "") + len(e["dont"] or "")
         if total + size > MAX_PROMPT_CHARS:
             continue
+        if e["kind"] == "FACT":
+            if facts >= MAX_FACTS or fact_chars + size > MAX_FACT_CHARS:
+                continue
+            facts, fact_chars = facts + 1, fact_chars + size
+        e.pop("_newest", None)
         kept.append(e)
         total += size
     return kept

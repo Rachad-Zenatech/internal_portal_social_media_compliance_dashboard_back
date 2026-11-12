@@ -306,6 +306,13 @@ def _apply(c: Candidate, result: Optional[_Result], model: Optional[str], inject
         elif injected:
             status, source = "NEEDS_REVIEW", "ADJUSTED"
             reasoning += " (The content looks like it tries to steer the review, so it isn't cleared automatically.)"
+    if (str(c.rule.severity).upper() == "CRITICAL" or c.rule.traffic_light == "RED") and status in ("CLEARED", "NEEDS_REVIEW") and (
+        source == "ADJUSTED" or result.confidence < CLEAR_MIN_CONFIDENCE
+    ):
+        # The same safeguards that stop an uncertain "cleared" apply to any answer short of "violation": a critical
+        # rule isn't let go (or turned into a warning that costs nothing) on an answer this uncertain.
+        status, source = "VIOLATION", "ADJUSTED"
+        reasoning += " (A critical rule isn't let go on an answer this uncertain, so it stays a violation until a person dismisses it.)"
     f.evaluation = ContextEvaluation(
         decision=status, matched_text=matched, subject=(result.subject or None), reasoning=reasoning,
         confidence=round(result.confidence, 2), recommended_action=(result.recommended_action or None),

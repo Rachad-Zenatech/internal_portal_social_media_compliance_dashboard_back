@@ -142,6 +142,10 @@ class ComplianceCheckRequest(BaseModel):
     # Documents attached as evidence, read as text: what the post's claims are checked against, together with the links
     # the post itself cites (see source_check_service).
     sources: List[ProvidedSource] = Field(default_factory=list)
+    # The parts of the content that get published: where a required disclaimer has to be. Empty or unset: a disclaimer
+    # anywhere in `text` counts. Set, so a disclaimer in the title or an unpublished script doesn't stand in for one
+    # the post itself doesn't carry.
+    disclaimer_text: Optional[str] = None
 
     @model_validator(mode="after")
     def _keep_audience_and_audiences_in_step(self):

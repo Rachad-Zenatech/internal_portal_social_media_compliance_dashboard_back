@@ -19,7 +19,9 @@ if not JWT_SECRET or len(JWT_SECRET) < 32:
     raise RuntimeError("JWT_SECRET or SESSION_SECRET must be configured with at least 32 characters")
 JWT_ALGORITHM = "HS256"
 JWT_ISSUER = os.getenv("JWT_ISSUER", "zenatech-internal-portal")
-ALLOWED_JWT_ISSUERS = {"zenatech-internal-portal", "app-template-auth", JWT_ISSUER}
+# Who a token is for: this app only. Other ZenaTech portals may share the issuer (and, by accident, the secret); the
+# audience keeps their tokens from signing anyone in here.
+JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "social-media-compliance")
 AUTH_COOKIE_NAME = os.getenv("AUTH_COOKIE_NAME", "access_token")
 AUTH_COOKIE_MAX_AGE = max(300, int(os.getenv("AUTH_TOKEN_TTL_SECONDS", "7200")))
 
@@ -45,6 +47,7 @@ def create_access_token(user_id: UUID, is_super_admin: bool):
         "sub": str(user_id),
         "is_super_admin": is_super_admin,
         "iss": JWT_ISSUER,
+        "aud": JWT_AUDIENCE,
         "iat": now,
         "jti": secrets.token_urlsafe(16),
         "exp": now + datetime.timedelta(seconds=AUTH_COOKIE_MAX_AGE),
@@ -59,6 +62,7 @@ LINK_TOKEN_PATHS = re.compile(
     r"^/api/(submissions/[^/]+/files/[^/]+"
     r"|submissions/[^/]+/sentiment/[^/]+/(frame|images/\d+)"
     r"|canva/designs/[^/]+/thumbnail"
+    r"|messaging-context/brand-voices/[^/]+/(logo|manual)"
     r"|notifications/stream)$"
 )
 
@@ -66,24 +70,23 @@ LINK_TOKEN_PATHS = re.compile(
 def create_link_token(user_id: UUID) -> tuple[str, datetime.datetime]:
     now = datetime.datetime.now(datetime.timezone.utc)
     expires = now + LINK_TOKEN_TTL
-    payload = {"sub": str(user_id), "scope": "link", "iss": JWT_ISSUER, "iat": now, "exp": expires,
-               "jti": secrets.token_urlsafe(12)}
+    payload = {"sub": str(user_id), "scope": "link", "iss": JWT_ISSUER, "aud": JWT_AUDIENCE, "iat": now,
+               "exp": expires, "jti": secrets.token_urlsafe(12)}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM), expires
 
 
-# Helper to verify token and extract user_id
 def verify_token(token: str):
+    """The payload of a sign-in or link token this app issued, or None. The issuer and audience must be this app's,
+    so a token from another app signed with the same secret (a service token, another portal's session) is refused."""
     try:
-        payload = jwt.decode(
+        return jwt.decode(
             token,
             JWT_SECRET,
             algorithms=[JWT_ALGORITHM],
-            options={"require": ["sub", "exp", "iat"], "verify_iss": False},
+            issuer=JWT_ISSUER,
+            audience=JWT_AUDIENCE,
+            options={"require": ["sub", "exp", "iat", "iss", "aud"]},
         )
-        iss = payload.get("iss")
-        if iss and iss not in ALLOWED_JWT_ISSUERS:
-            logger.debug(f"Token issuer {iss} not in allowed list, but accepting matching secret")
-        return payload
     except jwt.PyJWTError:
         return None
 
@@ -505,41 +508,24 @@ async def get_current_user_id_dependency(
             raise HTTPException(status_code=401, detail="This link can't be used here")
     elif from_url:
         raise HTTPException(status_code=401, detail="Sign-in tokens can't be sent in a URL")
-    user_id = None
-    sub_raw = payload.get('sub')
-    if sub_raw:
-        try:
-            user_id = UUID(str(sub_raw))
-        except (KeyError, TypeError, ValueError):
-            user_id = None
+    # Only a person signs in: a service token never stands in for a user, and the user is the one the token names.
+    if payload.get("is_service_token"):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    try:
+        user_id = UUID(str(payload["sub"]))
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid token")
 
     import time
     now_ts = time.time()
-    user = None
-    if user_id:
-        cached = _user_auth_cache.get(user_id)
-        if cached and (now_ts - cached["time"]) < 30.0:
-            user = cached["user"]
-        else:
-            user = await fetch_one(
-                "SELECT id, last_activity_at, last_logout_at, is_super_admin FROM users WHERE id = $1 AND deleted_at IS NULL AND is_active = true",
-                user_id,
-            )
-
-    if not user and (payload.get("is_service_token") or payload.get("email")):
-        if payload.get("email"):
-            user = await fetch_one(
-                "SELECT id, last_activity_at, last_logout_at, is_super_admin FROM users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL AND is_active = true",
-                payload["email"],
-            )
-        if not user and payload.get("is_service_token"):
-            user = await fetch_one(
-                "SELECT id, last_activity_at, last_logout_at, is_super_admin FROM users WHERE is_super_admin = true AND deleted_at IS NULL AND is_active = true ORDER BY created_at ASC LIMIT 1",
-            )
-            if not user:
-                user = await fetch_one(
-                    "SELECT id, last_activity_at, last_logout_at, is_super_admin FROM users WHERE deleted_at IS NULL AND is_active = true ORDER BY created_at ASC LIMIT 1",
-                )
+    cached = _user_auth_cache.get(user_id)
+    if cached and (now_ts - cached["time"]) < 30.0:
+        user = cached["user"]
+    else:
+        user = await fetch_one(
+            "SELECT id, last_activity_at, last_logout_at, is_super_admin FROM users WHERE id = $1 AND deleted_at IS NULL AND is_active = true",
+            user_id,
+        )
 
     if not user:
         raise HTTPException(status_code=401, detail="User is inactive or no longer exists")
@@ -558,7 +544,8 @@ async def get_current_user_id_dependency(
     if user.get("last_activity_at"):
         if now_dt - user["last_activity_at"] > datetime.timedelta(minutes=30):
             from postgresql_db.database import execute
-            if payload.get("is_super_admin") or payload.get("is_service_token"):
+            # Whether the idle logout applies is the database's call, not the token's.
+            if user.get("is_super_admin"):
                 await execute("UPDATE users SET last_activity_at = now() WHERE id = $1", user_id)
             else:
                 await execute("UPDATE users SET last_logout_at = now() WHERE id = $1", user_id)

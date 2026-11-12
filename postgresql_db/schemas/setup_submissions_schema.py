@@ -211,6 +211,11 @@ async def setup():
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_status VARCHAR(30);
             -- While a sent script is being read and scored in the background: {status: PROCESSING|FAILED, started_at, error}.
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_send JSONB;
+            -- The creator's compliance check of the uploaded script before sending it: {key, rulebook_version, check,
+            -- checked_at}. Reused when the script is sent if the wording, details and rulebook are unchanged.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_precheck JSONB;
+            -- A different caption for some of its platforms ({"LINKEDIN": "..."}); the others use caption_text.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS platform_captions JSONB NOT NULL DEFAULT '{}'::jsonb;
             CREATE INDEX IF NOT EXISTS idx_content_submissions_script_status ON content_submissions(script_status)
                 WHERE script_status IS NOT NULL AND deleted_at IS NULL;
             -- Each version of the script's text: the creator's upload or edit, or the reviewer's edit. The reviewer's
@@ -313,20 +318,6 @@ async def setup():
                 ON content_review_comments(submission_id, created_at) WHERE deleted_at IS NULL;
             -- Whether the author wrote it as the reviewer (a super admin can review their own upload)
             ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS from_reviewer BOOLEAN;
-
-            -- Reviewer hierarchy by role: Super Admin (4) > Administrator (3) > Content Manager (2) > anyone else who
-            -- can review (1). Content sent to a reviewer is also seen by, and can be approved by, everyone who
-            -- outranks them; one approval from any of them approves it.
-            CREATE OR REPLACE FUNCTION content_review_rank(uid UUID) RETURNS INT LANGUAGE sql STABLE AS $fn$
-                SELECT GREATEST(
-                    (SELECT CASE WHEN u.is_super_admin THEN 4 ELSE 1 END FROM users u WHERE u.id = uid),
-                    COALESCE((
-                        SELECT MAX(CASE r.code WHEN 'SUPER_ADMIN' THEN 4 WHEN 'ADMIN' THEN 3 WHEN 'MANAGER' THEN 2 ELSE 1 END)
-                        FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-                        WHERE ur.user_id = uid AND ur.is_active AND r.is_active AND r.deleted_at IS NULL
-                    ), 1)
-                )
-            $fn$;
 
             -- Review delegations: a reviewer hands a post in review to someone else. The delegate is added to the
             -- post's reviewers; the delegator stays on it, so they still see its status (and can still decide).

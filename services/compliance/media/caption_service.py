@@ -233,7 +233,12 @@ async def suggest(submission_id: UUID, user_id: UUID, req: CaptionSuggestRequest
     await ai_usage_service.reserve("CAPTION", user_id, submission_id)
     images = await sentiment._image_parts(image_refs)
     platforms = list(row["platforms"] or [])
-    context = await context_service.for_content(brands_of(row), audiences_of(row), platforms)
+    # Captions for a thought leadership account follow that brand guide too (same as the sentiment analysis).
+    meta = sentiment._json(row["account_meta"]) or {}
+    thought_leadership = bool(meta.get("is_ceo")) or sentiment.CEO_RULE_SET in (row["rule_sets"] or [])
+    context = await context_service.for_content(
+        context_service.with_thought_leadership(brands_of(row), thought_leadership), audiences_of(row), platforms,
+    )
     rules = await applicable_rules(ComplianceCheckRequest(
         text="-", rule_sets=list(row["rule_sets"] or []), brand_codes=brands_of(row), audiences=audiences_of(row),
         region=row["region"], platforms=platforms,

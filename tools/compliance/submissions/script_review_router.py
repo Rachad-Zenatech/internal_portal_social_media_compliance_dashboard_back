@@ -2,12 +2,13 @@
 The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 """
 
-from typing import Annotated, Any, Dict, List, Literal
+from typing import Annotated, Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
 from models.compliance.script_review_model import (
+    ScriptSubmitRequest,
     ScriptHighlight,
     ScriptHighlightsRequest,
     ScriptResolutionsRequest,
@@ -38,9 +39,10 @@ async def get_script(submission_id: UUID, user_id: CurrentUser):
 
 
 @router.post("/{submission_id}/script/submit", response_model=ScriptStage)
-async def submit_script(submission_id: UUID, user_id: CurrentUser):
-    """Send the uploaded script for review."""
-    return await svc.submit(submission_id, user_id)
+async def submit_script(submission_id: UUID, user_id: CurrentUser, body: Optional[ScriptSubmitRequest] = None):
+    """Send the uploaded script for review. The same script already sent for the same place and publish date is
+    refused (409 DUPLICATE_SCRIPT); for another date it needs confirm_repost (409 REPOST_CONFIRM)."""
+    return await svc.submit(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost))
 
 
 @router.post("/{submission_id}/script/decision", response_model=ScriptStage)
@@ -59,6 +61,12 @@ async def accept_script_edits(submission_id: UUID, user_id: CurrentUser):
 async def revise_script(submission_id: UUID, req: ScriptReviseRequest, user_id: CurrentUser):
     """Send an edited script back to the reviewer."""
     return await svc.revise(submission_id, user_id, req)
+
+
+@router.post("/{submission_id}/script/precheck", response_model=ScriptStage)
+async def precheck_script(submission_id: UUID, user_id: CurrentUser):
+    """Creator: check the uploaded script against the rulebook before sending it (the result is kept)."""
+    return await svc.precheck(submission_id, user_id)
 
 
 @router.post("/{submission_id}/script/check", response_model=Dict[str, Any])

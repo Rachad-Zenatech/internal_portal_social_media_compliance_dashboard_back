@@ -106,6 +106,8 @@ class SubmissionUpdate(BaseModel):
     approval_needed_by: Optional[datetime] = None
     caption_html: Optional[str] = Field(None, max_length=200_000)
     caption_text: Optional[str] = Field(None, max_length=100_000)
+    # A different caption for some platforms, as plain text by platform; the others use caption_text. {} clears them.
+    platform_captions: Optional[Dict[str, str]] = Field(None, max_length=len(PLATFORMS))
     rule_sets: Optional[List[str]] = Field(None, max_length=len(RULE_SETS))
     reviewer_route: Optional[List[str]] = Field(None, max_length=len(REVIEWER_ROUTES))
     # The reviewers to send it to; an empty list sends it to every reviewer on its brand.
@@ -236,6 +238,8 @@ class SubmissionSummary(BaseModel):
     account: Optional[AccountOption] = None
     accounts: List[AccountOption] = Field(default_factory=list)
     caption_text: Optional[str] = None
+    # Platforms with their own caption (plain text); the others use caption_text.
+    platform_captions: Dict[str, str] = Field(default_factory=dict)
     # Video posts with a script stage: the start of the script, shown on the card until a video is added.
     script_excerpt: Optional[str] = None
     cover: Optional[SubmissionFile] = None
@@ -281,6 +285,7 @@ class Submission(BaseModel):
     due_kind: Optional[Literal["REVIEW", "REVISION", "VIDEO"]] = None
     caption_html: Optional[str] = None
     caption_text: Optional[str] = None
+    platform_captions: Dict[str, str] = Field(default_factory=dict)
     rule_sets: List[str] = Field(default_factory=list)
     reviewer_route: List[str] = Field(default_factory=list)
     # The reviewers it's sent to (empty: every reviewer on its brand). Once submitted, its final approvers too.
@@ -485,6 +490,8 @@ class ReviewQueueItem(BaseModel):
     platforms: List[str] = Field(default_factory=list)
     account: Optional[AccountOption] = None
     caption_text: Optional[str] = None
+    # Platforms with their own caption (plain text); the others use caption_text.
+    platform_captions: Dict[str, str] = Field(default_factory=dict)
     latest_check: Optional[Dict[str, Any]] = None
     # While the check is still reading the post: what's left and when the score is expected.
     analysis_progress: Optional[AnalysisProgress] = None

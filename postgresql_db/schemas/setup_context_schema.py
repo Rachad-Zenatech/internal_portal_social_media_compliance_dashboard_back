@@ -8,8 +8,80 @@ from postgresql_db.database import get_pool
 
 logger = logging.getLogger(__name__)
 
+# Thought leadership accounts (Shaun's channels): every post on them is the CEO_THOUGHT_LEADERSHIP brand.
+THOUGHT_LEADERSHIP = ["CEO_THOUGHT_LEADERSHIP"]
+BRAND_MANUAL = "ZenaTech Brand Manual"
+
 # Starter entries. Each is seeded only if its key has never existed, so edits (and removals) stick.
 SEED_ENTRIES = [
+    # ---- Brand voice: thought leadership accounts (from the ZenaTech Brand Manual) ----
+    # The manual is a visual identity guide (colours, typefaces, logo); its words are kept as written, and the
+    # voice entry comes from the Defense Thought Leadership Rulebook's voice standard.
+    {
+        "seed_key": "brand:CEO_THOUGHT_LEADERSHIP:colours",
+        "kind": "BRAND_VOICE",
+        "title": "Brand colours",
+        "brands": THOUGHT_LEADERSHIP,
+        "source": BRAND_MANUAL,
+        "body": "Three main colours. Grand Bleu #005981 is the lead colour: a dark, cool blue that conveys trust, "
+                "responsibility, calm, security and reliability, and suits a technology company's professionalism. "
+                "Ottoman Red #ED2224 is the accent: bold and energetic, it draws attention and adds urgency, and it is "
+                "the red of the dots in the ZENA wordmark. Steely Grey #939598 is the neutral: calm, understated and "
+                "modern, used for supporting elements and for TECH in the logo. Tints and shades of these three, and "
+                "black and white, complete the palette. Applies to designed graphics: title cards, text overlays, "
+                "lower thirds, quote cards, slides and end cards. Unedited photos and footage of real people and "
+                "operations don't need to be in brand colours.",
+        "do_examples": "Grand Bleu backgrounds or headlines with white text; red for one point of emphasis (a key "
+                       "word, a number, a divider); grey for secondary text and rules.",
+        "dont_examples": "Colours outside the palette as the main colour of a graphic (purple, green, orange, neon "
+                         "or rainbow gradients); red as the dominant background; low-contrast text, such as grey on "
+                         "Grand Bleu at small sizes.",
+    },
+    {
+        "seed_key": "brand:CEO_THOUGHT_LEADERSHIP:typography",
+        "kind": "BRAND_VOICE",
+        "title": "Brand typefaces",
+        "brands": THOUGHT_LEADERSHIP,
+        "source": BRAND_MANUAL,
+        "body": "Poppins is the brand typeface, in its Light, Regular, Medium, SemiBold, Bold and Black weights. "
+                "Montserrat is the second typeface. On-screen text, headlines and captions burned into images or "
+                "video should be set in one of these two geometric sans serifs.",
+        "do_examples": "Poppins SemiBold or Bold for headlines and key numbers; Poppins Regular or Montserrat for "
+                       "body text and lower thirds.",
+        "dont_examples": "Script, handwritten, novelty or serif display fonts; more than two typefaces in one graphic; "
+                         "stretched or outlined text.",
+    },
+    {
+        "seed_key": "brand:CEO_THOUGHT_LEADERSHIP:logo",
+        "kind": "BRAND_VOICE",
+        "title": "ZenaTech logo",
+        "brands": THOUGHT_LEADERSHIP,
+        "source": BRAND_MANUAL,
+        "body": "The logo is the ZENA wordmark with two Ottoman Red dots, above TECH in Steely Grey. The manual shows "
+                "four approved versions: white ZENA on Grand Bleu, white ZENA on black, Grand Bleu ZENA on white, and "
+                "charcoal ZENA on light grey. TECH stays Steely Grey in every version.",
+        "do_examples": "One of the four approved versions, on a plain background with clear space around it.",
+        "dont_examples": "Recoloured, stretched, rotated, outlined or shadowed logos; the logo on a busy photo or on "
+                         "a background with poor contrast; the dots in any colour but red; ZENA without TECH.",
+    },
+    {
+        "seed_key": "brand:CEO_THOUGHT_LEADERSHIP:voice",
+        "kind": "BRAND_VOICE",
+        "title": "Thought leadership voice",
+        "brands": THOUGHT_LEADERSHIP,
+        "source": "Defense Thought Leadership Rulebook (voice standard)",
+        "body": "Authoritative, plain-spoken and specific, never breathless. Confident about the issue and calibrated "
+                "about the company's present maturity. Nonpartisan, and serious about conflict, never celebratory "
+                "about destruction. Bold about the problem and the vision, precise about capability and development "
+                "status, and ultra-precise about any military relationship. The look matches the voice: calm Grand "
+                "Bleu, clean Poppins type and restrained use of red read as credible; loud colours, busy layouts "
+                "and hype graphics undercut it.",
+        "do_examples": "\"Defense does not have a sensor problem. It has a decision-speed problem.\" One clear point "
+                       "per post, backed by a specific example or number.",
+        "dont_examples": "Hype words (revolutionary, game-changing, unstoppable), exclamation-heavy copy, attacks on "
+                         "named officials or agencies, and capability claims beyond the product's current stage.",
+    },
+
     # ---- Platform norms ----
     {
         "seed_key": "platform:LINKEDIN",
@@ -180,17 +252,74 @@ async def setup() -> None:
                 deleted_at TIMESTAMP WITH TIME ZONE
             );
             CREATE INDEX IF NOT EXISTS idx_messaging_context_kind ON messaging_context(kind) WHERE deleted_at IS NULL;
+            -- Facts read from a source (the ZenaTech newsroom): the article, the fact as last generated (so a person's
+            -- rewrite can be told apart and kept) and a hash of the article text (so only changed articles are re-read).
+            ALTER TABLE messaging_context ADD COLUMN IF NOT EXISTS source_url TEXT;
+            ALTER TABLE messaging_context ADD COLUMN IF NOT EXISTS auto_source VARCHAR(30);
+            ALTER TABLE messaging_context ADD COLUMN IF NOT EXISTS auto_body TEXT;
+            ALTER TABLE messaging_context ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64);
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_messaging_context_source_url ON messaging_context(source_url);
+            -- Each sync of a source: when, what it found and did, and why it failed.
+            CREATE TABLE IF NOT EXISTS messaging_context_syncs (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                source VARCHAR(30) NOT NULL,
+                trigger VARCHAR(20) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'RUNNING',
+                started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                finished_at TIMESTAMP WITH TIME ZONE,
+                found INT NOT NULL DEFAULT 0,
+                added INT NOT NULL DEFAULT 0,
+                updated INT NOT NULL DEFAULT 0,
+                unchanged INT NOT NULL DEFAULT 0,
+                skipped INT NOT NULL DEFAULT 0,
+                failed INT NOT NULL DEFAULT 0,
+                error TEXT,
+                started_by UUID REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_messaging_context_syncs_source ON messaging_context_syncs(source, started_at DESC);
+
+            -- Brand voice per brand, read from its brand manual (PDF): voice, tone, do's and don'ts, colours,
+            -- typefaces and the logo. Kept in the Messaging Context as the brand's Brand Voice entry (auto_source
+            -- BRAND_MANUAL) so the analysis uses it.
+            CREATE TABLE IF NOT EXISTS brand_voice_profiles (
+                brand_code VARCHAR(50) PRIMARY KEY REFERENCES brands(code) ON DELETE CASCADE,
+                manual_name VARCHAR(300),
+                manual_path TEXT,
+                manual_size BIGINT,
+                manual_uploaded_at TIMESTAMP WITH TIME ZONE,
+                manual_uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'NONE',
+                error TEXT,
+                processing_started_at TIMESTAMP WITH TIME ZONE,
+                voice TEXT,
+                tone TEXT[] NOT NULL DEFAULT '{}',
+                do_examples TEXT[] NOT NULL DEFAULT '{}',
+                dont_examples TEXT[] NOT NULL DEFAULT '{}',
+                colors JSONB NOT NULL DEFAULT '[]'::jsonb,
+                typefaces JSONB NOT NULL DEFAULT '[]'::jsonb,
+                logo_path TEXT,
+                logo_mime VARCHAR(50),
+                logo_notes TEXT,
+                -- Rows of swatches in the manual (tints, shades...) by main colour: [{base_hex, label, colors}].
+                palette JSONB NOT NULL DEFAULT '[]'::jsonb,
+                extracted_at TIMESTAMP WITH TIME ZONE,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                updated_by UUID REFERENCES users(id) ON DELETE SET NULL
+            );
+            ALTER TABLE brand_voice_profiles ADD COLUMN IF NOT EXISTS palette JSONB NOT NULL DEFAULT '[]'::jsonb;
         """)
         await conn.execute(
             """
-            INSERT INTO messaging_context (seed_key, kind, title, body, do_examples, dont_examples, brands, audiences, platforms)
+            INSERT INTO messaging_context (seed_key, kind, title, body, do_examples, dont_examples, brands, audiences,
+                                           platforms, source)
             SELECT e.seed_key, e.kind, e.title, e.body, e.do_examples, e.dont_examples,
                    ARRAY(SELECT jsonb_array_elements_text(coalesce(e.brands, '[]'))),
                    ARRAY(SELECT jsonb_array_elements_text(coalesce(e.audiences, '[]'))),
-                   ARRAY(SELECT jsonb_array_elements_text(coalesce(e.platforms, '[]')))
+                   ARRAY(SELECT jsonb_array_elements_text(coalesce(e.platforms, '[]'))),
+                   e.source
             FROM jsonb_to_recordset($1::jsonb) AS e(
                 seed_key text, kind text, title text, body text, do_examples text, dont_examples text,
-                brands jsonb, audiences jsonb, platforms jsonb
+                brands jsonb, audiences jsonb, platforms jsonb, source text
             )
             ON CONFLICT (seed_key) DO NOTHING
             """,

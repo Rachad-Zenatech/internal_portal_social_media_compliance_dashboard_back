@@ -29,6 +29,7 @@ def submission_row(manual_rules=(), **overrides):
         "latest_check": json.dumps(
             {
                 "score": 100,
+                "rulebook_version": "v1",
                 "manual_review_rules": [
                     {"rule_id": str(uuid4()), "rule_number": number, "title": title, "severity": "HIGH"}
                     for number, title in manual_rules
@@ -86,6 +87,7 @@ class ReviewDecisionTestCase(unittest.IsolatedAsyncioTestCase):
             stack.enter_context(patch(f"{SVC}._get_owned_row", new=AsyncMock(return_value=row)))
             stack.enter_context(patch(f"{SVC}._can_review", new=AsyncMock(return_value=is_reviewer)))
             stack.enter_context(patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=is_super)))
+            stack.enter_context(patch(f"{SVC}.compliance_rulebook_version", new=AsyncMock(return_value="v1")))
             stack.enter_context(
                 patch(
                     f"{SVC}.flag_review_service.approval_standing",
@@ -225,7 +227,7 @@ class ManualRuleChecklistTests(ReviewDecisionTestCase):
         self.assertIsNone(self.job_update(conn)[-1])
 
     async def test_checks_saved_before_the_checklist_need_no_confirmations(self):
-        row = submission_row(latest_check=json.dumps({"score": 100}))
+        row = submission_row(latest_check=json.dumps({"score": 100, "rulebook_version": "v1"}))
         _, conn = await self.decide(approve_now(), row)
         self.assertEqual(self.job_update(conn)[3], "APPROVED")
 

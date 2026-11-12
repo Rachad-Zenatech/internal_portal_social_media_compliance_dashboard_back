@@ -128,5 +128,67 @@ class LinkTokenTests(unittest.IsolatedAsyncioTestCase):
             await self.call(request("GET", "/api/me/permissions"), bearer=token)
 
 
+class ServiceAndForeignTokenTests(unittest.IsolatedAsyncioTestCase):
+    """Only this app's own sign-in tokens sign a person in: never a service token, another app's token, or a token
+    that names no user (the old fallbacks made those the oldest super admin, or a user found by email)."""
+
+    def setUp(self):
+        self.admin = {"id": uuid4(), "last_activity_at": None, "last_logout_at": None, "is_super_admin": True}
+        auth_service._user_auth_cache.clear()
+
+    def forge(self, **claims):
+        import jwt
+        now = datetime.datetime.now(datetime.timezone.utc)
+        base = {"iss": auth_service.JWT_ISSUER, "aud": auth_service.JWT_AUDIENCE, "iat": now,
+                "exp": now + datetime.timedelta(minutes=10)}
+        return jwt.encode({**base, **claims}, auth_service.JWT_SECRET, algorithm=auth_service.JWT_ALGORITHM)
+
+    async def refused(self, token):
+        lookup = AsyncMock(return_value=self.admin)
+        with patch("services.shared.auth.auth_service.fetch_one", new=lookup):
+            with self.assertRaises(HTTPException) as e:
+                await auth_service.get_current_user_id_dependency(
+                    authorization=f"Bearer {token}", access_token=None, zenatech_token=None, query_token=None,
+                    request=request("GET", "/api/me/permissions"),
+                )
+        self.assertEqual(e.exception.status_code, 401)
+        return lookup
+
+    async def test_a_service_token_is_not_a_user(self):
+        from services.shared.auth.service_security_policy import generate_scoped_outbound_token
+        await self.refused(generate_scoped_outbound_token("finance", ["read"]))
+        # Even with this app's issuer and audience, a service token names a service, not a person.
+        lookup = await self.refused(self.forge(sub="service:admin", is_service_token=True))
+        lookup.assert_not_awaited()
+
+    async def test_a_token_that_names_no_user_is_refused(self):
+        lookup = await self.refused(self.forge(sub="someone", email="ceo@zenatech.com"))
+        lookup.assert_not_awaited()
+
+    async def test_another_apps_token_is_refused(self):
+        await self.refused(self.forge(sub=str(self.admin["id"]), iss="app-template-auth"))
+        await self.refused(self.forge(sub=str(self.admin["id"]), aud="finance-portal"))
+        no_audience = self.forge(sub=str(self.admin["id"]))
+        import jwt
+        claims = jwt.decode(no_audience, auth_service.JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
+        claims.pop("aud")
+        await self.refused(jwt.encode(claims, auth_service.JWT_SECRET, algorithm="HS256"))
+
+    async def test_the_idle_logout_follows_the_database_not_the_token(self):
+        member = {"id": uuid4(), "last_logout_at": None, "is_super_admin": False,
+                  "last_activity_at": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)}
+        token = self.forge(sub=str(member["id"]), is_super_admin=True)
+        with (
+            patch("services.shared.auth.auth_service.fetch_one", new=AsyncMock(return_value=member)),
+            patch("postgresql_db.database.execute", new=AsyncMock()),
+        ):
+            with self.assertRaises(HTTPException) as e:
+                await auth_service.get_current_user_id_dependency(
+                    authorization=f"Bearer {token}", access_token=None, zenatech_token=None, query_token=None,
+                    request=request("GET", "/api/me/permissions"),
+                )
+        self.assertEqual(e.exception.detail, "Logged out due to inactivity")
+
+
 if __name__ == "__main__":
     unittest.main()

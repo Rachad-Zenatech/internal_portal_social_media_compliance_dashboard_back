@@ -40,11 +40,13 @@ class UnreadableFindingTests(unittest.TestCase):
 
 class ApprovalGateTests(unittest.IsolatedAsyncioTestCase):
     def row(self, check):
+        # Checked under the current rulebook, so approving doesn't first re-run it.
+        check = {"rulebook_version": "v1", **check}
         return {"id": SUB, "status": "IN_REVIEW", "created_by": uuid4(), "latest_check": check, "current_version": 1}
 
-    async def approve(self, check):
-        standing = AsyncMock(return_value={})
-        with patch.object(ss, "_get_owned_row", new=AsyncMock(return_value=self.row(check))), \
+    async def approve(self, check, standing_result=None):
+        standing = AsyncMock(return_value=standing_result or {})
+        with patch.object(ss, "_get_owned_row", new=AsyncMock(return_value=self.row(check))),              patch.object(ss, "compliance_rulebook_version", new=AsyncMock(return_value="v1")), \
              patch.object(ss, "_can_review", new=AsyncMock(return_value=True)), \
              patch.object(ss, "_is_super_admin", new=AsyncMock(return_value=False)), \
              patch.object(ss.flag_review_service, "approval_standing", new=standing):
@@ -64,6 +66,32 @@ class ApprovalGateTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("still being read", err.detail)
 
 
+    async def test_no_approval_while_part_of_the_post_could_not_be_read(self):
+        failed = [{"what": "image text", "name": "poster.png", "error": "429 quota"}]
+        err, standing = await self.approve({"score": 100, "reads_failed": failed})
+        self.assertEqual(err.status_code, 422)
+        self.assertIn("poster.png", err.detail)
+        standing.assert_not_awaited()
+
+    async def test_no_approval_while_a_flag_needs_a_persons_answer(self):
+        from services.compliance.submissions.flag_review_service import ApprovalStanding
+
+        err, _ = await self.approve({"score": 90}, {SUB: ApprovalStanding(open_critical=0, score=90, open_yellow=2)})
+        self.assertEqual(err.status_code, 422)
+        self.assertIn("2 flags need a person's answer", err.detail)
+
+    async def test_a_check_from_an_older_rulebook_is_run_again_before_approving(self):
+        stale = {"id": SUB, "status": "IN_REVIEW", "created_by": uuid4(), "current_version": 1,
+                 "latest_check": {"rulebook_version": "old", "score": 100}}
+        fresh = {**stale, "latest_check": {"rulebook_version": "v1", "ai_unavailable": True}}
+        recheck = AsyncMock(return_value=(None, {}, False))
+        with patch.object(ss, "_get_owned_row", new=AsyncMock(side_effect=[stale, fresh])),              patch.object(ss, "compliance_rulebook_version", new=AsyncMock(return_value="v1")),              patch.object(ss, "_recheck_one", new=recheck),              patch.object(ss, "_can_review", new=AsyncMock(return_value=True)),              patch.object(ss, "_is_super_admin", new=AsyncMock(return_value=False)):
+            with self.assertRaises(HTTPException) as err:
+                await ss.decide_review(SUB, USER, ReviewDecisionRequest(decision="APPROVE"))
+        recheck.assert_awaited_once()
+        self.assertIn("AI review couldn't run", err.exception.detail)
+
+
 class ScriptApprovalGateTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_script_checked_without_the_ai_cannot_be_approved(self):
         from models.compliance.script_review_model import ScriptDecisionRequest
@@ -77,6 +105,26 @@ class ScriptApprovalGateTests(unittest.IsolatedAsyncioTestCase):
                 await srs.decide(SUB, USER, ScriptDecisionRequest(decision="APPROVE"))
         self.assertEqual(err.exception.status_code, 422)
         self.assertIn("AI review couldn't run", err.exception.detail)
+
+    async def approve_script(self, check):
+        from models.compliance.script_review_model import ScriptDecisionRequest
+
+        sent = srs.ScriptVersion(version_number=1, body="Hello.", source="UPLOAD", created_at="2026-11-04T10:00:00Z", check=check)
+        row = {"id": SUB, "script_status": "IN_REVIEW", "script_required": True, "content_type": "VIDEO", "created_by": uuid4()}
+        with patch.object(srs.subs, "_get_owned_row", new=AsyncMock(return_value=row)),              patch.object(srs, "_reviewer_may_act", new=AsyncMock(return_value=True)),              patch.object(srs, "_versions", new=AsyncMock(return_value=[sent])):
+            with self.assertRaises(HTTPException) as err:
+                await srs.decide(SUB, USER, ScriptDecisionRequest(decision="APPROVE"))
+        return err.exception
+
+    async def test_a_script_with_a_critical_flag_cannot_be_approved(self):
+        err = await self.approve_script({"score": 40, "violations": [{"traffic_light": "RED"}]})
+        self.assertEqual(err.status_code, 422)
+        self.assertIn("critical compliance flag", err.detail)
+
+    async def test_a_script_below_the_minimum_score_cannot_be_approved(self):
+        err = await self.approve_script({"score": 60, "violations": [{"traffic_light": "YELLOW"}]})
+        self.assertEqual(err.status_code, 422)
+        self.assertIn("score is 60/100", err.detail)
 
 
 class AiRecheckTests(unittest.IsolatedAsyncioTestCase):
