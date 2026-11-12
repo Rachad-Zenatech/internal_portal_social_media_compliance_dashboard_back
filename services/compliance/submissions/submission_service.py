@@ -656,7 +656,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
                  END,
                  coalesce(s.due_at, s.approval_needed_by, s.publish_at) ASC NULLS LAST,
                  s.updated_at DESC
-        LIMIT 200
+        LIMIT 2000  -- High enough that nobody's list is cut short; the page shows it 25 at a time.
         """,
         user_id,
         status_filter,
@@ -2036,7 +2036,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
           AND (s.created_by = $1 OR ($2 AND {_reviewer_sees("$1", "$3")}))
           AND ($4 = '' OR s.title ILIKE '%' || $4 || '%' OR s.reference_code ILIKE '%' || $4 || '%')
         ORDER BY {_QUEUE_ORDER[tab]}
-        LIMIT 100
+        LIMIT 1000  -- High enough that no tab is cut short; the screener shows it 20 at a time.
         """,
         user_id,
         see_all,
@@ -2643,6 +2643,8 @@ def _comment_out(r: Dict[str, Any], viewer: UUID, viewer_is_super: bool) -> Revi
         body=r["body"],
         start_sec=float(r["start_sec"]) if r["start_sec"] is not None else None,
         end_sec=float(r["end_sec"]) if r["end_sec"] is not None else None,
+        file_id=r.get("file_id"),
+        region_x=r.get("region_x"), region_y=r.get("region_y"), region_w=r.get("region_w"), region_h=r.get("region_h"),
         author_id=r["author_id"],
         author_name=r.get("author_name"),
         # Stored when written; older comments fall back to "anyone but the creator".
@@ -2691,6 +2693,14 @@ async def add_comment(submission_id: UUID, user_id: UUID, data: ReviewCommentCre
     row = await _comment_access(submission_id, user_id)
     if data.start_sec is not None and data.end_sec is not None and data.end_sec < data.start_sec:
         raise HTTPException(status_code=422, detail="The end time is before the start time")
+    if data.file_id is not None:
+        image = await fetch_one(
+            "SELECT id FROM content_submission_files WHERE id = $1 AND submission_id = $2 AND deleted_at IS NULL "
+            "AND mime_type LIKE 'image/%'",
+            data.file_id, submission_id,
+        )
+        if not image:
+            raise HTTPException(status_code=422, detail="That image isn't part of this post")
     # Someone else's comment is a reviewer's. The creator's own counts as a reviewer's only when they review it
     # themselves (a super admin, while it's in review); otherwise it's a reply.
     from_reviewer = row["created_by"] != user_id or (row["status"] == "IN_REVIEW" and await _can_review(user_id))
@@ -2703,13 +2713,15 @@ async def add_comment(submission_id: UUID, user_id: UUID, data: ReviewCommentCre
     saved = await fetch_one(
         """
         INSERT INTO content_review_comments
-            (submission_id, version_number, author_id, category, body, start_sec, end_sec, from_reviewer, reply_to_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            (submission_id, version_number, author_id, category, body, start_sec, end_sec, from_reviewer, reply_to_id,
+             file_id, region_x, region_y, region_w, region_h)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING id
         """,
         # A draft's notes belong to the version it becomes, so the first one is version 1, not 0.
         submission_id, max(row["current_version"], 1), user_id, data.category, data.body.strip(),
         data.start_sec, data.end_sec, from_reviewer, data.reply_to_id,
+        data.file_id, data.region_x, data.region_y, data.region_w, data.region_h,
     )
     full = await fetch_one(_COMMENT_SELECT + " WHERE c.id = $1", saved["id"])
     return _comment_out(full, user_id, await _is_super_admin(user_id))

@@ -45,14 +45,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `setup` (def) L13
 - `_main` (def) L119
 
-## postgresql_db/schemas/setup_submissions_schema.py (701 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (707 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def) L17
-- `_sync_script_checks` (def) L453 - While a script is still being decided, the post's saved check and its latest script version's check are the same
-- `_retire_product_brands` (def) L483 - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
-- `_account_key` (def) L590 - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
-- `_retire_demo_social_accounts` (def) L614 - Remove the earlier demo accounts.
-- `_seed_demo_social_accounts` (def) L647 - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
-- `_main` (def) L690
+- `_sync_script_checks` (def) L459 - While a script is still being decided, the post's saved check and its latest script version's check are the same
+- `_retire_product_brands` (def) L489 - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
+- `_account_key` (def) L596 - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
+- `_retire_demo_social_accounts` (def) L620 - Remove the earlier demo accounts.
+- `_seed_demo_social_accounts` (def) L653 - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
+- `_main` (def) L696
 
 ## postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - `setup` (def) L13

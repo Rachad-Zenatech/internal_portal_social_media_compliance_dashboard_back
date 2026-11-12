@@ -77,6 +77,26 @@ These rules apply to every AI coding agent working in this repository.
 - Do not introduce additional dependencies without justification.
 - Ask before performing destructive database or infrastructure operations.
 
+### 0.5.1 Organize Code by Functionality
+
+Structure code by what it does. The size limits at the end are only the safety net.
+
+- **One feature or responsibility per module.** A new feature gets its own module (a file, or a folder named after the feature holding its parts) next to the code it belongs with. Never append it to an unrelated or already large file.
+- **Keep the layers apart.** Backend: routers only read the request and call a service; logic lives in services (one per feature area); SQL in the service or a repository module; request/response shapes in models. Frontend: pages only lay out sections; data fetching and state live in hooks (`useXxx`); API calls in services; shared types in `types/`.
+- **Follow the existing layout** (`.agents/rules/project-structure.md` when present, and the folders already there). Never create a parallel structure.
+- **When a file or function does several jobs, split it along those jobs,** and keep the original exports working (re-export) so imports elsewhere don't break.
+
+**Frontend: keep each component's `return` short** (80 lines at most; aim for under 40):
+
+- The `return` should read like an outline: `<PageHeader />`, `<Filters />`, `<ResultsTable />`, `<EditDialog />`. Each visual section (header, toolbar, filters, table, list item, form section, dialog, empty/loading/error state) becomes its own component in the feature's folder.
+- Handle loading, error and empty states with early returns before the main `return`.
+- No logic inside JSX: compute values, handlers and filtered lists above the `return` or in a hook. Replace long inline `cond ? (...) : (...)` branches and `.map(...)` bodies with a named component (e.g. `<SubmissionRow item={s} />`).
+- Repeated markup becomes a component; long `className` strings become a variant or a named constant.
+
+**Backend: keep each function under 120 lines;** move steps into helper functions or their own module.
+
+**Safety net (checked by `node .agents/check_file_sizes.mjs`, the pre-commit hook and CI):** files at most 500 lines, JSX returns at most 80, Python functions at most 120. What was already over a limit is listed in `.agents/file_size_baseline.json` and may only shrink: never raise a ceiling or add an entry; split the code instead, then run `node .agents/check_file_sizes.mjs --update`. Run the check before finishing.
+
 ### 0.6 Verification
 
 - Run targeted tests for modified functionality.

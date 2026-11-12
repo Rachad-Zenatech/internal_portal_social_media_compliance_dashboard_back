@@ -123,7 +123,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_photo_text` (def) L179 - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) L200 - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (3042 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (3054 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_same_value` (def) L115 - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
 - `content_changed` (def) L134 - Whether saving these fields changes anything the checks read.
 - `_json` (def) L144
@@ -215,23 +215,23 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `reopen_approved` (def) L2535 - A reviewer takes back an approval (for example a late legal concern) and sends the content to its creator
 - `reschedule_approved` (def) L2601 - A reviewer moves approved content to a new publish time.
 - `_comment_out` (def) L2637
-- `list_comments` (def) L2672
-- `_comment_access` (def) L2682 - Reviewers, suggesting reviewers and the creator can comment and resolve comments.
-- `add_comment` (def) L2690
-- `set_comment_resolved` (def) L2718
-- `delete_comment` (def) L2736
-- `_check_still_current` (def) L2759 - Whether a check that began at `started` on `row` may still be saved.
-- `_recheck_one` (def) L2783 - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
-- `recheck_open_submissions` (def) L2812 - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
-    - `describe` (def) L2820
-- `recheck_ai_unavailable` (def) L2846 - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
-    - `describe` (def) L2860
-- `retry_failed_reads` (def) L2886 - Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
-- `ai_recheck_loop` (def) L2914 - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
-- `recheck_outdated_on_start` (def) L2935 - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
-- `schedule_rulebook_recheck` (def) L2951 - Re-check open content shortly after a rule changes; a burst of edits leads to one pass.
-    - `run` (def) L2957
-- `recheck_after_transcript` (def) L2969 - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
-- `recheck_after_image_text` (def) L2975 - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
-- `recheck_after_document_text` (def) L2980 - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
-- `_recheck_for_file` (def) L2985 - Re-run the check of the open submission a file belongs to, after something about the file was read.
+- `list_comments` (def) L2674
+- `_comment_access` (def) L2684 - Reviewers, suggesting reviewers and the creator can comment and resolve comments.
+- `add_comment` (def) L2692
+- `set_comment_resolved` (def) L2730
+- `delete_comment` (def) L2748
+- `_check_still_current` (def) L2771 - Whether a check that began at `started` on `row` may still be saved.
+- `_recheck_one` (def) L2795 - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
+- `recheck_open_submissions` (def) L2824 - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
+    - `describe` (def) L2832
+- `recheck_ai_unavailable` (def) L2858 - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    - `describe` (def) L2872
+- `retry_failed_reads` (def) L2898 - Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
+- `ai_recheck_loop` (def) L2926 - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
+- `recheck_outdated_on_start` (def) L2947 - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
+- `schedule_rulebook_recheck` (def) L2963 - Re-check open content shortly after a rule changes; a burst of edits leads to one pass.
+    - `run` (def) L2969
+- `recheck_after_transcript` (def) L2981 - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
+- `recheck_after_image_text` (def) L2987 - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
+- `recheck_after_document_text` (def) L2992 - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
+- `_recheck_for_file` (def) L2997 - Re-run the check of the open submission a file belongs to, after something about the file was read.

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # AD: paid social ads. Only the type and its rule set exist so far; ad-specific fields and rules (claims,
 # targeting, platform ad policies) are still to be defined.
@@ -451,6 +451,24 @@ class ReviewCommentCreate(BaseModel):
     # Replying to another comment on the same post (it is quoted above this one).
     reply_to_id: Optional[UUID] = None
 
+    # An area of an image: which image, and the box as fractions (0 to 1) of its width and height.
+    file_id: Optional[UUID] = None
+    region_x: Optional[float] = Field(None, ge=0, le=1)
+    region_y: Optional[float] = Field(None, ge=0, le=1)
+    region_w: Optional[float] = Field(None, gt=0, le=1)
+    region_h: Optional[float] = Field(None, gt=0, le=1)
+
+    @model_validator(mode="after")
+    def _region_is_whole(self):
+        parts = [self.file_id, self.region_x, self.region_y, self.region_w, self.region_h]
+        if any(p is not None for p in parts) and any(p is None for p in parts):
+            raise ValueError("An image area needs the image and all four of x, y, width and height")
+        if self.region_x is not None and (self.region_x + self.region_w > 1.0001 or self.region_y + self.region_h > 1.0001):
+            raise ValueError("The area goes outside the image")
+        if self.file_id is not None and (self.start_sec is not None or self.end_sec is not None):
+            raise ValueError("A comment is on an area of an image or a moment of a video, not both")
+        return self
+
 
 class ReviewCommentUpdate(BaseModel):
     resolved: bool
@@ -464,6 +482,11 @@ class ReviewComment(BaseModel):
     body: str
     start_sec: Optional[float] = None
     end_sec: Optional[float] = None
+    file_id: Optional[UUID] = None
+    region_x: Optional[float] = None
+    region_y: Optional[float] = None
+    region_w: Optional[float] = None
+    region_h: Optional[float] = None
     author_id: Optional[UUID] = None
     author_name: Optional[str] = None
     # Written by a reviewer (rather than the creator replying).

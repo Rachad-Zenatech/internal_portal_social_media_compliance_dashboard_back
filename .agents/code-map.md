@@ -63,6 +63,7 @@ to find the right file.
 | .agents/code-map/tests__test_extra_claims.md | 1 | 1 KB |
 | .agents/code-map/tests__test_full_rule_pass.md | 1 | 1 KB |
 | .agents/code-map/tests__test_hashtag_library.md | 1 | 1 KB |
+| .agents/code-map/tests__test_image_comments.md | 1 | 1 KB |
 | .agents/code-map/tests__test_local_sentiment_model.md | 1 | 1 KB |
 | .agents/code-map/tests__test_message_hub_status.md | 1 | 1 KB |
 | .agents/code-map/tests__test_model_fallback.md | 1 | 2 KB |

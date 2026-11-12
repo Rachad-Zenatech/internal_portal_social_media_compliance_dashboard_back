@@ -115,6 +115,11 @@ class WhoIsNotifiedTests(unittest.IsolatedAsyncioTestCase):
 
 
 class PickingReviewersTests(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def reviewers_update(conn):
+        """The statement that saves who it was sent to (a lock timeout is set before it)."""
+        return next(c.args for c in conn.execute.await_args_list if "reviewer_ids" in c.args[0])
+
     async def update(self, picked, eligible, super_admin=False):
         conn = MagicMock()
         conn.execute = AsyncMock()
@@ -136,7 +141,7 @@ class PickingReviewersTests(unittest.IsolatedAsyncioTestCase):
     async def test_picked_reviewers_are_saved_once_each(self):
         conn, reviewer_ids = await self.update([PICKED, PICKED], [PICKED, OTHER_REVIEWER])
 
-        sql, *params = conn.execute.await_args_list[0].args
+        sql, *params = self.reviewers_update(conn)
         self.assertIn("reviewer_ids = $2", sql)
         self.assertEqual(params[1], [PICKED])
         reviewer_ids.assert_awaited_once_with(exclude=CREATOR, brand_codes=["ZENADRONE"])
@@ -153,7 +158,7 @@ class PickingReviewersTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_clearing_the_choice_sends_it_to_every_reviewer_again(self):
         conn, _ = await self.update([], [PICKED])
-        self.assertEqual(conn.execute.await_args_list[0].args[2], [])
+        self.assertEqual(self.reviewers_update(conn)[2], [])
 
 
 class ReviewersAreRequiredTests(unittest.IsolatedAsyncioTestCase):
