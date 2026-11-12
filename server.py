@@ -36,6 +36,7 @@ from services.shared.auth.auth_service import (
 
 # FastAPI routers
 from tools.shared.core.search import router as search_router
+from tools.notifications.message_hub_router import message_hub_router
 from tools.shared.auth.rbac_router import router as rbac_router, get_current_user_id
 from tools.compliance.submissions.approval_path_router import router as approval_path_router
 from tools.compliance.submissions.context_router import router as context_router
@@ -424,6 +425,7 @@ async def integration_status():
 # --- Routers ---
 authenticated = [Depends(get_current_user_id_dependency)]
 
+app.include_router(message_hub_router, prefix="/api/message-hub", tags=["Message Hub"], dependencies=authenticated)
 app.include_router(auth_router, prefix="/api", tags=["Authentication"])
 app.include_router(rbac_router, prefix="/api", tags=["RBAC & Configuration"])
 app.include_router(search_router, prefix="/api/search", tags=["Global Search"], dependencies=authenticated)

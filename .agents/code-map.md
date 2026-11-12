@@ -83,7 +83,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `PerformanceSummary` (class)
 - `PerformanceReport` (class)
 
-## models/compliance/public_mood_model.py (328 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
+## models/compliance/public_mood_model.py (342 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - `ListeningPost` (class)
 - `TopicSnapshot` (class)
 - `MatchedTopic` (class)
@@ -100,6 +100,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `SentimentCorrectionIn` (class)
 - `CorrectionIn` (class)
 - `DismissedTopic` (class)
+- `ProcessStep` (class) - One step of how this post's public mood was made, for the page's process log.
 - `PublicMood` (class)
 - `ListeningTopic` (class)
 - `ListeningTopicUpdate` (class)
@@ -297,7 +298,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_main` (def)
 - `main` (def)
 
-## scripts/scrape_x_playwright.py (533 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
+## scripts/scrape_x_playwright.py (621 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - `snowflake_time` (def) - When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits).
 - `_extract_tweets_from_rendered_profile` (def) - Parse X posts from a rendered public X profile: text, link and real post time (from the post id).
 - `_page_status` (def) - Why a page gave what it gave: SUCCESS, EMPTY (loaded, nothing there), AUTH_REQUIRED or RATE_LIMITED.
@@ -315,6 +316,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `topic_score` (def) - How strongly a text belongs to a market topic: 2 per topic keyword phrase in it, 1 per shared word.
 - `assign_unique` (def) - One home for each story.
 - `_collect_watch` (def) - Searches about the company itself (names, hashtags, products, links, events, competitors).
+- `mentions_all` (def)
+- `_plain` (def)
+- `mentions_any` (def)
+- `mentions_topic` (def) - A headline is about a wider topic when it shares at least two of a term's main words ("military drone
+- `_collect_post_searches` (def) - News searches built from each draft's own words.
+- `read_post_searches` (def)
 - `build_live_x_listening_json` (def) - Launch Playwright headless Chromium and collect candidates for each market topic and for searches about the
     - `out_of_time` (def)
 - `main` (def)
@@ -343,7 +350,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `embedding_quota_left` (def) - None if embeddings work; otherwise why not.
 - `main` (def)
 
-## server.py (687 lines) - server
+## server.py (689 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -583,7 +590,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `excluded_for` (def)
 - `corrections_for` (def)
 
-## services/compliance/analytics/listening_providers.py (579 lines) - Social listening providers: where "public mood" data comes from.
+## services/compliance/analytics/listening_providers.py (495 lines) - Social listening providers: where "public mood" data comes from.
 - `clean_headline` (def) - The headline without its outlet, lowercased, letters and digits only: equal for the same story.
 - `volume_change` (def) - Percent change in mentions: the last three complete days against the three before them, from `daily` (oldest
 - `_load_local_model` (def) - The trained sentiment model, loaded once.
@@ -601,7 +608,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `collection_info` (def)
     - `list_topics` (def) - Topics the account tracks: [{external_id, name, description, keywords}].
     - `snapshot` (def) - Recent sentiment for a topic: positive/neutral/negative percentages, mention volume and change,
-- `MockSproutProvider` (class) - Plausible, made-up Sprout Listening data.
+- `UnconfiguredProvider` (class) - Used when there is nowhere to read public mood from.
     - `list_topics` (def)
     - `snapshot` (def)
 - `analyze_raw_x_topic` (def) - Score every comment in an X topic payload using VADER, compute aggregate
@@ -766,7 +773,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `SignalFinding` (class)
 - `findings` (def) - Rule-like findings from the signals.
 
-## services/compliance/analytics/public_mood_service.py (1076 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+## services/compliance/analytics/public_mood_service.py (1113 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - `_env_float` (def)
 - `_get_client` (def)
 - `_source_label` (def)
@@ -789,7 +796,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_snapshot_model` (def)
 - `_overall_post_recommendation` (def) - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
 - `_load` (def)
+- `_topic_kind` (def)
+- `_may_show_on` (def) - A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
 - `_gather` (def) - The post, its matched topics and their current snapshots.
+    - `is_own` (def)
 - `_input_hash` (def)
 - `_summary_model` (def)
 - `_with_feedback` (def)
@@ -1532,22 +1542,49 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `clear_read_notifications` (def)
 - `clear_all_notifications` (def)
 
-## services/notifications/rabbitmq_service.py (408 lines) - RabbitMQ Service & Topology Manager for Social Media Compliance.
+## services/notifications/rabbitmq_config.py (196 lines) - RabbitMQ / Message Hub configuration: env-driven connection settings, exchange names and the hub server registry.
 - `_sanitize_amqp_url` (def) - Mask password from AMQP URLs to prevent logging credentials.
+- `_explicit_url_parts` (def) - Parsed RABBITMQ_URL, or None if unset.
 - `get_rabbitmq_host` (def)
 - `get_rabbitmq_port` (def)
+- `get_rabbitmq_management_port` (def)
+- `get_hub_status_cache_ttl` (def) - Seconds a hub snapshot is reused (0 disables caching).
+- `hub_peer_http_probe_enabled` (def) - Whether peers must also pass an HTTP /health/live probe to count as online (default off: hub presence is authoritative).
 - `get_rabbitmq_user` (def)
 - `get_rabbitmq_password` (def)
+- `get_rabbitmq_vhost` (def) - Virtual host: from RABBITMQ_URL path, else RABBITMQ_VHOST / RABBITMQ_DEFAULT_VHOST, else '/'.
+- `_vhost_url_part` (def)
 - `get_rabbitmq_url` (def)
 - `get_commands_exchange` (def)
 - `get_events_exchange` (def)
 - `get_dlx_exchange` (def)
+- `get_presence_exchange` (def)
 - `get_prefetch_count` (def)
+- `_build_hub_application` (def)
+
+## services/notifications/rabbitmq_hub_status.py (487 lines) - Message Hub behaviour for RabbitMQManager: SSE fan-out, shutdown, presence heartbeats, peer monitoring and live status snapshots.
+- `HubStatusMixin` (class) - Methods mixed into RabbitMQManager; relies on its connection/registry attributes.
+    - `subscribe_sse` (def)
+    - `unsubscribe_sse` (def)
+    - `_broadcast_to_sse` (def)
+    - `notify_shutting_down` (def) - Wakes all SSE streams so Uvicorn exits without hanging, and announces offline to peers.
+    - `install_uvicorn_shutdown_hook` (def) - Hook Uvicorn's Server.handle_exit so SIGINT/SIGTERM closes SSE streams and broadcasts offline.
+    - `broadcast_server_status_update` (def) - Publishes a server online/offline message on the presence exchange so every peer updates its registry.
+    - `_publish_presence_event` (def)
+    - `_presence_heartbeat_loop` (def) - Announces this server's live status every 5 seconds.
+    - `_peer_status_monitor_loop` (def) - Every 2.5s re-evaluates all hub servers; pushes SSE updates and announces peers that dropped/returned.
+    - `_run_active_queue_and_stream_probe` (def) - Round-trips a message through a temporary queue and publishes a healthcheck event to the events exchange.
+    - `get_hub_live_status` (def) - Live Message Hub snapshot, cached for HUB_STATUS_CACHE_TTL seconds with single-flight refresh.
+    - `_build_hub_live_status` (def) - Live Message Hub snapshot (same shape as the other portal backends) for the topbar servers dropdown.
+
+## services/notifications/rabbitmq_in_memory.py (46 lines) - In-memory fallback broker used when no live RabbitMQ is available.
 - `InMemoryMessageBroker` (class) - In-memory fallback & mock broker for unit testing and offline development
     - `__init__` (def)
     - `get_queue` (def)
     - `publish` (def)
     - `clear` (def)
+
+## services/notifications/rabbitmq_service.py (521 lines) - RabbitMQ Service & Topology Manager Provides resilient connection management, topology declaration, publisher confirmations, and dead-let...
 - `RabbitMQManager` (class)
     - `__init__` (def)
     - `amqp_url` (def)
@@ -1555,6 +1592,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `is_connected` (def)
     - `connect` (def) - Attempts to connect to RabbitMQ broker and initialize topology.
     - `_setup_topology` (def) - Declares durable exchanges, queues, DLX, and bindings.
+    - `_setup_hub_streams` (def) - Declares RabbitMQ Streams.
+    - `_handle_incoming_presence_payload` (def)
+    - `_start_hub_consumers` (def) - Consumers for this server's command queue, the presence stream, and an instant status-notify queue.
     - `publish_message` (def) - Publishes a persistent message with publisher confirmations.
     - `publish_social_media_event` (def) - Convenience method to publish domain events to the service events exchange.
     - `consume_queue` (def) - Subscribes to a queue and processes messages with manual acknowledgments.
@@ -2191,6 +2231,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `setUpClass` (def)
     - `test_defence_headline_is_not_a_crisis` (def)
     - `test_clear_positive_and_negative` (def)
+
+## tests/test_message_hub_status.py (50 lines) - The message-hub dropdown asks this service for /api/message-hub/status (ported from the administration backend).
+- `HubStatusTests` (class)
+    - `test_this_service_is_the_compliance_app` (def)
+    - `test_offline_status_lists_every_hub_server_and_marks_itself` (def)
+    - `test_topology_keeps_the_social_media_queues` (def)
+    - `test_routes_exist` (def)
 
 ## tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
 - `result` (def)
@@ -2991,7 +3038,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_search_skipped_for_time_says_so` (def)
     - `test_which_search_found_an_item_is_kept_with_it` (def)
 
-## tests/test_x_feed_store.py (243 lines) - The collected feed lives in the vector database's x_feed_data collection, and is read from there, not from a file.
+## tests/test_x_feed_store.py (244 lines) - The collected feed lives in the vector database's x_feed_data collection, and is read from there, not from a file.
 - `FakeCursor` (class)
     - `__init__` (def)
     - `sort` (def)
@@ -3050,7 +3097,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `design_thumbnail` (def) [GET /designs/{design_id}/thumbnail] - A small PNG preview of the design for the picker.
 - `simulate_edit` (def) [POST /designs/{design_id}/simulate-edit] - Mock Canva only: pretend the design was edited, so its next export is a new revision.
 
-## tools/compliance/analytics/listening_router.py (173 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
+## tools/compliance/analytics/listening_router.py (187 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
 - `list_topics` (def) [GET /topics] - Every topic with its current mood, the team's keyword tuning and how often it was matched wrongly.
 - `sync_topics` (def) [POST /topics/sync] - Pull the topic list from the listening source now instead of waiting for the daily sync.
 - `update_topic` (def) [PUT /topics/{topic_id}]
@@ -3191,6 +3238,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - `GraphUserResult` (class)
 - `graph_user_search` (def)
+
+## tools/notifications/message_hub_router.py (57 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
+- `message_hub_status` (def) [GET /status] - Live RabbitMQ Message Hub snapshot for the topbar servers dropdown (same contract as the other portals).
+- `message_hub_test` (def) [POST /test]
+- `message_hub_stream` (def) [GET /stream] - SSE: an initial snapshot, then a new snapshot whenever any server's status changes.
+    - `_event_generator` (def)
 
 ## tools/notifications/notification_router.py (87 lines) - notification router (notifications)
 - `get_current_user_id` (def)
