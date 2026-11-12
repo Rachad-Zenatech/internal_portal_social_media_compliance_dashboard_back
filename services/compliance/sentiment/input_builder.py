@@ -45,15 +45,17 @@ async def _load_submission(submission_id: UUID) -> Optional[Dict[str, Any]]:
                s.rule_sets, s.current_version, b.name AS brand_name, s.context_picks, s.platform_captions,
                c.account_name AS account_name, c.connection_metadata AS account_meta,
                v.id AS video_id, v.transcript_status, v.transcript,
-               -- The script: its latest version in the script stage, otherwise the uploaded script file as read.
-               coalesce(
-                   (SELECT sv.body FROM content_script_versions sv WHERE sv.submission_id = s.id
-                    ORDER BY sv.version_number DESC LIMIT 1),
-                   (SELECT sf.doc_text FROM content_submission_files sf
+               -- The script: the newest of its latest version in the script stage and the uploaded script file as
+               -- read, so a script uploaded after a reviewer sent it back is the one analysed before it's sent again.
+               (SELECT x.body FROM (
+                   (SELECT sv.body, sv.created_at FROM content_script_versions sv WHERE sv.submission_id = s.id
+                    ORDER BY sv.version_number DESC LIMIT 1)
+                   UNION ALL
+                   (SELECT sf.doc_text, sf.created_at FROM content_submission_files sf
                     WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL
                       AND sf.doc_text_status = 'COMPLETED'
                     ORDER BY sf.created_at DESC LIMIT 1)
-               ) AS script_text
+               ) x ORDER BY x.created_at DESC LIMIT 1) AS script_text
         FROM content_submissions s
         LEFT JOIN brands b ON b.code = s.brand_code
         LEFT JOIN oauth_connections c ON c.id = s.account_id

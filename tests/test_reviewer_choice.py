@@ -1,4 +1,3 @@
-import os
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -106,8 +105,8 @@ class WhoIsNotifiedTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_script_goes_to_the_same_people(self):
         row = submission_row(reviewer_ids=[PICKED])
         with (
-            # The rule as everywhere but development (where ALLOW_SUPER_ADMIN_SELF_REVIEW may be on in .env).
-            patch.dict(os.environ, {"ALLOW_SUPER_ADMIN_SELF_REVIEW": ""}),
+            # A creator who isn't a super admin isn't told about their own script.
+            patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=False)),
             patch(f"{SVC}._review_recipients", new=AsyncMock(return_value=[PICKED])),
             patch(f"{SVC}._notify", new=AsyncMock()) as notify,
         ):
@@ -126,6 +125,7 @@ class PickingReviewersTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch(f"{SVC}._get_owned_row", new=AsyncMock(return_value=submission_row())),
             patch(f"{SVC}._reviewer_ids", new=AsyncMock(return_value=eligible)) as reviewer_ids,
+            patch(f"{SVC}._suggester_ids", new=AsyncMock(return_value=[])),
             patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=super_admin)),
             patch(f"{SVC}.get_pool", return_value=pool),
             patch(f"{SVC}.get_submission", new=AsyncMock(return_value="updated")),
@@ -187,6 +187,7 @@ class ReviewerOptionsTests(unittest.IsolatedAsyncioTestCase):
         ]
         with (
             patch(f"{SVC}._reviewer_ids", new=AsyncMock(return_value=[PICKED, OTHER_REVIEWER])) as reviewer_ids,
+            patch(f"{SVC}._suggester_ids", new=AsyncMock(return_value=[])),
             patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=False)),
             patch(f"{SVC}.fetch_all", new=AsyncMock(return_value=rows)),
         ):
@@ -198,6 +199,7 @@ class ReviewerOptionsTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_super_admin_is_offered_to_themselves_too(self):
         with (
             patch(f"{SVC}._reviewer_ids", new=AsyncMock(return_value=[CREATOR])) as reviewer_ids,
+            patch(f"{SVC}._suggester_ids", new=AsyncMock(return_value=[])),
             patch(f"{SVC}._is_super_admin", new=AsyncMock(return_value=True)),
             patch(f"{SVC}.fetch_all", new=AsyncMock(return_value=[])),
         ):

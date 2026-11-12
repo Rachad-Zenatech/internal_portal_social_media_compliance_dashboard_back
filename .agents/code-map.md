@@ -133,18 +133,22 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ItemResult` (class)
 - `BatchReviewResult` (class)
 
-## models/compliance/script_review_model.py (163 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+## models/compliance/script_review_model.py (200 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class)
+- `ScriptSuggestion` (class) - A suggesting reviewer's own suggestion on a script version: their edited wording and their notes on it.
 - `ScriptBatchRef` (class) - Where this script sits in the batch it was uploaded with, for stepping through the batch one script at a time.
 - `ScriptStage` (class)
 - `ScriptDecisionRequest` (class) - The reviewer's call on the script.
 - `ScriptReviseRequest` (class)
 - `ScriptSubmitRequest` (class)
 - `ScriptCheckRequest` (class)
+- `FlagFixRequest` (class) - One flagged passage of a script and the rule it broke, to have a compliant rewrite suggested.
+- `FlagFixSuggestion` (class)
 - `ScriptQueueItem` (class) - A script waiting for a reviewer, as the Content Screener's Scripts tab lists it.
 - `ScriptHighlight` (class) - A stretch of the script the reviewer highlighted, with an optional note on it.
 - `ScriptResolution` (class)
 - `ScriptResolutionsRequest` (class)
+- `ScriptSuggestionRequest` (class) - What a suggesting reviewer saves: their edited wording and their notes on it.
 - `ScriptHighlightsRequest` (class)
 
 ## models/compliance/sentiment_model.py (314 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
@@ -177,7 +181,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (632 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (634 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -296,7 +300,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## postgresql_db/schemas/setup_login_codes_schema.py (28 lines) - One-time sign-in codes: after Microsoft sign-in the browser gets a short-lived code in the redirect (never the session token), and swaps ...
 - `setup` (def)
 
-## postgresql_db/schemas/setup_pbac_schema.py (450 lines) - setup pbac schema (schemas)
+## postgresql_db/schemas/setup_pbac_schema.py (457 lines) - setup pbac schema (schemas)
 - `setup` (def)
 - `_main` (def)
 
@@ -310,7 +314,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (683 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (698 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -852,7 +856,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `conversation_step` (def)
 - `build` (def)
 
-## services/compliance/analytics/public_mood_service.py (1115 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+## services/compliance/analytics/public_mood_service.py (1122 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - `_env_float` (def)
 - `_get_client` (def)
 - `_source_label` (def)
@@ -1079,7 +1083,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `run` (def)
 - `search` (def)
 
-## services/compliance/evaluation/script_batch_service.py (660 lines) - Script batches.
+## services/compliance/evaluation/script_batch_service.py (663 lines) - Script batches.
 - `missing_details` (def) - The details still empty, by their names on the form.
 - `_json` (def)
 - `_details` (def)
@@ -1120,7 +1124,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 - `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/evaluation/script_review_service.py (910 lines) - Script stage of a video post.
+## services/compliance/evaluation/script_review_service.py (1040 lines) - Script stage of a video post.
 - `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
@@ -1132,8 +1136,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_versions` (def)
 - `_script_file` (def)
 - `_require_stage` (def)
-- `_self_review_switched_on` (def) - Development only: ALLOW_SUPER_ADMIN_SELF_REVIEW=true, and never when APP_ENV is production (so a production
-- `may_review_own_script` (def) - A super admin may review and approve their own scripts in development (to test the flow alone).
+- `may_review_own_script` (def) - A super admin may review and approve their own scripts (as with posts); nobody else may.
 - `_reviewer_may_act` (def)
 - `only_sent_to_self` (def) - The script would go only to the person who wrote it.
 - `batch_ref` (def) - Where the script sits in the batch it was uploaded with, or None when it wasn't part of one.
@@ -1148,6 +1151,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `submit` (def) - Accept the uploaded script for review and answer at once.
 - `_fail_send` (def) - The background send couldn't finish: record which step failed and why, and tell the creator.
 - `resume_interrupted_sends` (def) - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
+- `current_script_text` (def) - The script as it stands for a duplicate check before it is sent: the uploaded file's text once it has been read,
 - `_read_uploaded` (def) - The uploaded script file and its text, read now if it hasn't been yet.
 - `precheck` (def) - The creator checks the uploaded script against the rulebook before sending it, to see the score and the flags
 - `_process_send` (def) - Read the uploaded script, calculate its compliance score and send it to the reviewers.
@@ -1160,9 +1164,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_refresh_stale_scripts` (def) - Re-check scripts that were checked against an older rulebook, one at a time, and save the result.
 - `_refresh_in_background` (def)
 - `queue` (def) - Scripts for one Content Screener tab, on the brands the viewer works on.
+- `_my_suggestion` (def) - A suggesting reviewer's own suggestion on a script version (nobody else sees it yet).
+- `_suggestable` (def) - The post and the script version a suggesting reviewer may suggest on: the one in review, sent to them.
+- `save_suggestion` (def) - Save a suggesting reviewer's edited wording and notes for the script in review.
+- `discard_suggestion` (def) - Take back a suggesting reviewer's own suggestion on the script in review.
 - `get_highlights` (def) - The reviewer's highlights and notes on a script version, for anyone who can read the post.
 - `save_highlights` (def) - Replace the highlights on a script version.
 - `resolve_highlights` (def) - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
+- `suggest_fix` (def) - A compliant rewrite of one flagged passage, for the creator to use or not.
 
 ## services/compliance/evaluation/script_split.py (113 lines) - Splitting one document into the scripts it holds.
 - `_clip` (def)
@@ -1414,7 +1423,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_eval_cases` (def)
 - `delete_eval_case` (def)
 
-## services/compliance/sentiment/input_builder.py (387 lines) - Input building and prompt construction for sentiment analysis.
+## services/compliance/sentiment/input_builder.py (389 lines) - Input building and prompt construction for sentiment analysis.
 - `_load_submission` (def)
 - `_load_images` (def) - The post's images in order: the main ones (e.g.
 - `_json` (def)
@@ -1578,7 +1587,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_photo_text` (def) - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (3033 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (3009 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_same_value` (def) - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
 - `content_changed` (def) - Whether saving these fields changes anything the checks read.
 - `_json` (def)
@@ -1592,7 +1601,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `load` (def)
 - `_can_manage_team_content` (def) - Super admins and roles with "Manage Team Drafts" (Content Manager, Administrator) see everyone's content
 - `_can_review` (def) - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
-- `_can_see_team_content` (def) - Content Managers and reviewers can read everyone's submissions.
+- `_can_suggest` (def) - Everyone who can comment on and suggest edits to review content: reviewers, and suggesting reviewers ("Suggest on
+- `_is_suggester` (def) - A suggesting reviewer only: someone who can suggest but neither review nor manage content.
+- `_can_see_team_content` (def) - Content Managers, reviewers and suggesting reviewers can read other people's submissions (a suggesting reviewer
 - `_brand_scope` (def) - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
     - `load` (def)
 - `_reviewer_sees` (def) - SQL: a reviewer sees content on their brands that was sent to them (or to no one in particular), and
@@ -1648,7 +1659,6 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_require_not_duplicate` (def) - The same content and caption, already sent for approval to the same place on the same date, can't be sent
 - `_review_job` (def)
 - `submit_for_review` (def)
-- `withdraw` (def) - Pull a submission back to draft so the creator can edit and resubmit: from review, or after approval for a
 - `_queue_filter` (def)
 - `dashboard_summary` (def) - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
 - `review_queue_counts` (def) - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
@@ -1656,6 +1666,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `get_version` (def) - A past (or the current) submitted version, for looking back at what it was and how it was decided.
 - `get_history` (def)
 - `_reviewer_ids` (def) - Active users who can review: super admins and roles with "Review & Publish Content".
+- `_suggester_ids` (def) - Active suggesting reviewers ("Suggest on Content") on any of the brands, who can be attached to a post.
 - `_creator_exclusion` (def) - Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
 - `reviewer_options` (def) - The people a creator can send content to: reviewers and super admins (on any of the brands, when given).
 - `_review_recipients` (def) - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
@@ -1669,7 +1680,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `reschedule_approved` (def) - A reviewer moves approved content to a new publish time.
 - `_comment_out` (def)
 - `list_comments` (def)
-- `_comment_access` (def) - Reviewers and the creator can comment and resolve comments.
+- `_comment_access` (def) - Reviewers, suggesting reviewers and the creator can comment and resolve comments.
 - `add_comment` (def)
 - `set_comment_resolved` (def)
 - `delete_comment` (def)
@@ -2426,6 +2437,20 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `WhichFilesTests` (class)
     - `test_scripts_and_article_files_are_read` (def)
 
+## tests/test_duplicate_early.py (71 lines) - Duplicates are looked up as soon as the details are filled in, scripts included, not only when the post is sent.
+- `version` (def)
+- `CurrentScriptText` (class)
+    - `text` (def)
+    - `test_the_uploaded_script_is_compared_once_it_has_been_read` (def)
+    - `test_a_script_not_read_yet_falls_back_to_the_last_version_sent` (def)
+    - `test_no_script_at_all_has_nothing_to_compare` (def)
+- `DuplicatesEndpoint` (class)
+    - `look_up` (def)
+    - `test_a_video_post_at_its_script_stage_is_compared_by_its_script` (def)
+    - `test_without_a_script_yet_there_is_nothing_to_find` (def)
+    - `test_once_the_script_is_approved_the_post_is_compared_as_a_post` (def)
+    - `test_other_posts_are_compared_as_before` (def)
+
 ## tests/test_duplicate_posts.py (103 lines) - test duplicate posts
 - `post` (def)
 - `find` (def)
@@ -2539,7 +2564,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_defence_headline_is_not_a_crisis` (def)
     - `test_clear_positive_and_negative` (def)
 
-## tests/test_message_hub_status.py (50 lines) - The message-hub dropdown asks this service for /api/message-hub/status (ported from the administration backend).
+## tests/test_message_hub_status.py (61 lines) - The message-hub dropdown asks this service for /api/message-hub/status (ported from the administration backend).
 - `HubStatusTests` (class)
     - `test_this_service_is_the_compliance_app` (def)
     - `test_offline_status_lists_every_hub_server_and_marks_itself` (def)
@@ -2992,7 +3017,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_other_statuses_are_left_alone` (def)
     - `test_it_is_a_warning_so_no_critical_cap_and_dismissing_gives_points_back` (def)
 
-## tests/test_reviewer_choice.py (210 lines) - test reviewer choice
+## tests/test_reviewer_choice.py (212 lines) - test reviewer choice
 - `submission_row` (def)
 - `WhoMayOpenItTests` (class)
     - `load` (def)
@@ -3078,7 +3103,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_the_feed_lives_in_the_repo_data_folder_next_to_the_apps_other_data` (def)
     - `test_the_scraper_and_the_app_share_one_way_of_storing_and_loading_the_feed` (def)
 
-## tests/test_script_batch.py (151 lines) - test script batch
+## tests/test_script_batch.py (150 lines) - test script batch
 - `DetailsTests` (class)
     - `test_every_shared_detail_is_needed_before_sending` (def)
     - `test_a_filled_in_batch_is_ready` (def)
@@ -3108,10 +3133,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_file_with_no_text_is_refused` (def)
     - `test_a_very_large_file_is_refused` (def)
     - `test_an_old_word_file_says_what_to_do` (def)
-- `NobodyApprovesTheirOwnScripts` (class) - The creator of a script can't approve it, even as a super admin: another reviewer has to.
+- `OnlySuperAdminsReviewTheirOwnScripts` (class) - The creator of a script can't review it, unless they are a super admin (as with posts): another reviewer has to.
     - `may_act` (def)
-    - `test_a_single_scripts_creator_cannot_review_it_even_as_a_super_admin` (def)
-    - `test_a_batchs_creator_cannot_review_it_even_as_a_super_admin` (def)
+    - `test_a_single_scripts_creator_cannot_review_it_unless_a_super_admin` (def)
+    - `test_a_batchs_creator_cannot_review_it_unless_a_super_admin` (def)
     - `test_someone_who_is_not_a_reviewer_cannot_review` (def)
 
 ## tests/test_script_duplicates.py (74 lines) - Scripts follow the same duplicate rules as posts: the same script, already sent for review for the same place and publish date, is refuse...
@@ -3159,18 +3184,15 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_script_the_ai_could_not_read_is_flagged` (def)
     - `test_a_script_the_ai_read_is_not` (def)
 
-## tests/test_script_self_review.py (63 lines) - test script self review
-- `ScriptSelfReviewTests` (class) - A script sent only to its own writer would sit in review for good: nobody else sees it, and they can't approve it.
-    - `test_sent_only_to_the_creator_is_refused` (def)
+## tests/test_script_self_review.py (43 lines) - test script self review
+- `ScriptSelfReviewTests` (class) - A script sent only to its own writer would sit in review for good unless they may approve it themselves.
+    - `test_sent_only_to_the_creator` (def)
     - `test_another_reviewer_alongside_the_creator_is_fine` (def)
     - `test_no_pick_is_left_to_the_required_field_check` (def)
-- `SelfReviewInDevelopmentTests` (class) - In development a super admin may review and approve their own scripts; never in production.
+- `SuperAdminsReviewTheirOwnScriptsTests` (class) - A super admin may review their own scripts (as with posts); nobody else may.
     - `may` (def)
-    - `test_super_admin_in_development_with_the_flag` (def)
-    - `test_never_in_production_even_with_the_flag` (def)
-    - `test_not_without_the_flag` (def)
-    - `test_not_for_other_reviewers` (def)
-    - `test_the_creator_may_approve_only_when_switched_on` (def)
+    - `test_a_super_admin_may` (def)
+    - `test_anyone_else_may_not` (def)
 
 ## tests/test_script_send.py (163 lines) - test script send
 - `processing` (def)
@@ -3399,6 +3421,35 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_reviewer_cant_dismiss_flags_on_their_own_content` (def)
     - `test_flags_can_only_be_dismissed_while_in_review` (def)
     - `test_a_reason_of_other_needs_a_note` (def)
+
+## tests/test_suggesting_reviewer.py (163 lines) - A suggesting reviewer: sees what is sent to them by name, comments and suggests edits to scripts, can't decide.
+- `role` (def) - Patches for one person's permissions.
+    - `access` (def)
+- `WhoIsASuggester` (class)
+    - `check` (def)
+    - `test_someone_with_only_the_suggest_permission_is_a_suggester` (def)
+    - `test_a_reviewer_can_suggest_but_is_not_only_a_suggester` (def)
+    - `test_a_reviewer_who_also_has_the_suggest_permission_is_not_a_suggester` (def)
+    - `test_a_content_manager_is_not_a_suggester` (def)
+    - `test_a_super_admin_is_not_a_suggester` (def)
+    - `test_someone_with_no_review_permission_cannot_suggest` (def)
+- `WhatASuggesterSees` (class)
+    - `test_they_work_on_no_brand_so_only_what_is_sent_to_them_by_name_shows` (def)
+    - `test_they_can_read_other_peoples_content` (def)
+    - `test_someone_sent_nothing_by_name_cannot_open_a_post_on_a_brand_they_do_not_work_on` (def)
+    - `test_a_post_sent_to_them_by_name_opens` (def)
+- `WhatASuggesterMayDo` (class)
+    - `comment_access` (def)
+    - `test_they_can_comment` (def)
+    - `test_someone_who_cannot_suggest_cannot_comment_on_someone_elses_post` (def)
+- `version` (def)
+- `SuggestingOnAScript` (class)
+    - `suggestable` (def)
+    - `test_a_suggester_can_suggest_on_the_script_in_review` (def)
+    - `test_only_a_suggester_suggests_reviewers_edit_the_script_themselves` (def)
+    - `test_nothing_can_be_suggested_once_the_script_is_not_in_review` (def)
+    - `test_a_script_nobody_sent_has_nothing_to_suggest_on` (def)
+    - `test_the_suggestion_is_kept_apart_from_the_script_and_the_same_wording_with_no_notes_is_nothing` (def)
 
 ## tests/test_teams_service.py (287 lines) - Teams direct messages: checking what Teams sends, saving chats, and delivering notifications.
 - `token` (def)
@@ -3644,11 +3695,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `send_batch` (def) [POST /{batch_id}/send] - Send the waiting scripts to the reviewers (checked against the rulebook in the background).
 - `review_batch` (def) [POST /{batch_id}/review] - Approve or send back any number of the batch's scripts at once; each approved script becomes a post.
 
-## tools/compliance/submissions/script_review_router.py (96 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+## tools/compliance/submissions/script_review_router.py (117 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+- `suggest_fix` (def) [POST /scripts/suggest-fix] - A compliant rewrite of one flagged passage of a script, for the creator to use or not.
 - `script_queue` (def) [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
 - `get_script` (def) [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
 - `submit_script` (def) [POST /{submission_id}/script/submit] - Send the uploaded script for review.
 - `decide_script` (def) [POST /{submission_id}/script/decision] - Approve the script, or send it back with a note and/or the reviewer's edited version.
+- `save_script_suggestion` (def) [PUT /{submission_id}/script/suggestion] - A suggesting reviewer saves their edited wording and notes for the script in review (theirs alone for now).
+- `discard_script_suggestion` (def) [DELETE /{submission_id}/script/suggestion] - Take back a suggesting reviewer's own suggestion on the script.
 - `accept_script_edits` (def) [POST /{submission_id}/script/accept] - Accept the reviewer's edits; the script is approved.
 - `revise_script` (def) [POST /{submission_id}/script/revise] - Send an edited script back to the reviewer.
 - `precheck_script` (def) [POST /{submission_id}/script/precheck] - Creator: check the uploaded script against the rulebook before sending it (the result is kept).
@@ -3686,7 +3740,6 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `context_suggestions` (def) [GET /{submission_id}/context-suggestions] - The Messaging Context the analysis would pick on its own for this post, by kind (the picker's suggestions).
 - `find_duplicates` (def) [GET /{submission_id}/duplicates] - Posts already sent for approval with the same content and caption as this draft, with how their Submission
 - `submit_for_review` (def) [POST /{submission_id}/submit] - Validate required information, snapshot a new version and create a review job.
-- `withdraw` (def) [POST /{submission_id}/withdraw] - Pull a submission back to draft to edit it: from review, or after approval for a late fix (the approval
 - `get_version` (def) [GET /{submission_id}/versions/{version}] - One submitted version as it was: snapshot, video, automated check and decision.
 - `get_history` (def) [GET /{submission_id}/history] - Versions, review jobs and the activity log.
 - `get_sentiment` (def) [GET /{submission_id}/sentiment] - Latest sentiment analysis (or null).

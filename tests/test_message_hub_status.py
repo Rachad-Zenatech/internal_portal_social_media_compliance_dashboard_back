@@ -38,11 +38,22 @@ class HubStatusTests(unittest.TestCase):
         self.assertTrue(hasattr(RabbitMQManager, "publish_social_media_event"))
 
     def test_routes_exist(self):
+        from starlette.routing import Match
+
         import server
 
-        paths = {r.path for r in server.app.routes}
-        for p in ("/api/message-hub/status", "/api/message-hub/test", "/api/message-hub/stream"):
-            self.assertIn(p, paths)
+        # Ask the router itself: newer FastAPI wraps included routers (no `.path` on app.routes entries).
+        def routed(method, path):
+            scope = {"type": "http", "method": method, "path": path, "root_path": ""}
+            return any(r.matches(scope)[0] == Match.FULL for r in server.app.routes)
+
+        for method, p in (
+            ("GET", "/api/message-hub/status"),
+            ("POST", "/api/message-hub/test"),
+            ("GET", "/api/message-hub/stream"),
+        ):
+            self.assertTrue(routed(method, p), f"{method} {p} is not routed")
+        self.assertFalse(routed("GET", "/api/message-hub/nope"))
 
 
 if __name__ == "__main__":

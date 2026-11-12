@@ -18,7 +18,10 @@ RUN apt-get update \
 
 # Install Python dependencies
 COPY requirements.txt .
+# torch from PyTorch's CPU-only index first (the container has no GPU): ~200 MB instead of the multi-GB CUDA build that
+# a plain install pulls. The requirements then find it already installed.
 RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy application source code

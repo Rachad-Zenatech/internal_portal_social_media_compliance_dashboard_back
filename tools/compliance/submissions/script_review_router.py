@@ -8,6 +8,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from models.compliance.script_review_model import (
+    FlagFixRequest,
+    FlagFixSuggestion,
     ScriptSubmitRequest,
     ScriptHighlight,
     ScriptHighlightsRequest,
@@ -17,6 +19,7 @@ from models.compliance.script_review_model import (
     ScriptQueueItem,
     ScriptReviseRequest,
     ScriptStage,
+    ScriptSuggestionRequest,
 )
 from services.compliance.evaluation import script_review_service as svc
 from services.shared.auth.auth_service import get_current_user_id_dependency
@@ -24,6 +27,12 @@ from services.shared.auth.auth_service import get_current_user_id_dependency
 router = APIRouter(prefix="/submissions", tags=["Script Review"])
 
 CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
+
+
+@router.post("/scripts/suggest-fix", response_model=FlagFixSuggestion)
+async def suggest_fix(req: FlagFixRequest, user_id: CurrentUser):
+    """A compliant rewrite of one flagged passage of a script, for the creator to use or not."""
+    return await svc.suggest_fix(req)
 
 
 @router.get("/scripts/queue", response_model=List[ScriptQueueItem])
@@ -49,6 +58,18 @@ async def submit_script(submission_id: UUID, user_id: CurrentUser, body: Optiona
 async def decide_script(submission_id: UUID, req: ScriptDecisionRequest, user_id: CurrentUser):
     """Approve the script, or send it back with a note and/or the reviewer's edited version."""
     return await svc.decide(submission_id, user_id, req)
+
+
+@router.put("/{submission_id}/script/suggestion", response_model=ScriptStage)
+async def save_script_suggestion(submission_id: UUID, req: ScriptSuggestionRequest, user_id: CurrentUser):
+    """A suggesting reviewer saves their edited wording and notes for the script in review (theirs alone for now)."""
+    return await svc.save_suggestion(submission_id, user_id, req)
+
+
+@router.delete("/{submission_id}/script/suggestion", response_model=ScriptStage)
+async def discard_script_suggestion(submission_id: UUID, user_id: CurrentUser):
+    """Take back a suggesting reviewer's own suggestion on the script."""
+    return await svc.discard_suggestion(submission_id, user_id)
 
 
 @router.post("/{submission_id}/script/accept", response_model=ScriptStage)

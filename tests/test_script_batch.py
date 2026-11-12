@@ -1,4 +1,3 @@
-import os
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -119,26 +118,26 @@ class UploadTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(".docx", (await self.refused("a.doc", b"x")).detail)
 
 
-class NobodyApprovesTheirOwnScripts(unittest.IsolatedAsyncioTestCase):
-    """The creator of a script can't approve it, even as a super admin: another reviewer has to."""
+class OnlySuperAdminsReviewTheirOwnScripts(unittest.IsolatedAsyncioTestCase):
+    """The creator of a script can't review it, unless they are a super admin (as with posts): another reviewer has to."""
 
     async def may_act(self, module, row, user, *, reviewer=True, super_admin=False):
-        # The rule as everywhere but development (where ALLOW_SUPER_ADMIN_SELF_REVIEW may be on in .env).
-        with patch.dict(os.environ, {"ALLOW_SUPER_ADMIN_SELF_REVIEW": ""}), \
-             patch.object(module.subs, "_can_review", new=AsyncMock(return_value=reviewer)), \
+        with patch.object(module.subs, "_can_review", new=AsyncMock(return_value=reviewer)), \
              patch.object(module.subs, "_is_super_admin", new=AsyncMock(return_value=super_admin)):
             return await module._reviewer_may_act(row, user)
 
-    async def test_a_single_scripts_creator_cannot_review_it_even_as_a_super_admin(self):
+    async def test_a_single_scripts_creator_cannot_review_it_unless_a_super_admin(self):
         me, other = uuid4(), uuid4()
         row = {"created_by": me, "sent_at": True, "details": {}}
-        self.assertFalse(await self.may_act(scripts, row, me, super_admin=True))
+        self.assertFalse(await self.may_act(scripts, row, me))
+        self.assertTrue(await self.may_act(scripts, row, me, super_admin=True))
         self.assertTrue(await self.may_act(scripts, row, other))
 
-    async def test_a_batchs_creator_cannot_review_it_even_as_a_super_admin(self):
+    async def test_a_batchs_creator_cannot_review_it_unless_a_super_admin(self):
         me, other = uuid4(), uuid4()
         row = {"created_by": me, "sent_at": datetime.now(timezone.utc), "details": {}}
-        self.assertFalse(await self.may_act(svc, row, me, super_admin=True))
+        self.assertFalse(await self.may_act(svc, row, me))
+        self.assertTrue(await self.may_act(svc, row, me, super_admin=True))
         self.assertTrue(await self.may_act(svc, row, other))
 
     async def test_someone_who_is_not_a_reviewer_cannot_review(self):

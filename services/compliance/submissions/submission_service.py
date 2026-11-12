@@ -264,14 +264,32 @@ async def _can_review(user_id: UUID) -> bool:
     return await _is_super_admin(user_id) or await user_can_access_page(user_id, "CONTENT_REVIEW", "APPROVE")
 
 
+async def _can_suggest(user_id: UUID) -> bool:
+    """Everyone who can comment on and suggest edits to review content: reviewers, and suggesting reviewers ("Suggest on
+    Content"), who can't approve, send back or schedule anything."""
+    from services.shared.auth.auth_service import user_can_access_page
+    return await _can_review(user_id) or await user_can_access_page(user_id, "CONTENT_REVIEW", "SUGGEST")
+
+
+async def _is_suggester(user_id: UUID) -> bool:
+    """A suggesting reviewer only: someone who can suggest but neither review nor manage content. They see only the
+    content that was sent to them by name."""
+    return await _can_suggest(user_id) and not await _can_review(user_id) and not await _can_manage_team_content(user_id)
+
+
 async def _can_see_team_content(user_id: UUID) -> bool:
-    """Content Managers and reviewers can read everyone's submissions."""
-    return await _can_manage_team_content(user_id) or await _can_review(user_id)
+    """Content Managers, reviewers and suggesting reviewers can read other people's submissions (a suggesting reviewer
+    only those sent to them by name: see _brand_scope)."""
+    return await _can_manage_team_content(user_id) or await _can_suggest(user_id)
 
 
 async def _brand_scope(user_id: UUID) -> Optional[List[str]]:
     """The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
-    hasn't been assigned to specific brands. Other people's content outside these brands is hidden from them."""
+    hasn't been assigned to specific brands. Other people's content outside these brands is hidden from them. A
+    suggesting reviewer works on no brand (an empty list): they see only what was sent to them by name."""
+    if await _is_suggester(user_id):
+        return []
+
     async def load() -> Optional[Tuple[str, ...]]:
         row = await fetch_one(
             """
@@ -361,7 +379,7 @@ def _require_editable(row: Dict[str, Any]) -> None:
     if row["status"] not in EDITABLE_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Submission is {row['status'].replace('_', ' ').lower()} and can't be edited. Withdraw it to make changes.",
+            detail=f"Submission is {row['status'].replace('_', ' ').lower()} and can't be edited.",
         )
 
 
@@ -564,7 +582,8 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
                  WHERE a.submission_id = s.id AND a.status = 'COMPLETED') AS sentiment_at,
                EXISTS (SELECT 1 FROM content_sentiment_analyses a WHERE a.submission_id = s.id
                         AND a.status IN ('WAITING_TRANSCRIPT', 'PENDING', 'PROCESSING')) AS sentiment_running,
-               (SELECT max(m.created_at) FROM public_mood_summaries m WHERE m.submission_id = s.id) AS mood_at,
+               greatest(s.mood_checked_at,
+                        (SELECT max(m.created_at) FROM public_mood_summaries m WHERE m.submission_id = s.id)) AS mood_at,
                EXISTS (SELECT 1 FROM content_submission_files mf WHERE mf.submission_id = s.id AND mf.kind = 'MAIN'
                         AND mf.deleted_at IS NULL) AS has_main,
                EXISTS (SELECT 1 FROM content_submission_files mf WHERE mf.submission_id = s.id AND mf.kind = 'MAIN'
@@ -807,8 +826,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["reviewer_route"] = list(dict.fromkeys(payload["reviewer_route"]))
     if payload.get("reviewer_ids") is not None:
         picked = list(dict.fromkeys(payload["reviewer_ids"]))
-        allowed = set(await _reviewer_ids(exclude=await _creator_exclusion(row["created_by"]),
-                                          brand_codes=fields.get("brand_codes", brands_of(row))))
+        out, on = await _creator_exclusion(row["created_by"]), fields.get("brand_codes", brands_of(row))
+        allowed = set(await _reviewer_ids(exclude=out, brand_codes=on)) | set(await _suggester_ids(exclude=out, brand_codes=on))
         if any(r not in allowed for r in picked):
             raise HTTPException(status_code=422, detail="Some of those people can't review content on this brand")
         fields["reviewer_ids"] = picked
@@ -875,7 +894,7 @@ async def delete_draft(submission_id: UUID, user_id: UUID) -> None:
     so its versions, review jobs and activity stay on record."""
     row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
     if row["status"] != "DRAFT":
-        raise HTTPException(status_code=409, detail="Only drafts can be deleted. Withdraw it from review first.")
+        raise HTTPException(status_code=409, detail="Only drafts can be deleted. Content that was sent for review can't be withdrawn or deleted.")
     if _script_with_reviewer(row):
         raise HTTPException(status_code=409, detail="Its script is with a reviewer, so it can't be deleted until they reply.")
     is_creator = row["created_by"] == user_id
@@ -1668,10 +1687,13 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
     if reviewer_ids:
         creator_out = await _creator_exclusion(row["created_by"])
         eligible = set(await _reviewer_ids(exclude=creator_out, brand_codes=brands_of(row)))
-        reviewer_ids = [r for r in reviewer_ids if r in eligible]
-        if not reviewer_ids:
+        suggesters = set(await _suggester_ids(exclude=creator_out, brand_codes=brands_of(row)))
+        reviewer_ids = [r for r in reviewer_ids if r in eligible or r in suggesters]
+        # A suggesting reviewer only comments: somebody who can approve it has to be among the people picked.
+        if not any(r in eligible for r in reviewer_ids):
             raise HTTPException(status_code=422, detail={
-                "message": "None of the reviewers you picked can review this brand any more. Pick reviewers again.",
+                "message": "None of the reviewers you picked can approve this any more. Pick a reviewer who can approve it "
+                           "(a suggesting reviewer can only comment).",
                 "missing": ["reviewer_ids"],
             })
         approver_ids, _ = _approvers(await approval_path_service.load_rules(), row, _accounts(row))
@@ -1788,67 +1810,6 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
     # Sentiment analysis isn't started here: the reviewer runs it from the review screen when they want it.
 
     return await get_submission(submission_id, user_id), _review_job(dict(job))
-
-
-async def withdraw(submission_id: UUID, user_id: UUID) -> Submission:
-    """Pull a submission back to draft so the creator can edit and resubmit: from review, or after approval for a
-    late fix. Withdrawing approved content gives up the approval; the edited version goes through review again."""
-    row = await _get_owned_row(submission_id, user_id)
-    if row["status"] not in ("IN_REVIEW", "APPROVED"):
-        raise HTTPException(status_code=409, detail="Only content that's in review or approved can be withdrawn")
-    was_approved = row["status"] == "APPROVED"
-    version = row["current_version"]
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            current = await conn.fetchval("SELECT status FROM content_submissions WHERE id = $1 FOR UPDATE", submission_id)
-            if current != row["status"]:
-                raise HTTPException(status_code=409, detail="Its status just changed; refresh to see it")
-            # An approved version's review job keeps its APPROVED decision as history; the event records the withdrawal.
-            await conn.execute(
-                """
-                UPDATE content_review_jobs SET status = 'WITHDRAWN', completed_at = NOW()
-                WHERE submission_id = $1 AND status = 'AWAITING_REVIEW'
-                """,
-                submission_id,
-            )
-            await conn.execute(
-                """
-                UPDATE content_submissions SET status = 'DRAFT', updated_at = NOW(), updated_by = $2,
-                    due_at = NULL, due_kind = NULL
-                WHERE id = $1
-                """,
-                submission_id, user_id,
-            )
-            await _add_event(
-                conn, submission_id, "WITHDRAWN",
-                f"Approved version {version} withdrawn for a late fix; the approval no longer applies"
-                if was_approved else f"Version {version} withdrawn from review for editing",
-                user_id, {"version": version, "was_approved": was_approved},
-            )
-    await log_audit_event("content_submission", str(submission_id),
-                          "WITHDRAW_APPROVED_SUBMISSION" if was_approved else "WITHDRAW_SUBMISSION", user_id,
-                          {"reference_code": row["reference_code"], "version": version})
-    if was_approved:
-        # Tell whoever approved it that it's coming back for another look.
-        approver = await fetch_one(
-            """
-            SELECT decided_by FROM content_review_jobs
-            WHERE submission_id = $1 AND version_number = $2 AND decision = 'APPROVE' AND decided_by IS NOT NULL
-            ORDER BY decided_at DESC LIMIT 1
-            """,
-            submission_id, version,
-        )
-        if approver and approver["decided_by"] != user_id:
-            await _notify(
-                [approver["decided_by"]],
-                f"{row['reference_code']} was withdrawn after approval",
-                f"\"{row['title']}\" was pulled back for a late fix. It's off the calendar until it's resubmitted "
-                "and approved again.",
-                f"/submissions/{submission_id}",
-                submission_id,
-            )
-    return await get_submission(submission_id, user_id)
 
 
 # The Content Screener's tabs: content waiting on a reviewer, content waiting on its creator, and decided content.
@@ -2225,12 +2186,15 @@ async def get_history(submission_id: UUID, user_id: UUID) -> SubmissionHistory:
 # ---------------------------------------------------------------------------
 
 REVIEW_GROUP = "CONTENT_REVIEW_PUBLISH"
+SUGGEST_GROUP = "CONTENT_REVIEW_SUGGEST"
 
 
 async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str] = None,
-                        brand_codes: Optional[List[str]] = None) -> List[UUID]:
+                        brand_codes: Optional[List[str]] = None, group: str = REVIEW_GROUP,
+                        include_super: bool = True) -> List[UUID]:
     """Active users who can review: super admins and roles with "Review & Publish Content". With brands, only
-    reviewers who work on at least one of them (or on every brand)."""
+    reviewers who work on at least one of them (or on every brand). With group=SUGGEST_GROUP (and no super admins),
+    the suggesting reviewers instead."""
     brands = list(brand_codes or ([brand_code] if brand_code else [])) or None
     rows = await fetch_all(
         """
@@ -2242,20 +2206,25 @@ async def _reviewer_ids(exclude: Optional[UUID] = None, brand_code: Optional[str
             OR EXISTS (SELECT 1 FROM user_brands ub WHERE ub.user_id = u.id AND ub.brand_code = ANY($3::text[]))
           )
           AND (
-            u.is_super_admin
+            ($4 AND u.is_super_admin)
             OR EXISTS (
                 SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
                 WHERE ur.user_id = u.id AND ur.is_active AND r.is_active AND r.deleted_at IS NULL
-                  AND (r.code = 'SUPER_ADMIN' OR EXISTS (
+                  AND (($4 AND r.code = 'SUPER_ADMIN') OR EXISTS (
                         SELECT 1 FROM role_permission_groups rpg
                         JOIN permission_groups g ON g.id = rpg.permission_group_id
                         WHERE rpg.role_id = r.id AND g.code = $2))
             )
           )
         """,
-        exclude, REVIEW_GROUP, brands,
+        exclude, group, brands, include_super,
     )
     return [r["id"] for r in rows]
+
+
+async def _suggester_ids(exclude: Optional[UUID] = None, brand_codes: Optional[List[str]] = None) -> List[UUID]:
+    """Active suggesting reviewers ("Suggest on Content") on any of the brands, who can be attached to a post."""
+    return await _reviewer_ids(exclude=exclude, brand_codes=brand_codes, group=SUGGEST_GROUP, include_super=False)
 
 
 async def _creator_exclusion(creator_id: UUID) -> Optional[UUID]:
@@ -2267,13 +2236,16 @@ async def _creator_exclusion(creator_id: UUID) -> Optional[UUID]:
 async def reviewer_options(user_id: UUID, brand_codes: Optional[List[str]] = None) -> List[ReviewerOption]:
     """The people a creator can send content to: reviewers and super admins (on any of the brands, when given). Not
     themselves, unless they're a super admin."""
-    ids = await _reviewer_ids(exclude=await _creator_exclusion(user_id), brand_codes=brand_codes)
+    out = await _creator_exclusion(user_id)
+    ids = await _reviewer_ids(exclude=out, brand_codes=brand_codes)
+    suggesters = set(await _suggester_ids(exclude=out, brand_codes=brand_codes)) - set(ids)
     rows = await fetch_all(
         "SELECT id, full_name, email, is_super_admin FROM users WHERE id = ANY($1::uuid[]) ORDER BY full_name, email",
-        ids,
+        [*ids, *suggesters],
     )
     return [
-        ReviewerOption(id=r["id"], name=r["full_name"] or r["email"], email=r["email"], is_super_admin=bool(r["is_super_admin"]))
+        ReviewerOption(id=r["id"], name=r["full_name"] or r["email"], email=r["email"], is_super_admin=bool(r["is_super_admin"]),
+                       kind="SUGGESTER" if r["id"] in suggesters else "REVIEWER")
         for r in rows
     ]
 
@@ -2283,7 +2255,11 @@ async def _review_recipients(row: Dict[str, Any], exclude: Optional[UUID]) -> Li
     reviewer on its brand when it wasn't sent to anyone in particular."""
     everyone = await _reviewer_ids(exclude=exclude, brand_codes=brands_of(row))
     picked = list(row.get("reviewer_ids") or [])
-    return [r for r in picked if r in set(everyone)] if picked else everyone
+    if not picked:
+        return everyone
+    # The people it was sent to by name, suggesting reviewers too (they are told as well, though they only comment).
+    named = set(everyone) | set(await _suggester_ids(exclude=exclude, brand_codes=brands_of(row)))
+    return [r for r in picked if r in named]
 
 
 async def _notify(user_ids: List[UUID], title: str, message: str, link: str, submission_id: UUID) -> None:
@@ -2677,9 +2653,9 @@ async def list_comments(submission_id: UUID, user_id: UUID) -> List[ReviewCommen
 
 
 async def _comment_access(submission_id: UUID, user_id: UUID) -> Dict[str, Any]:
-    """Reviewers and the creator can comment and resolve comments."""
+    """Reviewers, suggesting reviewers and the creator can comment and resolve comments."""
     row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
-    if row["created_by"] != user_id and not await _can_review(user_id):
+    if row["created_by"] != user_id and not await _can_suggest(user_id):
         raise HTTPException(status_code=403, detail="Only reviewers and the person who uploaded it can comment")
     return row
 

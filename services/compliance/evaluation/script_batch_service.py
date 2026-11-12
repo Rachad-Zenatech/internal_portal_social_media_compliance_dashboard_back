@@ -190,7 +190,7 @@ async def _picked_reviewers(row: Dict[str, Any]) -> Optional[set]:
 
 async def _reviewer_may_see(row: Dict[str, Any], user_id: UUID) -> bool:
     # Reviewers see a batch once it has been sent.
-    if not row["sent_at"] or not await subs._can_review(user_id):
+    if not row["sent_at"] or not await subs._can_suggest(user_id):
         return False
     picked = await _picked_reviewers(row)
     return picked is None or str(user_id) in picked or await subs._is_super_admin(user_id)
@@ -208,10 +208,13 @@ async def _owned(batch_id: UUID, user_id: UUID) -> Dict[str, Any]:
 
 
 async def _reviewer_may_act(row: Dict[str, Any], user_id: UUID) -> bool:
+    # Suggesting reviewers see a batch sent to them but can't decide on it.
+    if not await subs._can_review(user_id):
+        return False
     if not await _reviewer_may_see(row, user_id) and not await subs._is_super_admin(user_id):
         return False
-    # Nobody approves their own scripts, a super admin included: another reviewer has to (except in development).
-    return row["created_by"] != user_id or await scripts.may_review_own_script(user_id)
+    # Nobody approves their own scripts but a super admin (as with posts): another reviewer has to.
+    return row["created_by"] != user_id or await subs._is_super_admin(user_id)
 
 
 # --- Reading a batch ---------------------------------------------------------------------------------------------------
@@ -285,7 +288,7 @@ async def get_batch(batch_id: UUID, user_id: UUID) -> Batch:
 async def list_batches(user_id: UUID, scope: str = "mine") -> List[BatchSummary]:
     """Batches the user uploaded ("mine"), or those sent to reviewers ("review")."""
     if scope == "review":
-        if not await subs._can_review(user_id):
+        if not await subs._can_suggest(user_id):
             raise HTTPException(status_code=403, detail="Only reviewers can see batches to review")
         rows = await fetch_all(
             "SELECT * FROM content_script_batches WHERE deleted_at IS NULL AND sent_at IS NOT NULL "
@@ -593,7 +596,7 @@ async def _notify_reviewers(batch: Dict[str, Any], count: int, creator: UUID) ->
         brands = list(dict.fromkeys(b for d in each for b in d.get("brand_codes") or []))
         named = [d.get("reviewer_ids") or [] for d in each]
         details = {"brand_codes": brands, "reviewer_ids": [] if any(not n for n in named) else [r for n in named for r in n]}
-    own_ok = await scripts.may_review_own_script(creator)  # development: the creator is told too
+    own_ok = await scripts.may_review_own_script(creator)  # a super admin who may review their own is told too
     reviewers = await subs._review_recipients(post_row(details, batch["title"]), exclude=None if own_ok else creator)
     await subs._notify(
         reviewers, f"Scripts to review: {batch['title']}",

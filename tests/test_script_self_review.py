@@ -1,19 +1,15 @@
 import asyncio
-import os
 import unittest
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from services.compliance.evaluation import script_review_service as scripts
 
-DEV_ON = {"ALLOW_SUPER_ADMIN_SELF_REVIEW": "true", "APP_ENV": "development"}
-DEV_OFF = {"ALLOW_SUPER_ADMIN_SELF_REVIEW": "", "APP_ENV": "development"}
-
 
 class ScriptSelfReviewTests(unittest.TestCase):
-    """A script sent only to its own writer would sit in review for good: nobody else sees it, and they can't approve it."""
+    """A script sent only to its own writer would sit in review for good unless they may approve it themselves."""
 
-    def test_sent_only_to_the_creator_is_refused(self):
+    def test_sent_only_to_the_creator(self):
         me = uuid4()
         self.assertTrue(scripts.only_sent_to_self([me], me))
         self.assertTrue(scripts.only_sent_to_self([str(me)], me))
@@ -28,34 +24,18 @@ class ScriptSelfReviewTests(unittest.TestCase):
         self.assertFalse(scripts.only_sent_to_self(None, uuid4()))
 
 
-class SelfReviewInDevelopmentTests(unittest.TestCase):
-    """In development a super admin may review and approve their own scripts; never in production."""
+class SuperAdminsReviewTheirOwnScriptsTests(unittest.TestCase):
+    """A super admin may review their own scripts (as with posts); nobody else may."""
 
-    def may(self, env, is_super):
-        with patch.dict(os.environ, env), \
-             patch.object(scripts.subs, "_is_super_admin", new=AsyncMock(return_value=is_super)):
+    def may(self, is_super):
+        with patch.object(scripts.subs, "_is_super_admin", new=AsyncMock(return_value=is_super)):
             return asyncio.run(scripts.may_review_own_script(uuid4()))
 
-    def test_super_admin_in_development_with_the_flag(self):
-        self.assertTrue(self.may(DEV_ON, True))
+    def test_a_super_admin_may(self):
+        self.assertTrue(self.may(True))
 
-    def test_never_in_production_even_with_the_flag(self):
-        self.assertFalse(self.may({"ALLOW_SUPER_ADMIN_SELF_REVIEW": "true", "APP_ENV": "production"}, True))
-
-    def test_not_without_the_flag(self):
-        self.assertFalse(self.may(DEV_OFF, True))
-
-    def test_not_for_other_reviewers(self):
-        self.assertFalse(self.may(DEV_ON, False))
-
-    def test_the_creator_may_approve_only_when_switched_on(self):
-        me = uuid4()
-        row = {"created_by": me}
-        for env, expected in ((DEV_ON, True), (DEV_OFF, False)):
-            with patch.dict(os.environ, env), \
-                 patch.object(scripts.subs, "_can_review", new=AsyncMock(return_value=True)), \
-                 patch.object(scripts.subs, "_is_super_admin", new=AsyncMock(return_value=True)):
-                self.assertEqual(asyncio.run(scripts._reviewer_may_act(row, me)), expected)
+    def test_anyone_else_may_not(self):
+        self.assertFalse(self.may(False))
 
 
 if __name__ == "__main__":
