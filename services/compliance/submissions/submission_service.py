@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
 import aiofiles
+import asyncpg
 from fastapi import HTTPException, UploadFile, status
 
 from models.compliance.compliance_model import ComplianceCheckRequest, ProvidedSource
@@ -850,25 +851,35 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
     # Changing anything the checks read makes their results out of date; who reviews it and by when does not.
     edited = ", content_edited_at = NOW()" if content_changed(row, fields) else ""
     pool = get_pool()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                f"UPDATE content_submissions SET {sets}{edited}, updated_by = ${len(params)}, updated_at = NOW() WHERE id = $1",
-                *params,
-            )
-            # One "draft saved" entry per 10 minutes keeps autosave from flooding the activity log.
-            await conn.execute(
-                """
-                INSERT INTO content_submission_events (submission_id, event_type, message, actor_user_id)
-                SELECT $1, 'DRAFT_SAVED', 'Draft saved', $2
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM content_submission_events
-                    WHERE submission_id = $1 AND event_type = 'DRAFT_SAVED' AND created_at > NOW() - INTERVAL '10 minutes'
+    try:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                # Fail fast if another request holds this row (e.g. a stuck upload), instead of hanging until the
+                # 120s command timeout and returning a 500.
+                await conn.execute("SET LOCAL lock_timeout = '8s'")
+                await conn.execute(
+                    f"UPDATE content_submissions SET {sets}{edited}, updated_by = ${len(params)}, updated_at = NOW() WHERE id = $1",
+                    *params,
                 )
-                """,
-                submission_id,
-                user_id,
-            )
+                # One "draft saved" entry per 10 minutes keeps autosave from flooding the activity log.
+                await conn.execute(
+                    """
+                    INSERT INTO content_submission_events (submission_id, event_type, message, actor_user_id)
+                    SELECT $1, 'DRAFT_SAVED', 'Draft saved', $2
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM content_submission_events
+                        WHERE submission_id = $1 AND event_type = 'DRAFT_SAVED' AND created_at > NOW() - INTERVAL '10 minutes'
+                    )
+                    """,
+                    submission_id,
+                    user_id,
+                )
+    except (asyncpg.exceptions.LockNotAvailableError, asyncio.TimeoutError, TimeoutError):
+        logger.warning("Draft save timed out waiting on the database", extra={"submission_id": str(submission_id)})
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The draft is busy (another save or upload is still running). Try again in a moment.",
+        )
     return await get_submission(submission_id, user_id)
 
 

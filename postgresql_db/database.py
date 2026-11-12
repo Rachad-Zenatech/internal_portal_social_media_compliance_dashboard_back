@@ -43,6 +43,8 @@ async def create_pool():
                     "tcp_keepalives_idle": "30",
                     "tcp_keepalives_interval": "10",
                     "tcp_keepalives_count": "3",
+                    # A request that dies mid-transaction must not keep its row locks forever.
+                    "idle_in_transaction_session_timeout": os.getenv("DB_IDLE_IN_TX_TIMEOUT_MS", "60000"),
                 }
 
                 _pool = await asyncpg.create_pool(
