@@ -7,10 +7,17 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
 from models.compliance.brand_voice_model import BrandVoice, BrandVoiceIn
-from models.compliance.context_model import ContextEntry, ContextEntryIn, ContextSync
+from models.compliance.context_model import (
+    ContextEntry,
+    ContextEntryIn,
+    ContextSync,
+    PolicyProposalApprove,
+    PolicyWatch,
+)
 from services.compliance.evaluation import brand_voice_service as voices
 from services.compliance.evaluation import context_service as svc
 from services.compliance.evaluation import newsroom_sync_service as newsroom
+from services.compliance.evaluation import policy_watch_service as policy_watch
 from services.shared.auth.auth_service import get_current_user_id_dependency, require_permission
 
 router = APIRouter(prefix="/messaging-context")
@@ -36,6 +43,31 @@ async def newsroom_sync_status(user_id: CurrentUser):
 async def start_newsroom_sync(user_id: ManageUser):
     """Read the ZenaTech newsroom now and add or update its facts (it also runs once a day)."""
     return await newsroom.start("MANUAL", user_id)
+
+
+# Platform content policies are re-read from the platforms' policy pages every week; drafted updates wait for a super
+# admin. Super admins only: nobody else is shown or asked about them.
+@router.get("/policy-watch", response_model=PolicyWatch)
+async def policy_watch_overview(user_id: CurrentUser):
+    """How the last check of the policy pages went, and the drafted updates waiting for a decision."""
+    return await policy_watch.overview(user_id)
+
+
+@router.post("/policy-watch", response_model=PolicyWatch, status_code=status.HTTP_202_ACCEPTED)
+async def policy_watch_check_now(user_id: CurrentUser):
+    """Re-read the policy pages now (it also runs once a week)."""
+    return await policy_watch.check_now(user_id)
+
+
+@router.post("/policy-watch/proposals/{proposal_id}/approve", response_model=PolicyWatch)
+async def approve_policy_update(proposal_id: UUID, user_id: CurrentUser, data: Optional[PolicyProposalApprove] = None):
+    """Replace the norm's wording with the drafted update, or with the super admin's edits to it."""
+    return await policy_watch.approve(proposal_id, user_id, data)
+
+
+@router.post("/policy-watch/proposals/{proposal_id}/reject", response_model=PolicyWatch)
+async def reject_policy_update(proposal_id: UUID, user_id: CurrentUser):
+    return await policy_watch.reject(proposal_id, user_id)
 
 
 @router.get("/brand-voices", response_model=List[BrandVoice])

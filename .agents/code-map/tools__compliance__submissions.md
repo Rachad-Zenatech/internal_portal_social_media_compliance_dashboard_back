@@ -27,20 +27,24 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_video_job_status` (def) L159 [GET /jobs/{job_id}] - Get the real-time status, progress, and logs of a video background job.
 - `list_video_jobs` (def) L168 [GET /jobs] - List recent video upload and screening background jobs.
 
-## tools/compliance/submissions/context_router.py (96 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
-- `list_entries` (def) L23 [GET ] - Everyone can read it: it's the guidance their content is assessed against.
-- `newsroom_sync_status` (def) L29 [GET /newsroom-sync] - The newsroom sync running now, or how the last one went (none yet: null).
-- `start_newsroom_sync` (def) L35 [POST /newsroom-sync] - Read the ZenaTech newsroom now and add or update its facts (it also runs once a day).
-- `list_brand_voices` (def) L41 [GET /brand-voices] - Every brand's voice: what was read from its brand manual (or written by hand), and whether the viewer may edit it.
-- `get_brand_voice` (def) L47 [GET /brand-voices/{brand_code}]
-- `upload_brand_manual` (def) L52 [POST /brand-voices/{brand_code}/manual] - Upload the brand's manual (PDF).
-- `reread_brand_manual` (def) L59 [POST /brand-voices/{brand_code}/read] - Read the uploaded manual again (e.g.
-- `update_brand_voice` (def) L65 [PUT /brand-voices/{brand_code}] - Edit the brand voice by hand (what was read from the manual, or without one).
-- `download_brand_manual` (def) L71 [GET /brand-voices/{brand_code}/manual]
-- `brand_logo` (def) L77 [GET /brand-voices/{brand_code}/logo]
-- `create_entry` (def) L83 [POST ]
-- `update_entry` (def) L88 [PUT /{entry_id}]
-- `delete_entry` (def) L93 [DELETE /{entry_id}]
+## tools/compliance/submissions/context_router.py (128 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
+- `list_entries` (def) L30 [GET ] - Everyone can read it: it's the guidance their content is assessed against.
+- `newsroom_sync_status` (def) L36 [GET /newsroom-sync] - The newsroom sync running now, or how the last one went (none yet: null).
+- `start_newsroom_sync` (def) L42 [POST /newsroom-sync] - Read the ZenaTech newsroom now and add or update its facts (it also runs once a day).
+- `policy_watch_overview` (def) L50 [GET /policy-watch] - How the last check of the policy pages went, and the drafted updates waiting for a decision.
+- `policy_watch_check_now` (def) L56 [POST /policy-watch] - Re-read the policy pages now (it also runs once a week).
+- `approve_policy_update` (def) L62 [POST /policy-watch/proposals/{proposal_id}/approve] - Replace the norm's wording with the drafted update, or with the super admin's edits to it.
+- `reject_policy_update` (def) L68 [POST /policy-watch/proposals/{proposal_id}/reject]
+- `list_brand_voices` (def) L73 [GET /brand-voices] - Every brand's voice: what was read from its brand manual (or written by hand), and whether the viewer may edit it.
+- `get_brand_voice` (def) L79 [GET /brand-voices/{brand_code}]
+- `upload_brand_manual` (def) L84 [POST /brand-voices/{brand_code}/manual] - Upload the brand's manual (PDF).
+- `reread_brand_manual` (def) L91 [POST /brand-voices/{brand_code}/read] - Read the uploaded manual again (e.g.
+- `update_brand_voice` (def) L97 [PUT /brand-voices/{brand_code}] - Edit the brand voice by hand (what was read from the manual, or without one).
+- `download_brand_manual` (def) L103 [GET /brand-voices/{brand_code}/manual]
+- `brand_logo` (def) L109 [GET /brand-voices/{brand_code}/logo]
+- `create_entry` (def) L115 [POST ]
+- `update_entry` (def) L120 [PUT /{entry_id}]
+- `delete_entry` (def) L125 [DELETE /{entry_id}]
 
 ## tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - `list_batches` (def) L27 [GET ] - The batches you uploaded, or (reviewers) the batches sent for review.

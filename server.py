@@ -221,6 +221,12 @@ async def lifespan(app: FastAPI):
     newsroom_task.add_done_callback(partial(log_background_task_result, task_name="newsroom-sync"))
     background_tasks.append(newsroom_task)
 
+    # 3e0b. Platform content policies: their policy pages re-read weekly; changes drafted for a super admin to approve
+    from services.compliance.evaluation.policy_watch_service import policy_watch_loop
+    policy_watch_task = asyncio.create_task(policy_watch_loop(), name="policy-watch")
+    policy_watch_task.add_done_callback(partial(log_background_task_result, task_name="policy-watch"))
+    background_tasks.append(policy_watch_task)
+
     # 3e1. Checks the AI couldn't read (key out of credits, quota, down) are retried until it can
     from services.compliance.submissions.submission_service import ai_recheck_loop
     ai_recheck_task = asyncio.create_task(ai_recheck_loop(), name="ai-unavailable-recheck")

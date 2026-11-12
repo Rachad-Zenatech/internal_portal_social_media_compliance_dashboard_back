@@ -178,6 +178,92 @@ SEED_ENTRIES = [
         "dont_examples": "Undated claims, forward-looking statements without the safe-harbor line.",
     },
     # ---- Audience profiles ----
+    # ---- Platform content policies (what each platform allows; a post that breaks them can be removed, limited or
+    # get the account penalised). Kept as platform norms so the analysis checks every post against them. ----
+    {
+        "seed_key": "policy:META",
+        "kind": "PLATFORM_NORM",
+        "title": "Facebook & Instagram content policy (Meta)",
+        "platforms": ["FACEBOOK", "INSTAGRAM"],
+        "body": "Meta's Community Standards apply to every post, and its Advertising Standards to anything boosted or run "
+                "as an ad. Paid or sponsored partnerships must use the Paid partnership label (Branded Content Policies). "
+                "Misleading claims, fake engagement, and content that infringes someone else's copyright or trademark "
+                "(music, footage, logos) can be removed or limit the account's reach. Ads about financial products, "
+                "investment opportunities or social issues need extra authorisation and disclaimers. Photorealistic "
+                "AI-generated or altered imagery may be labelled as AI by Meta; don't present it as real footage.",
+        "do_examples": "Tag paid partners with the Paid partnership label; use licensed or Meta-cleared music; keep "
+                       "claims verifiable; blur faces and number plates of people who didn't agree to appear.",
+        "dont_examples": "Engagement bait (\"like if you agree\", \"tag 3 friends\"); guaranteed-return or get-rich "
+                         "investment language; unlicensed music or clips; AI imagery passed off as real.",
+        "source": "https://transparency.meta.com/policies/community-standards/ · "
+                  "https://transparency.meta.com/policies/ad-standards/",
+    },
+    {
+        "seed_key": "policy:LINKEDIN",
+        "kind": "PLATFORM_NORM",
+        "title": "LinkedIn content policy",
+        "platforms": ["LINKEDIN"],
+        "body": "LinkedIn's Professional Community Policies expect posts to be truthful, professional and not misleading; "
+                "its Advertising Policies apply to sponsored content. False or misleading claims, spam and repetitive "
+                "promotional posting, and harassment are removed. Ads for financial services and investments must be "
+                "accurate, include required risk disclaimers and must not promise returns. Don't share confidential or "
+                "personal information about colleagues, customers or other people.",
+        "do_examples": "State facts you can back up; disclose sponsorship and partnerships; credit sources and "
+                       "co-authors; keep promotional posts occasional.",
+        "dont_examples": "Unverified superlatives or guaranteed results; posting the same promotion repeatedly; "
+                         "sharing private details or screenshots of people without consent.",
+        "source": "https://www.linkedin.com/legal/professional-community-policies · "
+                  "https://www.linkedin.com/legal/ads-policy",
+    },
+    {
+        "seed_key": "policy:TIKTOK",
+        "kind": "PLATFORM_NORM",
+        "title": "TikTok content policy",
+        "platforms": ["TIKTOK"],
+        "body": "TikTok's Community Guidelines apply to every video. Content that promotes a brand, product or service "
+                "must turn on the content disclosure setting (branded content / promotional content). Dangerous acts "
+                "that others might copy are restricted. Realistic AI-generated content must be labelled as AI-generated. "
+                "Business accounts may only use music from the Commercial Music Library. Misleading claims and content "
+                "about investments or financial schemes are restricted, and may be made ineligible for the For You feed.",
+        "do_examples": "Turn on the content disclosure setting for promotional videos; use Commercial Music Library "
+                       "tracks; label AI-generated visuals; show safety measures in demonstrations.",
+        "dont_examples": "Trending songs outside the Commercial Music Library; unsafe stunts or drone flights near "
+                         "people; unlabelled realistic AI footage; financial promises or 'easy money' framing.",
+        "source": "https://www.tiktok.com/community-guidelines/en/ · "
+                  "https://support.tiktok.com/en/business-and-creator/creator-and-business-accounts/commercial-use-of-music-on-tiktok",
+    },
+    {
+        "seed_key": "policy:YOUTUBE",
+        "kind": "PLATFORM_NORM",
+        "title": "YouTube & Shorts content policy",
+        "platforms": ["YOUTUBE", "YOUTUBE_SHORTS"],
+        "body": "YouTube's Community Guidelines apply to videos and Shorts. Paid product placements, endorsements and "
+                "sponsorships must be disclosed with the paid promotion setting (Branded Content Policies). Realistic "
+                "altered or synthetic (AI) content must be disclosed when uploading. Copyrighted music or footage "
+                "without rights leads to Content ID claims or copyright strikes. Harmful or dangerous acts, misleading "
+                "metadata (titles, thumbnails that don't match the video) and spam are removed.",
+        "do_examples": "Tick the paid promotion box for sponsored videos; disclose realistic AI or altered footage; use "
+                       "licensed music; make titles and thumbnails match what the video shows.",
+        "dont_examples": "Clickbait thumbnails or titles; unlicensed music; undisclosed sponsorships; risky "
+                         "demonstrations without safety context.",
+        "source": "https://www.youtube.com/howyoutubeworks/our-policies/ · "
+                  "https://support.google.com/youtube/answer/154235?hl=en",
+    },
+    {
+        "seed_key": "policy:X",
+        "kind": "PLATFORM_NORM",
+        "title": "X (Twitter) content policy",
+        "platforms": ["X"],
+        "body": "The X Rules apply to every post, and its Advertising Policies to promoted posts. Paid partnerships must "
+                "be disclosed (Paid Partnerships Policy). Misleading or deceptive synthetic or manipulated media can be "
+                "labelled or removed. Platform manipulation and spam (duplicate posts, artificial engagement) are "
+                "prohibited. Financial products and services in ads are restricted and must follow local law.",
+        "do_examples": "Disclose paid partnerships (e.g. #ad / #sponsored); link to sources; post original content.",
+        "dont_examples": "Posting the same text across many accounts; manipulated media presented as real; "
+                         "unqualified investment or price predictions.",
+        "source": "https://help.x.com/en/rules-and-policies/x-rules · "
+                  "https://help.x.com/en/rules-and-policies/paid-partnerships-policy",
+    },
     {
         "seed_key": "audience:GENERAL",
         "kind": "AUDIENCE_PROFILE",
@@ -307,6 +393,38 @@ async def setup() -> None:
                 updated_by UUID REFERENCES users(id) ON DELETE SET NULL
             );
             ALTER TABLE brand_voice_profiles ADD COLUMN IF NOT EXISTS palette JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+            -- Platform content policies are watched (policy_watch_service): each official policy page's text as last
+            -- read, so a change can be spotted and shown to the AI that drafts the norm's update.
+            CREATE TABLE IF NOT EXISTS policy_norm_pages (
+                url TEXT PRIMARY KEY,
+                text_hash VARCHAR(64),
+                page_text TEXT,
+                fetched_at TIMESTAMP WITH TIME ZONE,
+                changed_at TIMESTAMP WITH TIME ZONE,
+                error TEXT
+            );
+            -- An update to a content-policy norm drafted after its policy page changed. A super admin approves it
+            -- (it then replaces the norm's wording) or rejects it; nothing changes the norm on its own.
+            CREATE TABLE IF NOT EXISTS policy_norm_proposals (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                context_id UUID NOT NULL REFERENCES messaging_context(id) ON DELETE CASCADE,
+                source_urls TEXT[] NOT NULL DEFAULT '{}',
+                -- Short points saying what changed in the policy and in the norm.
+                changes JSONB NOT NULL DEFAULT '[]'::jsonb,
+                -- The norm's wording when this was drafted, and the drafted wording.
+                current_body TEXT,
+                current_do_examples TEXT,
+                current_dont_examples TEXT,
+                body TEXT NOT NULL,
+                do_examples TEXT,
+                dont_examples TEXT,
+                status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                decided_at TIMESTAMP WITH TIME ZONE,
+                decided_by UUID REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_policy_norm_proposals_status ON policy_norm_proposals(status, created_at DESC);
         """)
         await conn.execute(
             """

@@ -48,10 +48,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `AddedRuleSet` (class) L282 - A rule set checked because of what the post says, not because it was chosen.
 - `ComplianceCheckResponse` (class) L288
 
-## models/compliance/context_model.py (52 lines) - Messaging Context: reference material the content analysis is given.
+## models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - `ContextEntryIn` (class) L12
 - `ContextEntry` (class) L27
-- `ContextSync` (class) L37 - A sync of facts from a source (the newsroom): running, or how the last one went.
+- `ContextSync` (class) L39 - A sync of facts from a source (the newsroom): running, or how the last one went.
+- `PolicyProposal` (class) L56 - An update to a platform content-policy norm, drafted after its official policy page changed.
+- `PolicyPageStatus` (class) L75 - One official policy page a norm is kept up to date from, and whether it can be watched.
+- `PolicyWatch` (class) L87 - How the weekly check of the policy pages went, and the drafted updates waiting for a decision.
+- `PolicyProposalApprove` (class) L96 - Approve a drafted update, optionally with the super admin's own edits to its wording.
 
 ## models/compliance/flag_review_model.py (67 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - `FlagDismissRequest` (class) L21

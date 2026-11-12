@@ -13,7 +13,7 @@ to find the right file.
 | .agents/code-map/mcp_tools.md | 3 | 1 KB |
 | .agents/code-map/mcp_tools__compliance.md | 1 | 1 KB |
 | .agents/code-map/mcp_tools__shared.md | 1 | 1 KB |
-| .agents/code-map/models__compliance.md | 13 | 12 KB |
+| .agents/code-map/models__compliance.md | 13 | 13 KB |
 | .agents/code-map/models__notifications.md | 1 | 1 KB |
 | .agents/code-map/models__shared.md | 2 | 1 KB |
 | .agents/code-map/postgresql_db.md | 2 | 1 KB |
@@ -44,6 +44,7 @@ to find the right file.
 | .agents/code-map/tests__test_citation_finder.md | 1 | 2 KB |
 | .agents/code-map/tests__test_claim_checks.md | 1 | 1 KB |
 | .agents/code-map/tests__test_collection.md | 1 | 2 KB |
+| .agents/code-map/tests__test_comment_replies.md | 1 | 1 KB |
 | .agents/code-map/tests__test_compliance_scoring.md | 1 | 4 KB |
 | .agents/code-map/tests__test_content_changed.md | 1 | 1 KB |
 | .agents/code-map/tests__test_context_picks.md | 1 | 1 KB |

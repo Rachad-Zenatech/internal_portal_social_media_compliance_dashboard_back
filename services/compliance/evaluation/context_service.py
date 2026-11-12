@@ -31,12 +31,28 @@ _SELECT = """
 """
 
 
+POLICY_SEED_PREFIX = "policy:"
+
+
+def is_policy_norm(r: Dict[str, Any]) -> bool:
+    """A platform content policy: kept up to date from the platform's policy pages, changed only by super admins."""
+    return (r.get("seed_key") or "").startswith(POLICY_SEED_PREFIX)
+
+
+async def _require_super_admin_for_policy(entry: Dict[str, Any], user_id: UUID) -> None:
+    if is_policy_norm(entry) and not await fetch_one(
+        "SELECT 1 FROM users WHERE id = $1 AND is_super_admin", user_id
+    ):
+        raise HTTPException(status_code=403, detail="Only a super admin can change the platform content policies")
+
+
 def _out(r: Dict[str, Any]) -> ContextEntry:
     return ContextEntry(
         id=r["id"], kind=r["kind"], title=r["title"], body=r["body"], do_examples=r["do_examples"],
         dont_examples=r["dont_examples"], brands=list(r["brands"] or []), audiences=list(r["audiences"] or []),
         platforms=list(r["platforms"] or []), source=r["source"], as_of=r["as_of"], is_active=r["is_active"],
-        is_starter=r["seed_key"] is not None, updated_at=r["updated_at"], updated_by_name=r.get("updated_by_name"),
+        is_starter=r["seed_key"] is not None, is_policy=is_policy_norm(r),
+        updated_at=r["updated_at"], updated_by_name=r.get("updated_by_name"),
         auto_source=r.get("auto_source"), source_url=r.get("source_url"),
     )
 
@@ -93,6 +109,7 @@ async def update_entry(entry_id: UUID, data: ContextEntryIn, user_id: UUID) -> C
     before = await fetch_one(_SELECT + " WHERE m.id = $1 AND m.deleted_at IS NULL", entry_id)
     if not before:
         raise HTTPException(status_code=404, detail="Context entry not found")
+    await _require_super_admin_for_policy(before, user_id)
     await fetch_one(
         """
         UPDATE messaging_context
@@ -114,6 +131,7 @@ async def delete_entry(entry_id: UUID, user_id: UUID) -> None:
     before = await fetch_one(_SELECT + " WHERE m.id = $1 AND m.deleted_at IS NULL", entry_id)
     if not before:
         raise HTTPException(status_code=404, detail="Context entry not found")
+    await _require_super_admin_for_policy(before, user_id)
     await fetch_one(
         "UPDATE messaging_context SET deleted_at = NOW(), updated_by = $2, updated_at = NOW() WHERE id = $1 RETURNING id",
         entry_id, user_id,

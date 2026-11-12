@@ -142,17 +142,19 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_apply` (def) L259 - Put the model's answer on the finding, through the safeguards.
 - `evaluate` (def) L337 - Read each candidate in context and set its status (in place).
 
-## services/compliance/evaluation/context_service.py (208 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
-- `_out` (def) L34
-- `_newest_first` (def) L44
-- `list_entries` (def) L48
-- `_clean` (def) L60
-- `create_entry` (def) L74
-- `update_entry` (def) L91
-- `delete_entry` (def) L112 - Soft delete, so a removed starter entry isn't seeded again and the audit trail still resolves.
-- `with_thought_leadership` (def) L132 - The brands whose context applies: a post on a thought leadership account (Shaun's channel) also gets the
-- `_applies` (def) L141
-- `for_content` (def) L145 - The active entries that apply to this content, in prompt order, trimmed to a sensible total size.
+## services/compliance/evaluation/context_service.py (226 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
+- `is_policy_norm` (def) L37 - A platform content policy: kept up to date from the platform's policy pages, changed only by super admins.
+- `_require_super_admin_for_policy` (def) L42
+- `_out` (def) L49
+- `_newest_first` (def) L60
+- `list_entries` (def) L64
+- `_clean` (def) L76
+- `create_entry` (def) L90
+- `update_entry` (def) L107
+- `delete_entry` (def) L129 - Soft delete, so a removed starter entry isn't seeded again and the audit trail still resolves.
+- `with_thought_leadership` (def) L150 - The brands whose context applies: a post on a thought leadership account (Shaun's channel) also gets the
+- `_applies` (def) L159
+- `for_content` (def) L163 - The active entries that apply to this content, in prompt order, trimmed to a sensible total size.
 
 ## services/compliance/evaluation/newsroom_sync_service.py (311 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.
 - `_get_client` (def) L76

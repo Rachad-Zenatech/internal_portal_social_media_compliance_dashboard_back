@@ -4,15 +4,24 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## postgresql_db/database.py (148 lines) - Optional dotenv import for loading .env and local overrides during development
-- `create_pool` (def) L19 - Creates the connection pool if it doesn't exist yet, then returns it.
-- `close_pool` (def) L73
-- `reset_pool` (def) L81 - Drop the current pool and create a fresh one after connection failures.
-- `get_pool` (def) L94
-- `get_conn` (def) L101
-- `fetch_one` (def) L111
-- `fetch_all` (def) L121
-- `execute` (def) L131
-- `execute_many` (def) L141
+## postgresql_db/database.py (184 lines) - Optional dotenv import for loading .env and local overrides during development
+- `acquire_timeout` (def) L17 - Seconds to wait for a free pooled connection before failing, as in the administration backend.
+- `PoolWrapper` (class) L22 - Wraps an asyncpg.Pool so every acquire() has a default timeout: when the pool is exhausted by stuck connections,
+    - `__init__` (def) L26
+    - `acquire` (def) L29
+    - `close` (def) L32
+    - `terminate` (def) L35
+    - `__aenter__` (def) L38
+    - `__aexit__` (def) L41
+    - `__getattr__` (def) L44
+- `create_pool` (def) L52 - Creates the connection pool if it doesn't exist yet, then returns it.
+- `close_pool` (def) L109
+- `reset_pool` (def) L117 - Drop the current pool and create a fresh one after connection failures.
+- `get_pool` (def) L130
+- `get_conn` (def) L137
+- `fetch_one` (def) L147
+- `fetch_all` (def) L157
+- `execute` (def) L167
+- `execute_many` (def) L177
 
 ## postgresql_db/schema_metadata.py (328 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
