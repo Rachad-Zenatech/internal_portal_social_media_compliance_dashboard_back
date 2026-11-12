@@ -1108,7 +1108,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 - `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/evaluation/script_review_service.py (878 lines) - Script stage of a video post.
+## services/compliance/evaluation/script_review_service.py (881 lines) - Script stage of a video post.
 - `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
@@ -1449,7 +1449,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `build` (def) - The progress of one post from its files' reading states (the same parts _run_check waits on).
 - `for_submissions` (def) - Progress for each of these posts (only call with posts whose check is still pending).
 
-## services/compliance/submissions/approval_path_service.py (170 lines) - Approval paths: who gives final approval for which content.
+## services/compliance/submissions/approval_path_service.py (197 lines) - Approval paths: who gives final approval for which content.
 - `_out` (def)
 - `list_paths` (def)
 - `options` (def) - Who can be named an approver (anyone who can review) and what a path can match on.
@@ -1460,7 +1460,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ApprovalRules` (class) - All paths, loaded once per request, matched to as many submissions as needed.
     - `__init__` (def)
     - `approvers` (def) - Approvers from every path that fits.
+- `_forget_rules` (def)
 - `load_rules` (def)
+- `_load_rules` (def)
 - `is_ceo_content` (def) - Shaun's own thought leadership: posted through his account or checked against his rule set.
 
 ## services/compliance/submissions/delegation_service.py (203 lines) - Review delegation: a reviewer hands a post in review to someone else.
@@ -1555,7 +1557,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_photo_text` (def) - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (2978 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (3009 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_same_value` (def) - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
 - `content_changed` (def) - Whether saving these fields changes anything the checks read.
 - `_json` (def)
@@ -1564,11 +1566,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_account_ids` (def)
 - `_account_covers` (def) - Whether an account publishes to one of the platforms.
 - `_file_out` (def)
+- `_cached_user_fact` (def)
 - `_is_super_admin` (def)
+    - `load` (def)
 - `_can_manage_team_content` (def) - Super admins and roles with "Manage Team Drafts" (Content Manager, Administrator) see everyone's content
 - `_can_review` (def) - Reviewers (the people who publish): "Review & Publish Content" (Content Reviewer, Content Manager,
 - `_can_see_team_content` (def) - Content Managers and reviewers can read everyone's submissions.
 - `_brand_scope` (def) - The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
+    - `load` (def)
 - `_reviewer_sees` (def) - SQL: a reviewer sees content on their brands that was sent to them (or to no one in particular), and
 - `_sent_to` (def) - SQL: the content was sent to this user (picked, or delegated to them), or to no one in particular (every
 - `_get_owned_row` (def) - Load a submission the user may access (creator or super admin; managers and reviewers too when
@@ -1882,7 +1887,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `log_audit_event` (def) - Records an event in the audit_logs table.
 - `get_audit_logs` (def)
 
-## services/shared/core/cache_service.py (200 lines) - Goes up on every invalidation.
+## services/shared/core/cache_service.py (201 lines) - Goes up on every invalidation.
 - `AsyncInMemoryCache` (class) - Lightweight in-memory cache with TTL expiration, LRU eviction, and key/prefix invalidation.
     - `__init__` (def)
     - `get` (def)
