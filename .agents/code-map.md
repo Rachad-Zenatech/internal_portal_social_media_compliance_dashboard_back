@@ -29,7 +29,7 @@ to find the right file.
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |
 | .agents/code-map/services__notifications.md | 9 | 9 KB |
 | .agents/code-map/services__shared__auth.md | 4 | 4 KB |
-| .agents/code-map/services__shared__core.md | 3 | 2 KB |
+| .agents/code-map/services__shared__core.md | 4 | 2 KB |
 | .agents/code-map/tests__conftest.md | 1 | 1 KB |
 | .agents/code-map/tests__fake_mongo.md | 1 | 1 KB |
 | .agents/code-map/tests__test_ai_down_approval.md | 1 | 2 KB |
