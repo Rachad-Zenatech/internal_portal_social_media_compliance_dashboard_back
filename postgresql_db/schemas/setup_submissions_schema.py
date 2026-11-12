@@ -214,6 +214,8 @@ async def setup():
             -- The creator's compliance check of the uploaded script before sending it: {key, rulebook_version, check,
             -- checked_at}. Reused when the script is sent if the wording, details and rulebook are unchanged.
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS script_precheck JSONB;
+            -- When the creator last read the post's public mood (the step is done once they have, as in the editor).
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS mood_checked_at TIMESTAMP WITH TIME ZONE;
             -- A different caption for some of its platforms ({"LINKEDIN": "..."}); the others use caption_text.
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS platform_captions JSONB NOT NULL DEFAULT '{}'::jsonb;
             CREATE INDEX IF NOT EXISTS idx_content_submissions_script_status ON content_submissions(script_status)
@@ -245,6 +247,19 @@ async def setup():
             ALTER TABLE content_review_jobs ALTER COLUMN status SET DEFAULT 'AWAITING_REVIEW';
             -- Rules the automated check can't test from text, which the approving reviewer confirmed by hand.
             ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS manual_checks JSONB;
+
+            -- A suggesting reviewer's own suggestion on a script version: their edited wording and the notes they left on
+            -- it. Only they see it for now; one per person and version.
+            CREATE TABLE IF NOT EXISTS content_script_suggestions (
+                submission_id UUID NOT NULL REFERENCES content_submissions(id) ON DELETE CASCADE,
+                version_number INT NOT NULL,
+                author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                body TEXT NOT NULL,
+                highlights JSONB NOT NULL DEFAULT '[]'::jsonb,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                PRIMARY KEY (submission_id, version_number, author_id)
+            );
 
             -- Wording the reviewer highlighted or left a note on in a script version; the creator sees them too.
             CREATE TABLE IF NOT EXISTS content_script_highlights (

@@ -30,6 +30,14 @@ class ScriptVersion(BaseModel):
     reviewed_at: Optional[datetime] = None
 
 
+class ScriptSuggestion(BaseModel):
+    """A suggesting reviewer's own suggestion on a script version: their edited wording and their notes on it."""
+    version_number: int
+    body: str
+    highlights: List["ScriptHighlight"] = Field(default_factory=list)
+    updated_at: datetime
+
+
 class ScriptBatchRef(BaseModel):
     """Where this script sits in the batch it was uploaded with, for stepping through the batch one script at a time."""
     batch_id: UUID
@@ -70,6 +78,10 @@ class ScriptStage(BaseModel):
     send_error: Optional[str] = None
     # Set when the script came in a batch of scripts uploaded together.
     batch: Optional[ScriptBatchRef] = None
+    # A suggesting reviewer (comments and suggested edits, no approving) looking at a script in review, and their own
+    # suggestion so far.
+    can_suggest: bool = False
+    suggestion: Optional[ScriptSuggestion] = None
     # The creator's compliance check of the uploaded script, run before sending it; stale once the script, the post's
     # details or the rulebook changed since (then it's run again).
     precheck: Optional[Dict[str, Any]] = None
@@ -104,6 +116,20 @@ class ScriptSubmitRequest(BaseModel):
 
 class ScriptCheckRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=MAX_SCRIPT_CHARS)
+
+
+class FlagFixRequest(BaseModel):
+    """One flagged passage of a script and the rule it broke, to have a compliant rewrite suggested."""
+    passage: str = Field(..., min_length=1, max_length=2000)
+    flagged_terms: List[str] = Field(default_factory=list, max_length=20)
+    rule_title: str = Field(..., min_length=1, max_length=300)
+    explanation: Optional[str] = Field(None, max_length=2000)
+    guidance: Optional[str] = Field(None, max_length=2000)
+
+
+class FlagFixSuggestion(BaseModel):
+    rewrite: str
+    note: Optional[str] = None
 
 
 class ScriptQueueItem(BaseModel):
@@ -158,5 +184,16 @@ class ScriptResolutionsRequest(BaseModel):
     resolutions: List[ScriptResolution] = Field(default_factory=list, max_length=500)
 
 
+class ScriptSuggestionRequest(BaseModel):
+    """What a suggesting reviewer saves: their edited wording and their notes on it."""
+    text: str = Field(..., min_length=1, max_length=MAX_SCRIPT_CHARS)
+    highlights: List[ScriptHighlight] = Field(default_factory=list, max_length=500)
+
+
 class ScriptHighlightsRequest(BaseModel):
     highlights: List[ScriptHighlight] = Field(default_factory=list, max_length=500)
+
+
+# ScriptSuggestion refers to ScriptHighlight, defined further down.
+ScriptSuggestion.model_rebuild()
+ScriptStage.model_rebuild()

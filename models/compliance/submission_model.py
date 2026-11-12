@@ -80,6 +80,8 @@ class ReviewerOption(BaseModel):
     name: str
     email: str
     is_super_admin: bool = False
+    # REVIEWER can approve it; SUGGESTER can only comment and suggest edits to its script.
+    kind: Literal["REVIEWER", "SUGGESTER"] = "REVIEWER"
 
 
 class SubmissionCreate(BaseModel):
