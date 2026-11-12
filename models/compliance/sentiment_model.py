@@ -95,6 +95,87 @@ class Precedent(BaseModel):
     same_post: bool = False
 
 
+class EntryRef(BaseModel):
+    """The Messaging Context entry a judgement came from (filled in by the service from the prompt's [C1], [C2]...)."""
+    ref: str = ""
+    entry_id: Optional[str] = None
+    title: Optional[str] = None
+
+
+class VoiceLine(EntryRef):
+    """A line of the post that follows, or drifts from, the brand voice."""
+    quote: str
+    why: str
+    # Drifts: the voice rule it breaks (e.g. "Don't: personal credentials") and the line rewritten in the voice.
+    rule: Optional[str] = None
+    rewrite: Optional[str] = None
+
+
+class BrandVoiceReport(BaseModel):
+    verdict: Literal["ON_VOICE", "MOSTLY_ON_VOICE", "OFF_VOICE", "NO_GUIDE"]
+    headline: str  # e.g. "Sounds like ZenaTech"
+    summary: str
+    follows: List[VoiceLine] = Field(default_factory=list)
+    drifts: List[VoiceLine] = Field(default_factory=list)
+
+
+class ClaimCheck(EntryRef):
+    """A claim in the post against the facts on file."""
+    claim: str
+    result: Literal["MATCHES", "CONFLICTS", "NO_FACT"]
+    note: str = ""
+
+
+class FactsReport(BaseModel):
+    verdict: Literal["CHECKS_OUT", "NEEDS_FIX", "UNVERIFIED", "NO_CLAIMS"]
+    summary: str
+    claims: List[ClaimCheck] = Field(default_factory=list)
+    fix: Optional[str] = None
+
+
+class NormCheck(EntryRef):
+    """One thing a platform norm asks for (length, opening, hashtags...) and how the post does."""
+    aspect: str
+    norm: str
+    observation: str
+    status: Literal["FITS", "ADJUST"]
+
+
+class NormsReport(BaseModel):
+    verdict: Literal["FITS", "MOSTLY_FITS", "NEEDS_WORK", "NO_NORMS"]
+    summary: str
+    checks: List[NormCheck] = Field(default_factory=list)
+
+
+class AudienceReading(EntryRef):
+    audience: str
+    reading: str
+    reaction: Literal["RESONATES", "NEUTRAL", "CAUTIOUS", "NEGATIVE"]
+
+
+class AudiencesReport(BaseModel):
+    verdict: Literal["RESONATES", "MIXED", "CAUTIOUS", "NO_PROFILES"]
+    summary: str
+    readings: List[AudienceReading] = Field(default_factory=list)
+
+
+class ContextReport(BaseModel):
+    """How the post measures against its Messaging Context, kind by kind, each judgement naming its entry."""
+    brand_voice: BrandVoiceReport
+    facts: FactsReport
+    platform_norms: NormsReport
+    audiences: AudiencesReport
+    # Context the post needed that the Messaging Context doesn't have (e.g. an audience it talks to with no profile).
+    gaps: List[str] = Field(default_factory=list)
+
+
+class VisualAlignment(BaseModel):
+    """Whether the post's graphic (images or video) says the same thing as its captions."""
+    verdict: Literal["ALIGNED", "PARTIAL", "MISMATCH"]
+    explanation: str
+    mismatches: List[str] = Field(default_factory=list)
+
+
 class SentimentResult(BaseModel):
     summary: str
     overall_assessment: Assessment
@@ -106,6 +187,10 @@ class SentimentResult(BaseModel):
     findings: List[SentimentFinding] = Field(default_factory=list)
     information_gaps: List[str] = Field(default_factory=list)
     audio: Optional[AudioAssessment] = None
+    # How the post measures against its Messaging Context (brand voice, facts, platform norms, audiences).
+    context_report: Optional[ContextReport] = None
+    # The graphic against the captions (none when there's no image or video to look at).
+    visual_alignment: Optional[VisualAlignment] = None
     # Added by the service, not the model.
     precedents: List[Precedent] = Field(default_factory=list)
     guidelines_used: List[str] = Field(default_factory=list)
@@ -150,6 +235,20 @@ class SentimentComparison(BaseModel):
     still_ids: List[str] = Field(default_factory=list)
 
 
+class ContextUse(BaseModel):
+    """A Messaging Context entry and what the analysis did with it, for the transparency table."""
+    id: str
+    title: str
+    kind: str
+    applies_to: List[str] = Field(default_factory=list)  # brand / audience / platform codes; empty: everything
+    as_of: Optional[str] = None
+    source: Optional[str] = None
+    source_url: Optional[str] = None
+    # USED; USED_OLD (used, but over a year old or changed since); NOT_APPLIED (didn't match this post).
+    status: Literal["USED", "USED_OLD", "NOT_APPLIED"]
+    note: Optional[str] = None
+
+
 class SentimentAnalysis(BaseModel):
     id: UUID
     submission_id: UUID
@@ -164,6 +263,8 @@ class SentimentAnalysis(BaseModel):
     is_current: bool = True
     # The Messaging Context entries it was given (e.g. "LinkedIn", "Investors"), so reviewers can see what it knew.
     context_used: List[str] = Field(default_factory=list)
+    # The same entries with their scope, date and source, plus the brand voice, norms and profiles that didn't apply.
+    context_entries: List[ContextUse] = Field(default_factory=list)
     # CEO or investor content, analysed with the stronger model.
     high_stakes: bool = False
     # A video was analysed, so findings with a time can show that frame.

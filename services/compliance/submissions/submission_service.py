@@ -380,6 +380,27 @@ def _due(row: Dict[str, Any]) -> Dict[str, Any]:
     return {"due_at": None, "due_kind": None}
 
 
+CONTEXT_KINDS = ("BRAND_VOICE", "FACT", "PLATFORM_NORM", "AUDIENCE_PROFILE")
+
+
+def _context_picks(row: Dict[str, Any]) -> Dict[str, List[UUID]]:
+    raw = _json(row.get("context_picks")) or {}
+    return {k: [UUID(str(i)) for i in v] for k, v in raw.items() if k in CONTEXT_KINDS and isinstance(v, list)}
+
+
+async def _clean_context_picks(picks: Dict[str, List[UUID]]) -> Dict[str, List[str]]:
+    """Only known kinds, and only active entries of that kind; the order the creator picked them in."""
+    bad = [k for k in picks if k not in CONTEXT_KINDS]
+    if bad:
+        raise HTTPException(status_code=422, detail=f"Unknown Messaging Context kind(s): {', '.join(bad)}")
+    ids = list({i for v in picks.values() for i in v})
+    rows = await fetch_all(
+        "SELECT id, kind FROM messaging_context WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL AND is_active", ids,
+    ) if ids else []
+    kind_of = {r["id"]: r["kind"] for r in rows}
+    return {k: [str(i) for i in dict.fromkeys(v) if kind_of.get(i) == k] for k, v in picks.items()}
+
+
 async def _to_submission(row: Dict[str, Any]) -> Submission:
     files = await _list_files(row["id"])
     return Submission(
@@ -402,6 +423,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         **_due(row),
         caption_html=row["caption_html"],
         caption_text=row["caption_text"],
+        context_picks=_context_picks(row),
         platform_captions=_platform_captions(row),
         rule_sets=list(row["rule_sets"] or []),
         reviewer_route=list(row["reviewer_route"] or []),
@@ -731,6 +753,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["caption_html"] = sanitize_caption_html(payload["caption_html"])
     if "caption_text" in payload:
         fields["caption_text"] = payload["caption_text"]
+    if payload.get("context_picks") is not None:
+        fields["context_picks"] = json.dumps(await _clean_context_picks(payload["context_picks"]))
     if payload.get("platform_captions") is not None:
         captions = payload["platform_captions"]
         bad = [p for p in captions if p not in PLATFORMS]

@@ -3,12 +3,13 @@
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 from fastapi import HTTPException, status
 
 from models.compliance.sentiment_model import (
+    ContextUse,
     SentimentAnalysis,
     SentimentComparison,
     SentimentFinding,
@@ -294,7 +295,7 @@ def _result(row: Dict[str, Any]) -> Optional[SentimentResult]:
 
 def _to_model(row: Dict[str, Any], current_hash: Optional[str]) -> SentimentAnalysis:
     inp = _json(row.get("input")) or {}
-    return SentimentAnalysis(
+    model = SentimentAnalysis(
         id=row["id"],
         submission_id=row["submission_id"],
         version_number=row["version_number"],
@@ -313,9 +314,85 @@ def _to_model(row: Dict[str, Any], current_hash: Optional[str]) -> SentimentAnal
         created_at=row["created_at"],
         completed_at=row["completed_at"],
     )
+    # Kept aside (not serialised) so the transparency table can be filled in when the analysis is read back.
+    object.__setattr__(model, "_input", inp)
+    return model
+
+
+OLD_AFTER_DAYS = 365
+
+
+async def context_entries(inp: Dict[str, Any], analysed_at: Any, submission_id: UUID) -> List[ContextUse]:
+    """The Messaging Context the analysis was given, with each entry's scope, date and source (flagged when it's over a
+    year old or was changed after the analysis ran), then the brand voice, platform norms and audience profiles that
+    didn't apply to this post, and why."""
+    used = [e for e in (inp.get("context") or []) if e.get("id")]
+    used_ids = [e["id"] for e in used]
+    rows = await fetch_all(
+        """
+        SELECT id, kind, title, brands, audiences, platforms, as_of, source, source_url, updated_at, deleted_at, is_active
+        FROM messaging_context
+        WHERE id::text = ANY($1::text[])
+           OR (deleted_at IS NULL AND is_active AND kind IN ('BRAND_VOICE', 'PLATFORM_NORM', 'AUDIENCE_PROFILE'))
+        ORDER BY kind, title
+        """,
+        used_ids,
+    )
+    by_id = {str(r["id"]): r for r in rows}
+    now = datetime.now(timezone.utc)
+    out: List[ContextUse] = []
+    for e in used:
+        r = by_id.get(e["id"])
+        notes = []
+        if r is None or r["deleted_at"] is not None:
+            notes.append("Removed from Messaging context since")
+        elif analysed_at and r["updated_at"] and r["updated_at"] > analysed_at:
+            notes.append("Changed since this ran")
+        as_of = (r["as_of"] if r is not None else None)
+        if as_of and (now.date() - as_of).days > OLD_AFTER_DAYS:
+            notes.append("Over a year old")
+        out.append(ContextUse(
+            id=e["id"], title=e.get("title") or "", kind=e.get("kind") or "",
+            applies_to=[*(r["brands"] or []), *(r["audiences"] or []), *(r["platforms"] or [])] if r is not None else [],
+            as_of=e.get("as_of"), source=e.get("source"), source_url=(r["source_url"] if r is not None else None),
+            status="USED_OLD" if notes else "USED", note="; ".join(notes) or None,
+        ))
+    post = await fetch_one(
+        "SELECT brand_codes, brand_code, audiences, audience, platforms FROM content_submissions WHERE id = $1",
+        submission_id,
+    )
+    if post:
+        brands = set(post["brand_codes"] or ([post["brand_code"]] if post["brand_code"] else []))
+        audiences = set(post["audiences"] or ([post["audience"]] if post["audience"] else []))
+        platforms = set(post["platforms"] or [])
+        for r in rows:
+            if str(r["id"]) in used_ids or r["deleted_at"] is not None or not r["is_active"]:
+                continue
+            reason = None
+            if r["brands"] and not brands & set(r["brands"]):
+                reason = "Other brand"
+            elif r["platforms"] and not platforms & set(r["platforms"]):
+                reason = "Other platform"
+            elif r["audiences"] and not audiences & set(r["audiences"]):
+                reason = "Other audience"
+            if not reason:
+                continue
+            out.append(ContextUse(
+                id=str(r["id"]), title=r["title"], kind=r["kind"],
+                applies_to=[*(r["brands"] or []), *(r["audiences"] or []), *(r["platforms"] or [])],
+                as_of=r["as_of"].isoformat() if r["as_of"] else None, source=r["source"], source_url=r["source_url"],
+                status="NOT_APPLIED", note=reason,
+            ))
+    return out
 
 
 async def _with_feedback(model: SentimentAnalysis, viewer: Optional[UUID]) -> SentimentAnalysis:
+    inp = getattr(model, "_input", None)
+    if inp is not None and model.status == "COMPLETED":
+        try:
+            model.context_entries = await context_entries(inp, model.completed_at or model.created_at, model.submission_id)
+        except Exception:  # noqa: BLE001 - the analysis still shows without its transparency table
+            logger.warning("Couldn't list the context for analysis %s", model.id, exc_info=True)
     if model.result and model.result.findings:
         model.feedback = await _feedback_map(model.id, viewer)
     return model
@@ -464,4 +541,4 @@ async def scheduled_runs_loop() -> None:
             logger.exception("Couldn't start scheduled sentiment analyses")
         await asyncio.sleep(SCHEDULE_CHECK_SEC)
 
-
+

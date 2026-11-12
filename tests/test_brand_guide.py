@@ -54,14 +54,14 @@ class AnalysisUsesTheGuideTests(unittest.TestCase):
                     "dont": e["dont_examples"], "source": e["source"], "as_of": None} for e in BRAND_GUIDE]
         text = _reference_context(entries)
         self.assertIn("Brand voice:", text)
-        self.assertIn("- Brand colours (source: ZenaTech Brand Manual): Three main colours.", text)
+        self.assertIn("- [C1] Brand colours (source: ZenaTech Brand Manual): Three main colours.", text)
         self.assertIn("Avoid: Recoloured, stretched", text)
 
     def test_brand_alignment_checks_the_visual_identity(self):
         self.assertIn("visual identity (colours, typefaces, logo)", config.INSTRUCTIONS)
         self.assertIn("is a BRAND finding with basis OBSERVED_VISUAL", config.INSTRUCTIONS)
         self.assertIn("not held to the palette", config.INSTRUCTIONS)
-        self.assertEqual(config.PROMPT_VERSION, "sentiment-v10")
+        self.assertEqual(config.PROMPT_VERSION, "sentiment-v14")
 
 
 if __name__ == "__main__":

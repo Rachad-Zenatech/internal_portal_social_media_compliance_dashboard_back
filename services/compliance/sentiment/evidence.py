@@ -4,7 +4,7 @@ import hashlib
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from models.compliance.sentiment_model import SentimentFinding, SentimentResult
+from models.compliance.sentiment_model import ContextReport, SentimentFinding, SentimentResult
 from services.compliance.sentiment.config import STRICT_AUDIENCES
 
 # ---------------------------------------------------------------------------
@@ -148,6 +148,91 @@ def _verify(result: SentimentResult, inp: Dict[str, Any], video_attached: bool =
             "capability_claims_precise": None, "defense_buyer_credibility_risk": None,
         })
     result.guidelines_used = sorted(rule_numbers, key=lambda n: (len(n), n))
+    result.context_report = _check_report(result.context_report, inp)
+    # Nothing visual was attached, so the graphic couldn't be compared with the captions.
+    if not video_attached and not images_attached:
+        result.visual_alignment = None
     return result
 
-
+
+def _entry(ref: Optional[str], entries: List[Dict[str, Any]], kinds: Tuple[str, ...]) -> Optional[Dict[str, Any]]:
+    """The entry a [C1], [C2]... label names, when it's of one of the kinds expected there."""
+    ref = (ref or "").strip().strip("[]").upper()
+    if not ref.startswith("C") or not ref[1:].isdigit():
+        return None
+    n = int(ref[1:]) - 1
+    if not 0 <= n < len(entries) or entries[n].get("kind") not in kinds:
+        return None
+    return entries[n]
+
+
+def _cite(item: Any, entries: List[Dict[str, Any]], kinds: Tuple[str, ...]) -> bool:
+    """Name the entry a judgement came from; False when it names one the analysis wasn't given."""
+    e = _entry(item.ref, entries, kinds)
+    if not e:
+        item.ref, item.entry_id, item.title = "", None, None
+        return False
+    item.ref = (item.ref or "").strip().strip("[]").upper()
+    item.entry_id, item.title = e.get("id"), e.get("title")
+    return True
+
+
+def _check_report(report: Optional[ContextReport], inp: Dict[str, Any]) -> Optional[ContextReport]:
+    """Every quote has to be the post's own words, and every judgement names an entry the analysis was given."""
+    if report is None:
+        return None
+    entries = inp.get("context") or []
+    voice = report.brand_voice
+    voice.follows = [f for f in voice.follows if _locate(f.quote, inp) and _cite(f, entries, ("BRAND_VOICE",))][:3]
+    drifts = []
+    for d in voice.drifts:
+        if _locate(d.quote, inp):
+            _cite(d, entries, ("BRAND_VOICE",))
+            drifts.append(d)
+    voice.drifts = drifts
+    claims = []
+    for c in report.facts.claims:
+        if not _locate(c.claim, inp):
+            continue
+        cited = _cite(c, entries, ("FACT",))
+        if c.result != "NO_FACT" and not cited:
+            # A match or conflict has to point at a fact on file.
+            c.result = "NO_FACT"
+        claims.append(c)
+    report.facts.claims = claims
+    if not any(c.result == "CONFLICTS" for c in claims):
+        report.facts.fix = None
+    report.platform_norms.checks = [n for n in report.platform_norms.checks
+                                    if _cite(n, entries, ("PLATFORM_NORM",))]
+    report.audiences.readings = [a for a in report.audiences.readings if _cite(a, entries, ("AUDIENCE_PROFILE",))]
+    report.gaps = [g.strip() for g in report.gaps if g and g.strip()][:5]
+    _settle_verdicts(report, entries)
+    return report
+
+
+def _settle_verdicts(report: ContextReport, entries: List[Dict[str, Any]]) -> None:
+    """The headline verdicts follow the details under them, so a tile never contradicts its card."""
+    kinds = {e.get("kind") for e in entries}
+    voice = report.brand_voice
+    if "BRAND_VOICE" not in kinds:
+        voice.verdict = "NO_GUIDE"
+    elif voice.drifts and voice.verdict == "ON_VOICE":
+        voice.verdict = "MOSTLY_ON_VOICE"
+    elif not voice.drifts and voice.verdict in ("MOSTLY_ON_VOICE", "OFF_VOICE"):
+        voice.verdict = "ON_VOICE"
+    claims = report.facts.claims
+    report.facts.verdict = ("NEEDS_FIX" if any(c.result == "CONFLICTS" for c in claims)
+                            else "NO_CLAIMS" if not claims
+                            # Claims nothing on file speaks to aren't an all-clear.
+                            else "UNVERIFIED" if any(c.result == "NO_FACT" for c in claims)
+                            else "CHECKS_OUT")
+    checks = report.platform_norms.checks
+    adjust = sum(1 for c in checks if c.status == "ADJUST")
+    report.platform_norms.verdict = ("NO_NORMS" if not checks else "FITS" if adjust == 0
+                                     else "NEEDS_WORK" if adjust * 2 > len(checks) else "MOSTLY_FITS")
+    readings = report.audiences.readings
+    reactions = {r.reaction for r in readings}
+    report.audiences.verdict = ("NO_PROFILES" if not readings
+                                else "CAUTIOUS" if reactions <= {"CAUTIOUS", "NEGATIVE"}
+                                else "MIXED" if reactions & {"CAUTIOUS", "NEGATIVE"}
+                                else "RESONATES")

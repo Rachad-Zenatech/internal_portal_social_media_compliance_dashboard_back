@@ -145,7 +145,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ScriptResolutionsRequest` (class)
 - `ScriptHighlightsRequest` (class)
 
-## models/compliance/sentiment_model.py (213 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
+## models/compliance/sentiment_model.py (314 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - `Tone` (class)
 - `BrandAlignment` (class)
 - `AudienceInterpretation` (class)
@@ -153,17 +153,29 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `SentimentFinding` (class)
 - `AudioAssessment` (class) - How the video sounds, when one was attached.
 - `Precedent` (class) - A past review of similar content that the analysis was given as precedent.
+- `EntryRef` (class) - The Messaging Context entry a judgement came from (filled in by the service from the prompt's [C1], [C2]...).
+- `VoiceLine` (class) - A line of the post that follows, or drifts from, the brand voice.
+- `BrandVoiceReport` (class)
+- `ClaimCheck` (class) - A claim in the post against the facts on file.
+- `FactsReport` (class)
+- `NormCheck` (class) - One thing a platform norm asks for (length, opening, hashtags...) and how the post does.
+- `NormsReport` (class)
+- `AudienceReading` (class)
+- `AudiencesReport` (class)
+- `ContextReport` (class) - How the post measures against its Messaging Context, kind by kind, each judgement naming its entry.
+- `VisualAlignment` (class) - Whether the post's graphic (images or video) says the same thing as its captions.
 - `SentimentResult` (class)
 - `FindingFeedback` (class) - Reviewers' votes on one finding, and the viewer's own.
 - `FindingFeedbackIn` (class)
 - `AnalysedImage` (class)
 - `SentimentComparison` (class) - How an analysis differs from the one before it (an earlier version, or an earlier run of this draft).
+- `ContextUse` (class) - A Messaging Context entry and what the analysis did with it, for the transparency table.
 - `SentimentAnalysis` (class)
 - `FeedbackSummaryRow` (class) - How reviewers rated one kind of finding: mostly "not an issue" means that kind is mostly noise.
 - `EvalCaseIn` (class) - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class)
 
-## models/compliance/submission_model.py (627 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (632 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class)
 - `AccountOption` (class)
 - `SubmissionOptions` (class)
@@ -296,7 +308,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (677 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (680 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -980,7 +992,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_apply` (def) - Put the model's answer on the finding, through the safeguards.
 - `evaluate` (def) - Read each candidate in context and set its status (in place).
 
-## services/compliance/evaluation/context_service.py (200 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
+## services/compliance/evaluation/context_service.py (208 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - `_out` (def)
 - `_newest_first` (def)
 - `list_entries` (def)
@@ -1176,7 +1188,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `thumbnail` (def) - A small PNG of the design's first scene, for the picker.
 - `design_kind_ok` (def) - Whether an export of this kind can be the main file of a submission that takes these extensions.
 
-## services/compliance/media/caption_service.py (337 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
+## services/compliance/media/caption_service.py (338 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
 - `get_hashtag_library` (def) - The hashtag library for a post, minus any tag the rules that apply to it would flag.
 - `_wants_cashtag` (def) - The cashtag goes on investor posts, or when the writer asks for it.
 - `_lower_first` (def)
@@ -1295,7 +1307,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 
 ## services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 
-## services/compliance/sentiment/config.py (358 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
+## services/compliance/sentiment/config.py (462 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
 - `_get_client` (def)
 - `_enum` (def)
 - `next_quota_reset` (def) - The next midnight Pacific time, when Gemini's daily quotas reset (in UTC).
@@ -1318,12 +1330,16 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_generate` (def) - Analyse with the first model in the chain that has allowance left and still exists.
 - `_generate_with` (def) - One model: retries brief rate limits and outages, and once on malformed output.
 
-## services/compliance/sentiment/evidence.py (153 lines) - Verification of quotes and rule references in sentiment findings.
+## services/compliance/sentiment/evidence.py (239 lines) - Verification of quotes and rule references in sentiment findings.
 - `_norm` (def)
 - `_locate` (def) - Where a quote appears: (source, start_sec, end_sec), or None if it isn't in the content.
 - `_match_rule` (def) - Map the model's citation ("Rule 1", "1", "Rule 1 (Challenge...)") to an applicable rule number.
 - `finding_id` (def) - Stable id for a finding within its analysis, so reviewer feedback can point at it.
 - `_verify` (def)
+- `_entry` (def) - The entry a [C1], [C2]...
+- `_cite` (def) - Name the entry a judgement came from; False when it names one the analysis wasn't given.
+- `_check_report` (def) - Every quote has to be the post's own words, and every judgement names an entry the analysis was given.
+- `_settle_verdicts` (def) - The headline verdicts follow the details under them, so a tile never contradicts its card.
 
 ## services/compliance/sentiment/feedback.py (146 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
 - `_feedback_map` (def)
@@ -1335,7 +1351,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `list_eval_cases` (def)
 - `delete_eval_case` (def)
 
-## services/compliance/sentiment/input_builder.py (358 lines) - Input building and prompt construction for sentiment analysis.
+## services/compliance/sentiment/input_builder.py (387 lines) - Input building and prompt construction for sentiment analysis.
 - `_load_submission` (def)
 - `_load_images` (def) - The post's images in order: the main ones (e.g.
 - `_json` (def)
@@ -1348,8 +1364,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_held_to_full_standard` (def) - Defense, investor and CEO content is assessed strictly; everyday general and commercial posts are not.
 - `_prompt` (def)
 - `_reference_context` (def) - The Messaging Context section of the prompt, grouped by kind, saying plainly what's missing.
+- `suggested_context` (def) - The Messaging Context the analysis would pick on its own for this post, by kind (what the picker suggests).
 
-## services/compliance/sentiment/jobs.py (467 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
+## services/compliance/sentiment/jobs.py (545 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - `_claim` (def) - Atomically move an analysis to PROCESSING unless another worker already has it.
 - `_finish` (def)
 - `run_analysis` (def)
@@ -1363,6 +1380,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `resume_unfinished` (def) - Restart work a restart may have interrupted: stale PENDING/PROCESSING rows, and waiting rows whose
 - `_result` (def) - The stored result, with finding ids filled in for analyses saved before findings had them.
 - `_to_model` (def)
+- `context_entries` (def) - The Messaging Context the analysis was given, with each entry's scope, date and source (flagged when it's over a
 - `_with_feedback` (def)
 - `get_analysis` (def)
 - `get_for_version` (def) - The most recent analysis of one version, as it was (looking back, so never flagged stale).
@@ -1495,7 +1513,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_photo_text` (def) - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/submission_service.py (2978 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (3002 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_same_value` (def) - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
 - `content_changed` (def) - Whether saving these fields changes anything the checks read.
 - `_json` (def)
@@ -1519,6 +1537,8 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_add_event` (def)
 - `_list_files` (def)
 - `_due` (def) - The open deadline, if the content is still at the step it belongs to.
+- `_context_picks` (def)
+- `_clean_context_picks` (def) - Only known kinds, and only active entries of that kind; the order the creator picked them in.
 - `_to_submission` (def)
 - `_connected_accounts` (def) - Those of the given publishing accounts that are connected and not expired, in the order given.
 - `get_options` (def) - Choices for the submission form, limited to the brands the user works on (and those brands' accounts).
@@ -2913,6 +2933,20 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_very_large_file_is_refused` (def)
     - `test_an_old_word_file_says_what_to_do` (def)
 
+## tests/test_script_duplicates.py (74 lines) - Scripts follow the same duplicate rules as posts: the same script, already sent for review for the same place and publish date, is refuse...
+- `match` (def)
+- `NormalizeTests` (class)
+    - `test_case_and_spacing_dont_make_it_different` (def)
+- `RequireNotDuplicateTests` (class)
+    - `run_check` (def)
+    - `test_same_place_and_date_is_refused` (def)
+    - `test_another_date_needs_confirming` (def)
+    - `test_once_confirmed_it_goes` (def)
+    - `test_a_new_script_goes` (def)
+    - `test_even_confirmed_a_true_duplicate_is_refused` (def)
+- `ConfirmFlagTests` (class)
+    - `test_kept_with_the_send_in_progress` (def)
+
 ## tests/test_script_match.py (73 lines) - test script match
 - `ScriptMatchTests` (class)
     - `test_same_words_match` (def)
@@ -3398,7 +3432,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
 - `resolve_script_highlights` (def) [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
-## tools/compliance/submissions/submission_router.py (579 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submissions/submission_router.py (588 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
 - `list_reviewers` (def) [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
 - `get_hashtag_library` (def) [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
@@ -3424,6 +3458,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `listen` (def)
     - `work` (def)
     - `lines` (def)
+- `context_suggestions` (def) [GET /{submission_id}/context-suggestions] - The Messaging Context the analysis would pick on its own for this post, by kind (the picker's suggestions).
 - `find_duplicates` (def) [GET /{submission_id}/duplicates] - Posts already sent for approval with the same content and caption as this draft, with how their Submission
 - `submit_for_review` (def) [POST /{submission_id}/submit] - Validate required information, snapshot a new version and create a review job.
 - `withdraw` (def) [POST /{submission_id}/withdraw] - Pull a submission back to draft to edit it: from review, or after approval for a late fix (the approval

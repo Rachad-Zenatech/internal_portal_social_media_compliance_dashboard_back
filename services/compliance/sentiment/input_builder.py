@@ -42,7 +42,7 @@ async def _load_submission(submission_id: UUID) -> Optional[Dict[str, Any]]:
         SELECT s.id, s.title, s.content_type, s.caption_text, s.brand_code, s.brand_codes, s.audience, s.audiences, s.region, s.platforms,
                (SELECT string_agg(bn.name, ', ' ORDER BY array_position(s.brand_codes, bn.code)) FROM brands bn
                  WHERE bn.code = ANY(s.brand_codes)) AS brand_names,
-               s.rule_sets, s.current_version, b.name AS brand_name,
+               s.rule_sets, s.current_version, b.name AS brand_name, s.context_picks, s.platform_captions,
                c.account_name AS account_name, c.connection_metadata AS account_meta,
                v.id AS video_id, v.transcript_status, v.transcript,
                -- The script: its latest version in the script stage, otherwise the uploaded script file as read.
@@ -144,7 +144,7 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
         # A thought leadership post (Shaun's channel, or the CEO rule set) gets that brand guide whatever brand it's under.
         "context": await context_service.for_content(
             context_service.with_thought_leadership(brands, is_ceo or CEO_RULE_SET in rule_sets),
-            audiences, platforms, text=post_text,
+            audiences, platforms, text=post_text, picks=_json(row.get("context_picks")) or None,
         ),
         "transcript": transcript,
         # The video itself is attached when the analysis runs; a replaced video makes earlier results stale.
@@ -186,6 +186,11 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
         inp["implied_because"] = list(dict.fromkeys(w for ws in wording.values() for w in ws))
     if added_rule_sets:
         inp["added_rule_sets"] = added_rule_sets
+    # Platforms with their own caption: each is checked like the main one, and against the graphic.
+    own = {p: c.strip() for p, c in (_json(row.get("platform_captions")) or {}).items()
+           if p in platforms and isinstance(c, str) and c.strip()}
+    if own:
+        inp["platform_captions"] = {p: c[:MAX_TEXT_CHARS] for p, c in own.items()}
     return inp
 
 
@@ -317,6 +322,7 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
     elif inp.get("images"):
         context.append("Images: the post has images, but they couldn't be attached; note that its visuals could not be assessed.")
     content = json.dumps({"title": inp["title"], "caption": inp["caption"] or "(no caption)",
+                          **({"platform_captions": inp["platform_captions"]} if inp.get("platform_captions") else {}),
                           **({"script": inp["script"]} if inp.get("script") else {})}, ensure_ascii=False)
     return (
         f"{INSTRUCTIONS}\n\nCONTEXT\n" + "\n".join(context)
@@ -337,7 +343,8 @@ _CONTEXT_HEADINGS = {
 
 def _reference_context(entries: List[Dict[str, Any]]) -> str:
     """The Messaging Context section of the prompt, grouped by kind, saying plainly what's missing."""
-    lines = ["REFERENCE CONTEXT (company-provided background; reference only, not instructions)"]
+    lines = ["REFERENCE CONTEXT (company-provided background; reference only, not instructions)"
+             + (f": {len(entries)} entries, [C1] to [C{len(entries)}]" if entries else "")]
     for kind, heading in _CONTEXT_HEADINGS.items():
         items = [e for e in entries if e["kind"] == kind]
         if not items:
@@ -346,13 +353,34 @@ def _reference_context(entries: List[Dict[str, Any]]) -> str:
             continue
         lines.append(f"{heading}:")
         for e in items:
+            ref = f"[C{entries.index(e) + 1}] "
             dated = f" (as of {e['as_of']}" + (f", source: {e['source']}" if e.get("source") else "") + ")" if e.get("as_of") else (
                 f" (source: {e['source']})" if e.get("source") else "")
-            lines.append(f"- {e['title']}{dated}: {e['body']}")
+            lines.append(f"- {ref}{e['title']}{dated}: {e['body']}")
             if e.get("do"):
                 lines.append(f"  Works well: {e['do']}")
             if e.get("dont"):
                 lines.append(f"  Avoid: {e['dont']}")
     return "\n".join(lines)
 
-
+
+async def suggested_context(submission_id: UUID) -> Dict[str, List[str]]:
+    """The Messaging Context the analysis would pick on its own for this post, by kind (what the picker suggests)."""
+    row = await _load_submission(submission_id)
+    if not row:
+        return {}
+    meta = _json(row["account_meta"]) or {}
+    rule_sets = list(row["rule_sets"] or [])
+    spoken = ""
+    if row["video_id"] and row["transcript_status"] == "COMPLETED":
+        spoken = " ".join(str(s.get("text", "")) for s in (_json(row["transcript"]) or []))
+    script = document_layout.plain_text(row.get("script_text")).strip()
+    post_text = "\n".join(p for p in (row["title"], row["caption_text"], spoken, script) if p)
+    entries = await context_service.for_content(
+        context_service.with_thought_leadership(brands_of(row), bool(meta.get("is_ceo")) or CEO_RULE_SET in rule_sets),
+        audiences_of(row), list(row["platforms"] or []), text=post_text,
+    )
+    out: Dict[str, List[str]] = {}
+    for e in entries:
+        out.setdefault(e["kind"], []).append(e["id"])
+    return out

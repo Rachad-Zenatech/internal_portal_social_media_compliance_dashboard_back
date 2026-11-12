@@ -260,6 +260,15 @@ async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser):
     return StreamingResponse(lines(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache"})
 
 
+@router.get("/{submission_id}/context-suggestions", response_model=Dict[str, List[str]])
+async def context_suggestions(submission_id: UUID, user_id: CurrentUser):
+    """The Messaging Context the analysis would pick on its own for this post, by kind (the picker's suggestions)."""
+    from services.compliance.sentiment.input_builder import suggested_context
+
+    await svc._get_owned_row(submission_id, user_id, manager_can_read=True)
+    return await suggested_context(submission_id)
+
+
 @router.get("/{submission_id}/duplicates", response_model=DuplicateReport)
 async def find_duplicates(submission_id: UUID, user_id: CurrentUser):
     """Posts already sent for approval with the same content and caption as this draft, with how their Submission

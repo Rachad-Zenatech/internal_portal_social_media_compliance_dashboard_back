@@ -143,26 +143,33 @@ def _applies(values: List[str], content: List[str]) -> bool:
 
 
 async def for_content(brand_codes: Sequence[str], audiences: Sequence[str], platforms: List[str],
-                      text: str = "") -> List[Dict[str, Any]]:
+                      text: str = "", picks: Optional[Dict[str, List[str]]] = None) -> List[Dict[str, Any]]:
     """The active entries that apply to this content, in prompt order, trimmed to a sensible total size. Platform
     norms and audience profiles only come in when they match; brand voice and facts can also apply to everything.
     Facts: the ones closest in meaning to the content's text first (when the vector store is on), then the newest."""
     rows = await fetch_all(
         "SELECT * FROM messaging_context WHERE deleted_at IS NULL AND is_active ORDER BY kind, title"
     )
+    # Kinds the creator chose entries for use exactly those (whatever their scope); the rest are picked automatically.
+    chosen_kinds = set(picks or {})
+    chosen = {str(i) for ids in (picks or {}).values() for i in ids}
     picked: List[Dict[str, Any]] = []
     for r in rows:
-        if not _applies(list(r["brands"] or []), list(brand_codes)):
-            continue
-        if not _applies(list(r["audiences"] or []), list(audiences)):
-            continue
-        if not _applies(list(r["platforms"] or []), platforms):
-            continue
-        # A platform norm or audience profile without a scope would apply everywhere; only matching ones help.
-        if r["kind"] == "PLATFORM_NORM" and not r["platforms"]:
-            continue
-        if r["kind"] == "AUDIENCE_PROFILE" and not r["audiences"]:
-            continue
+        if r["kind"] in chosen_kinds:
+            if str(r["id"]) not in chosen:
+                continue
+        else:
+            if not _applies(list(r["brands"] or []), list(brand_codes)):
+                continue
+            if not _applies(list(r["audiences"] or []), list(audiences)):
+                continue
+            if not _applies(list(r["platforms"] or []), platforms):
+                continue
+            # A platform norm or audience profile without a scope would apply everywhere; only matching ones help.
+            if r["kind"] == "PLATFORM_NORM" and not r["platforms"]:
+                continue
+            if r["kind"] == "AUDIENCE_PROFILE" and not r["audiences"]:
+                continue
         picked.append({
             "id": str(r["id"]),
             "kind": r["kind"],
@@ -177,7 +184,7 @@ async def for_content(brand_codes: Sequence[str], audiences: Sequence[str], plat
             "_newest": _newest_first(r["as_of"]),
         })
     relevant: Dict[str, int] = {}
-    if text.strip() and sum(1 for e in picked if e["kind"] == "FACT") > MAX_FACTS:
+    if text.strip() and "FACT" not in chosen_kinds and sum(1 for e in picked if e["kind"] == "FACT") > MAX_FACTS:
         hits = await vector_store_service.search(
             text[:4000], kinds=["FACT"], brand=list(brand_codes) or None, audience=list(audiences) or None,
             platforms=platforms or None, limit=MAX_FACTS,
@@ -189,7 +196,8 @@ async def for_content(brand_codes: Sequence[str], audiences: Sequence[str], plat
         size = len(e["body"]) + len(e["do"] or "") + len(e["dont"] or "")
         if total + size > MAX_PROMPT_CHARS:
             continue
-        if e["kind"] == "FACT":
+        # Facts the creator chose all go in (within the overall size); automatic ones are capped.
+        if e["kind"] == "FACT" and "FACT" not in chosen_kinds:
             if facts >= MAX_FACTS or fact_chars + size > MAX_FACT_CHARS:
                 continue
             facts, fact_chars = facts + 1, fact_chars + size
