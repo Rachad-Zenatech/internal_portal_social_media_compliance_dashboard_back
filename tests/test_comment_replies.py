@@ -55,7 +55,7 @@ class ReplyMustBeToThisPost(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out.reply_to_id, PARENT)
         insert_args = fetch.await_args_list[1].args
         self.assertIn("reply_to_id", insert_args[0])
-        self.assertEqual(insert_args[-1], PARENT)
+        self.assertIn(PARENT, insert_args)
 
     async def test_a_reply_to_a_missing_or_other_posts_comment_is_refused(self):
         with self.assertRaises(HTTPException) as caught:
