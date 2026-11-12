@@ -251,6 +251,13 @@ async def lifespan(app: FastAPI):
     resume_task.add_done_callback(partial(log_background_task_result, task_name="script-send-resume"))
     background_tasks.append(resume_task)
 
+    # 3e3. The comment sentiment model: loaded in a worker thread now, so the first public-mood view doesn't load it
+    # on the event loop (that froze every request for minutes)
+    from services.compliance.analytics.listening_providers import warm_up_sentiment_model
+    sentiment_model_task = asyncio.create_task(warm_up_sentiment_model(), name="sentiment-model-warm-up")
+    sentiment_model_task.add_done_callback(partial(log_background_task_result, task_name="sentiment-model-warm-up"))
+    background_tasks.append(sentiment_model_task)
+
     # 3f. AI traces and prompt logs: written in batches as they arrive (waits on a queue, no polling)
     trace_task = asyncio.create_task(ai_observability.writer_loop(), name="ai-trace-writer")
     trace_task.add_done_callback(partial(log_background_task_result, task_name="ai-trace-writer"))

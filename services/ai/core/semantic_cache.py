@@ -87,12 +87,17 @@ async def _embed(text: str) -> List[float]:
 
     client = vector_store_service._gemini_client()
     model = os.getenv("AI_SEMANTIC_CACHE_EMBEDDING_MODEL", "").strip() or vector_store_service.embedding_model()
+    vector_store_service.check_embedding_quota()  # skipped while the embedding quota is used up
     async with span("embedding", "gemini.embed_content", model=model, texts=1, chars=len(text), purpose="semantic_cache"):
-        res = await client.aio.models.embed_content(
-            model=model,
-            contents=[types.Content(parts=[types.Part(text=text)])],
-            config=types.EmbedContentConfig(output_dimensionality=DIMENSIONS, task_type="SEMANTIC_SIMILARITY"),
-        )
+        try:
+            res = await client.aio.models.embed_content(
+                model=model,
+                contents=[types.Content(parts=[types.Part(text=text)])],
+                config=types.EmbedContentConfig(output_dimensionality=DIMENSIONS, task_type="SEMANTIC_SIMILARITY"),
+            )
+        except Exception as e:
+            vector_store_service.note_embedding_error(e)
+            raise
     values = list((res.embeddings or [])[0].values or [])
     norm = math.sqrt(sum(v * v for v in values)) or 1.0
     return [v / norm for v in values]

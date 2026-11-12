@@ -376,7 +376,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `embedding_quota_left` (def) - None if embeddings work; otherwise why not.
 - `main` (def)
 
-## server.py (706 lines) - server
+## server.py (713 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -436,7 +436,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `find` (def)
 - `count` (def)
 
-## services/ai/core/semantic_cache.py (197 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
+## services/ai/core/semantic_cache.py (202 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
 - `_env_float` (def)
 - `is_enabled` (def)
 - `Hit` (class)
@@ -449,7 +449,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `store` (def) - Cache an answer for the question of an earlier lookup.
 - `clear` (def) - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
-## services/ai/core/vector_store_service.py (301 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+## services/ai/core/vector_store_service.py (340 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
 - `_setting` (def)
 - `database_name` (def)
 - `collection_name` (def)
@@ -459,6 +459,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `named_collection` (def) - Another collection in the same database, over the same connection, or None when MONGODB_URI isn't set.
 - `_collection` (def) - The project's collection, or None when MONGODB_URI isn't set.
 - `_gemini_client` (def)
+- `EmbeddingQuotaExhausted` (class) - The embedding quota is used up; raised without calling Gemini while the pause lasts.
+- `check_embedding_quota` (def) - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
+- `note_embedding_error` (def) - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
 - `embed` (def) - Gemini embeddings for the texts, in order, batched to keep requests few.
 - `_scope` (def) - An empty scope means every value.
 - `_hash` (def)
@@ -616,11 +619,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `excluded_for` (def)
 - `corrections_for` (def)
 
-## services/compliance/analytics/listening_providers.py (495 lines) - Social listening providers: where "public mood" data comes from.
+## services/compliance/analytics/listening_providers.py (524 lines) - Social listening providers: where "public mood" data comes from.
 - `clean_headline` (def) - The headline without its outlet, lowercased, letters and digits only: equal for the same story.
 - `volume_change` (def) - Percent change in mentions: the last three complete days against the three before them, from `daily` (oldest
 - `_load_local_model` (def) - The trained sentiment model, loaded once.
+- `warm_up_sentiment_model` (def) - Load the sentiment model in a worker thread at startup, so no request waits for it (or freezes the server).
+- `_load_local_model_locked` (def)
 - `_model_probs` (def) - {'POSITIVE': p, 'NEUTRAL': p, 'NEGATIVE': p} from the trained model, or None to fall back to VADER.
+- `_run_model` (def)
 - `classify_comment_sentiment` (def) - Classify an individual X comment/post as POSITIVE, NEGATIVE, or NEUTRAL with confidence (0-100%).
 - `evaluate_publishing_decision` (def) - Decide whether the team should POST, WAIT (review), or HOLD (escalate to human reviewer)
 - `ListeningUnavailable` (class) - The listening source can't be reached or isn't configured.
@@ -834,7 +840,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `conversation_step` (def)
 - `build` (def)
 
-## services/compliance/analytics/public_mood_service.py (1113 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+## services/compliance/analytics/public_mood_service.py (1115 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - `_env_float` (def)
 - `_get_client` (def)
 - `_source_label` (def)

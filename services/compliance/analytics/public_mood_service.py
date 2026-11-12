@@ -869,8 +869,10 @@ async def ingest_x_json(req: XIngestRequest) -> List[XTrendOpportunity]:
     raw_topics = []
     for t in req.topics:
         topic_dict = t.model_dump(mode="json")
-        analyzed = analyze_raw_x_topic(topic_dict, days=WINDOW_DAYS)
-        rec, rec_reason = evaluate_publishing_decision(
+        # The sentiment model scores every comment: in a worker thread, so other requests keep moving meanwhile.
+        analyzed = await asyncio.to_thread(analyze_raw_x_topic, topic_dict, WINDOW_DAYS)
+        rec, rec_reason = await asyncio.to_thread(
+            evaluate_publishing_decision,
             positive_pct=analyzed["positive"],
             neutral_pct=analyzed["neutral"],
             negative_pct=analyzed["negative"],

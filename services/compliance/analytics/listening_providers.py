@@ -13,7 +13,9 @@ import json
 import logging
 import os
 import re
+import threading
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -58,11 +60,27 @@ def volume_change(daily: List[int]) -> Optional[float]:
 
 LOCAL_MODEL_NAME = os.getenv("SENTIMENT_MODEL", "cardiffnlp/twitter-roberta-base-sentiment-latest").strip()
 _local_model: Any = None  # (tokenizer, model), False once loading failed (VADER is used from then on)
+# Loading takes a while (and may download the model); callers in worker threads wait for the one load.
+_model_lock = threading.Lock()
 
 
 def _load_local_model() -> Any:
     """The trained sentiment model, loaded once. False when it's switched off (SENTIMENT_MODEL=vader), the packages
     aren't installed, or it can't be downloaded: callers then use VADER."""
+    if _local_model is not None:
+        return _local_model
+    with _model_lock:
+        return _load_local_model_locked()
+
+
+async def warm_up_sentiment_model() -> None:
+    """Load the sentiment model in a worker thread at startup, so no request waits for it (or freezes the server)."""
+    import asyncio
+
+    await asyncio.to_thread(_load_local_model)
+
+
+def _load_local_model_locked() -> Any:
     global _local_model
     if _local_model is None:
         if not LOCAL_MODEL_NAME or LOCAL_MODEL_NAME.lower() == "vader":
@@ -86,6 +104,14 @@ def _model_probs(text: str) -> Optional[Dict[str, float]]:
     loaded = _load_local_model()
     if not loaded:
         return None
+    out = _run_model(text, loaded)
+    return dict(out) if out is not None else None
+
+
+# The same headlines are scored on every public-mood view; one model run is slow enough that repeating them in a
+# request stalled the whole server. Keyed by the loaded model too, so a different model never reuses old scores.
+@lru_cache(maxsize=20000)
+def _run_model(text: str, loaded: Tuple[Any, Any]) -> Optional[Dict[str, float]]:
     try:
         import torch
 
@@ -446,7 +472,10 @@ class XJsonListeningProvider(ListeningProvider):
         topic = next((t for t in topics if str(t.get("external_id")) == external_id), None)
         if not topic:
             raise ListeningUnavailable(f"Topic {external_id} not found in the collected X feed")
-        return analyze_raw_x_topic(topic, days=days)
+        # Scoring runs the sentiment model on each new comment: in a worker thread, so other requests keep moving.
+        import asyncio
+
+        return await asyncio.to_thread(analyze_raw_x_topic, topic, days)
 
 
 # ---------------------------------------------------------------------------
