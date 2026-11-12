@@ -48,7 +48,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
 - server.py (713 lines) - server
 - services/ai/core/assistant_chat_service.py (258 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
-- services/ai/core/gemini_service.py (147 lines) - gemini service (ai core)
+- services/ai/core/gemini_service.py (149 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
 - services/ai/core/mood_store.py (121 lines) - The collections public mood learns from, in the same MongoDB database as the vector store.
 - services/ai/core/semantic_cache.py (202 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
@@ -183,7 +183,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_post_steps.py (120 lines) - The five steps a creator works through: which are done, which are out of date, where to carry on, and when a post can be sent.
 - tests/test_public_mood_process.py (36 lines) - The process log reports what was done, and only that.
 - tests/test_resume_reads.py (47 lines) - test resume reads
-- tests/test_retired_models.py (36 lines) - test retired models
+- tests/test_retired_models.py (43 lines) - test retired models
 - tests/test_review_decision.py (272 lines) - test review decision
 - tests/test_review_delegation.py (123 lines) - Review delegation: a reviewer hands a post in review to someone else and stays on it.
 - tests/test_review_memory_text.py (88 lines) - What is stored for a past post, and what a new post is compared on, must be the same set of text.

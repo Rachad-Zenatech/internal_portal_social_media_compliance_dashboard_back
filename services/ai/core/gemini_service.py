@@ -49,7 +49,9 @@ def get_gemini_fallback_models() -> List[str]:
     # Filter out deprecated models that are no longer available in the Google GenAI API
     models = [m for m in raw_models if m not in DEPRECATED_MODELS]
     priority_order = ["gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-3.1-pro-preview"]
-    ordered = [m for m in priority_order if m in models or m not in DEPRECATED_MODELS]
+    # Proven models go first, but only ones the env lists: a model the key has no quota for (e.g. 3.1 Pro on the
+    # free tier) must not be added, or every fallback chain ends with a call that can only fail.
+    ordered = [m for m in priority_order if m in models]
     for m in models:
         if m not in ordered:
             ordered.append(m)

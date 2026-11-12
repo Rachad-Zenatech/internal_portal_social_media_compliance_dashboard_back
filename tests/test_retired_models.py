@@ -22,6 +22,13 @@ class RetiredModelTests(unittest.TestCase):
         self.assertNotIn("gemini-2.5-flash-lite", models)
         self.assertIn("gemini-3.1-flash-lite", models)
 
+    def test_models_not_in_the_env_list_are_never_added(self):
+        env = {"GEMINI_AVAILABLE_MODELS": "gemini-3.8-flash,gemini-3-flash-preview,gemini-3.1-flash-lite"}
+        with patch.dict(os.environ, env):
+            models = gemini_service.get_gemini_fallback_models()
+        self.assertNotIn("gemini-3.1-pro-preview", models)
+        self.assertEqual(sorted(models), sorted(env["GEMINI_AVAILABLE_MODELS"].split(",")))
+
     def test_no_route_tries_a_retired_model_first(self):
         for tier in model_router.TIERS:
             self.assertFalse(set(model_router.tier_models(tier)) & gemini_service.DEPRECATED_MODELS, tier)

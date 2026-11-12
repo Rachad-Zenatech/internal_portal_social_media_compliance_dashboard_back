@@ -421,7 +421,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_stream_round` (def) - One model turn, streamed.
 - `stream` (def) - The SSE events for a prepared chat.
 
-## services/ai/core/gemini_service.py (147 lines) - gemini service (ai core)
+## services/ai/core/gemini_service.py (149 lines) - gemini service (ai core)
 - `_normalize_ai_model_name` (def) - Normalizes a model name from the environment variable list
 - `without_retired` (def) - The models that can still be called, in the same order.
 - `get_gemini_fallback_models` (def) - Retrieves and normalizes the list of available Gemini models
@@ -2899,11 +2899,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `StuckReadRetriedTests` (class)
     - `test_only_stuck_reads_older_than_the_limit_are_retried` (def)
 
-## tests/test_retired_models.py (36 lines) - test retired models
+## tests/test_retired_models.py (43 lines) - test retired models
 - `RetiredModelTests` (class)
     - `test_retired_models_are_dropped_in_order` (def)
     - `test_a_list_of_only_retired_models_is_left_as_given` (def)
     - `test_the_account_list_in_env_cannot_bring_them_back` (def)
+    - `test_models_not_in_the_env_list_are_never_added` (def)
     - `test_no_route_tries_a_retired_model_first` (def)
     - `test_a_route_set_in_env_is_filtered_too` (def)
 
