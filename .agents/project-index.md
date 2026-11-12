@@ -169,7 +169,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_full_rule_pass.py (81 lines) - test full rule pass
 - tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
 - tests/test_local_sentiment_model.py (59 lines) - The trained local sentiment model (with VADER as the fallback) for scraped X posts and headlines.
-- tests/test_message_hub_status.py (50 lines) - The message-hub dropdown asks this service for /api/message-hub/status (ported from the administration backend).
+- tests/test_message_hub_status.py (61 lines) - The message-hub dropdown asks this service for /api/message-hub/status (ported from the administration backend).
 - tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
 - tests/test_mood_auto_train.py (289 lines) - Training starts by itself when a reviewer's decision changes, and only then; it never blocks, never creates empty datasets, and never reg...
 - tests/test_mood_features_and_records.py (292 lines) - Steps 8 and 10: one feature function, and an insert-only record of every assessment made.

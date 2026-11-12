@@ -2536,7 +2536,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_defence_headline_is_not_a_crisis` (def)
     - `test_clear_positive_and_negative` (def)
 
-## tests/test_message_hub_status.py (50 lines) - The message-hub dropdown asks this service for /api/message-hub/status (ported from the administration backend).
+## tests/test_message_hub_status.py (61 lines) - The message-hub dropdown asks this service for /api/message-hub/status (ported from the administration backend).
 - `HubStatusTests` (class)
     - `test_this_service_is_the_compliance_app` (def)
     - `test_offline_status_lists_every_hub_server_and_marks_itself` (def)
