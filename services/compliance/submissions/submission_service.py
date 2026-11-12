@@ -2651,15 +2651,21 @@ def _comment_out(r: Dict[str, Any], viewer: UUID, viewer_is_super: bool) -> Revi
         resolved_by_name=r.get("resolved_by_name"),
         created_at=r["created_at"],
         can_delete=r["author_id"] == viewer or viewer_is_super,
+        reply_to_id=r.get("reply_to_id"),
+        reply_to_author=r.get("reply_to_author"),
+        reply_to_body=r.get("reply_to_body"),
     )
 
 
 _COMMENT_SELECT = """
-    SELECT c.*, s.created_by AS submission_created_by, a.full_name AS author_name, rb.full_name AS resolved_by_name
+    SELECT c.*, s.created_by AS submission_created_by, a.full_name AS author_name, rb.full_name AS resolved_by_name,
+           CASE WHEN p.deleted_at IS NULL THEN p.body END AS reply_to_body, pa.full_name AS reply_to_author
     FROM content_review_comments c
     JOIN content_submissions s ON s.id = c.submission_id
     LEFT JOIN users a ON a.id = c.author_id
     LEFT JOIN users rb ON rb.id = c.resolved_by
+    LEFT JOIN content_review_comments p ON p.id = c.reply_to_id
+    LEFT JOIN users pa ON pa.id = p.author_id
 """
 
 
@@ -2688,16 +2694,22 @@ async def add_comment(submission_id: UUID, user_id: UUID, data: ReviewCommentCre
     # Someone else's comment is a reviewer's. The creator's own counts as a reviewer's only when they review it
     # themselves (a super admin, while it's in review); otherwise it's a reply.
     from_reviewer = row["created_by"] != user_id or (row["status"] == "IN_REVIEW" and await _can_review(user_id))
+    # A reply has to be to a comment on this same post that is still there.
+    if data.reply_to_id and not await fetch_one(
+        "SELECT 1 FROM content_review_comments WHERE id = $1 AND submission_id = $2 AND deleted_at IS NULL",
+        data.reply_to_id, submission_id,
+    ):
+        raise HTTPException(status_code=422, detail="The comment you're replying to isn't on this post any more")
     saved = await fetch_one(
         """
         INSERT INTO content_review_comments
-            (submission_id, version_number, author_id, category, body, start_sec, end_sec, from_reviewer)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            (submission_id, version_number, author_id, category, body, start_sec, end_sec, from_reviewer, reply_to_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id
         """,
         # A draft's notes belong to the version it becomes, so the first one is version 1, not 0.
         submission_id, max(row["current_version"], 1), user_id, data.category, data.body.strip(),
-        data.start_sec, data.end_sec, from_reviewer,
+        data.start_sec, data.end_sec, from_reviewer, data.reply_to_id,
     )
     full = await fetch_one(_COMMENT_SELECT + " WHERE c.id = $1", saved["id"])
     return _comment_out(full, user_id, await _is_super_admin(user_id))

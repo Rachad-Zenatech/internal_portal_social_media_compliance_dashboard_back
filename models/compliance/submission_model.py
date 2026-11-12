@@ -448,6 +448,8 @@ class ReviewCommentCreate(BaseModel):
     category: CommentCategory = "NOTE"
     start_sec: Optional[float] = Field(None, ge=0)
     end_sec: Optional[float] = Field(None, ge=0)
+    # Replying to another comment on the same post (it is quoted above this one).
+    reply_to_id: Optional[UUID] = None
 
 
 class ReviewCommentUpdate(BaseModel):
@@ -470,6 +472,10 @@ class ReviewComment(BaseModel):
     resolved_by_name: Optional[str] = None
     created_at: datetime
     can_delete: bool = False
+    # The comment this replies to, quoted above it: who wrote it and what it said (None once it was deleted).
+    reply_to_id: Optional[UUID] = None
+    reply_to_author: Optional[str] = None
+    reply_to_body: Optional[str] = None
 
 
 class SubmissionEvent(BaseModel):

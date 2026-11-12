@@ -336,6 +336,9 @@ async def setup():
                 ON content_review_comments(submission_id, created_at) WHERE deleted_at IS NULL;
             -- Whether the author wrote it as the reviewer (a super admin can review their own upload)
             ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS from_reviewer BOOLEAN;
+            -- The comment this one replies to (quoted above it, like a chat reply)
+            ALTER TABLE content_review_comments ADD COLUMN IF NOT EXISTS reply_to_id UUID
+                REFERENCES content_review_comments(id) ON DELETE SET NULL;
 
             -- Review delegations: a reviewer hands a post in review to someone else. The delegate is added to the
             -- post's reviewers; the delegator stays on it, so they still see its status (and can still decide).
