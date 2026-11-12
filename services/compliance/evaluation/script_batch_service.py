@@ -492,7 +492,10 @@ async def send(batch_id: UUID, user_id: UUID) -> Batch:
         missing = missing_details(_details(row))
         if missing:
             raise HTTPException(status_code=422, detail=f"Fill in the details first: {', '.join(missing)}.")
-    empty = [w["title"] for w in waiting if not (w["body"] or "").strip()]
+    if (any(scripts.only_sent_to_self(effective_details(row, w).get("reviewer_ids"), user_id) for w in waiting)
+            and not await scripts.may_review_own_script(user_id)):
+        raise HTTPException(status_code=422, detail=scripts.SELF_REVIEW_MESSAGE)
+    empty =[w["title"] for w in waiting if not (w["body"] or "").strip()]
     if empty:
         raise HTTPException(status_code=422, detail=f"These scripts are empty: {', '.join(empty[:5])}")
     await execute("UPDATE content_script_batches SET status = 'PROCESSING', error = NULL, updated_at = NOW() WHERE id = $1", batch_id)
@@ -593,7 +596,8 @@ async def _notify_reviewers(batch: Dict[str, Any], count: int, creator: UUID) ->
         brands = list(dict.fromkeys(b for d in each for b in d.get("brand_codes") or []))
         named = [d.get("reviewer_ids") or [] for d in each]
         details = {"brand_codes": brands, "reviewer_ids": [] if any(not n for n in named) else [r for n in named for r in n]}
-    reviewers = await subs._review_recipients(post_row(details, batch["title"]), exclude=creator)
+    own_ok = await scripts.may_review_own_script(creator)  # a super admin who may review their own is told too
+    reviewers = await subs._review_recipients(post_row(details, batch["title"]), exclude=None if own_ok else creator)
     await subs._notify(
         reviewers, f"Scripts to review: {batch['title']}",
         f"{count} script{'' if count == 1 else 's'} are ready for review together.",

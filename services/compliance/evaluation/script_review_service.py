@@ -172,11 +172,27 @@ def _require_stage(row: Dict[str, Any]) -> None:
         raise HTTPException(status_code=409, detail="This post doesn't have a script stage")
 
 
+async def may_review_own_script(user_id: UUID) -> bool:
+    """A super admin may review and approve their own scripts (as with posts); nobody else may."""
+    return await subs._is_super_admin(user_id)
+
+
 async def _reviewer_may_act(row: Dict[str, Any], user_id: UUID) -> bool:
     if not await subs._can_review(user_id):
         return False
     # Nobody approves their own script but a super admin (as with posts): another reviewer has to.
-    return row["created_by"] != user_id or await subs._is_super_admin(user_id)
+    return row["created_by"] != user_id or await may_review_own_script(user_id)
+
+
+SELF_REVIEW_MESSAGE = ("Send the script to a reviewer other than yourself: only a super admin can approve "
+                       "their own script.")
+
+
+def only_sent_to_self(reviewer_ids: Any, creator: Any) -> bool:
+    """The script would go only to the person who wrote it. Unless they're a super admin (who may approve their own),
+    nobody else would see it or be told about it, and they couldn't approve it: it would sit in review for good."""
+    picked = {str(r) for r in reviewer_ids or []}
+    return bool(picked) and picked <= {str(creator)}
 
 
 async def batch_ref(submission_id: UUID) -> Optional[ScriptBatchRef]:
@@ -296,7 +312,8 @@ async def _lock_status(conn, submission_id: UUID, allowed: tuple) -> None:
 
 async def _send_to_reviewers(row: Dict[str, Any], version: int, check: Dict[str, Any], user_id: UUID) -> List[UUID]:
     """Tell the reviewers it was sent to; returns who was told."""
-    reviewers = await subs._review_recipients(row, exclude=user_id)
+    # The creator is told too when they may review their own script (development, super admin).
+    reviewers = await subs._review_recipients(row, exclude=None if await may_review_own_script(user_id) else user_id)
     issues = check.get("violations_count") or 0
     score = "no score yet (the AI review couldn't run)" if check.get("ai_unavailable") else f"score {check.get('score')}/100"
     await subs._notify(
@@ -395,6 +412,8 @@ async def submit(submission_id: UUID, user_id: UUID, confirm_repost: bool = Fals
     missing = _missing_details(row)
     if missing:
         raise HTTPException(status_code=422, detail=f"Fill in the submission details first: {', '.join(missing)}.")
+    if only_sent_to_self(row.get("reviewer_ids"), row["created_by"]) and not await may_review_own_script(row["created_by"]):
+        raise HTTPException(status_code=422, detail=SELF_REVIEW_MESSAGE)
     file = await _script_file(submission_id)
     if not file:
         raise HTTPException(status_code=422, detail="Upload the script first (PDF, Word or text)")
