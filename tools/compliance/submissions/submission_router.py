@@ -212,13 +212,14 @@ async def reimport_from_canva(submission_id: UUID, data: CanvaReimportRequest, u
 
 
 @router.post("/{submission_id}/check", response_model=Submission)
-async def run_initial_check(submission_id: UUID, user_id: CurrentUser):
-    """Screen the title and caption against the rulebook without submitting."""
-    return await svc.run_initial_check(submission_id, user_id)
+async def run_initial_check(submission_id: UUID, user_id: CurrentUser, body: Optional[SubmitRequest] = None):
+    """Screen the title and caption against the rulebook without submitting. Duplicates are checked first: 409
+    DUPLICATE_POST, or 409 REPOST_CONFIRM until confirm_repost is sent when only the publish date differs."""
+    return await svc.run_initial_check(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost))
 
 
 @router.post("/{submission_id}/check/stream")
-async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser):
+async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser, body: Optional[SubmitRequest] = None):
     """The same check as /check, streamed as newline-delimited JSON so the page can show its progress: an
     {"event": "attempt"} line as each AI model call starts and ends (fallbacks included), then {"event": "done",
     "submission": ...} with the saved result, or {"event": "failed", "status": ..., "detail": ...}."""
@@ -234,7 +235,7 @@ async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser):
     async def work() -> None:
         ai_observability.attempt_listener.set(listen)
         try:
-            sub = await svc.run_initial_check(submission_id, user_id)
+            sub = await svc.run_initial_check(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost))
             queue.put_nowait({"event": "done", "submission": sub.model_dump(mode="json")})
         except HTTPException as e:
             queue.put_nowait({"event": "failed", "status": e.status_code, "detail": e.detail})

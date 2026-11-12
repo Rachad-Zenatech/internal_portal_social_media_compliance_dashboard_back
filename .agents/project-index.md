@@ -76,9 +76,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/analytics/post_query_plan.py (167 lines) - The searches for one draft: what its own subject is, and what the wider topic around it is.
 - services/compliance/analytics/post_signals.py (217 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - services/compliance/analytics/public_mood_process.py (148 lines) - A plain-language log of how a post's public mood was made, shown on the page so a person can follow it: what was read from the post, whic...
-- services/compliance/analytics/public_mood_service.py (1125 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
-- services/compliance/analytics/public_mood_service.py (1125 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
-- services/compliance/analytics/public_mood_service.py (1125 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+- services/compliance/analytics/public_mood_service.py (1122 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - services/compliance/analytics/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 - services/compliance/evaluation/brand_voice_service.py (711 lines) - Brand voice per brand, read from its brand manual.
 - services/compliance/evaluation/citation_finder.py (185 lines) - Citation finder: what a post says it got its claims from.
@@ -90,7 +88,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - services/compliance/evaluation/script_batch_service.py (659 lines) - Script batches.
 - services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
-- services/compliance/evaluation/script_review_service.py (1021 lines) - Script stage of a video post.
+- services/compliance/evaluation/script_review_service.py (1032 lines) - Script stage of a video post.
 - services/compliance/evaluation/script_split.py (113 lines) - Splitting one document into the scripts it holds.
 - services/compliance/evaluation/source_check_service.py (494 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_fetch_service.py (321 lines) - Source fetcher: opens a link a post cites and returns its readable text.
@@ -109,9 +107,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/sentiment/engine.py (313 lines) - Gemini execution and model failover chain for sentiment analysis.
 - services/compliance/sentiment/evidence.py (239 lines) - Verification of quotes and rule references in sentiment findings.
 - services/compliance/sentiment/feedback.py (146 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
-- services/compliance/sentiment/input_builder.py (387 lines) - Input building and prompt construction for sentiment analysis.
-- services/compliance/sentiment/input_builder.py (387 lines) - Input building and prompt construction for sentiment analysis.
-- services/compliance/sentiment/input_builder.py (387 lines) - Input building and prompt construction for sentiment analysis.
+- services/compliance/sentiment/input_builder.py (389 lines) - Input building and prompt construction for sentiment analysis.
 - services/compliance/sentiment/jobs.py (545 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - services/compliance/sentiment/media.py (66 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/submissions/analysis_progress_service.py (195 lines) - How long a post's rulebook check has left.
@@ -123,9 +119,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/submissions/post_steps_service.py (117 lines) - The five steps a creator works through, and how far each post has got.
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - services/compliance/submissions/review_memory_service.py (229 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
-- services/compliance/submissions/submission_service.py (3025 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
-- services/compliance/submissions/submission_service.py (3025 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
-- services/compliance/submissions/submission_service.py (3025 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (3019 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
 - services/notifications/ceo_event_publisher.py (50 lines) - Cross-application event publisher for CEO Dashboard integration.
@@ -228,8 +222,8 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tools/compliance/submissions/compliance_router.py (172 lines) - Compliance Rules & Governance Router Endpoints for managing ("build on it and remove") and checking compliance rules.
 - tools/compliance/submissions/context_router.py (96 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
 - tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
-- tools/compliance/submissions/script_review_router.py (117 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
-- tools/compliance/submissions/submission_router.py (588 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+- tools/compliance/submissions/script_review_router.py (118 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+- tools/compliance/submissions/submission_router.py (589 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/notifications/message_hub_router.py (57 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
 - tools/notifications/notification_router.py (87 lines) - notification router (notifications)

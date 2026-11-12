@@ -24,6 +24,7 @@ from models.compliance.submission_model import (
     DashboardActivity,
     DashboardFinding,
     DashboardSummary,
+    DuplicateReport,
     ReviewComment,
     ReviewCommentCreate,
     ReviewDecisionRequest,
@@ -1494,11 +1495,14 @@ async def _mirror_to_script_version(conn, submission_id: UUID, check: Dict[str, 
     )
 
 
-async def run_initial_check(submission_id: UUID, user_id: UUID) -> Submission:
+async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: bool = False) -> Submission:
     row = await _get_owned_row(submission_id, user_id)
     if not _check_text(row):
         raise HTTPException(status_code=422, detail="Add a title or caption before running the check")
     await require_details_complete(row, "running the compliance check")
+    # Duplicates are settled before the compliance check, not when the post is sent: a true duplicate is refused here,
+    # and a repost for another date is confirmed here (sending still refuses a duplicate made by later edits).
+    duplicates = await _require_not_duplicate(row, confirm_repost)
     # Which models answered is kept with the result, so it can be shown later and not only while the check runs.
     attempts: Dict[str, Dict[str, Any]] = {}
     outer = ai_observability.attempt_listener.get()
@@ -1516,6 +1520,8 @@ async def run_initial_check(submission_id: UUID, user_id: UUID) -> Submission:
     finally:
         ai_observability.attempt_listener.reset(token)
     check["models"] = {"attempts": list(attempts.values()), "duration_ms": round((time.perf_counter() - started) * 1000)}
+    if duplicates.repost:
+        check["repost_confirmed"] = duplicates.repost.reference_code  # sending doesn't ask again for the same post
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -1595,9 +1601,11 @@ async def require_details_complete_for(submission_id: UUID, user_id: UUID, doing
     await require_details_complete(await _get_owned_row(submission_id, user_id, manager_can_read=True), doing)
 
 
-async def _require_not_duplicate(row: Dict[str, Any], confirm_repost: bool) -> None:
+async def _require_not_duplicate(row: Dict[str, Any], confirm_repost: bool,
+                                 confirmed_ref: Optional[str] = None) -> DuplicateReport:
     """The same content and caption, already sent for approval to the same place on the same date, can't be sent
-    again; on another date it can, once the creator confirms (see duplicate_service)."""
+    again; on another date it can, once the creator confirms (see duplicate_service). confirmed_ref is the earlier
+    post the creator already confirmed reposting at the compliance check, so they aren't asked twice."""
     report = await duplicate_service.find(row)
     if report.blocking:
         m = report.blocking
@@ -1608,7 +1616,7 @@ async def _require_not_duplicate(row: Dict[str, Any], confirm_repost: bool) -> N
                        "so they no longer overlap.",
             "duplicates": report.model_dump(mode="json"),
         })
-    if report.repost and not confirm_repost:
+    if report.repost and not (confirm_repost or (confirmed_ref and report.repost.reference_code == confirmed_ref)):
         m = report.repost
         raise HTTPException(status_code=409, detail={
             "code": "REPOST_CONFIRM",
@@ -1616,6 +1624,7 @@ async def _require_not_duplicate(row: Dict[str, Any], confirm_repost: bool) -> N
                        "Confirm to send it for this date too.",
             "duplicates": report.model_dump(mode="json"),
         })
+    return report
 
 
 def _review_job(r: Dict[str, Any]) -> ReviewJob:
@@ -1679,7 +1688,8 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
             "message": "Some required information is missing.",
             "missing": sorted(set(missing)),
         })
-    await _require_not_duplicate(row, confirm_repost)
+    # Settled at the compliance check; checked again here in case the post changed since.
+    await _require_not_duplicate(row, confirm_repost, (_json(row.get("latest_check")) or {}).get("repost_confirmed"))
 
     # Sent to the reviewers picked (required, see _missing_for_submit) who can still review it, and its final
     # approvers, who must see it to approve it.
