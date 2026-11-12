@@ -46,13 +46,13 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - scripts/scrape_x_playwright.py (621 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
-- server.py (706 lines) - server
+- server.py (713 lines) - server
 - services/ai/core/assistant_chat_service.py (258 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/gemini_service.py (147 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
 - services/ai/core/mood_store.py (121 lines) - The collections public mood learns from, in the same MongoDB database as the vector store.
-- services/ai/core/semantic_cache.py (197 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
-- services/ai/core/vector_store_service.py (301 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+- services/ai/core/semantic_cache.py (202 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
+- services/ai/core/vector_store_service.py (340 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
 - services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - services/ai/observability/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
 - services/ai/observability/ai_health.py (100 lines) - Whether the AI (Gemini) is working right now, for the banner every signed-in user sees when it isn't.
@@ -61,7 +61,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/ai/observability/ai_usage_service.py (164 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - services/compliance/analytics/conversation_evidence.py (955 lines) - Conversation evidence for public mood: the news articles and X posts a post is compared with, and the saved assessment of what they say a...
 - services/compliance/analytics/conversation_feedback.py (202 lines) - Reviewer input on a conversation assessment, kept against the exact assessment the reviewer was looking at.
-- services/compliance/analytics/listening_providers.py (495 lines) - Social listening providers: where "public mood" data comes from.
+- services/compliance/analytics/listening_providers.py (524 lines) - Social listening providers: where "public mood" data comes from.
 - services/compliance/analytics/listening_sources.py (78 lines) - What to listen for about the company itself, besides the market topics (drone delivery, FAA rules...).
 - services/compliance/analytics/mood_auto_train.py (186 lines) - Training the decision model again whenever a reviewer's decision changes, without anyone running it.
 - services/compliance/analytics/mood_dataset.py (236 lines) - A fixed training dataset made from reviewed assessments.
@@ -76,7 +76,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/analytics/post_query_plan.py (167 lines) - The searches for one draft: what its own subject is, and what the wider topic around it is.
 - services/compliance/analytics/post_signals.py (217 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - services/compliance/analytics/public_mood_process.py (148 lines) - A plain-language log of how a post's public mood was made, shown on the page so a person can follow it: what was read from the post, whic...
-- services/compliance/analytics/public_mood_service.py (1113 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+- services/compliance/analytics/public_mood_service.py (1115 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - services/compliance/analytics/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 - services/compliance/evaluation/brand_voice_service.py (711 lines) - Brand voice per brand, read from its brand manual.
 - services/compliance/evaluation/citation_finder.py (185 lines) - Citation finder: what a post says it got its claims from.
@@ -88,7 +88,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - services/compliance/evaluation/script_batch_service.py (656 lines) - Script batches.
 - services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
-- services/compliance/evaluation/script_review_service.py (878 lines) - Script stage of a video post.
+- services/compliance/evaluation/script_review_service.py (881 lines) - Script stage of a video post.
 - services/compliance/evaluation/script_split.py (113 lines) - Splitting one document into the scripts it holds.
 - services/compliance/evaluation/source_check_service.py (494 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_fetch_service.py (321 lines) - Source fetcher: opens a link a post cites and returns its readable text.
@@ -111,7 +111,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/sentiment/jobs.py (545 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - services/compliance/sentiment/media.py (66 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/submissions/analysis_progress_service.py (195 lines) - How long a post's rulebook check has left.
-- services/compliance/submissions/approval_path_service.py (170 lines) - Approval paths: who gives final approval for which content.
+- services/compliance/submissions/approval_path_service.py (197 lines) - Approval paths: who gives final approval for which content.
 - services/compliance/submissions/delegation_service.py (203 lines) - Review delegation: a reviewer hands a post in review to someone else.
 - services/compliance/submissions/duplicate_service.py (237 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
 - services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
@@ -119,7 +119,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/submissions/post_steps_service.py (117 lines) - The five steps a creator works through, and how far each post has got.
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - services/compliance/submissions/review_memory_service.py (229 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
-- services/compliance/submissions/submission_service.py (3002 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (3033 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
 - services/notifications/ceo_event_publisher.py (50 lines) - Cross-application event publisher for CEO Dashboard integration.
@@ -136,7 +136,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/shared/auth/rbac_service.py (757 lines) - Utility for audit logging
 - services/shared/auth/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
 - services/shared/core/audit_service.py (126 lines) - audit service (shared core)
-- services/shared/core/cache_service.py (200 lines) - Goes up on every invalidation.
+- services/shared/core/cache_service.py (201 lines) - Goes up on every invalidation.
 - services/shared/core/logging_service.py (122 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
 - tests/conftest.py (23 lines) - Shared test setup.
 - tests/fake_mongo.py (139 lines) - An in-memory stand-in for the parts of motor's collection API the mood-learning code uses, so tests never need (or reach) a real database.
