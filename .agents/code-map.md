@@ -2787,7 +2787,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ValidateTests` (class)
     - `test_only_what_the_posts_text_supports_is_kept` (def)
     - `test_no_supported_context_term_means_no_wider_topic` (def)
-    - `test_at_most_four_wider_topics` (def)
+    - `test_at_most_six_wider_topics` (def)
     - `test_a_plan_saved_with_one_wider_topic_still_reads` (def)
 - `PlanTests` (class)
     - `test_gemini_failure_falls_back_to_the_rules_and_says_why` (def)

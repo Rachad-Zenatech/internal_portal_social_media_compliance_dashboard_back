@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 PLAN_VERSION = "plan-2"  # 2: several wider topics, each with its own searches
 MAX_DIRECT = 3
-MAX_CONTEXTS = 4  # wider topics per post, each shown as its own row
+MAX_CONTEXTS = 6  # the most wider topics per post, each shown as its own row (it is asked for 3-5)
 MAX_CONTEXT_QUERIES = 2  # searches per wider topic
 MAX_ORGS = 2  # a headline must name all of these (the first two the post names)
 
@@ -57,7 +57,7 @@ PROMPT = (
     "- subject: one sentence on what the post announces or says.\n"
     "- organisations: companies/organisations named in the post, spelled as in the post, most important first.\n"
     "- direct_queries: up to 3 searches for coverage of THIS announcement (name the organisations plus the key event).\n"
-    "- contexts: 3 or 4 DIFFERENT wider subjects the public is talking about around the post, each from a different "
+    "- contexts: 3 to 5 DIFFERENT wider subjects (never more than 6) the public is talking about around the post, each from a different "
     "angle (for example: the industry, the customers or sector it serves, the technology, the rules or risks). Example: "
     "a post about an attack drone could have 'military drone use in conflict zones', 'defence drone procurement' and "
     "'rules on autonomous weapons'. For each: topic = a short phrase; queries = up to 2 searches for the public "

@@ -38,9 +38,9 @@ class ValidateTests(unittest.TestCase):
         raw = {**RAW, "contexts": [{"topic": "quantum", "queries": ["q"], "terms": ["quantum computing"]}]}
         self.assertEqual(plan.validate(raw, POST)["contexts"], [])
 
-    def test_at_most_four_wider_topics(self):
+    def test_at_most_six_wider_topics(self):
         many = [{"topic": f"drone topic {i}", "queries": ["q"], "terms": ["military drone"]} for i in range(9)]
-        self.assertEqual(len(plan.validate({**RAW, "contexts": many}, POST)["contexts"]), 4)
+        self.assertEqual(len(plan.validate({**RAW, "contexts": many}, POST)["contexts"]), 6)
 
     def test_a_plan_saved_with_one_wider_topic_still_reads(self):
         old = {"context_topic": "t", "context_queries": ["q"], "context_terms": ["military drone"]}
