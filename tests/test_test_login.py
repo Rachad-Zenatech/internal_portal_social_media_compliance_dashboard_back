@@ -47,7 +47,7 @@ class TestLoginGuardTests(unittest.IsolatedAsyncioTestCase):
     def test_only_the_test_users_can_be_asked_for(self):
         with self.assertRaises(ValueError):
             auth_router.TestLoginRequest(**{"as": "admin"})
-        self.assertEqual({k: v[2] for k, v in auth_router.TEST_USERS.items()}, {"creator": "USER", "reviewer": "REVIEWER", "manager": "MANAGER", "reviewer2": "REVIEWER", "reviewer3": "REVIEWER"})
+        self.assertEqual({k: v[2] for k, v in auth_router.TEST_USERS.items()}, {"creator": "USER", "reviewer": "REVIEWER", "manager": "MANAGER", "reviewer2": "REVIEWER", "reviewer3": "REVIEWER", "suggester": "SUGGESTING_REVIEWER"})
         self.assertTrue(all(v[0].endswith("@example.com") for v in auth_router.TEST_USERS.values()))
 
 
