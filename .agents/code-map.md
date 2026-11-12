@@ -1079,7 +1079,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `run` (def)
 - `search` (def)
 
-## services/compliance/evaluation/script_batch_service.py (656 lines) - Script batches.
+## services/compliance/evaluation/script_batch_service.py (658 lines) - Script batches.
 - `missing_details` (def) - The details still empty, by their names on the form.
 - `_json` (def)
 - `_details` (def)
@@ -1120,7 +1120,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 - `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/evaluation/script_review_service.py (881 lines) - Script stage of a video post.
+## services/compliance/evaluation/script_review_service.py (894 lines) - Script stage of a video post.
 - `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
@@ -1133,6 +1133,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_script_file` (def)
 - `_require_stage` (def)
 - `_reviewer_may_act` (def)
+- `only_sent_to_self` (def) - The script would go only to the person who wrote it.
 - `batch_ref` (def) - Where the script sits in the batch it was uploaded with, or None when it wasn't part of one.
 - `get_stage` (def)
 - `_adopt_check` (def) - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
@@ -3155,6 +3156,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `check` (def)
     - `test_a_script_the_ai_could_not_read_is_flagged` (def)
     - `test_a_script_the_ai_read_is_not` (def)
+
+## tests/test_script_self_review.py (27 lines) - test script self review
+- `ScriptSelfReviewTests` (class) - A script sent only to its own writer would sit in review for good: nobody else sees it, and they can't approve it.
+    - `test_sent_only_to_the_creator_is_refused` (def)
+    - `test_another_reviewer_alongside_the_creator_is_fine` (def)
+    - `test_no_pick_is_left_to_the_required_field_check` (def)
 
 ## tests/test_script_send.py (163 lines) - test script send
 - `processing` (def)

@@ -489,7 +489,9 @@ async def send(batch_id: UUID, user_id: UUID) -> Batch:
         missing = missing_details(_details(row))
         if missing:
             raise HTTPException(status_code=422, detail=f"Fill in the details first: {', '.join(missing)}.")
-    empty = [w["title"] for w in waiting if not (w["body"] or "").strip()]
+    if any(scripts.only_sent_to_self(effective_details(row, w).get("reviewer_ids"), user_id) for w in waiting):
+        raise HTTPException(status_code=422, detail=scripts.SELF_REVIEW_MESSAGE)
+    empty =[w["title"] for w in waiting if not (w["body"] or "").strip()]
     if empty:
         raise HTTPException(status_code=422, detail=f"These scripts are empty: {', '.join(empty[:5])}")
     await execute("UPDATE content_script_batches SET status = 'PROCESSING', error = NULL, updated_at = NOW() WHERE id = $1", batch_id)

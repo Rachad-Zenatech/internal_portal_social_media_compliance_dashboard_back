@@ -175,6 +175,17 @@ async def _reviewer_may_act(row: Dict[str, Any], user_id: UUID) -> bool:
     return row["created_by"] != user_id
 
 
+SELF_REVIEW_MESSAGE = ("Send the script to a reviewer other than yourself: nobody approves their own script, "
+                       "a super admin included.")
+
+
+def only_sent_to_self(reviewer_ids: Any, creator: Any) -> bool:
+    """The script would go only to the person who wrote it. A super admin may pick themselves for a post, but nobody
+    can approve their own script, so nobody else would see it or be told about it: it would sit in review for good."""
+    picked = {str(r) for r in reviewer_ids or []}
+    return bool(picked) and picked <= {str(creator)}
+
+
 async def batch_ref(submission_id: UUID) -> Optional[ScriptBatchRef]:
     """Where the script sits in the batch it was uploaded with, or None when it wasn't part of one."""
     mine = await fetch_one(
@@ -388,6 +399,8 @@ async def submit(submission_id: UUID, user_id: UUID, confirm_repost: bool = Fals
     missing = _missing_details(row)
     if missing:
         raise HTTPException(status_code=422, detail=f"Fill in the submission details first: {', '.join(missing)}.")
+    if only_sent_to_self(row.get("reviewer_ids"), row["created_by"]):
+        raise HTTPException(status_code=422, detail=SELF_REVIEW_MESSAGE)
     file = await _script_file(submission_id)
     if not file:
         raise HTTPException(status_code=422, detail="Upload the script first (PDF, Word or text)")
