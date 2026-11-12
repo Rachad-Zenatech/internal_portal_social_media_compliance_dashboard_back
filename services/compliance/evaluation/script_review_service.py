@@ -365,7 +365,8 @@ def _missing_details(row: Dict[str, Any]) -> List[str]:
     return [_DETAIL_LABELS[m] for m in missing]
 
 
-async def _require_not_duplicate(row: Dict[str, Any], body: str, confirm_repost: bool) -> None:
+async def _require_not_duplicate(row: Dict[str, Any], body: str, confirm_repost: bool,
+                                 confirmed_ref: Optional[str] = None):
     """The same script, already sent for review for the same place and publish date, can't be sent again; for another
     date it can, once the creator confirms (the same rules as posts, see duplicate_service.find_script)."""
     from services.compliance.submissions import duplicate_service
@@ -380,7 +381,7 @@ async def _require_not_duplicate(row: Dict[str, Any], body: str, confirm_repost:
                        "longer overlap, or change the script.",
             "duplicates": report.model_dump(mode="json"),
         })
-    if report.repost and not confirm_repost:
+    if report.repost and not (confirm_repost or (confirmed_ref and report.repost.reference_code == confirmed_ref)):
         m = report.repost
         raise HTTPException(status_code=409, detail={
             "code": "REPOST_CONFIRM",
@@ -388,6 +389,12 @@ async def _require_not_duplicate(row: Dict[str, Any], body: str, confirm_repost:
                        "Confirm to send it for this date too.",
             "duplicates": report.model_dump(mode="json"),
         })
+    return report
+
+
+def _precheck_confirmed(row: Dict[str, Any]) -> Optional[str]:
+    """The earlier script the creator already confirmed sending again for another date, at the compliance check."""
+    return ((subs._json(row.get("script_precheck")) or {}).get("check") or {}).get("repost_confirmed")
 
 
 def _repost_confirmed(row: Dict[str, Any]) -> bool:
@@ -423,7 +430,7 @@ async def submit(submission_id: UUID, user_id: UUID, confirm_repost: bool = Fals
     # Usually the script's text is already read (on upload): check for a duplicate now, so the creator can confirm a
     # repost straight away. Otherwise it's checked once it's read, in the background.
     if file["doc_text_status"] == "COMPLETED" and (file["doc_text"] or "").strip():
-        await _require_not_duplicate(row, _clean(file["doc_text"]), confirm_repost)
+        await _require_not_duplicate(row, _clean(file["doc_text"]), confirm_repost, _precheck_confirmed(row))
     await execute(
         "UPDATE content_submissions SET script_send = $2::jsonb WHERE id = $1",
         submission_id, json.dumps({"status": "PROCESSING", "started_at": datetime.now(timezone.utc).isoformat(),
@@ -502,16 +509,20 @@ async def _read_uploaded(submission_id: UUID) -> tuple:
     return file, _clean(file["doc_text"])
 
 
-async def precheck(submission_id: UUID, user_id: UUID) -> ScriptStage:
+async def precheck(submission_id: UUID, user_id: UUID, confirm_repost: bool = False) -> ScriptStage:
     """The creator checks the uploaded script against the rulebook before sending it, to see the score and the flags
-    and fix them first. The result is kept and reused when the script is sent unchanged."""
+    and fix them first. The result is kept and reused when the script is sent unchanged. Duplicates are settled first,
+    before the compliance check (refused, or confirmed for another publish date)."""
     row = await subs._get_owned_row(submission_id, user_id)
     subs._require_editable(row)
     _require_stage(row)
     if _status(row) not in ("DRAFT", "CHANGES_REQUESTED"):
         raise HTTPException(status_code=409, detail="The script is already with a reviewer or approved")
     _, body = await _read_uploaded(submission_id)
+    duplicates = await _require_not_duplicate(row, body, confirm_repost)
     check = await check_text(row, body)
+    if duplicates.repost:
+        check["repost_confirmed"] = duplicates.repost.reference_code  # sending doesn't ask again for the same script
     await execute("UPDATE content_submissions SET script_precheck = $2::jsonb WHERE id = $1",
                   submission_id, precheck_record(row, body, check))
     return await get_stage(submission_id, user_id)
@@ -529,7 +540,7 @@ async def _process_send(submission_id: UUID, user_id: UUID) -> None:
             raise HTTPException(status_code=422, detail="This is the same script the reviewer sent back. Make the changes first.")
         step = "checking for duplicates"
         try:
-            await _require_not_duplicate(row, body, _repost_confirmed(row))
+            await _require_not_duplicate(row, body, _repost_confirmed(row), _precheck_confirmed(row))
         except HTTPException as dup:
             # The creator isn't on the page to confirm: say what matched; sending again asks them to confirm.
             message = dup.detail.get("message") if isinstance(dup.detail, dict) else str(dup.detail)

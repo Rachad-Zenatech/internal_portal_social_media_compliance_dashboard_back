@@ -92,9 +92,10 @@ async def revise_script(submission_id: UUID, req: ScriptReviseRequest, user_id: 
 
 
 @router.post("/{submission_id}/script/precheck", response_model=ScriptStage)
-async def precheck_script(submission_id: UUID, user_id: CurrentUser):
-    """Creator: check the uploaded script against the rulebook before sending it (the result is kept)."""
-    return await svc.precheck(submission_id, user_id)
+async def precheck_script(submission_id: UUID, user_id: CurrentUser, body: Optional[ScriptSubmitRequest] = None):
+    """Creator: check the uploaded script against the rulebook before sending it (the result is kept). Duplicates are
+    checked first: 409 DUPLICATE_SCRIPT, or 409 REPOST_CONFIRM until confirm_repost is sent."""
+    return await svc.precheck(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost))
 
 
 @router.post("/{submission_id}/script/check", response_model=Dict[str, Any])
