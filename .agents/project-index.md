@@ -18,9 +18,9 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - models/compliance/context_model.py (52 lines) - Messaging Context: reference material the content analysis is given.
 - models/compliance/flag_review_model.py (67 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
-- models/compliance/public_mood_model.py (328 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
-- models/compliance/script_batch_model.py (118 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
-- models/compliance/script_review_model.py (138 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+- models/compliance/public_mood_model.py (342 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
+- models/compliance/script_batch_model.py (132 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
+- models/compliance/script_review_model.py (163 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - models/compliance/sentiment_model.py (314 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - models/compliance/submission_model.py (632 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
@@ -37,16 +37,16 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - postgresql_db/schemas/setup_login_codes_schema.py (28 lines) - One-time sign-in codes: after Microsoft sign-in the browser gets a short-lived code in the redirect (never the session token), and swaps ...
 - postgresql_db/schemas/setup_pbac_schema.py (450 lines) - setup pbac schema (schemas)
 - postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
-- postgresql_db/schemas/setup_script_batches_schema.py (60 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
+- postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
 - postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
-- postgresql_db/schemas/setup_submissions_schema.py (680 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+- postgresql_db/schemas/setup_submissions_schema.py (683 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
-- scripts/scrape_x_playwright.py (533 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
+- scripts/scrape_x_playwright.py (621 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
-- server.py (704 lines) - server
+- server.py (706 lines) - server
 - services/ai/core/assistant_chat_service.py (258 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/gemini_service.py (147 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
@@ -61,7 +61,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/ai/observability/ai_usage_service.py (164 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - services/compliance/analytics/conversation_evidence.py (955 lines) - Conversation evidence for public mood: the news articles and X posts a post is compared with, and the saved assessment of what they say a...
 - services/compliance/analytics/conversation_feedback.py (202 lines) - Reviewer input on a conversation assessment, kept against the exact assessment the reviewer was looking at.
-- services/compliance/analytics/listening_providers.py (579 lines) - Social listening providers: where "public mood" data comes from.
+- services/compliance/analytics/listening_providers.py (495 lines) - Social listening providers: where "public mood" data comes from.
 - services/compliance/analytics/listening_sources.py (78 lines) - What to listen for about the company itself, besides the market topics (drone delivery, FAA rules...).
 - services/compliance/analytics/mood_auto_train.py (186 lines) - Training the decision model again whenever a reviewer's decision changes, without anyone running it.
 - services/compliance/analytics/mood_dataset.py (236 lines) - A fixed training dataset made from reviewed assessments.
@@ -72,8 +72,11 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/analytics/mood_training.py (375 lines) - Training and judging the decision model.
 - services/compliance/analytics/performance_service.py (323 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
 - services/compliance/analytics/post_metrics_providers.py (303 lines) - Where published posts' numbers come from, and what each platform's API can actually give us.
+- services/compliance/analytics/post_queries.py (219 lines) - Searches built from what each draft actually says.
+- services/compliance/analytics/post_query_plan.py (167 lines) - The searches for one draft: what its own subject is, and what the wider topic around it is.
 - services/compliance/analytics/post_signals.py (217 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
-- services/compliance/analytics/public_mood_service.py (1076 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+- services/compliance/analytics/public_mood_process.py (148 lines) - A plain-language log of how a post's public mood was made, shown on the page so a person can follow it: what was read from the post, whic...
+- services/compliance/analytics/public_mood_service.py (1113 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - services/compliance/analytics/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 - services/compliance/evaluation/brand_voice_service.py (711 lines) - Brand voice per brand, read from its brand manual.
 - services/compliance/evaluation/citation_finder.py (185 lines) - Citation finder: what a post says it got its claims from.
@@ -83,9 +86,9 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/compliance/evaluation/context_service.py (208 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/evaluation/newsroom_sync_service.py (311 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.
 - services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
-- services/compliance/evaluation/script_batch_service.py (589 lines) - Script batches.
+- services/compliance/evaluation/script_batch_service.py (656 lines) - Script batches.
 - services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
-- services/compliance/evaluation/script_review_service.py (774 lines) - Script stage of a video post.
+- services/compliance/evaluation/script_review_service.py (878 lines) - Script stage of a video post.
 - services/compliance/evaluation/script_split.py (113 lines) - Splitting one document into the scripts it holds.
 - services/compliance/evaluation/source_check_service.py (494 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_fetch_service.py (321 lines) - Source fetcher: opens a link a post cites and returns its readable text.
@@ -123,9 +126,12 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - services/notifications/email_service.py (228 lines) - Email service module using SendGrid REST API for Social Media Compliance & Notifications.
 - services/notifications/mqtt_presence.py (320 lines) - MQTT Service Presence & Event-Driven Messaging Component for Social Media Compliance.
 - services/notifications/notification_service.py (186 lines) - notification service (notifications)
-- services/notifications/rabbitmq_service.py (408 lines) - RabbitMQ Service & Topology Manager for Social Media Compliance.
+- services/notifications/rabbitmq_config.py (196 lines) - RabbitMQ / Message Hub configuration: env-driven connection settings, exchange names and the hub server registry.
+- services/notifications/rabbitmq_hub_status.py (487 lines) - Message Hub behaviour for RabbitMQManager: SSE fan-out, shutdown, presence heartbeats, peer monitoring and live status snapshots.
+- services/notifications/rabbitmq_in_memory.py (46 lines) - In-memory fallback broker used when no live RabbitMQ is available.
+- services/notifications/rabbitmq_service.py (521 lines) - RabbitMQ Service & Topology Manager Provides resilient connection management, topology declaration, publisher confirmations, and dead-let...
 - services/notifications/teams_service.py (358 lines) - Microsoft Teams direct messages: the portal's notifications, delivered to people's Teams chat by a bot.
-- services/shared/auth/auth_service.py (618 lines) - auth service (shared auth)
+- services/shared/auth/auth_service.py (604 lines) - Who a token is for: this app only.
 - services/shared/auth/oauth_connection_service.py (608 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
 - services/shared/auth/rbac_service.py (757 lines) - Utility for audit logging
 - services/shared/auth/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
@@ -148,6 +154,7 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_collection.py (168 lines) - Scraped numbers are only what was collected; collection is broad but bounded; failures are not 'no results'.
 - tests/test_compliance_scoring.py (405 lines) - These tests are about the wording-based rules, so the vector store and the model that match rules by meaning are
 - tests/test_content_changed.py (43 lines) - A save only makes the checks out of date when it changes something they read.
+- tests/test_context_picks.py (69 lines) - The Messaging Context the creator picks for a post's analysis: kinds they chose use exactly their entries; the rest are picked automatica...
 - tests/test_conversation_mood.py (424 lines) - Public mood from the conversations found for a post: relevance checks, stories, limits, saved assessments.
 - tests/test_conversation_states.py (248 lines) - Step 6: explicit states, reasons and warnings, and reviewer input saved against the exact assessment.
 - tests/test_dashboard_summary.py (152 lines) - In the order dashboard_summary asks: post decisions, the average score, then script decisions.
@@ -162,14 +169,19 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_full_rule_pass.py (81 lines) - test full rule pass
 - tests/test_hashtag_library.py (58 lines) - Tags already offered under the brand aren't repeated under the audience.
 - tests/test_local_sentiment_model.py (59 lines) - The trained local sentiment model (with VADER as the fallback) for scraped X posts and headlines.
+- tests/test_message_hub_status.py (50 lines) - The message-hub dropdown asks this service for /api/message-hub/status (ported from the administration backend).
 - tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
 - tests/test_mood_auto_train.py (289 lines) - Training starts by itself when a reviewer's decision changes, and only then; it never blocks, never creates empty datasets, and never reg...
 - tests/test_mood_features_and_records.py (292 lines) - Steps 8 and 10: one feature function, and an insert-only record of every assessment made.
 - tests/test_mood_learning_pipeline.py (674 lines) - Steps 9, 11-14: reviews and conflicts, a fixed dataset, training, promotion, and the guarded decision.
 - tests/test_mood_xgboost_port.py (328 lines) - The XGBoost model as carried over from the administration project's approach, fitted to this project: training rows with the required att...
+- tests/test_no_sample_data.py (58 lines) - Public mood never shows invented numbers: with no listening source it shows that there is none.
 - tests/test_performance_period.py (86 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
+- tests/test_post_queries.py (123 lines) - Searches come from what each draft says, not from a fixed topic list.
+- tests/test_post_query_plan.py (136 lines) - The plan keeps only what the post supports, falls back without inventing, and splits direct from context.
 - tests/test_post_signals.py (93 lines) - test post signals
 - tests/test_post_steps.py (120 lines) - The five steps a creator works through: which are done, which are out of date, where to carry on, and when a post can be sent.
+- tests/test_public_mood_process.py (36 lines) - The process log reports what was done, and only that.
 - tests/test_resume_reads.py (47 lines) - test resume reads
 - tests/test_retired_models.py (36 lines) - test retired models
 - tests/test_review_decision.py (272 lines) - test review decision
@@ -180,13 +192,14 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_rule25_guidance.py (26 lines) - test rule25 guidance
 - tests/test_rulebook_check_coverage.py (165 lines) - test rulebook check coverage
 - tests/test_scrape_button.py (188 lines) - The scrape button: scraping starts only from it, runs outside the server's event loop, and reports how it went.
-- tests/test_script_batch.py (95 lines) - test script batch
+- tests/test_script_batch.py (147 lines) - test script batch
 - tests/test_script_duplicates.py (74 lines) - Scripts follow the same duplicate rules as posts: the same script, already sent for review for the same place and publish date, is refuse...
 - tests/test_script_match.py (73 lines) - test script match
 - tests/test_script_queue.py (107 lines) - test script queue
-- tests/test_script_send.py (161 lines) - test script send
+- tests/test_script_send.py (163 lines) - test script send
 - tests/test_script_split.py (67 lines) - test script split
-- tests/test_security_fixes.py (133 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
+- tests/test_security_fixes.py (195 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
+- tests/test_sentiment_context_fit.py (166 lines) - The messaging context report (brand voice, facts, platform norms, audiences) and graphic vs captions: every quote is the post's own words...
 - tests/test_sentiment_strictness.py (70 lines) - test sentiment strictness
 - tests/test_sentiment_verification.py (147 lines) - test sentiment verification
 - tests/test_social_post_no_video.py (48 lines) - test social post no video
@@ -195,21 +208,22 @@ For detailed function and route definitions, see `.agents/code-map.md`.
 - tests/test_teams_service.py (287 lines) - Teams direct messages: checking what Teams sends, saving chats, and delivering notifications.
 - tests/test_test_login.py (56 lines) - auth_router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
 - tests/test_trend_and_watch.py (252 lines) - A real trend from what has been collected, and searches about the company itself.
-- tests/test_x_feed_store.py (243 lines) - The collected feed lives in the vector database's x_feed_data collection, and is read from there, not from a file.
+- tests/test_x_feed_store.py (244 lines) - The collected feed lives in the vector database's x_feed_data collection, and is read from there, not from a file.
 - tests/test_x_sentiment_listening.py (179 lines) - test x sentiment listening
 - tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
 - tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - tools/compliance/analytics/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).
-- tools/compliance/analytics/listening_router.py (173 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
+- tools/compliance/analytics/listening_router.py (187 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
 - tools/compliance/analytics/performance_router.py (45 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - tools/compliance/analytics/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
 - tools/compliance/submissions/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.
 - tools/compliance/submissions/compliance_router.py (172 lines) - Compliance Rules & Governance Router Endpoints for managing ("build on it and remove") and checking compliance rules.
 - tools/compliance/submissions/context_router.py (96 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
-- tools/compliance/submissions/script_batch_router.py (81 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
-- tools/compliance/submissions/script_review_router.py (90 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+- tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
+- tools/compliance/submissions/script_review_router.py (96 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - tools/compliance/submissions/submission_router.py (588 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
+- tools/notifications/message_hub_router.py (57 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
 - tools/notifications/notification_router.py (87 lines) - notification router (notifications)
 - tools/notifications/teams_router.py (55 lines) - Microsoft Teams: the endpoint the bot's messages arrive on, and a person's own on/off switch for them.
 - tools/shared/auth/auth_router.py (417 lines) - auth router (shared auth)

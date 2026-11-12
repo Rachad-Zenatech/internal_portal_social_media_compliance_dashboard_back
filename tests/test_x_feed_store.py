@@ -227,7 +227,8 @@ class WhereTheFeedLivesTests(unittest.TestCase):
             lp.reset_provider_cache()
             with self._db(enabled=False), patch.dict(os.environ, {"SOCIAL_LISTENING_PROVIDER": ""}), \
                     patch.object(lp, "DEFAULT_X_JSON_PATH", Path("does-not-exist.json")):
-                self.assertTrue(lp.get_provider().is_mock)  # no database and no file: the labelled mock
+                provider = lp.get_provider()
+                self.assertEqual((provider.name, provider.is_mock), ("unconfigured", False))  # no database, no file: no data
         finally:
             lp.reset_provider_cache()
 

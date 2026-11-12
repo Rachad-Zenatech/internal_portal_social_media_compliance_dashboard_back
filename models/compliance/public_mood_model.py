@@ -41,6 +41,9 @@ class TopicSnapshot(BaseModel):
 class MatchedTopic(BaseModel):
     topic_id: UUID
     name: str
+    # own: searched from this post's own subject. context: the wider topic around it (the vibe, not coverage of this
+    # announcement; it does not count towards the post's recommendation). other: a company or market topic.
+    kind: Literal["own", "context", "other"] = "other"
     # The words in the post that tied it to this topic.
     matched_terms: List[str] = Field(default_factory=list)
     # How close the post is to the topic in meaning (vector search, 0-1), when the vector store is on.
@@ -224,6 +227,14 @@ class DismissedTopic(BaseModel):
     at: datetime
 
 
+class ProcessStep(BaseModel):
+    """One step of how this post's public mood was made, for the page's process log."""
+    title: str
+    status: Literal["ok", "warn", "none", "info"] = "info"
+    summary: str
+    lines: List[str] = Field(default_factory=list)
+
+
 class PublicMood(BaseModel):
     source: str
     is_mock: bool
@@ -238,11 +249,14 @@ class PublicMood(BaseModel):
     # Topics someone said this post isn't about; left out until put back.
     dismissed: List[DismissedTopic] = Field(default_factory=list)
     summary: Optional[PublicMoodSummary] = None
+    # How this was made, step by step, in plain language.
+    process: List[ProcessStep] = Field(default_factory=list)
 
 
 class ListeningTopic(BaseModel):
     id: UUID
     name: str
+    external_id: Optional[str] = None
     description: Optional[str] = None
     # From the listening source.
     keywords: List[str] = Field(default_factory=list)

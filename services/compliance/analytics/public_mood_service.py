@@ -38,6 +38,7 @@ from models.compliance.public_mood_model import (
     MatchTestResult,
     MatchTestTopic,
     MoodFeedbackIn,
+    ProcessStep,
     PublicMood,
     PublicMoodResult,
     PublicMoodSummary,
@@ -51,7 +52,7 @@ from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.observability import ai_usage_service
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
-from services.compliance.analytics import conversation_evidence, conversation_feedback
+from services.compliance.analytics import conversation_evidence, conversation_feedback, public_mood_process
 from services.compliance.evaluation.compliance_service import _matches, _normalize
 from services.compliance.analytics.listening_providers import (
     ListeningUnavailable,
@@ -109,7 +110,9 @@ def _get_client() -> genai.Client:
 def _source_label(provider_name: str) -> str:
     if provider_name == "x_json":
         return "X (Twitter)"
-    return "Sprout Social"
+    if provider_name == "sprout":
+        return "Sprout Social"
+    return "No listening source"
 
 
 # ---------------------------------------------------------------------------
@@ -524,6 +527,19 @@ async def _load(submission_id: UUID) -> Dict[str, Any]:
     return row
 
 
+def _topic_kind(topic: Dict[str, Any]) -> str:
+    ext = str(topic.get("external_id") or "")
+    return "context" if ext.startswith(POST_TOPIC_PREFIX) and "-context" in ext else "own" if ext.startswith(POST_TOPIC_PREFIX) else "other"
+
+
+def _may_show_on(topic: Dict[str, Any], submission_id: UUID) -> bool:
+    """A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
+    word with it (the brand name, say) is not about the same subject."""
+    ext = str(topic.get("external_id") or "")
+    own = f"{POST_TOPIC_PREFIX}{submission_id}"
+    return not ext.startswith(POST_TOPIC_PREFIX) or ext == own or ext.startswith(own + "-context")
+
+
 async def _gather(submission_id: UUID, viewer: Optional[UUID] = None) -> Tuple[Dict[str, Any], PublicMood]:
     """The post, its matched topics and their current snapshots."""
     row = await _load(submission_id)
@@ -534,7 +550,7 @@ async def _gather(submission_id: UUID, viewer: Optional[UUID] = None) -> Tuple[D
     except ListeningUnavailable as e:
         mood.connected = False
         mood.message = str(e)
-    topics = await _load_topics()
+    topics = [t for t in await _load_topics() if _may_show_on(t, submission_id)]
     meaning = await _meaning_scores(row, len(topics))
     mood.matched_by_meaning = meaning is not None
     dismissed = await fetch_all(
@@ -551,6 +567,17 @@ async def _gather(submission_id: UUID, viewer: Optional[UUID] = None) -> Tuple[D
     mood.dismissed = [DismissedTopic(**dict(d)) for d in dismissed]
     left_out = {d["topic_id"] for d in dismissed}
     matches = _match(row["text"], [t for t in topics if t["id"] not in left_out], meaning)
+    # This post's own searches (its subject and the wider topic around it) always belong to it, even when the
+    # topic's words are not literally in the text ("military drone use" for a post about an attack drone).
+    def is_own(ext: Any) -> bool:
+        ext = str(ext or "")
+        return ext == f"{POST_TOPIC_PREFIX}{submission_id}" or ext.startswith(f"{POST_TOPIC_PREFIX}{submission_id}-context")
+
+    have = {t["id"] for t, _, _, _ in matches}
+    mine = [(t, ["from this post's own searches"], None, False) for t in topics
+            if is_own(t.get("external_id")) and t["id"] not in left_out and t["id"] not in have]
+    matches = [*[m for m in matches if is_own(m[0].get("external_id"))], *mine,
+               *[m for m in matches if not is_own(m[0].get("external_id"))]]
     # Advisory second reading, from the conversations found for this draft (it needs the matched topics to judge
     # relevance, and is independent of the topic snapshots below).
     if provider.name == "x_json":  # the mock source has no real conversations to assess
@@ -566,6 +593,7 @@ async def _gather(submission_id: UUID, viewer: Optional[UUID] = None) -> Tuple[D
         MatchedTopic(
             topic_id=t["id"],
             name=t["name"],
+            kind=_topic_kind(t),
             matched_terms=terms,
             similarity=round(score, 3) if score is not None else None,
             matched_by=("BOTH" if terms and close else "KEYWORD" if terms else "MEANING"),
@@ -621,6 +649,10 @@ async def _with_feedback(summary: PublicMoodSummary, viewer: Optional[UUID]) -> 
 
 async def get_public_mood(submission_id: UUID, viewer: Optional[UUID] = None) -> PublicMood:
     row, mood = await _gather(submission_id, viewer)
+    try:
+        mood.process = [ProcessStep(**s) for s in await public_mood_process.build(row, mood)]
+    except Exception:  # the log is an extra: never let it break the result
+        logging.getLogger(__name__).warning("Could not build the process log", exc_info=True)
     saved = await fetch_one(
         """
         SELECT * FROM public_mood_summaries
@@ -755,7 +787,8 @@ async def list_topics(refresh: bool = False) -> List[ListeningTopic]:
     for t in topics:
         st = stats.get(t["id"])
         out.append(ListeningTopic(
-            id=t["id"], name=t["name"], description=t["description"], keywords=t["source_keywords"],
+            id=t["id"], external_id=t.get("external_id"), name=t["name"], description=t["description"],
+            keywords=t["source_keywords"],
             extra_keywords=list(t["extra_keywords"] or []), excluded_keywords=list(t["excluded_keywords"] or []),
             is_watched=t["is_watched"], is_mock=t["is_mock"], synced_at=t["synced_at"],
             snapshot=_snapshot_model(snaps[t["id"]]) if t["id"] in snaps else None,
@@ -763,6 +796,9 @@ async def list_topics(refresh: bool = False) -> List[ListeningTopic]:
             dismissed_terms=[x for x in (st["terms"] if st else []) if x],
         ))
     return out
+
+
+POST_TOPIC_PREFIX = "post-"
 
 
 async def list_trend_opportunities(refresh: bool = False) -> List[XTrendOpportunity]:
@@ -773,8 +809,8 @@ async def list_trend_opportunities(refresh: bool = False) -> List[XTrendOpportun
     opportunities: List[XTrendOpportunity] = []
     for t in topics:
         snap = t.snapshot
-        if not snap:
-            continue
+        if not snap or str(getattr(t, "external_id", "") or "").startswith(POST_TOPIC_PREFIX):
+            continue  # a draft's own searches are shown on that draft, not as market trends
         rec = snap.recommendation or "WAIT"
         rec_reason = snap.recommendation_reason or ""
         # A topic is a good trend to jump on if recommendation is POST and either spiking, growing, or strong net sentiment
@@ -791,9 +827,10 @@ async def list_trend_opportunities(refresh: bool = False) -> List[XTrendOpportun
                 f"Do not publish promotional posts on this topic right now ({rec_reason})."
             )
         else:
+            # The rule's own reason (low volume, or not positive enough), not a canned "mixed sentiment".
             angle = (
-                f"Monitor / Wait: {t.name} has mixed sentiment ({snap.positive_pct:.0f}% positive, "
-                f"{snap.negative_pct:.0f}% negative). Review carefully before posting."
+                f"Monitor / Wait: {t.name} ({snap.positive_pct:.0f}% positive, {snap.neutral_pct:.0f}% neutral, "
+                f"{snap.negative_pct:.0f}% negative). {rec_reason or 'Not enough positive evidence yet.'}"
             )
         opportunities.append(XTrendOpportunity(
             topic_id=t.id,

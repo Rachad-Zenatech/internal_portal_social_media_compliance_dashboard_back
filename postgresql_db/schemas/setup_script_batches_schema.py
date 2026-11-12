@@ -55,5 +55,12 @@ async def setup() -> None:
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_script_batch_items_batch ON content_script_batch_items(batch_id, position);
+
+            -- Details can be set once for the whole batch (the default), or separately for each script: then each script
+            -- carries its own details, and the batch's own are only where the scripts start from.
+            ALTER TABLE content_script_batches ADD COLUMN IF NOT EXISTS per_script_details BOOLEAN NOT NULL DEFAULT FALSE;
+            ALTER TABLE content_script_batch_items ADD COLUMN IF NOT EXISTS details JSONB;
+            -- The creator's compliance check of the script before sending it (as content_submissions.script_precheck).
+            ALTER TABLE content_script_batch_items ADD COLUMN IF NOT EXISTS precheck JSONB;
         """)
     logger.info("Script batch schema ready")

@@ -91,7 +91,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `PerformanceSummary` (class)
 - `PerformanceReport` (class)
 
-## models/compliance/public_mood_model.py (328 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
+## models/compliance/public_mood_model.py (342 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - `ListeningPost` (class)
 - `TopicSnapshot` (class)
 - `MatchedTopic` (class)
@@ -108,6 +108,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `SentimentCorrectionIn` (class)
 - `CorrectionIn` (class)
 - `DismissedTopic` (class)
+- `ProcessStep` (class) - One step of how this post's public mood was made, for the page's process log.
 - `PublicMood` (class)
 - `ListeningTopic` (class)
 - `ListeningTopicUpdate` (class)
@@ -119,7 +120,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `XIngestTopicInput` (class)
 - `XIngestRequest` (class)
 
-## models/compliance/script_batch_model.py (118 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
+## models/compliance/script_batch_model.py (132 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - `BatchDetails` (class) - What every post made from the batch shares.
 - `BatchUpdate` (class)
 - `BatchItemCreate` (class)
@@ -132,8 +133,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `ItemResult` (class)
 - `BatchReviewResult` (class)
 
-## models/compliance/script_review_model.py (138 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+## models/compliance/script_review_model.py (163 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class)
+- `ScriptBatchRef` (class) - Where this script sits in the batch it was uploaded with, for stepping through the batch one script at a time.
 - `ScriptStage` (class)
 - `ScriptDecisionRequest` (class) - The reviewer's call on the script.
 - `ScriptReviseRequest` (class)
@@ -301,14 +303,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
 - `setup` (def)
 
-## postgresql_db/schemas/setup_script_batches_schema.py (60 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
+## postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
 - `setup` (def)
 
 ## postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
 - `setup` (def)
 - `_main` (def)
 
-## postgresql_db/schemas/setup_submissions_schema.py (680 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (683 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def)
 - `_sync_script_checks` (def) - While a script is still being decided, the post's saved check and its latest script version's check are the same
 - `_retire_product_brands` (def) - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
@@ -334,7 +336,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_main` (def)
 - `main` (def)
 
-## scripts/scrape_x_playwright.py (533 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
+## scripts/scrape_x_playwright.py (621 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - `snowflake_time` (def) - When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits).
 - `_extract_tweets_from_rendered_profile` (def) - Parse X posts from a rendered public X profile: text, link and real post time (from the post id).
 - `_page_status` (def) - Why a page gave what it gave: SUCCESS, EMPTY (loaded, nothing there), AUTH_REQUIRED or RATE_LIMITED.
@@ -352,6 +354,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `topic_score` (def) - How strongly a text belongs to a market topic: 2 per topic keyword phrase in it, 1 per shared word.
 - `assign_unique` (def) - One home for each story.
 - `_collect_watch` (def) - Searches about the company itself (names, hashtags, products, links, events, competitors).
+- `mentions_all` (def)
+- `_plain` (def)
+- `mentions_any` (def)
+- `mentions_topic` (def) - A headline is about a wider topic when it shares at least two of a term's main words ("military drone
+- `_collect_post_searches` (def) - News searches built from each draft's own words.
+- `read_post_searches` (def)
 - `build_live_x_listening_json` (def) - Launch Playwright headless Chromium and collect candidates for each market topic and for searches about the
     - `out_of_time` (def)
 - `main` (def)
@@ -380,7 +388,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `embedding_quota_left` (def) - None if embeddings work; otherwise why not.
 - `main` (def)
 
-## server.py (704 lines) - server
+## server.py (706 lines) - server
 - `_graph_background_sync_enabled` (def)
 - `_env_flag` (def)
 - `lifespan` (def)
@@ -620,7 +628,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `excluded_for` (def)
 - `corrections_for` (def)
 
-## services/compliance/analytics/listening_providers.py (579 lines) - Social listening providers: where "public mood" data comes from.
+## services/compliance/analytics/listening_providers.py (495 lines) - Social listening providers: where "public mood" data comes from.
 - `clean_headline` (def) - The headline without its outlet, lowercased, letters and digits only: equal for the same story.
 - `volume_change` (def) - Percent change in mentions: the last three complete days against the three before them, from `daily` (oldest
 - `_load_local_model` (def) - The trained sentiment model, loaded once.
@@ -638,7 +646,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `collection_info` (def)
     - `list_topics` (def) - Topics the account tracks: [{external_id, name, description, keywords}].
     - `snapshot` (def) - Recent sentiment for a topic: positive/neutral/negative percentages, mention volume and change,
-- `MockSproutProvider` (class) - Plausible, made-up Sprout Listening data.
+- `UnconfiguredProvider` (class) - Used when there is nowhere to read public mood from.
     - `list_topics` (def)
     - `snapshot` (def)
 - `analyze_raw_x_topic` (def) - Score every comment in an X topic payload using VADER, compute aggregate
@@ -787,6 +795,30 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `metrics` (def)
 - `get_provider` (def)
 
+## services/compliance/analytics/post_queries.py (219 lines) - Searches built from what each draft actually says.
+- `_only_everyday_words` (def) - True when the word is everyday words run together ("digitaltransformation") or hyphenated ("ai-powered").
+- `_trim` (def) - The name without everyday words at its edges ("meet stacklens" -> "stacklens", "shaun test" -> "shaun").
+- `_is_subject` (def) - A name worth searching for: more than one word (and not only everyday ones), or one distinctive word.
+- `_hashtag_phrase` (def)
+- `_in_order` (def) - The phrases in the order they first appear in the text (a set has no order, and the first names matter most).
+- `queries_for_text` (def) - {"queries": [...], "keywords": [...]} for one draft, from its own words.
+- `combine_body` (def) - Everything the draft says besides its title and caption.
+- `active_draft_searches` (def) - One entry per active draft that gave at least one search: {id, title, queries, keywords}.
+- `write_file` (def) - Hand the searches to the scraper process (it has no database connection) through a temporary file.
+- `read_file` (def)
+- `topic_for_draft` (def) - The listening topic a draft's searches become, matched back to that draft by its own keywords.
+- `context_topics_for_draft` (def) - The wider topics around a draft's subject, one topic each: the public vibe about them, not coverage of this
+
+## services/compliance/analytics/post_query_plan.py (167 lines) - The searches for one draft: what its own subject is, and what the wider topic around it is.
+- `_norm` (def)
+- `text_hash` (def)
+- `validate` (def) - Keep only what the post's own text supports.
+- `rules_plan` (def)
+- `_ask_gemini` (def)
+- `contexts_of` (def) - The wider topics of a plan: [{topic, queries, terms}].
+- `read_cached` (def)
+- `plan_for_text` (def) - The plan for a draft: from the saved one if its text hasn't changed, else from Gemini, else from the rules.
+
 ## services/compliance/analytics/post_signals.py (217 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - `_key` (def)
 - `is_government_handle` (def)
@@ -803,7 +835,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `SignalFinding` (class)
 - `findings` (def) - Rule-like findings from the signals.
 
-## services/compliance/analytics/public_mood_service.py (1076 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+## services/compliance/analytics/public_mood_process.py (148 lines) - A plain-language log of how a post's public mood was made, shown on the page so a person can follow it: what was read from the post, whic...
+- `step` (def) - status: ok (worked), warn (worked with a limit), none (nothing to show), info.
+- `_age` (def)
+- `read_step` (def)
+- `search_step` (def)
+- `scrape_step` (def)
+- `topics_step` (def)
+- `scoring_step` (def)
+- `conversation_step` (def)
+- `build` (def)
+
+## services/compliance/analytics/public_mood_service.py (1113 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - `_env_float` (def)
 - `_get_client` (def)
 - `_source_label` (def)
@@ -826,7 +869,10 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_snapshot_model` (def)
 - `_overall_post_recommendation` (def) - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
 - `_load` (def)
+- `_topic_kind` (def)
+- `_may_show_on` (def) - A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
 - `_gather` (def) - The post, its matched topics and their current snapshots.
+    - `is_own` (def)
 - `_input_hash` (def)
 - `_summary_model` (def)
 - `_with_feedback` (def)
@@ -1027,13 +1073,17 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `run` (def)
 - `search` (def)
 
-## services/compliance/evaluation/script_batch_service.py (589 lines) - Script batches.
+## services/compliance/evaluation/script_batch_service.py (656 lines) - Script batches.
 - `missing_details` (def) - The details still empty, by their names on the form.
 - `_json` (def)
 - `_details` (def)
-- `post_row` (def) - The batch's details shaped like a post row, so a script is checked against the rules scoped to its posts.
+- `effective_details` (def) - The details a script's post gets: its own when the batch sets them per script, else the batch's.
+- `post_row` (def) - A script's details shaped like a post row, so it is checked against the rules scoped to its post.
+- `item_status` (def) - DRAFT until the batch is sent; then whatever its script is on its post.
+- `batch_status` (def) - A batch is what its scripts are: in review while any waits for a reviewer, with the creator while any of the rest
 - `read_upload` (def) - The text of an uploaded document (PDF, Word or text), or a message the creator can act on.
 - `_load` (def)
+- `_picked_reviewers` (def) - The reviewers a batch was sent to, or None when anyone may review it (some script names no reviewer).
 - `_reviewer_may_see` (def)
 - `_may_see` (def)
 - `_owned` (def)
@@ -1041,24 +1091,22 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `_item_out` (def)
 - `_out` (def)
 - `get_batch` (def)
-- `list_batches` (def) - Batches the user uploaded ("mine"), or those waiting for or done by reviewers ("review").
+- `list_batches` (def) - Batches the user uploaded ("mine"), or those sent to reviewers ("review").
 - `create_batch` (def) - Split an uploaded document into scripts and start a batch of them (a draft the creator can still change).
 - `update_batch` (def)
 - `_editable_item` (def)
 - `add_item` (def)
 - `update_item` (def)
 - `delete_item` (def)
-- `delete_batch` (def) - Remove a batch that hasn't produced any posts (nothing has been approved from it).
-- `send` (def) - Send the scripts that are waiting (new ones, and ones sent back) to the reviewers.
+- `delete_batch` (def) - Remove a batch whose scripts haven't been sent (no posts were made from it).
+- `_unsent` (def) - The scripts not sent yet: no post, or a post whose script was never sent for review.
+- `send` (def) - Send the scripts that haven't been sent: a post is made for each and its script goes to the reviewers, as when a
 - `_check_item` (def)
-- `_process_send` (def) - Check each waiting script, then hand the batch to the reviewers (or say what went wrong).
+- `check_item` (def) - Creator: check one script against the rulebook before sending it, to see its score and flags and fix them
+- `_make_post` (def) - The post for a script: a video post of the creator's with the batch's details, linked to the script.
+- `_process_send` (def) - Check each unsent script, make its post and send its script for review.
 - `_notify_reviewers` (def)
-- `_refresh_checks` (def) - Check again the waiting scripts whose check was made without the AI, or against an older rulebook, so a reviewer
-- `_needs_recheck` (def)
-- `approval_block` (def) - Why a script can't be approved yet, or None.
-- `_make_post` (def) - The post for an approved script: a video post of the creator's, with the batch's details and the script already
-- `review` (def) - Decide on any number of the batch's scripts at once.
-- `_refresh_status` (def) - IN_REVIEW while any script waits for a reviewer, CHANGES_REQUESTED while only the creator has something to do,
+- `review` (def) - Decide on any number of the batch's scripts at once, with the same rules as deciding on one script on its own
 
 ## services/compliance/evaluation/script_match.py (92 lines) - Script vs video.
 - `_words` (def)
@@ -1066,16 +1114,20 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `compare` (def) - How closely the spoken words follow the script, or None when either is empty.
 - `flag_mismatch` (def) - A video that doesn't match its approved script becomes a "needs review" flag on the check: no points lost (the
 
-## services/compliance/evaluation/script_review_service.py (774 lines) - Script stage of a video post.
+## services/compliance/evaluation/script_review_service.py (878 lines) - Script stage of a video post.
 - `_send_state` (def) - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def)
 - `_status` (def)
 - `check_text` (def) - The rulebook check of a script: the title and the script, scoped like the post.
+- `check_key` (def) - What a script's check depends on: its wording and the details it's judged by (title, brand, audience, region,
+- `precheck_record` (def) - A check run before sending, as stored (JSON).
+- `still_valid` (def) - The stored check, if it was made on this wording and these details against the current rulebook.
 - `_versions` (def)
 - `_script_file` (def)
 - `_require_stage` (def)
 - `_reviewer_may_act` (def)
+- `batch_ref` (def) - Where the script sits in the batch it was uploaded with, or None when it wasn't part of one.
 - `get_stage` (def)
 - `_adopt_check` (def) - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
 - `_add_version` (def)
@@ -1087,9 +1139,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `submit` (def) - Accept the uploaded script for review and answer at once.
 - `_fail_send` (def) - The background send couldn't finish: record which step failed and why, and tell the creator.
 - `resume_interrupted_sends` (def) - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
+- `_read_uploaded` (def) - The uploaded script file and its text, read now if it hasn't been yet.
+- `precheck` (def) - The creator checks the uploaded script against the rulebook before sending it, to see the score and the flags
 - `_process_send` (def) - Read the uploaded script, calculate its compliance score and send it to the reviewers.
 - `_send` (def)
-- `_send_checked` (def)
+- `_send_checked` (def) - Send a checked script for review.
 - `decide` (def) - The reviewer approves the script, sends it back with a note, or sends back their own edited version.
 - `accept` (def) - The creator accepts the reviewer's edited version: it's the approved script.
 - `revise` (def) - The creator edits the script in the platform (after edits or a change request) and sends it back.
@@ -1679,22 +1733,49 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `clear_read_notifications` (def)
 - `clear_all_notifications` (def)
 
-## services/notifications/rabbitmq_service.py (408 lines) - RabbitMQ Service & Topology Manager for Social Media Compliance.
+## services/notifications/rabbitmq_config.py (196 lines) - RabbitMQ / Message Hub configuration: env-driven connection settings, exchange names and the hub server registry.
 - `_sanitize_amqp_url` (def) - Mask password from AMQP URLs to prevent logging credentials.
+- `_explicit_url_parts` (def) - Parsed RABBITMQ_URL, or None if unset.
 - `get_rabbitmq_host` (def)
 - `get_rabbitmq_port` (def)
+- `get_rabbitmq_management_port` (def)
+- `get_hub_status_cache_ttl` (def) - Seconds a hub snapshot is reused (0 disables caching).
+- `hub_peer_http_probe_enabled` (def) - Whether peers must also pass an HTTP /health/live probe to count as online (default off: hub presence is authoritative).
 - `get_rabbitmq_user` (def)
 - `get_rabbitmq_password` (def)
+- `get_rabbitmq_vhost` (def) - Virtual host: from RABBITMQ_URL path, else RABBITMQ_VHOST / RABBITMQ_DEFAULT_VHOST, else '/'.
+- `_vhost_url_part` (def)
 - `get_rabbitmq_url` (def)
 - `get_commands_exchange` (def)
 - `get_events_exchange` (def)
 - `get_dlx_exchange` (def)
+- `get_presence_exchange` (def)
 - `get_prefetch_count` (def)
+- `_build_hub_application` (def)
+
+## services/notifications/rabbitmq_hub_status.py (487 lines) - Message Hub behaviour for RabbitMQManager: SSE fan-out, shutdown, presence heartbeats, peer monitoring and live status snapshots.
+- `HubStatusMixin` (class) - Methods mixed into RabbitMQManager; relies on its connection/registry attributes.
+    - `subscribe_sse` (def)
+    - `unsubscribe_sse` (def)
+    - `_broadcast_to_sse` (def)
+    - `notify_shutting_down` (def) - Wakes all SSE streams so Uvicorn exits without hanging, and announces offline to peers.
+    - `install_uvicorn_shutdown_hook` (def) - Hook Uvicorn's Server.handle_exit so SIGINT/SIGTERM closes SSE streams and broadcasts offline.
+    - `broadcast_server_status_update` (def) - Publishes a server online/offline message on the presence exchange so every peer updates its registry.
+    - `_publish_presence_event` (def)
+    - `_presence_heartbeat_loop` (def) - Announces this server's live status every 5 seconds.
+    - `_peer_status_monitor_loop` (def) - Every 2.5s re-evaluates all hub servers; pushes SSE updates and announces peers that dropped/returned.
+    - `_run_active_queue_and_stream_probe` (def) - Round-trips a message through a temporary queue and publishes a healthcheck event to the events exchange.
+    - `get_hub_live_status` (def) - Live Message Hub snapshot, cached for HUB_STATUS_CACHE_TTL seconds with single-flight refresh.
+    - `_build_hub_live_status` (def) - Live Message Hub snapshot (same shape as the other portal backends) for the topbar servers dropdown.
+
+## services/notifications/rabbitmq_in_memory.py (46 lines) - In-memory fallback broker used when no live RabbitMQ is available.
 - `InMemoryMessageBroker` (class) - In-memory fallback & mock broker for unit testing and offline development
     - `__init__` (def)
     - `get_queue` (def)
     - `publish` (def)
     - `clear` (def)
+
+## services/notifications/rabbitmq_service.py (521 lines) - RabbitMQ Service & Topology Manager Provides resilient connection management, topology declaration, publisher confirmations, and dead-let...
 - `RabbitMQManager` (class)
     - `__init__` (def)
     - `amqp_url` (def)
@@ -1702,6 +1783,9 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `is_connected` (def)
     - `connect` (def) - Attempts to connect to RabbitMQ broker and initialize topology.
     - `_setup_topology` (def) - Declares durable exchanges, queues, DLX, and bindings.
+    - `_setup_hub_streams` (def) - Declares RabbitMQ Streams.
+    - `_handle_incoming_presence_payload` (def)
+    - `_start_hub_consumers` (def) - Consumers for this server's command queue, the presence stream, and an instant status-notify queue.
     - `publish_message` (def) - Publishes a persistent message with publisher confirmations.
     - `publish_social_media_event` (def) - Convenience method to publish domain events to the service events exchange.
     - `consume_queue` (def) - Subscribes to a queue and processes messages with manual acknowledgments.
@@ -1733,11 +1817,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `status_for` (def) - What the portal shows a person about their Teams messages.
 - `set_enabled_for` (def)
 
-## services/shared/auth/auth_service.py (618 lines) - auth service (shared auth)
+## services/shared/auth/auth_service.py (604 lines) - Who a token is for: this app only.
 - `_update_last_activity_async` (def)
 - `create_access_token` (def)
 - `create_link_token` (def)
-- `verify_token` (def)
+- `verify_token` (def) - The payload of a sign-in or link token this app issued, or None.
 - `get_my_permissions` (def)
 - `user_can_access_page` (def)
 - `user_can_use_mcp_tool` (def)
@@ -2156,6 +2240,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `test_who_reviews_and_by_when_never_counts` (def)
 - `test_a_field_the_post_did_not_have_counts` (def)
 
+## tests/test_context_picks.py (69 lines) - The Messaging Context the creator picks for a post's analysis: kinds they chose use exactly their entries; the rest are picked automatica...
+- `entry` (def)
+- `ForContentTests` (class)
+    - `titles` (def)
+    - `test_automatic_by_the_posts_brand_and_platforms` (def)
+    - `test_a_chosen_kind_uses_exactly_the_creators_entries` (def)
+    - `test_an_empty_choice_leaves_that_kind_out` (def)
+    - `test_entries_outside_the_posts_scope_can_be_chosen` (def)
+- `CleanPicksTests` (class)
+    - `test_only_active_entries_of_the_right_kind` (def)
+    - `test_unknown_kinds_are_refused` (def)
+
 ## tests/test_conversation_mood.py (424 lines) - Public mood from the conversations found for a post: relevance checks, stories, limits, saved assessments.
 - `_item` (def)
 - `_hit` (def)
@@ -2429,6 +2525,13 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_defence_headline_is_not_a_crisis` (def)
     - `test_clear_positive_and_negative` (def)
 
+## tests/test_message_hub_status.py (50 lines) - The message-hub dropdown asks this service for /api/message-hub/status (ported from the administration backend).
+- `HubStatusTests` (class)
+    - `test_this_service_is_the_compliance_app` (def)
+    - `test_offline_status_lists_every_hub_server_and_marks_itself` (def)
+    - `test_topology_keeps_the_social_media_queues` (def)
+    - `test_routes_exist` (def)
+
 ## tests/test_model_fallback.py (167 lines) - Where the sentiment code now lives: the chain and calls in the engine, the default model in the input builder.
 - `result` (def)
 - `api_error` (def)
@@ -2666,6 +2769,15 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `RouteTests` (class)
     - `test_the_model_status_is_an_administrators_view` (def)
 
+## tests/test_no_sample_data.py (58 lines) - Public mood never shows invented numbers: with no listening source it shows that there is none.
+- `run` (def)
+- `NoSourceTests` (class)
+    - `test_with_no_source_there_is_a_provider_that_has_no_data_and_says_so` (def)
+    - `test_no_database_and_no_feed_file_means_no_source_never_sample_data` (def)
+    - `test_the_topic_list_is_empty_not_invented_when_there_is_no_source` (def)
+    - `test_the_source_is_labelled_for_what_it_is` (def)
+    - `test_the_sample_data_code_is_gone` (def)
+
 ## tests/test_performance_period.py (86 lines) - The router imports auth, which needs a signing secret; CI has no .env (same as tests/test_security_fixes.py).
 - `PeriodTests` (class)
     - `test_last_n_days_ends_now` (def)
@@ -2681,6 +2793,42 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_range_is_at_most_a_year` (def)
 - `LivePostsWindowTests` (class)
     - `test_the_query_uses_the_window` (def)
+
+## tests/test_post_queries.py (123 lines) - Searches come from what each draft says, not from a fixed topic list.
+- `QueryBuildingTests` (class)
+    - `test_queries_use_the_drafts_own_names_and_hashtags` (def)
+    - `test_a_draft_that_names_nothing_gets_no_search` (def)
+    - `test_different_drafts_give_different_searches` (def)
+    - `test_the_searches_survive_the_hand_off_to_the_scraper` (def)
+    - `test_the_draft_topic_is_matched_back_by_its_keywords` (def)
+- `NotUnrelatedTests` (class)
+    - `test_everyday_words_never_become_a_search` (def)
+    - `test_a_brand_phrase_and_a_name_still_search` (def)
+    - `test_the_scraper_drops_headlines_that_do_not_mention_the_drafts_names` (def)
+    - `test_unrelated_search_results_are_not_kept` (def)
+- `OnlyThisDraftsTopicTests` (class)
+    - `test_a_drafts_own_search_shows_only_on_that_draft` (def)
+- `ReadingDraftsTests` (class)
+    - `test_drafts_are_read_with_a_json_transcript_and_a_script_without_a_type_error` (def)
+    - `test_script_template_labels_are_not_searched` (def)
+- `ScraperUsesThemTests` (class)
+    - `test_a_search_runs_for_every_query_of_the_draft_and_files_items_under_its_topic` (def)
+    - `test_the_fixed_market_topics_are_off_unless_asked_for` (def)
+
+## tests/test_post_query_plan.py (136 lines) - The plan keeps only what the post supports, falls back without inventing, and splits direct from context.
+- `ValidateTests` (class)
+    - `test_only_what_the_posts_text_supports_is_kept` (def)
+    - `test_no_supported_context_term_means_no_wider_topic` (def)
+    - `test_at_most_six_wider_topics` (def)
+    - `test_a_plan_saved_with_one_wider_topic_still_reads` (def)
+- `PlanTests` (class)
+    - `test_gemini_failure_falls_back_to_the_rules_and_says_why` (def)
+    - `test_a_good_answer_is_saved_and_reused_without_asking_again` (def)
+    - `test_without_permission_to_ask_only_a_saved_plan_or_the_rules_are_used` (def)
+- `ScraperSplitsDirectFromContextTests` (class)
+    - `test_direct_needs_every_organisation_but_context_needs_a_context_term` (def)
+- `TopicScopingTests` (class)
+    - `test_every_wider_topic_of_a_post_belongs_to_that_post_only` (def)
 
 ## tests/test_post_signals.py (93 lines) - test post signals
 - `ExtractTests` (class)
@@ -2723,6 +2871,14 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_sent_post_is_locked_and_everything_is_done` (def)
     - `test_changes_requested_unlocks_it_and_the_steps_are_worked_out_again` (def)
     - `test_changes_requested_with_nothing_edited_can_be_resent` (def)
+
+## tests/test_public_mood_process.py (36 lines) - The process log reports what was done, and only that.
+- `StepTests` (class)
+    - `test_what_was_read_and_that_attachments_are_not` (def)
+    - `test_no_search_is_said_plainly` (def)
+    - `test_scrape_step_reports_found_dropped_and_kept_for_this_posts_searches` (def)
+    - `test_a_search_that_was_not_in_the_last_scrape_says_to_scrape` (def)
+    - `test_no_feed_means_nothing_collected` (def)
 
 ## tests/test_resume_reads.py (47 lines) - test resume reads
 - `ResumeInterruptedReadTests` (class)
@@ -2907,23 +3063,28 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_the_feed_lives_in_the_repo_data_folder_next_to_the_apps_other_data` (def)
     - `test_the_scraper_and_the_app_share_one_way_of_storing_and_loading_the_feed` (def)
 
-## tests/test_script_batch.py (95 lines) - test script batch
+## tests/test_script_batch.py (147 lines) - test script batch
 - `DetailsTests` (class)
     - `test_every_shared_detail_is_needed_before_sending` (def)
     - `test_a_filled_in_batch_is_ready` (def)
     - `test_an_empty_list_counts_as_missing` (def)
     - `test_the_scripts_are_checked_as_video_posts_with_the_batchs_details` (def)
-- `ApprovalBlockTests` (class)
-    - `test_a_clean_script_can_be_approved` (def)
-    - `test_the_minimum_itself_is_enough` (def)
-    - `test_a_low_score_blocks` (def)
-    - `test_a_critical_flag_blocks` (def)
-    - `test_a_script_the_ai_could_not_read_blocks` (def)
-    - `test_a_script_with_no_check_blocks` (def)
-- `RecheckTests` (class)
-    - `test_a_script_with_no_check_is_checked` (def)
-    - `test_a_check_from_an_older_rulebook_is_checked_again` (def)
-    - `test_an_ai_down_check_is_retried_but_not_on_every_page_load` (def)
+- `PerScriptDetailsTests` (class)
+    - `test_with_one_set_every_script_gets_the_batchs_details` (def)
+    - `test_with_details_per_script_each_script_gets_its_own` (def)
+    - `test_a_script_with_no_details_of_its_own_has_none` (def)
+    - `test_a_script_is_read_the_same_whichever_way_the_row_was_loaded` (def)
+    - `test_the_batch_alone_when_there_is_no_script` (def)
+- `StatusTests` (class)
+    - `test_a_script_is_a_draft_until_its_post_is_made` (def)
+    - `test_a_script_is_what_it_is_on_its_post` (def)
+    - `test_edits_the_reviewer_proposed_wait_for_the_creator` (def)
+    - `test_a_post_whose_script_was_never_sent_is_still_a_draft` (def)
+    - `test_a_batch_nobody_sent_is_a_draft` (def)
+    - `test_a_batch_is_in_review_while_any_script_waits_for_a_reviewer` (def)
+    - `test_a_batch_is_with_the_creator_when_nothing_waits_for_a_reviewer` (def)
+    - `test_a_batch_is_done_when_every_script_is_approved` (def)
+    - `test_a_batch_being_sent_shows_as_processing` (def)
 - `UploadTests` (class)
     - `refused` (def)
     - `test_a_text_file_is_read` (def)
@@ -2932,6 +3093,11 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_file_with_no_text_is_refused` (def)
     - `test_a_very_large_file_is_refused` (def)
     - `test_an_old_word_file_says_what_to_do` (def)
+- `NobodyApprovesTheirOwnScripts` (class) - The creator of a script can't approve it, even as a super admin: another reviewer has to.
+    - `may_act` (def)
+    - `test_a_single_scripts_creator_cannot_review_it_even_as_a_super_admin` (def)
+    - `test_a_batchs_creator_cannot_review_it_even_as_a_super_admin` (def)
+    - `test_someone_who_is_not_a_reviewer_cannot_review` (def)
 
 ## tests/test_script_duplicates.py (74 lines) - Scripts follow the same duplicate rules as posts: the same script, already sent for review for the same place and publish date, is refuse...
 - `match` (def)
@@ -2978,7 +3144,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_script_the_ai_could_not_read_is_flagged` (def)
     - `test_a_script_the_ai_read_is_not` (def)
 
-## tests/test_script_send.py (161 lines) - test script send
+## tests/test_script_send.py (163 lines) - test script send
 - `processing` (def)
 - `SendStateTests` (class)
     - `test_nothing_in_progress` (def)
@@ -3018,7 +3184,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_empty_chunks_are_dropped_and_line_endings_do_not_matter` (def)
     - `test_nothing_in_nothing_out` (def)
 
-## tests/test_security_fixes.py (133 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
+## tests/test_security_fixes.py (195 lines) - Security fixes: caption HTML sanitizing, who may change super-admin access, and link tokens in URLs.
 - `CaptionSanitizerTests` (class)
     - `test_keeps_editor_formatting` (def)
     - `test_drops_scripts_handlers_and_styles` (def)
@@ -3042,6 +3208,35 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_link_token_only_works_from_a_url` (def)
     - `test_session_token_is_refused_in_a_url` (def)
     - `test_tokens_issued_before_logout_stay_dead` (def)
+- `ServiceAndForeignTokenTests` (class) - Only this app's own sign-in tokens sign a person in: never a service token, another app's token, or a token
+    - `setUp` (def)
+    - `forge` (def)
+    - `refused` (def)
+    - `test_a_service_token_is_not_a_user` (def)
+    - `test_a_token_that_names_no_user_is_refused` (def)
+    - `test_another_apps_token_is_refused` (def)
+    - `test_the_idle_logout_follows_the_database_not_the_token` (def)
+
+## tests/test_sentiment_context_fit.py (166 lines) - The messaging context report (brand voice, facts, platform norms, audiences) and graphic vs captions: every quote is the post's own words...
+- `with_context` (def)
+- `report` (def)
+- `ReportTests` (class)
+    - `check` (def)
+    - `test_voice_lines_must_be_the_posts_words_and_name_their_entry` (def)
+    - `test_claims_are_checked_against_facts_only` (def)
+    - `test_no_fix_without_a_conflict` (def)
+    - `test_norms_and_audiences_need_an_entry_they_were_given` (def)
+- `VisualAlignmentTests` (class)
+    - `test_kept_when_there_is_a_graphic` (def)
+    - `test_dropped_when_nothing_visual_was_attached` (def)
+- `TransparencyTests` (class)
+    - `test_used_old_and_not_applied` (def)
+- `VerdictTests` (class)
+    - `settle` (def)
+    - `test_tiles_follow_their_cards` (def)
+    - `test_a_conflict_needs_a_fix_and_drifts_arent_on_voice` (def)
+    - `test_no_voice_entry_means_no_guide` (def)
+    - `test_mostly_adjust_needs_work` (def)
 
 ## tests/test_sentiment_strictness.py (70 lines) - test sentiment strictness
 - `inp` (def)
@@ -3285,7 +3480,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
     - `test_a_search_skipped_for_time_says_so` (def)
     - `test_which_search_found_an_item_is_kept_with_it` (def)
 
-## tests/test_x_feed_store.py (243 lines) - The collected feed lives in the vector database's x_feed_data collection, and is read from there, not from a file.
+## tests/test_x_feed_store.py (244 lines) - The collected feed lives in the vector database's x_feed_data collection, and is read from there, not from a file.
 - `FakeCursor` (class)
     - `__init__` (def)
     - `sort` (def)
@@ -3344,7 +3539,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `design_thumbnail` (def) [GET /designs/{design_id}/thumbnail] - A small PNG preview of the design for the picker.
 - `simulate_edit` (def) [POST /designs/{design_id}/simulate-edit] - Mock Canva only: pretend the design was edited, so its next export is a new revision.
 
-## tools/compliance/analytics/listening_router.py (173 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
+## tools/compliance/analytics/listening_router.py (187 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
 - `list_topics` (def) [GET /topics] - Every topic with its current mood, the team's keyword tuning and how often it was matched wrongly.
 - `sync_topics` (def) [POST /topics/sync] - Pull the topic list from the listening source now instead of waiting for the daily sync.
 - `update_topic` (def) [PUT /topics/{topic_id}]
@@ -3408,7 +3603,7 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `update_entry` (def) [PUT /{entry_id}]
 - `delete_entry` (def) [DELETE /{entry_id}]
 
-## tools/compliance/submissions/script_batch_router.py (81 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
+## tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - `list_batches` (def) [GET ] - The batches you uploaded, or (reviewers) the batches sent for review.
 - `upload_batch` (def) [POST ] - Upload one document holding several scripts; it is split into scripts the creator can still change.
 - `get_batch` (def) [GET /{batch_id}]
@@ -3417,16 +3612,18 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 - `add_item` (def) [POST /{batch_id}/items]
 - `update_item` (def) [PATCH /{batch_id}/items/{item_id}]
 - `delete_item` (def) [DELETE /{batch_id}/items/{item_id}]
+- `check_item` (def) [POST /{batch_id}/items/{item_id}/check] - Check one script against the rulebook before sending it (the result is kept and reused on send).
 - `send_batch` (def) [POST /{batch_id}/send] - Send the waiting scripts to the reviewers (checked against the rulebook in the background).
 - `review_batch` (def) [POST /{batch_id}/review] - Approve or send back any number of the batch's scripts at once; each approved script becomes a post.
 
-## tools/compliance/submissions/script_review_router.py (90 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+## tools/compliance/submissions/script_review_router.py (96 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `script_queue` (def) [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
 - `get_script` (def) [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
 - `submit_script` (def) [POST /{submission_id}/script/submit] - Send the uploaded script for review.
 - `decide_script` (def) [POST /{submission_id}/script/decision] - Approve the script, or send it back with a note and/or the reviewer's edited version.
 - `accept_script_edits` (def) [POST /{submission_id}/script/accept] - Accept the reviewer's edits; the script is approved.
 - `revise_script` (def) [POST /{submission_id}/script/revise] - Send an edited script back to the reviewer.
+- `precheck_script` (def) [POST /{submission_id}/script/precheck] - Creator: check the uploaded script against the rulebook before sending it (the result is kept).
 - `check_script` (def) [POST /{submission_id}/script/check] - Check wording being edited, without saving it.
 - `get_script_highlights` (def) [GET /{submission_id}/script/highlights] - The reviewer's highlights and notes on a script version (the creator sees them too).
 - `save_script_highlights` (def) [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
@@ -3507,6 +3704,12 @@ How to use: check `.agents/project-index.md` first to locate the file, then insp
 ## tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - `GraphUserResult` (class)
 - `graph_user_search` (def)
+
+## tools/notifications/message_hub_router.py (57 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
+- `message_hub_status` (def) [GET /status] - Live RabbitMQ Message Hub snapshot for the topbar servers dropdown (same contract as the other portals).
+- `message_hub_test` (def) [POST /test]
+- `message_hub_stream` (def) [GET /stream] - SSE: an initial snapshot, then a new snapshot whenever any server's status changes.
+    - `_event_generator` (def)
 
 ## tools/notifications/notification_router.py (87 lines) - notification router (notifications)
 - `get_current_user_id` (def)

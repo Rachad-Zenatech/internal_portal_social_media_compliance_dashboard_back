@@ -68,6 +68,12 @@ async def delete_item(batch_id: UUID, item_id: UUID, user_id: CurrentUser):
     return await svc.delete_item(batch_id, item_id, user_id)
 
 
+@router.post("/{batch_id}/items/{item_id}/check", response_model=Batch)
+async def check_item(batch_id: UUID, item_id: UUID, user_id: CurrentUser):
+    """Check one script against the rulebook before sending it (the result is kept and reused on send)."""
+    return await svc.check_item(batch_id, item_id, user_id)
+
+
 @router.post("/{batch_id}/send", response_model=Batch)
 async def send_batch(batch_id: UUID, user_id: CurrentUser):
     """Send the waiting scripts to the reviewers (checked against the rulebook in the background)."""
