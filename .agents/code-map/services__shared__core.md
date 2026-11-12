@@ -8,7 +8,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `log_audit_event` (def) L6 - Records an event in the audit_logs table.
 - `get_audit_logs` (def) L30
 
-## services/shared/core/cache_service.py (201 lines) - Goes up on every invalidation.
+## services/shared/core/cache_service.py (202 lines) - Goes up on every invalidation.
 - `AsyncInMemoryCache` (class) L15 - Lightweight in-memory cache with TTL expiration, LRU eviction, and key/prefix invalidation.
     - `__init__` (def) L18
     - `get` (def) L26

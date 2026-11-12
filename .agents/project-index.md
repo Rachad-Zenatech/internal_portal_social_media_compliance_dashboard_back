@@ -23,12 +23,12 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/script_doc_model.py (233 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - models/compliance/script_review_model.py (233 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - models/compliance/sentiment_model.py (314 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
-- models/compliance/source_link_model.py (17 lines) - Models for submission source links and quick AI link checks.
+- models/compliance/source_link_model.py (18 lines) - Models for submission source links and quick AI link checks.
 - models/compliance/submission_model.py (663 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
 - models/shared/oauth_connection_model.py (127 lines) - Pydantic models for Organization, Company, and OAuth connections.
 - models/shared/rbac_model.py (146 lines) - rbac model (shared)
-- postgresql_db/database.py (184 lines) - Optional dotenv import for loading .env and local overrides during development
+- postgresql_db/database.py (212 lines) - Optional dotenv import for loading .env and local overrides during development
 - postgresql_db/schema_metadata.py (328 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
@@ -42,7 +42,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
 - postgresql_db/schemas/setup_script_docs_schema.py (139 lines) - Script documents: scripts written in the platform from a template (not attached to a post), reviewed together by several reviewers at onc...
 - postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
-- postgresql_db/schemas/setup_source_links_schema.py (10 lines) - Schema helper for submission source_links column.
+- postgresql_db/schemas/setup_source_links_schema.py (11 lines) - Schema helper for submission source_links column.
 - postgresql_db/schemas/setup_submissions_schema.py (707 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
@@ -148,7 +148,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/auth/rbac_service.py (757 lines) - Utility for audit logging
 - services/shared/auth/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
 - services/shared/core/audit_service.py (126 lines) - audit service (shared core)
-- services/shared/core/cache_service.py (201 lines) - Goes up on every invalidation.
+- services/shared/core/cache_service.py (202 lines) - Goes up on every invalidation.
 - services/shared/core/logging_service.py (122 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
 - services/shared/core/startup_service.py (46 lines) - Server startup pieces: the schema setups it runs, and the background tasks it starts and tracks.
 - tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
@@ -163,7 +163,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - tools/compliance/submissions/script_doc_router.py (206 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
 - tools/compliance/submissions/script_review_router.py (125 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
-- tools/compliance/submissions/source_link_router.py (18 lines) - Router for quick AI checking of submission source links.
+- tools/compliance/submissions/source_link_router.py (19 lines) - Router for quick AI checking of submission source links.
 - tools/compliance/submissions/submission_router.py (589 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/notifications/message_hub_router.py (57 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).

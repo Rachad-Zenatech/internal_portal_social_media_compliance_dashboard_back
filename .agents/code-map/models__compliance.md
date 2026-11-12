@@ -191,7 +191,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `EvalCaseIn` (class) L293 - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class) L301
 
-## models/compliance/source_link_model.py (17 lines) - Models for submission source links and quick AI link checks.
+## models/compliance/source_link_model.py (18 lines) - Models for submission source links and quick AI link checks.
 - `SourceLinksMixin` (class) L7
 - `SourceLinksUpdateMixin` (class) L11
 - `SourceLinkCheckRequest` (class) L15

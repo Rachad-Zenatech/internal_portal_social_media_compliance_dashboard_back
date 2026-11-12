@@ -15,3 +15,4 @@ router = APIRouter()
 async def check_source_link(submission_id: UUID, data: SourceLinkCheckRequest, user_id: CurrentUser):
     """Quickly fetch one source URL and check whether it supports the post's current material."""
     return await source_link_service.check_submission_source_link(submission_id, data.url, user_id)
+

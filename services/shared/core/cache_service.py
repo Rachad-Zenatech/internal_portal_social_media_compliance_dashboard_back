@@ -173,13 +173,14 @@ async def start_cache_invalidation_listener():
     while True:
         conn = None
         try:
-            conn = await asyncpg.connect(db_url, ssl=ssl_opt)
+            conn = await asyncpg.connect(db_url, ssl=ssl_opt, timeout=15.0, command_timeout=10.0)
             await conn.add_listener(CACHE_CHANNEL, handler)
             logger.info("Distributed cache invalidation listener connected.")
 
-            # Keep connection alive while listening
+            # Keep connection alive and detect half-open network drops between WSL and Supabase.
             while not conn.is_closed():
                 await asyncio.sleep(15)
+                await conn.execute("SELECT 1")
 
         except asyncio.CancelledError:
             logger.info("Stopping distributed cache invalidation listener...")

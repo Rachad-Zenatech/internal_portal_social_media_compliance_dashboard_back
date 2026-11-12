@@ -14,3 +14,4 @@ class SourceLinksUpdateMixin(BaseModel):
 
 class SourceLinkCheckRequest(BaseModel):
     url: str = Field(..., min_length=1, max_length=2000)
+

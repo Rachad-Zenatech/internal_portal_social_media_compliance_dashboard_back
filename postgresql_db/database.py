@@ -19,6 +19,33 @@ def acquire_timeout() -> float:
     return float(os.getenv("DB_POOL_ACQUIRE_TIMEOUT", "10.0"))
 
 
+class _AcquireContext:
+    """Terminates dead or timed-out connections on exit so asyncpg doesn't hang for 60s in _wait_for_cancellation."""
+
+    def __init__(self, ctx):
+        self._ctx = ctx
+        self._conn = None
+
+    def __await__(self):
+        return self._ctx.__await__()
+
+    async def __aenter__(self) -> asyncpg.Connection:
+        self._conn = await self._ctx.__aenter__()
+        return self._conn
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if (
+            self._conn is not None
+            and exc_type is not None
+            and issubclass(exc_type, (asyncio.TimeoutError, TimeoutError, asyncio.CancelledError, asyncpg.PostgresConnectionError, OSError))
+        ):
+            try:
+                self._conn.terminate()
+            except Exception:
+                pass
+        return await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
+
+
 class PoolWrapper:
     """Wraps an asyncpg.Pool so every acquire() has a default timeout: when the pool is exhausted by stuck connections,
     requests fail fast instead of queueing forever."""
@@ -27,7 +54,7 @@ class PoolWrapper:
         self._pool = pool
 
     def acquire(self, *, timeout=None):
-        return self._pool.acquire(timeout=acquire_timeout() if timeout is None else timeout)
+        return _AcquireContext(self._pool.acquire(timeout=acquire_timeout() if timeout is None else timeout))
 
     async def close(self):
         return await self._pool.close()
@@ -61,7 +88,7 @@ async def create_pool():
                 max_size = int(os.getenv("DB_POOL_MAX_SIZE", "10"))
                 max_queries = int(os.getenv("DB_POOL_MAX_QUERIES", "50000"))
                 max_inactive_lifetime = float(os.getenv("DB_POOL_MAX_INACTIVE_LIFETIME", "300.0"))
-                cmd_timeout = float(os.getenv("DB_COMMAND_TIMEOUT", "60.0"))
+                cmd_timeout = float(os.getenv("DB_COMMAND_TIMEOUT", "30.0"))
 
                 ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
                 if ssl_env in ("false", "0", "no", "disable", "off"):
@@ -79,6 +106,7 @@ async def create_pool():
                     # Same guards as the administration backend: never wait long on a lock, and a request that dies
                     # mid-transaction must not keep its row locks.
                     "lock_timeout": os.getenv("DB_LOCK_TIMEOUT_MS", "5000"),
+                    "statement_timeout": os.getenv("DB_STATEMENT_TIMEOUT_MS", "25000"),
                     "idle_in_transaction_session_timeout": os.getenv("DB_IDLE_IN_TX_TIMEOUT_MS", "30000"),
                 }
 

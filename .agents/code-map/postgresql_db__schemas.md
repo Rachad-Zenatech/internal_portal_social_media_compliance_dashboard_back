@@ -49,7 +49,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `setup` (def) L13
 - `_main` (def) L119
 
-## postgresql_db/schemas/setup_source_links_schema.py (10 lines) - Schema helper for submission source_links column.
+## postgresql_db/schemas/setup_source_links_schema.py (11 lines) - Schema helper for submission source_links column.
 - `ensure_source_links_column` (def) L6
 
 ## postgresql_db/schemas/setup_submissions_schema.py (707 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
