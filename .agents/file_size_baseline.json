@@ -1,5 +1,9 @@
 {
   "limit": 500,
+  "block_limits": {
+    "jsx_return": 80,
+    "py_function": 120
+  },
   "files": {
     "models/compliance/submission_model.py": {
       "max_lines": 662,
@@ -80,6 +84,72 @@
     "tools/compliance/submissions/submission_router.py": {
       "max_lines": 588,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    }
+  },
+  "blocks": {
+    "postgresql_db/schemas/setup_compliance_schema.py#setup": {
+      "max_lines": 186,
+      "kind": "py_function"
+    },
+    "postgresql_db/schemas/setup_listening_schema.py#setup": {
+      "max_lines": 205,
+      "kind": "py_function"
+    },
+    "postgresql_db/schemas/setup_pbac_schema.py#setup": {
+      "max_lines": 437,
+      "kind": "py_function"
+    },
+    "postgresql_db/schemas/setup_submissions_schema.py#setup": {
+      "max_lines": 440,
+      "kind": "py_function"
+    },
+    "scripts/scrape_x_playwright.py#build_live_x_listening_json": {
+      "max_lines": 127,
+      "kind": "py_function"
+    },
+    "scripts/validate_mood_flow.py#scenarios": {
+      "max_lines": 127,
+      "kind": "py_function"
+    },
+    "server.py#lifespan": {
+      "max_lines": 226,
+      "kind": "py_function"
+    },
+    "services/compliance/evaluation/compliance_service.py#check_compliance": {
+      "max_lines": 200,
+      "kind": "py_function"
+    },
+    "services/compliance/submissions/submission_service.py#_run_check": {
+      "max_lines": 133,
+      "kind": "py_function"
+    },
+    "services/compliance/submissions/submission_service.py#decide_review": {
+      "max_lines": 177,
+      "kind": "py_function"
+    },
+    "services/compliance/submissions/submission_service.py#list_submissions": {
+      "max_lines": 137,
+      "kind": "py_function"
+    },
+    "services/compliance/submissions/submission_service.py#submit_for_review": {
+      "max_lines": 173,
+      "kind": "py_function"
+    },
+    "services/compliance/submissions/submission_service.py#update_submission": {
+      "max_lines": 145,
+      "kind": "py_function"
+    },
+    "services/notifications/rabbitmq_hub_status.py#HubStatusMixin._build_hub_live_status": {
+      "max_lines": 224,
+      "kind": "py_function"
+    },
+    "services/shared/auth/auth_service.py#upsertMicrosoftUser": {
+      "max_lines": 154,
+      "kind": "py_function"
+    },
+    "tools/shared/core/search.py#global_search": {
+      "max_lines": 147,
+      "kind": "py_function"
     }
   }
 }
