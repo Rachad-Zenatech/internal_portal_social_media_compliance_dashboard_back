@@ -101,18 +101,18 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `schedule_missing` (def) L224 - Read the documents among these that were never read, or whose read was abandoned (e.g.
 - `paragraphs` (def) L241 - A read document's paragraphs, in order (one per line as stored).
 
-## services/compliance/media/hashtag_library.py (144 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
-- `LibraryTag` (class) L60
-- `LibraryGroup` (class) L66
-- `HashtagLibrary` (class) L71
-- `max_hashtags` (def) L80 - The most hashtags the strictest selected platform suits (3 when none is selected).
-- `max_reason` (def) L86
-- `_unique` (def) L96
-- `_audience_tags` (def) L105
-- `_brand_tags` (def) L109
-- `candidates` (def) L114 - Every hashtag the library offers these brands and audiences, brand tags first (no cashtag).
-- `build` (def) L119 - The library for one post.
-    - `keep` (def) L124
+## services/compliance/media/hashtag_library.py (145 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
+- `LibraryTag` (class) L61
+- `LibraryGroup` (class) L67
+- `HashtagLibrary` (class) L72
+- `max_hashtags` (def) L81 - The most hashtags the strictest selected platform suits (3 when none is selected).
+- `max_reason` (def) L87
+- `_unique` (def) L97
+- `_audience_tags` (def) L106
+- `_brand_tags` (def) L110
+- `candidates` (def) L115 - Every hashtag the library offers these brands and audiences, brand tags first (no cashtag).
+- `build` (def) L120 - The library for one post.
+    - `keep` (def) L125
 
 ## services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
 - `_safe_href` (def) L20
