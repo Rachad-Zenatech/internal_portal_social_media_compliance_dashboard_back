@@ -187,10 +187,10 @@ class PostSignalScoringTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([v.rule_number for v in result.violations], ["Rule 4"])
 
     async def test_signals_and_notes_are_returned(self):
-        result = await self.check([], "Big week for $ZENA. Read more at defensenews.com #a #b #c #d #e #f")
+        result = await self.check([], "Big week for $ZENA. Read more at defensenews.com " + " ".join(f"#t{i}" for i in range(11)))
         self.assertEqual(result.signals.cashtags, ["$ZENA"])
-        self.assertEqual(len(result.signals.hashtags), 6)
-        # The cashtag means investors read it (first), then the outside link and the hashtag wall.
+        self.assertEqual(len(result.signals.hashtags), 11)
+        # The cashtag means investors read it (first), then the outside link and the hashtag wall (more than 10).
         self.assertEqual(len(result.signals.notes), 3)
         self.assertIn("investors will read this post", result.signals.notes[0])
         self.assertEqual(result.signals.implied_audiences, ["INVESTORS"])

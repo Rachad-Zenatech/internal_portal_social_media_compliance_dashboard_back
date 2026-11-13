@@ -32,10 +32,10 @@ class ExtractTests(unittest.TestCase):
         self.assertTrue(any("defensenews.com" in n for n in s.notes()))
 
     def test_a_hashtag_wall_is_noted(self):
-        s = ps.extract("Launch day #a1 #b2 #c3 #d4 #e5 #f6")
-        self.assertEqual(len(s.hashtags), 6)
-        self.assertTrue(any("6 hashtags" in n for n in s.notes()))
-        self.assertEqual(ps.extract("Launch day #a1 #b2 #c3").notes(), [])
+        s = ps.extract("Launch day " + " ".join(f"#t{i}" for i in range(11)))
+        self.assertEqual(len(s.hashtags), 11)
+        self.assertTrue(any("11 hashtags" in n for n in s.notes()))
+        self.assertEqual(ps.extract("Launch day " + " ".join(f"#t{i}" for i in range(10))).notes(), [])
 
 
 class HashtagWordTests(unittest.TestCase):
