@@ -13,7 +13,7 @@ The source's wording needn't match the post's: a deadline written "October 1, 20
 verdict rests on meaning, with safeguards that only ever move an answer towards "a person should look":
 
 - a SUPPORTED claim needs evidence from the source and enough confidence, and every figure and year in the claim has
-  to appear in the source's text;
+  to appear in the source's text, and so does the evidence the model gives (see source_claim_checks);
 - text that looks like an attempt to steer the model is never used (a page can say "ignore your instructions");
 - when no model can read a source, nothing is marked supported.
 
@@ -40,24 +40,27 @@ from models.compliance.compliance_model import (
 from services.ai.observability import ai_observability
 from services.ai.observability.ai_guardrails import screen_input
 from services.ai.core.gemini_service import is_rotatable_model_error
-from services.compliance.analytics import post_signals
-from services.compliance.evaluation import citation_finder, context_evaluator, source_fetch_service
+from services.compliance.evaluation import (
+    citation_finder, context_evaluator, source_fetch_service, source_passages, source_settings,
+)
+# The safeguards on the model's answers live in their own module; these names stay importable from here.
+from services.compliance.evaluation.source_claim_checks import (  # noqa: F401
+    SUPPORT_MIN_CONFIDENCE, _digits, _to_claims, evidence_overlap, missing_figures,
+)
 from services.shared.core.cache_service import AsyncInMemoryCache
 
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v2"
+PROMPT_VERSION = "source-v3"
 VERSION = f"sources-1|{citation_finder.VERSION}|{PROMPT_VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 MODELS = context_evaluator.MODELS
 TIMEOUT_SEC = int(os.getenv("SOURCE_CHECK_TIMEOUT_SEC", "45"))
 RETRY_PAUSE_SEC = context_evaluator.RETRY_PAUSE_SEC
-# A model that says "supported" below this isn't believed; the claim becomes one for a person.
-SUPPORT_MIN_CONFIDENCE = float(os.getenv("SOURCE_CHECK_MIN_CONFIDENCE", "0.7"))
 # What a model is given of the post, at most.
-MAX_POST_CHARS = 12000
-MAX_CLAIMS = 12
+MAX_POST_CHARS = int(os.getenv("SOURCE_CHECK_MAX_POST_CHARS", "12000"))
+MAX_CLAIMS = int(os.getenv("SOURCE_CHECK_MAX_CLAIMS", "12"))
 CACHE_TTL_SEC = int(os.getenv("SOURCE_CHECK_CACHE_TTL_SECONDS", str(24 * 3600)))
 
 # Points a claim that contradicts its source costs: the same as any high-severity finding.
@@ -163,58 +166,22 @@ class SourceCheckResult:
 
 # --- Who published it ------------------------------------------------------------------------------------------------
 
-_OFFICIAL_ENDINGS = (".gov", ".mil", ".gc.ca", ".gov.uk", ".mod.uk", ".gov.au", ".europa.eu", ".int")
-_OFFICIAL_HOSTS = ("sec.gov", "sedarplus.ca", "sedar.com", "nasdaq.com", "faa.gov", "tc.canada.ca")
-_RELEASE_WIRES = ("businesswire.com", "prnewswire.com", "globenewswire.com", "newswire.ca", "accesswire.com")
-_NEWS = ("reuters.com", "apnews.com", "bloomberg.com", "wsj.com", "nytimes.com", "ft.com", "cnbc.com", "bbc.com",
-         "theguardian.com", "washingtonpost.com", "defensenews.com", "breakingdefense.com", "defenseone.com",
-         "thedrive.com", "techcrunch.com", "theverge.com", "forbes.com", "axios.com", "politico.com", "c4isrnet.com")
-
-
 def authority_of(url: str) -> str:
+    """OFFICIAL, COMPANY, NEWS or OTHER, by the site lists in source_settings (none are fixed in code)."""
     host = re.sub(r"^https?://", "", url.lower()).split("/", 1)[0].split("?", 1)[0]
     host = host[4:] if host.startswith("www.") else host
+    s = source_settings.sites()
 
     def on(domains: Sequence[str]) -> bool:
         return any(host == d or host.endswith("." + d) for d in domains)
 
-    if any(host.endswith(e) for e in _OFFICIAL_ENDINGS) or on(_OFFICIAL_HOSTS):
+    if any(host.endswith(e) for e in s.official_endings) or on(s.official_sites):
         return "OFFICIAL"
-    if post_signals.is_own_domain(host) or on(_RELEASE_WIRES):
+    if on(s.company_sites) or any(w in host for w in s.company_site_words) or on(s.release_wires):
         return "COMPANY"
-    if on(_NEWS):
+    if on(s.news_sites):
         return "NEWS"
     return "OTHER"
-
-
-# --- Safeguard: figures must be in the source -------------------------------------------------------------------------
-
-_WORD_NUMBERS = {
-    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
-    "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
-    "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
-    "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90, "hundred": 100,
-}
-_WORD_RE = re.compile(r"\b(" + "|".join(sorted(_WORD_NUMBERS, key=len, reverse=True)) + r")\b", re.IGNORECASE)
-_NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
-
-
-def _digits(text: str) -> str:
-    """Text with figures in one form: no thousands commas, and the common number words as digits."""
-    text = re.sub(r"(?<=\d),(?=\d{3}\b)", "", text or "")
-    return _WORD_RE.sub(lambda m: str(_WORD_NUMBERS[m.group(1).lower()]), text)
-
-
-def missing_figures(claim: str, source_text: str) -> List[str]:
-    """Figures and years in the claim that the source's text never mentions (in digits or as words)."""
-    have = set(_NUMBER_RE.findall(_digits(source_text)))
-    # The claim's own figures as written: a word like "one" in a claim isn't a figure to find.
-    written = re.sub(r"(?<=\d),(?=\d{3}\b)", "", claim or "")
-    out: List[str] = []
-    for n in _NUMBER_RE.findall(written):
-        if n not in have and n not in out:
-            out.append(n)
-    return out
 
 
 # --- Reading one source ----------------------------------------------------------------------------------------------
@@ -262,9 +229,10 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
         head.append(f"Address: {url}")
     if published:
         head.append(f"Published: {published}")
+    shown = await source_passages.excerpt(post_text[:MAX_POST_CHARS], source_text)  # a long source: what matters of it
     contents = (
         "Check the post's claims against this source.\n\n<post>\n" + post_text[:MAX_POST_CHARS] + "\n</post>\n\n<source>\n"
-        + "\n".join(head) + "\n\n" + source_text + "\n</source>"
+        + "\n".join(head) + "\n\n" + shown + "\n</source>"
     )
     guard = screen_input(contents)
     for sweep in range(2):
@@ -281,35 +249,6 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
             await _cache.set(key, answer, CACHE_TTL_SEC)
             return answer
     return None, None
-
-
-def _to_claims(results: Sequence[_Result], source_text: str) -> List[SourceClaim]:
-    """The model's answers, through the safeguards."""
-    out: List[SourceClaim] = []
-    for r in results:
-        verdict = r.verdict if r.verdict in ("SUPPORTED", "CONTRADICTED", "NOT_FOUND", "UNCLEAR") else "UNCLEAR"
-        note = (r.note or "").strip() or None
-        evidence = (r.evidence or "").strip() or None
-        if verdict == "SUPPORTED":
-            lacking = missing_figures(r.claim, source_text)
-            if not evidence or r.confidence < SUPPORT_MIN_CONFIDENCE:
-                verdict = "UNCLEAR"
-                note = (note + " " if note else "") + (
-                    "It wasn't clear enough that the source says this, so a person should confirm."
-                )
-            elif lacking:
-                verdict = "UNCLEAR"
-                note = (note + " " if note else "") + (
-                    f"The source's text doesn't contain {', '.join(lacking)}, so a person should confirm it."
-                )
-        loc = (r.source_location or "").strip() or None
-        out.append(SourceClaim(
-            claim=(r.claim or "").strip()[:400], verdict=verdict, where="image" if r.where == "image" else "caption",
-            evidence=evidence[:600] if evidence else None, source_location=loc[:240] if loc else None,
-            note=note[:400] if note else None,
-            confidence=round(r.confidence, 2),
-        ))
-    return [c for c in out if c.claim]
 
 
 # --- Which sources there are -----------------------------------------------------------------------------------------
@@ -396,7 +335,7 @@ async def run(text: str, provided: Sequence[ProvidedSource] = ()) -> SourceCheck
             check.message = "No AI model could read this source just now, so it hasn't been compared. It is re-checked automatically."
             return
         check.model = model
-        check.claims = _to_claims(results, source_text)
+        check.claims = await source_passages.checked_claims(results, source_text)
         if not check.claims:
             check.message = "No claim in the post turned out to depend on this source."
 

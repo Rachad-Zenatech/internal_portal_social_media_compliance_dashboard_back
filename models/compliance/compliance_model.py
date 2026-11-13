@@ -257,6 +257,10 @@ class SourceClaim(BaseModel):
     evidence: Optional[str] = None
     # Where in the article/source the evidence appears (section heading, paragraph, page, etc.).
     source_location: Optional[str] = None
+    # The source's own words at that place, word for word, for a person to read next to the claim and confirm.
+    source_quote: Optional[str] = None
+    # The page those words are on, when it isn't the check's own (a claim another source backed up).
+    source_url: Optional[str] = None
     # What to change or check, when the verdict isn't SUPPORTED.
     note: Optional[str] = None
     confidence: float = 0.0

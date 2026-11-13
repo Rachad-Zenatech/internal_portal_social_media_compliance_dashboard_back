@@ -29,7 +29,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `CaptionSuggestion` (class) L23
 - `CaptionSuggestions` (class) L32
 
-## models/compliance/compliance_model.py (326 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (330 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class) L11
 - `ComplianceRuleCreate` (class) L57
 - `ComplianceRuleUpdate` (class) L61
@@ -44,9 +44,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ManualReviewRule` (class) L224 - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
 - `CheckSignals` (class) L233 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
 - `SourceClaim` (class) L249 - One claim the post makes, and whether the source it cites backs it up.
-- `SourceCheck` (class) L265 - A source the post cites (or that was attached), and what reading it showed.
-- `AddedRuleSet` (class) L284 - A rule set checked because of what the post says, not because it was chosen.
-- `ComplianceCheckResponse` (class) L290
+- `SourceCheck` (class) L269 - A source the post cites (or that was attached), and what reading it showed.
+- `AddedRuleSet` (class) L288 - A rule set checked because of what the post says, not because it was chosen.
+- `ComplianceCheckResponse` (class) L294
 
 ## models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - `ContextEntryIn` (class) L12
@@ -114,7 +114,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ItemResult` (class) L120
 - `BatchReviewResult` (class) L129
 
-## models/compliance/script_doc_model.py (235 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
+## models/compliance/script_doc_model.py (233 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - `TemplateRow` (class) L18
 - `ScriptTemplate` (class) L25
 - `DocCreate` (class) L34
@@ -138,7 +138,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `BulkResult` (class) L188
 - `UploadedPages` (class) L193
 - `DocDetail` (class) L197
-- `DocHistory` (class) L232
+- `DocHistory` (class) L230
 
 ## models/compliance/script_review_model.py (233 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class) L15
@@ -191,10 +191,20 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `EvalCaseIn` (class) L293 - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class) L301
 
-## models/compliance/source_link_model.py (18 lines) - Models for submission source links and quick AI link checks.
-- `SourceLinksMixin` (class) L7
-- `SourceLinksUpdateMixin` (class) L11
-- `SourceLinkCheckRequest` (class) L15
+## models/compliance/source_link_model.py (55 lines) - Models for submission source links and quick AI link checks.
+- `SourceLinksMixin` (class) L14
+- `SourceLinksUpdateMixin` (class) L18
+- `SourceLinkCheckRequest` (class) L22
+- `PastedSourceCheckRequest` (class) L26 - A whole article (or memo, release...) pasted in as the source, for when its page can't be opened.
+- `ImageSourceCitation` (class) L34
+- `ImageSourceScanResponse` (class) L40
+- `ImageSourceScanJobResponse` (class) L51
+
+## models/compliance/source_trust_model.py (50 lines) - Models for people's calls on sources (does this claim match the page? is the page a good source?) and the standing a site earns from revi...
+- `SourceConfirmationRequest` (class) L9 - One call.
+- `SourceConfirmation` (class) L19
+- `SourceTrust` (class) L30 - What reviewers have said about a site, across every post checked against it.
+- `SourceConfirmationsResponse` (class) L43
 
 ## models/compliance/submission_model.py (663 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class) L50

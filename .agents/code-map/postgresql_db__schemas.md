@@ -42,9 +42,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
 - `setup` (def) L14
 
-## postgresql_db/schemas/setup_script_docs_schema.py (148 lines) - Script documents: scripts written in the platform from a template (not attached to a post), reviewed together by several reviewers at onc...
-- `_setup_shared_column` (def) L20
-- `setup` (def) L28
+## postgresql_db/schemas/setup_script_docs_schema.py (139 lines) - Script documents: scripts written in the platform from a template (not attached to a post), reviewed together by several reviewers at onc...
+- `setup` (def) L20
 
 ## postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
 - `setup` (def) L13
@@ -52,6 +51,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 
 ## postgresql_db/schemas/setup_source_links_schema.py (11 lines) - Schema helper for submission source_links column.
 - `ensure_source_links_column` (def) L6
+
+## postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
+- `setup` (def) L13
 
 ## postgresql_db/schemas/setup_submissions_schema.py (707 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def) L16

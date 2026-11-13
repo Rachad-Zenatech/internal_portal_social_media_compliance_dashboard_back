@@ -1,7 +1,7 @@
 """Validation, persistence helpers, and quick AI checking for submission source links."""
 
 import json
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -9,7 +9,8 @@ from fastapi import HTTPException
 
 from models.compliance.compliance_model import ProvidedSource, SourceCheck
 from postgresql_db.database import fetch_all
-from services.compliance.evaluation import citation_finder, source_check_service
+from services.ai.observability.ai_guardrails import screen_input
+from services.compliance.evaluation import citation_finder, source_check_service, source_fetch_service, source_passages
 from services.compliance.media import document_layout
 
 
@@ -57,22 +58,55 @@ async def check_single_url(url: str, post_text: str) -> SourceCheck:
     if not material:
         return check
     label, source_text = material
+    return await compare_with_source(check, post_text, label, source_text)
+
+
+async def compare_with_source(check: SourceCheck, post_text: str, label: str, source_text: str) -> SourceCheck:
+    """Fill in a read source's claims: the post's claims compared with the source's text, through the safeguards."""
     results, model = await source_check_service._compare(post_text, label, check.title, check.url, check.published, source_text)
     if results is None:
         check.message = "No AI model could read this source just now, so it hasn't been compared."
         return check
     check.model = model
-    check.claims = source_check_service._to_claims(results, source_text)
+    check.claims = await source_passages.checked_claims(results, source_text)
     if not check.claims:
         check.message = "No claim in the post turned out to depend on this source."
     return check
 
 
-async def check_submission_source_link(submission_id: UUID, url: str, user_id: UUID) -> SourceCheck:
-    """Quickly fetch one source URL and check whether it supports the post's current material."""
+async def check_submission_source_link(
+    submission_id: UUID, url: str, user_id: UUID, image_text: Optional[str] = None,
+) -> SourceCheck:
+    """Quickly fetch one source URL and check whether it supports the post's current material. `image_text` is the
+    text of an image just scanned (it may not be attached to the post yet)."""
+    clean_url = normalize_source_url(url)
+    material = await submission_material(submission_id, user_id, image_text)
+    return await check_single_url(clean_url, material)
+
+
+async def check_submission_pasted_source(
+    submission_id: UUID, user_id: UUID, text: str, title: Optional[str] = None, url: Optional[str] = None,
+) -> SourceCheck:
+    """Check the post's claims against an article pasted in whole, and say where in it each claim is found."""
+    source_text = source_fetch_service._tidy(text or "")
+    clean_url = normalize_source_url(url) if url else None
+    label = (title or "").strip() or "Pasted article"
+    base = dict(reference=clean_url or label, kind="DOCUMENT", where="attached", cue="Pasted article", title=label,
+                url=clean_url, authority=source_check_service.authority_of(clean_url) if clean_url else None)
+    if len(source_text) < source_fetch_service.MIN_TEXT_CHARS:
+        return SourceCheck(status="UNREADABLE", message="Paste the whole article: there is too little text to check.", **base)
+    if screen_input(source_text).verdict != "ALLOW":
+        return SourceCheck(status="UNREADABLE", message="The pasted text contains wording that looks like an attempt to "
+                                                        "steer the review, so it wasn't used. A person should read it.", **base)
+    material = await submission_material(submission_id, user_id)
+    check = SourceCheck(status="READ", **base)
+    return await compare_with_source(check, material, f"pasted article {label}", source_text[:source_fetch_service.MAX_TEXT_CHARS])
+
+
+async def submission_material(submission_id: UUID, user_id: UUID, image_text: Optional[str] = None) -> str:
+    """Everything the post says, as one text: caption, script, documents, transcript and text read from its images."""
     from services.compliance.submissions import submission_service
 
-    clean_url = normalize_source_url(url)
     row = await submission_service._get_owned_row(submission_id, user_id, manager_can_read=True)
     docs = await fetch_all(
         """
@@ -102,5 +136,6 @@ async def check_submission_source_link(submission_id: UUID, url: str, user_id: U
             parts.append(d["image_text"])
         elif d["kind"] == "SUPPORTING" and d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip():
             sources.append(ProvidedSource(name=d["original_name"], text=d["doc_text"]))
-    material = document_layout.plain_text("\n\n".join(p for p in parts if p and p.strip())) or row["title"]
-    return await check_single_url(clean_url, material)
+    if image_text and image_text.strip() and image_text.strip() not in parts:
+        parts.append(f"Text in image:\n{image_text.strip()}")
+    return document_layout.plain_text("\n\n".join(p for p in parts if p and p.strip())) or row["title"]
