@@ -114,7 +114,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ItemResult` (class) L120
 - `BatchReviewResult` (class) L129
 
-## models/compliance/script_doc_model.py (233 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
+## models/compliance/script_doc_model.py (235 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - `TemplateRow` (class) L18
 - `ScriptTemplate` (class) L25
 - `DocCreate` (class) L34
@@ -138,7 +138,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `BulkResult` (class) L188
 - `UploadedPages` (class) L193
 - `DocDetail` (class) L197
-- `DocHistory` (class) L230
+- `DocHistory` (class) L232
 
 ## models/compliance/script_review_model.py (233 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class) L15

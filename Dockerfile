@@ -24,6 +24,13 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
 
+# The X scraper (scripts/scrape_x_playwright.py) drives headless Chromium: install it and the system libraries it needs.
+# A shared path, not root's home, so appuser (below) can run it.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN python -m playwright install --with-deps chromium \
+    && chmod -R a+rX /ms-playwright \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy application source code
 COPY . .
 

@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_doc_realtime.py (250 lines) - Live editing of script documents.
+## services/compliance/evaluation/script_doc_realtime.py (256 lines) - Live editing of script documents.
 - `Conn` (class) L42
     - `__init__` (def) L43
 - `_deliver_local` (def) L55
@@ -12,7 +12,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `publish` (def) L72 - Send a message to everyone who has the script open, on every worker.
 - `_on_remote` (def) L78
 - `start_listener` (def) L97 - Background task: receives other workers' messages (reconnects when the connection drops).
-    - `handler` (def) L106
-- `_refresh_access` (def) L134
-- `_send_loop` (def) L143 - Sends what's queued for this connection, plus a keep-alive ping (not a poll: nothing is read from the database).
-- `run` (def) L158 - One person's live connection to a script, until they close it.
+    - `handler` (def) L108
+- `_refresh_access` (def) L136
+- `_send_loop` (def) L145 - Sends what's queued for this connection, plus a keep-alive ping (not a poll: nothing is read from the database).
+- `run` (def) L160 - One person's live connection to a script, until they close it.

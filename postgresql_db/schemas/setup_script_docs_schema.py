@@ -17,6 +17,14 @@ from postgresql_db.database import get_pool
 logger = logging.getLogger(__name__)
 
 
+async def _setup_shared_column(conn) -> None:
+    # The script's document in the Share Document server (see shared_script_service), when it has one.
+    await conn.execute("""
+        ALTER TABLE script_documents ADD COLUMN IF NOT EXISTS share_document_id VARCHAR(80);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_script_documents_share ON script_documents(share_document_id) WHERE share_document_id IS NOT NULL;
+    """)
+
+
 async def setup() -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -135,4 +143,5 @@ async def setup() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_script_document_updates_doc ON script_document_updates(document_id, id);
         """)
+        await _setup_shared_column(conn)
     logger.info("Script document schema ready")

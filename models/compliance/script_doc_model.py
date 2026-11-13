@@ -219,6 +219,8 @@ class DocDetail(BaseModel):
     pages: List[DocPage] = Field(default_factory=list)
     # The post made from the script once it is approved.
     posts: List[DocPost] = Field(default_factory=list)
+    # Set when the script is edited in the Share Document server's editor (shown in an iframe) instead of this portal's.
+    share_document_id: Optional[str] = None
     all_checked: bool = False
     access: DocAccess
     # The viewer's own colour in the editor (their cursor and notes).
