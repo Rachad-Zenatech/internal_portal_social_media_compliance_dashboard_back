@@ -41,6 +41,7 @@ try:  # a command-line run needs the same MONGODB_URI the server has (the server
 except ImportError:
     pass
 
+from scripts.scrape_x_links import enrich_items, media_fields
 from services.compliance.analytics.listening_providers import (
     LOCAL_MODEL_NAME,
     analyze_raw_x_topic,
@@ -156,6 +157,7 @@ def _extract_tweets_from_rendered_profile(body: str, handle: str) -> List[Dict[s
             "status_id": status_id,
             "url": f"https://x.com/{author_handle}/status/{status_id}",
             "text": chunk[:500],
+            **media_fields(block, f"https://x.com/{author_handle}/status/{status_id}"),
             "engagements": 0,
             "published_at": posted.isoformat() if posted else None,
             "posted_on": posted.date().isoformat() if posted else None,
@@ -232,8 +234,7 @@ async def _scrape_live_trend_news_playwright(page, query: str, limit: int = 10, 
             if not title_m:
                 continue
             title_txt = html.unescape(re.sub(r"<[^>]+>", "", title_m.group(1))).strip()
-            # Filter out any company-specific PR from ZenaTech so trends reflect the general market/news only
-            # Market trends stay company-agnostic; searches about the company itself keep its own coverage.
+            # Market trends stay company-agnostic (no ZenaTech PR); searches about the company keep its own coverage.
             if drop_own_brand and ("zenatech" in title_txt.lower() or "zenadrone" in title_txt.lower()):
                 continue
             if any(t in title_txt.lower() for t in (exclude_terms or [])):
@@ -248,12 +249,11 @@ async def _scrape_live_trend_news_playwright(page, query: str, limit: int = 10, 
                 "author": f"@{author_slug}",
                 "url": link_m.group(1).strip() if link_m else None,
                 "text": title_txt,
-                # Google News gives no engagement figures, so none are claimed.
-                "engagements": 0,
-                # The article's own publish time (RSS pubDate), when it has one: the evidence window and the saved
-                # assessments depend on it. Items without one are dated from when they were first seen.
-                "published_at": _rss_date_iso(date_m.group(1).strip() if date_m else None),
-                "posted_on": (_rss_date_iso(date_m.group(1).strip() if date_m else None) or "")[:10] or None,
+                **media_fields("", link_m.group(1).strip() if link_m else None),
+                "engagements": 0,  # Google News gives no engagement figures, so none are claimed.
+                # The article's own publish time (RSS pubDate); items without one are dated from when first seen.
+                "published_at": published,
+                "posted_on": (published or "")[:10] or None,
             })
         status = "SUCCESS" if items else _page_status(raw_xml, 0)
     except Exception as e:
@@ -545,8 +545,8 @@ async def build_live_x_listening_json(output_path: Optional[Path] = None) -> Dic
 
     all_topics = [*post_topics, *market_topics]  # a draft's own searches first: they win ties
     homes = assign_unique(pool, [t["external_id"] for t in all_topics])
-
     topics_out: List[Dict[str, Any]] = []
+    await enrich_items(all_topics, homes, MAX_ITEMS_PER_TOPIC, topic_score)
     for topic_cfg in all_topics:
         collected = homes[topic_cfg["external_id"]][:MAX_ITEMS_PER_TOPIC]
         if topic_cfg.get("category") and not collected:

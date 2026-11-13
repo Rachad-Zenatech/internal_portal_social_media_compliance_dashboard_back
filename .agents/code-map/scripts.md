@@ -18,13 +18,28 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_main` (def) L59
 - `main` (def) L113
 
+## scripts/scrape_x_links.py (123 lines) - Is what an item links to about the topic it was collected for? Every outside link of a collected item (see scrape_x_media.source_links) i...
+- `_entry` (def) L40
+- `_ask_ai` (def) L44 - Gemini's call on a link the keywords couldn't settle, or None when no model could answer.
+- `_check_link` (def) L70
+- `flag_link_relevance` (def) L92 - Set item["source_link_checks"] for the outside links of these items (all collected for `topic`).
+    - `one` (def) L97
+- `enrich_items` (def) L113 - Read the text in the images and flag the links of everything that will be kept (`per_topic` items each).
+
+## scripts/scrape_x_media.py (97 lines) - Source links and image text for scraped X posts and news items.
+- `image_urls_from_block` (def) L30 - Pictures in a rendered post (avatars, emoji and icons are not the post's images).
+- `source_links_from_block` (def) L39 - The post's own link first, then any outside link it contains.
+- `media_fields` (def) L48 - source_links, image_urls and (to be filled in later) image_text for one collected item.
+- `_download` (def) L54
+- `add_image_text` (def) L66 - Set item["image_text"] on items that have image_urls.
+
 ## scripts/scrape_x_playwright.py (621 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
-- `snowflake_time` (def) L113 - When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits).
-- `_extract_tweets_from_rendered_profile` (def) L122 - Parse X posts from a rendered public X profile: text, link and real post time (from the post id).
-- `_page_status` (def) L170 - Why a page gave what it gave: SUCCESS, EMPTY (loaded, nothing there), AUTH_REQUIRED or RATE_LIMITED.
-- `_scrape_x_handle_playwright` (def) L182 - Scrape a public X profile using Playwright.
-- `_rss_date_iso` (def) L201 - An RSS date ('Tue, 10 Nov 2026 14:03:00 GMT') as an ISO timestamp, or None.
-- `_scrape_live_trend_news_playwright` (def) L213 - Scrape live breaking news & public headlines via Playwright for a market/world trend query.
+- `snowflake_time` (def) L114 - When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits).
+- `_extract_tweets_from_rendered_profile` (def) L123 - Parse X posts from a rendered public X profile: text, link and real post time (from the post id).
+- `_page_status` (def) L172 - Why a page gave what it gave: SUCCESS, EMPTY (loaded, nothing there), AUTH_REQUIRED or RATE_LIMITED.
+- `_scrape_x_handle_playwright` (def) L184 - Scrape a public X profile using Playwright.
+- `_rss_date_iso` (def) L203 - An RSS date ('Tue, 10 Nov 2026 14:03:00 GMT') as an ISO timestamp, or None.
+- `_scrape_live_trend_news_playwright` (def) L215 - Scrape live breaking news & public headlines via Playwright for a market/world trend query.
 - `_env_num` (def) L270
 - `_csv_env` (def) L286
 - `_stem` (def) L290

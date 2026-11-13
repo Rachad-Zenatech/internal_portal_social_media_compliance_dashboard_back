@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from models.compliance.compliance_model import ProvidedSource, SourceCheck
 from postgresql_db.database import fetch_all
 from services.compliance.evaluation import citation_finder, source_check_service
-from services.documents import document_layout
+from services.compliance.media import document_layout
 
 
 def normalize_source_url(raw: str) -> str:

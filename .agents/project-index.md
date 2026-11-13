@@ -47,6 +47,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
+- scripts/scrape_x_links.py (123 lines) - Is what an item links to about the topic it was collected for? Every outside link of a collected item (see scrape_x_media.source_links) i...
+- scripts/scrape_x_media.py (97 lines) - Source links and image text for scraped X posts and news items.
 - scripts/scrape_x_playwright.py (621 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
@@ -163,7 +165,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - tools/compliance/submissions/script_doc_router.py (206 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
 - tools/compliance/submissions/script_review_router.py (125 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
-- tools/compliance/submissions/source_link_router.py (19 lines) - Router for quick AI checking of submission source links.
+- tools/compliance/submissions/source_link_router.py (23 lines) - Router for quick AI checking of submission source links.
 - tools/compliance/submissions/submission_router.py (589 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/notifications/message_hub_router.py (57 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
