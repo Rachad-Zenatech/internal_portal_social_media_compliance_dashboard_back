@@ -32,13 +32,13 @@ def _age(iso: Optional[str]) -> str:
 
 def read_step(row: Dict[str, Any]) -> Dict[str, Any]:
     parts = {"title": row.get("title"), "caption": row.get("caption_text"), "script": row.get("script_text"),
-             "video transcript": row.get("transcript_text")}
+             "video transcript": row.get("transcript_text"), "image text": row.get("image_text")}
     lines = [f"{name}: {len(text)} characters" for name, text in parts.items() if text]
     missing = [name for name, text in parts.items() if not text]
     if missing:
         lines.append("not present: " + ", ".join(missing))
-    lines.append("Read: the script, the text of an attached script file, and the video transcript. Other attached "
-                 "documents and images are not read.")
+    lines.append("Read: the script, the text of an attached script file, the video transcript, and text extracted from "
+                 "attached images. Other attached documents are not read.")
     return step("1. What was read from your post", "ok" if row.get("text") else "none",
                 f"{len(row.get('text') or '')} characters of your own text", lines)
 
@@ -136,7 +136,8 @@ async def build(row: Dict[str, Any], mood) -> List[Dict[str, Any]]:
     from services.compliance.analytics.post_query_plan import plan_for_text
 
     found = await plan_for_text(row.get("title") or "", row.get("caption_text") or "",
-                                combine_body(row.get("script_version_body"), row.get("script_file_text"), row.get("transcript_text")),
+                                combine_body(row.get("script_version_body"), row.get("script_file_text"),
+                                             row.get("transcript_text"), row.get("image_text")),
                                 allow_model=False)
     try:
         feed = await load_feed()

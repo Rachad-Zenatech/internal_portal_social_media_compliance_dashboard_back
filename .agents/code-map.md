@@ -21,7 +21,7 @@ to find the right file.
 | .agents/code-map/scripts.md | 7 | 5 KB |
 | .agents/code-map/services__ai__core.md | 7 | 6 KB |
 | .agents/code-map/services__ai__observability.md | 5 | 4 KB |
-| .agents/code-map/services__compliance__analytics.md | 19 | 26 KB |
+| .agents/code-map/services__compliance__analytics.md | 20 | 26 KB |
 | .agents/code-map/services__compliance__evaluation.md | 21 | 30 KB |
 | .agents/code-map/services__compliance__media.md | 10 | 10 KB |
 | .agents/code-map/services__compliance__sentiment.md | 8 | 7 KB |

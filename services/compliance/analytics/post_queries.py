@@ -115,10 +115,17 @@ def queries_for_text(title: str, caption: str, body: str) -> Dict[str, Any]:
     return {"queries": queries, "keywords": keywords, "anchors": anchors}
 
 
-def combine_body(script: Optional[str], script_file_text: Optional[str], spoken: Optional[str]) -> str:
+def combine_body(
+    script: Optional[str],
+    script_file_text: Optional[str],
+    spoken: Optional[str],
+    image_text: Optional[str] = None,
+) -> str:
     """Everything the draft says besides its title and caption. The scrape and the process log both use this, so the
     saved search plan (keyed on the text) is found again."""
-    return "\n".join(dict.fromkeys(p.strip() for p in (script, script_file_text, spoken) if p and p.strip()))[:6000]
+    return "\n".join(
+        dict.fromkeys(p.strip() for p in (script, script_file_text, spoken, image_text) if p and p.strip())
+    )[:6000]
 
 
 async def active_draft_searches() -> List[Dict[str, Any]]:
@@ -126,7 +133,7 @@ async def active_draft_searches() -> List[Dict[str, Any]]:
     rows = await fetch_all(
         """
         SELECT s.id, s.title, s.caption_text,
-               sv.body AS script_body, v.transcript, sf.doc_text AS script_file_text
+               sv.body AS script_body, v.transcript, sf.doc_text AS script_file_text, img.image_text
         FROM content_submissions s
         LEFT JOIN LATERAL (
             SELECT doc_text FROM content_submission_files f2
@@ -142,6 +149,13 @@ async def active_draft_searches() -> List[Dict[str, Any]]:
             WHERE f.submission_id = s.id AND f.kind = 'MAIN' AND f.deleted_at IS NULL AND f.transcript_status = 'COMPLETED'
             ORDER BY f.created_at DESC LIMIT 1
         ) v ON true
+        LEFT JOIN LATERAL (
+            SELECT string_agg(TRIM(image_text), E'\n') AS image_text
+            FROM content_submission_files f3
+            WHERE f3.submission_id = s.id AND f3.kind IN ('MAIN', 'IMAGE')
+              AND f3.deleted_at IS NULL AND f3.image_text_status = 'COMPLETED'
+              AND NULLIF(TRIM(f3.image_text), '') IS NOT NULL
+        ) img ON true
         WHERE s.deleted_at IS NULL AND s.status = ANY($1::text[])
         ORDER BY s.updated_at DESC NULLS LAST
         LIMIT $2
@@ -153,8 +167,8 @@ async def active_draft_searches() -> List[Dict[str, Any]]:
         transcript = r["transcript"]
         segments = json.loads(transcript) if isinstance(transcript, str) else (transcript or [])
         spoken = " ".join(str(x.get("text", "")) for x in segments if isinstance(x, dict))
-        # Everything the draft says: its script, the text of the attached script file, and the video transcript.
-        body = combine_body(r["script_body"], r["script_file_text"], spoken)
+        # Everything the draft says: its script, the text of the attached script file, the video transcript, and image text.
+        body = combine_body(r["script_body"], r["script_file_text"], spoken, dict(r).get("image_text"))
         from services.compliance.analytics.post_query_plan import contexts_of, plan_for_text  # here: it imports this module
         found = await plan_for_text(r["title"] or "", r["caption_text"] or "", body)
         if found["queries"] or contexts_of(found):

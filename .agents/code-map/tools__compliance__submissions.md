@@ -59,32 +59,33 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `send_batch` (def) L77 [POST /{batch_id}/send] - Send the waiting scripts to the reviewers (checked against the rulebook in the background).
 - `review_batch` (def) L83 [POST /{batch_id}/review] - Approve or send back any number of the batch's scripts at once; each approved script becomes a post.
 
-## tools/compliance/submissions/script_doc_router.py (206 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
-- `list_templates` (def) L32 [GET /templates] - The script templates a creator can start from.
-- `attach_script` (def) L38 [POST /upload] - Attach a script: a new document made from an uploaded file, with a page for each script in it.
-- `delete_set` (def) L44 [DELETE /sets/{set_id}] - Delete a document and its scripts, only while every one is still a draft.
-- `list_sets` (def) L51 [GET /sets] - The creator's documents (each with its scripts as pages).
-- `list_docs` (def) L57 [GET ] - mine: scripts the user wrote; review: scripts sent to them; all: every script (Content Managers).
-- `create_doc` (def) L63 [POST ]
-- `get_doc` (def) L68 [GET /{doc_id}]
-- `update_doc` (def) L73 [PATCH /{doc_id}]
-- `delete_doc` (def) L78 [DELETE /{doc_id}]
-- `save_snapshot` (def) L84 [PUT /{doc_id}/snapshot] - An editor saves the script as it reads now.
-- `reviewer_options` (def) L91 [GET /{doc_id}/reviewers] - The people the creator can send this script to.
-- `submit` (def) L97 [POST /{doc_id}/submit] - Send the script for review.
-- `check_in` (def) L103 [POST /{doc_id}/check-in] - A reviewer says they are finished (approve, request changes, or done for a suggesting reviewer).
-- `withdraw_check_in` (def) L109 [DELETE /{doc_id}/check-in]
-- `finalize` (def) L114 [POST /{doc_id}/finalize] - Every reviewer has checked in: pass to the Content Manager (level 2) or approve back to the creator.
-- `decide` (def) L120 [POST /{doc_id}/decision] - The Content Manager's final decision.
-- `add_page` (def) L126 [POST /{doc_id}/pages] - A new page (script) in the same document, with its own table.
-- `upload_pages` (def) L132 [POST /{doc_id}/pages/upload] - Upload a file: it is split into scripts and each becomes a page of the document.
-- `submit_pages` (def) L138 [POST /{doc_id}/pages/submit] - Send the document's scripts for review together, each on its own.
-- `create_posts` (def) L144 [POST /{doc_id}/posts] - Make the posts for an approved script document that could not be made when it was approved.
-- `history` (def) L150 [GET /{doc_id}/history]
-- `check` (def) L155 [POST /{doc_id}/check] - The rulebook check of the script as it reads now (or of `text`).
-- `_valid_user` (def) L161
-- `_ws_user` (def) L174 - Who the connection is: the sign-in cookie, or a first message {"type": "auth", "token": ...}.
-- `live` (def) L194 [WEBSOCKET /{doc_id}/live] - The live editing connection for one script.
+## tools/compliance/submissions/script_doc_router.py (214 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
+- `list_templates` (def) L33 [GET /templates] - The script templates a creator can start from.
+- `attach_script` (def) L39 [POST /upload] - Attach a script: a new document made from an uploaded file, with a page for each script in it.
+- `delete_set` (def) L45 [DELETE /sets/{set_id}] - Delete a document and its scripts, only while every one is still a draft.
+- `list_sets` (def) L52 [GET /sets] - The creator's documents (each with its scripts as pages).
+- `list_docs` (def) L58 [GET ] - mine: scripts the user wrote; review: scripts sent to them; all: every script (Content Managers).
+- `create_doc` (def) L64 [POST ]
+- `get_shared_editor` (def) L69 [GET /{doc_id}/shared-editor] - Where the Share Document server's editor for this script is, and a 15-minute sign-in for it (for the iframe).
+- `get_doc` (def) L76 [GET /{doc_id}]
+- `update_doc` (def) L81 [PATCH /{doc_id}]
+- `delete_doc` (def) L86 [DELETE /{doc_id}]
+- `save_snapshot` (def) L92 [PUT /{doc_id}/snapshot] - An editor saves the script as it reads now.
+- `reviewer_options` (def) L99 [GET /{doc_id}/reviewers] - The people the creator can send this script to.
+- `submit` (def) L105 [POST /{doc_id}/submit] - Send the script for review.
+- `check_in` (def) L111 [POST /{doc_id}/check-in] - A reviewer says they are finished (approve, request changes, or done for a suggesting reviewer).
+- `withdraw_check_in` (def) L117 [DELETE /{doc_id}/check-in]
+- `finalize` (def) L122 [POST /{doc_id}/finalize] - Every reviewer has checked in: pass to the Content Manager (level 2) or approve back to the creator.
+- `decide` (def) L128 [POST /{doc_id}/decision] - The Content Manager's final decision.
+- `add_page` (def) L134 [POST /{doc_id}/pages] - A new page (script) in the same document, with its own table.
+- `upload_pages` (def) L140 [POST /{doc_id}/pages/upload] - Upload a file: it is split into scripts and each becomes a page of the document.
+- `submit_pages` (def) L146 [POST /{doc_id}/pages/submit] - Send the document's scripts for review together, each on its own.
+- `create_posts` (def) L152 [POST /{doc_id}/posts] - Make the posts for an approved script document that could not be made when it was approved.
+- `history` (def) L158 [GET /{doc_id}/history]
+- `check` (def) L163 [POST /{doc_id}/check] - The rulebook check of the script as it reads now (or of `text`).
+- `_valid_user` (def) L169
+- `_ws_user` (def) L182 - Who the connection is: the sign-in cookie, or a first message {"type": "auth", "token": ...}.
+- `live` (def) L202 [WEBSOCKET /{doc_id}/live] - The live editing connection for one script.
 
 ## tools/compliance/submissions/script_review_router.py (125 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `suggest_fix` (def) L33 [POST /scripts/suggest-fix] - A compliant rewrite of one flagged passage of a script, for the creator to use or not.

@@ -22,7 +22,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "server.py": {
-      "max_lines": 712,
+      "max_lines": 631,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/analytics/conversation_evidence.py": {
@@ -34,7 +34,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/analytics/public_mood_service.py": {
-      "max_lines": 1121,
+      "max_lines": 1046,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/brand_voice_service.py": {
@@ -58,7 +58,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
-      "max_lines": 3053,
+      "max_lines": 3050,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/notifications/rabbitmq_service.py": {
@@ -112,7 +112,7 @@
       "kind": "py_function"
     },
     "server.py#lifespan": {
-      "max_lines": 226,
+      "max_lines": 142,
       "kind": "py_function"
     },
     "services/compliance/evaluation/compliance_service.py#check_compliance": {
@@ -136,11 +136,11 @@
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#update_submission": {
-      "max_lines": 145,
+      "max_lines": 141,
       "kind": "py_function"
     },
     "services/notifications/rabbitmq_hub_status.py#HubStatusMixin._build_hub_live_status": {
-      "max_lines": 224,
+      "max_lines": 222,
       "kind": "py_function"
     },
     "services/shared/auth/auth_service.py#upsertMicrosoftUser": {

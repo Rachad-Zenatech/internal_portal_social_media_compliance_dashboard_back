@@ -238,7 +238,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `metrics` (def) L291
 - `get_provider` (def) L298
 
-## services/compliance/analytics/post_queries.py (219 lines) - Searches built from what each draft actually says.
+## services/compliance/analytics/post_queries.py (233 lines) - Searches built from what each draft actually says.
 - `_only_everyday_words` (def) L56 - True when the word is everyday words run together ("digitaltransformation") or hyphenated ("ai-powered").
 - `_trim` (def) L66 - The name without everyday words at its edges ("meet stacklens" -> "stacklens", "shaun test" -> "shaun").
 - `_is_subject` (def) L76 - A name worth searching for: more than one word (and not only everyday ones), or one distinctive word.
@@ -246,11 +246,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_in_order` (def) L90 - The phrases in the order they first appear in the text (a set has no order, and the first names matter most).
 - `queries_for_text` (def) L96 - {"queries": [...], "keywords": [...]} for one draft, from its own words.
 - `combine_body` (def) L118 - Everything the draft says besides its title and caption.
-- `active_draft_searches` (def) L124 - One entry per active draft that gave at least one search: {id, title, queries, keywords}.
-- `write_file` (def) L165 - Hand the searches to the scraper process (it has no database connection) through a temporary file.
-- `read_file` (def) L175
-- `topic_for_draft` (def) L187 - The listening topic a draft's searches become, matched back to that draft by its own keywords.
-- `context_topics_for_draft` (def) L201 - The wider topics around a draft's subject, one topic each: the public vibe about them, not coverage of this
+- `active_draft_searches` (def) L131 - One entry per active draft that gave at least one search: {id, title, queries, keywords}.
+- `write_file` (def) L179 - Hand the searches to the scraper process (it has no database connection) through a temporary file.
+- `read_file` (def) L189
+- `topic_for_draft` (def) L201 - The listening topic a draft's searches become, matched back to that draft by its own keywords.
+- `context_topics_for_draft` (def) L215 - The wider topics around a draft's subject, one topic each: the public vibe about them, not coverage of this
 
 ## services/compliance/analytics/post_query_plan.py (167 lines) - The searches for one draft: what its own subject is, and what the wider topic around it is.
 - `_norm` (def) L70
@@ -278,7 +278,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `SignalFinding` (class) L181
 - `findings` (def) L194 - Rule-like findings from the signals.
 
-## services/compliance/analytics/public_mood_process.py (148 lines) - A plain-language log of how a post's public mood was made, shown on the page so a person can follow it: what was read from the post, whic...
+## services/compliance/analytics/public_mood_process.py (149 lines) - A plain-language log of how a post's public mood was made, shown on the page so a person can follow it: what was read from the post, whic...
 - `step` (def) L15 - status: ok (worked), warn (worked with a limit), none (nothing to show), info.
 - `_age` (def) L20
 - `read_step` (def) L33
@@ -289,7 +289,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `conversation_step` (def) L122
 - `build` (def) L134
 
-## services/compliance/analytics/public_mood_service.py (1122 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+## services/compliance/analytics/public_mood_prompt.py (105 lines) - Prompt and structured response schema for the Gemini public-mood summary.
+- `_enum` (def) L10
+- `build_summary_prompt` (def) L41 - Build the Gemini prompt summarizing how a submission lands against its matched listening snapshots.
+
+## services/compliance/analytics/public_mood_service.py (1047 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - `_env_float` (def) L72
 - `_get_client` (def) L100
 - `_source_label` (def) L110
@@ -303,42 +307,41 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_effective_keywords` (def) L235 - The source's keywords minus the ones the team switched off, plus the team's own.
 - `_load_topics` (def) L242 - Live topics from the current source, with the keywords that count for matching.
 - `_meaning_scores` (def) L265 - How close the post is in meaning to each topic: the raw score, and its margin over the post's median score
-- `_unambiguous` (def) L305 - A phrase ("drone delivery") or a coined name ("ZenaDrone") rarely means anything else; a single everyday
-- `_match` (def) L311 - Topics the post is about, strongest first: (topic, keywords found, similarity, close in meaning).
-- `_is_fresh` (def) L341
-- `_latest_snapshots` (def) L348
-- `_with_trend` (def) L360 - Mentions per day, and the change in them, from the stories collected over the last days (every scrape so far, one
-- `_fresh_snapshots` (def) L382 - The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale.
-- `_snapshot_model` (def) L432
-- `_overall_post_recommendation` (def) L468 - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
-- `_load` (def) L491
-- `_topic_kind` (def) L530
-- `_may_show_on` (def) L535 - A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
-- `_gather` (def) L543 - The post, its matched topics and their current snapshots.
-    - `is_own` (def) L572
-- `_input_hash` (def) L607
-- `_summary_model` (def) L618
-- `_with_feedback` (def) L636
-- `get_public_mood` (def) L650
-- `mark_conversation_unrelated` (def) L676 - A reviewer says a retrieved item is not about this post: it is left out of this draft's assessments.
-- `restore_conversation_item` (def) L683
-- `correct_conversation_recommendation` (def) L688 - A reviewer says the assessment's recommendation was wrong, and why (recorded; the assessment is unchanged).
-- `confirm_conversation_recommendation` (def) L696 - A reviewer says the assessment's recommendation is right.
-- `resolve_conversation_decision` (def) L702 - A lead reviewer settles a disagreement between reviewers about an assessment's recommendation.
-- `mark_conversation_sentiment` (def) L710
-- `clear_conversation_sentiment` (def) L717
-- `clear_conversation_correction` (def) L723
-- `dismiss_topic` (def) L728 - Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones).
-- `restore_topic` (def) L744
-- `rate_summary` (def) L751 - Say whether a summary helped (or take the vote back with no data).
-- `list_topics` (def) L773 - Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly.
-- `list_trend_opportunities` (def) L811 - See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
-- `ingest_x_json` (def) L872 - Save scraped/collected X (Twitter) topics and raw comments as the current feed (the vector database's
-- `_clean_words` (def) L916
-- `update_topic` (def) L920
-- `match_test` (def) L937 - Which topics a piece of text would match and why, with the near misses, for tuning keywords.
-- `_enum` (def) L982
-- `_prompt` (def) L1013
-- `summarise` (def) L1074 - Write (or reuse) the summary for the post's current version against the current moods.
+- `_unambiguous` (def) L306 - A phrase ("drone delivery") or a coined name ("ZenaDrone") rarely means anything else; a single everyday
+- `_match` (def) L312 - Topics the post is about, strongest first: (topic, keywords found, similarity, close in meaning).
+- `_is_fresh` (def) L342
+- `_latest_snapshots` (def) L349
+- `_with_trend` (def) L361 - Mentions per day, and the change in them, from the stories collected over the last days (every scrape so far, one
+- `_fresh_snapshots` (def) L383 - The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale.
+- `_snapshot_model` (def) L433
+- `_overall_post_recommendation` (def) L469 - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
+- `_load` (def) L492
+- `_topic_kind` (def) L540
+- `_may_show_on` (def) L545 - A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
+- `_gather` (def) L553 - The post, its matched topics and their current snapshots.
+    - `is_own` (def) L582
+- `_input_hash` (def) L617
+- `_summary_model` (def) L628
+- `_with_feedback` (def) L646
+- `get_public_mood` (def) L660
+- `mark_conversation_unrelated` (def) L686 - A reviewer says a retrieved item is not about this post: it is left out of this draft's assessments.
+- `restore_conversation_item` (def) L693
+- `correct_conversation_recommendation` (def) L698 - A reviewer says the assessment's recommendation was wrong, and why (recorded; the assessment is unchanged).
+- `confirm_conversation_recommendation` (def) L706 - A reviewer says the assessment's recommendation is right.
+- `resolve_conversation_decision` (def) L712 - A lead reviewer settles a disagreement between reviewers about an assessment's recommendation.
+- `mark_conversation_sentiment` (def) L720
+- `clear_conversation_sentiment` (def) L727
+- `clear_conversation_correction` (def) L733
+- `dismiss_topic` (def) L738 - Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones).
+- `restore_topic` (def) L754
+- `rate_summary` (def) L761 - Say whether a summary helped (or take the vote back with no data).
+- `list_topics` (def) L783 - Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly.
+- `list_trend_opportunities` (def) L821 - See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
+- `ingest_x_json` (def) L882 - Save scraped/collected X (Twitter) topics and raw comments as the current feed (the vector database's
+- `_clean_words` (def) L926
+- `update_topic` (def) L930
+- `match_test` (def) L947 - Which topics a piece of text would match and why, with the near misses, for tuning keywords.
+- `_prompt` (def) L995
+- `summarise` (def) L999 - Write (or reuse) the summary for the post's current version against the current moods.
 
 ## services/compliance/analytics/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...

@@ -275,6 +275,7 @@ async def _meaning_scores(row: Dict[str, Any], topic_count: int) -> Optional[Dic
             "\n".join(x for x in [row.get("title"), row.get("caption_text")] if x),
             row.get("script_text"),
             row.get("transcript_text"),
+            row.get("image_text"),
         ] if p
     ]
     if not parts:
@@ -492,7 +493,8 @@ async def _load(submission_id: UUID) -> Dict[str, Any]:
     row = await fetch_one(
         """
         SELECT s.id, s.title, s.caption_text, s.brand_code, s.audience, s.platforms, s.current_version,
-               b.name AS brand_name, v.transcript, sv.body AS script_version_body, sf.doc_text AS script_file_text
+               b.name AS brand_name, v.transcript, sv.body AS script_version_body, sf.doc_text AS script_file_text,
+               img.image_text
         FROM content_submissions s
         LEFT JOIN brands b ON b.code = s.brand_code
         LEFT JOIN LATERAL (
@@ -510,6 +512,13 @@ async def _load(submission_id: UUID) -> Dict[str, Any]:
             WHERE f2.submission_id = s.id AND f2.kind = 'SCRIPT' AND f2.deleted_at IS NULL AND f2.doc_text_status = 'COMPLETED'
             ORDER BY f2.created_at DESC LIMIT 1
         ) sf ON true
+        LEFT JOIN LATERAL (
+            SELECT string_agg(TRIM(image_text), E'\n') AS image_text
+            FROM content_submission_files f3
+            WHERE f3.submission_id = s.id AND f3.kind IN ('MAIN', 'IMAGE')
+              AND f3.deleted_at IS NULL AND f3.image_text_status = 'COMPLETED'
+              AND NULLIF(TRIM(f3.image_text), '') IS NOT NULL
+        ) img ON true
         WHERE s.id = $1 AND s.deleted_at IS NULL
         """,
         submission_id,
@@ -521,8 +530,9 @@ async def _load(submission_id: UUID) -> Dict[str, Any]:
     segments = json.loads(transcript) if isinstance(transcript, str) else (transcript or [])
     row["transcript_text"] = " ".join(str(s.get("text", "")) for s in segments).strip()
     row["script_text"] = (row.get("script_version_body") or row.get("script_file_text") or "").strip()
+    row["image_text"] = (row.get("image_text") or "").strip()
     row["text"] = "\n".join(
-        p for p in [row["title"], row["caption_text"], row["script_text"], row["transcript_text"]] if p
+        p for p in [row["title"], row["caption_text"], row["script_text"], row["transcript_text"], row["image_text"]] if p
     )[:MAX_TEXT_CHARS]
     return row
 
@@ -979,96 +989,11 @@ async def match_test(text: str) -> MatchTestResult:
 # The summary
 # ---------------------------------------------------------------------------
 
-def _enum(*values: str) -> Dict[str, Any]:
-    return {"type": "STRING", "enum": list(values)}
-
-
-RESPONSE_SCHEMA: Dict[str, Any] = {
-    "type": "OBJECT",
-    "properties": {
-        "overall": _enum("FAVOURABLE", "MIXED", "UNFAVOURABLE", "NO_DATA"),
-        "recommendation": _enum("POST", "WAIT", "HOLD"),
-        "recommendation_reason": {"type": "STRING"},
-        "headline": {"type": "STRING"},
-        "topics": {
-            "type": "ARRAY",
-            "items": {
-                "type": "OBJECT",
-                "properties": {
-                    "topic": {"type": "STRING"},
-                    "reading": {"type": "STRING"},
-                    "risk": _enum("LOW", "MEDIUM", "HIGH"),
-                },
-                "required": ["topic", "reading", "risk"],
-            },
-        },
-        "risks": {"type": "ARRAY", "items": {"type": "STRING"}},
-        "opportunities": {"type": "ARRAY", "items": {"type": "STRING"}},
-        "timing_note": {"type": "STRING", "nullable": True},
-    },
-    "required": ["overall", "recommendation", "recommendation_reason", "headline", "topics", "risks", "opportunities"],
-}
+from services.compliance.analytics.public_mood_prompt import RESPONSE_SCHEMA, build_summary_prompt
 
 
 def _prompt(row: Dict[str, Any], mood: PublicMood) -> str:
-    topics = []
-    for t in mood.topics:
-        if not t.snapshot:
-            continue
-        s = t.snapshot
-        topics.append({
-            "topic": t.name,
-            "how_the_post_relates": (
-                f"names it ({', '.join(t.matched_terms)})" if t.matched_terms else "talks about it without naming it"
-            ),
-            "data_age_hours": round((datetime.now(timezone.utc) - s.fetched_at).total_seconds() / 3600, 1),
-            "last_days": s.window_days,
-            "positive_pct": s.positive_pct,
-            "neutral_pct": s.neutral_pct,
-            "negative_pct": s.negative_pct,
-            "mentions": s.volume,
-            "mentions_change_pct": s.volume_change_pct,
-            "spiking": s.is_spike,
-            "baseline_recommendation": s.recommendation,
-            "baseline_reason": s.recommendation_reason,
-            "sample_posts": [
-                {"sentiment": p.sentiment, "confidence": p.confidence, "text": p.text}
-                for p in s.top_posts
-            ],
-        })
-    baseline_rec, baseline_reason = _overall_post_recommendation(mood.topics)
-    return f"""You advise a social media reviewer at a publicly listed drone and technology company.
-Below is a post (including its title, caption, any uploaded script, and any video speech transcript) that is in review,
-along with social listening data on how people online currently feel about the topics it touches.
-Say, briefly and concretely, how this post or script is likely to land given that mood: where it could be
-misread or draw criticism (for example, posting about attack/military drones while a country is being raided by attack drones),
-where it rides goodwill or a positive trend the team can jump on, and recommend whether to POST, WAIT, or HOLD.
-
-Decision Rules for `recommendation`:
-- POST: At least ~70% positive sentiment (or clearly favourable mood), limited negative feedback, and no serious reputation or crisis alerts.
-- WAIT: Mixed sentiment, an unusual increase in negative comments, low confidence, or insufficient data.
-- HOLD: A serious verified reputation issue, geopolitical/safety crisis (e.g., drone attacks/raids/casualties in the news), or a significant negative trend. Send to a human reviewer rather than publishing now.
-- Do not rely on sentiment percentage alone: a small number of serious crisis or safety complaints matters more than hundreds of positive comments.
-
-Rules:
-- Base every statement on the post/script/transcript and the listening data given. Don't invent events, numbers or news.
-- The headline is one sentence. `recommendation_reason` is one concise sentence explaining why POST, WAIT, or HOLD was chosen.
-- Each topic reading is one or two sentences. Up to 3 risks and 3 opportunities.
-- Use NO_DATA only if no topic data is given.
-- timing_note only when spiking or shifting mentions matter for when to post; otherwise null.
-- Today is {datetime.now(timezone.utc).date().isoformat()}.
-
-POST / SCRIPT / TRANSCRIPT IN REVIEW
-Brand: {row["brand_name"] or row["brand_code"] or "unknown"}
-Audience: {row["audience"] or "general"}
-Platforms: {", ".join(row["platforms"] or []) or "unspecified"}
-Baseline Rule Recommendation: {baseline_rec} ({baseline_reason})
-Text (title, caption, uploaded script, and/or video transcript):
-\"\"\"{row["text"]}\"\"\"
-
-LISTENING DATA ({mood.source}{" (sample data)" if mood.is_mock else ""})
-{json.dumps(topics, indent=1)}
-"""
+    return build_summary_prompt(row, mood, _overall_post_recommendation)
 
 
 async def summarise(submission_id: UUID, user_id: UUID) -> PublicMood:
