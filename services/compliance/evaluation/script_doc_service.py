@@ -34,6 +34,8 @@ from models.compliance.script_doc_model import (
 from models.compliance.submission_model import SubmissionCreate, SubmissionUpdate
 from postgresql_db.database import execute, fetch_all, fetch_one, get_pool
 from services.compliance.evaluation import script_doc_realtime as realtime
+from services.compliance.evaluation import shared_script_review as sharedrev
+from services.compliance.evaluation import shared_script_service as shared
 from services.compliance.evaluation import script_batch_service as batches
 from services.compliance.evaluation import script_review_service as scripts
 from services.compliance.evaluation.script_doc_split import split_document
@@ -209,7 +211,7 @@ def _detail(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], access: DocAcc
         # The reviewers are picked when the script is sent, so they are not one of the details still to fill in.
         missing_details=[m for m in batches.missing_details({**(subs._json(doc["details"]) or {}), "reviewer_ids": ["-"]})
                          if m != "Send to reviewers"],
-        set_id=doc.get("set_id"), set_title=set_title, pages=pages or [], posts=posts or [],
+        set_id=doc.get("set_id"), set_title=set_title, pages=pages or [], posts=posts or [], share_document_id=sharedrev.shared_id(doc),
         all_checked=_all_checked(doc, reviewers), access=access, my_color=_color(user_id, order),
         updated_at=doc["updated_at"], created_at=doc["created_at"],
     )
@@ -244,6 +246,7 @@ async def create(user_id: UUID, req: DocCreate) -> DocDetail:
                 title, t.key, user_id, template_html(t, title), "", set_id)
     await _event(doc_id, 0, user_id, "CREATED", {"template": t.key})
     await log_audit_event("script_document", str(doc_id), "CREATE", user_id, {"template": t.key})
+    await shared.ensure_shared_document(doc_id)
     return await get(doc_id, user_id)
 
 
@@ -275,6 +278,7 @@ async def delete(doc_id: UUID, user_id: UUID) -> None:
         await execute(
             "UPDATE script_sets SET deleted_at = NOW() WHERE id = $1 AND NOT EXISTS "
             "(SELECT 1 FROM script_documents WHERE set_id = $1 AND deleted_at IS NULL) RETURNING id", doc["set_id"])
+    await shared.delete_shared_documents(page_ids=[doc_id])  # its shared document goes too (best-effort)
     await log_audit_event("script_document", str(doc_id), "DELETE", user_id, {})
 
 
@@ -313,6 +317,8 @@ async def submit(doc_id: UUID, user_id: UUID, req: DocSubmit) -> DocDetail:
         raise HTTPException(status_code=400, detail=scripts.SELF_REVIEW_MESSAGE)
     html = req.html if req.html is not None else doc["body_html"]
     text = req.text if req.text is not None else doc["body_text"]
+    if current := await sharedrev.body(doc):  # the script lives in the shared editor: send what it holds now
+        html, text = current
     if not (text or "").strip() or not split_document(html, doc["title"]):
         raise HTTPException(status_code=400, detail="The script is empty")
     # The posts made from the scripts need their details, as for scripts uploaded together.
@@ -321,6 +327,8 @@ async def submit(doc_id: UUID, user_id: UUID, req: DocSubmit) -> DocDetail:
     missing = batches.missing_details(details)
     if missing:
         raise HTTPException(status_code=422, detail=f"Fill in the details first: {', '.join(missing)}.")
+    can_review = {p.user_id: await subs._can_review(p.user_id) for p in req.reviewers}
+    await sharedrev.send(doc, user_id, req.reviewers, await _managers(), can_review, req.note)  # first: the shared review decides
     round_ = doc["round"] + 1
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -387,6 +395,7 @@ async def check_in(doc_id: UUID, user_id: UUID, req: CheckIn) -> DocDetail:
         raise HTTPException(status_code=400, detail="Choose approve or request changes")
     if req.vote == "CHANGES" and not (req.note or "").strip():
         raise HTTPException(status_code=400, detail="Say what needs to change")
+    await sharedrev.act(doc, user_id, "check_in", vote=req.vote, note=req.note)
     await execute(
         "INSERT INTO script_document_checkins (document_id, round, user_id, vote, note, pass_to_manager) VALUES ($1, $2, $3, $4, $5, $6) "
         "ON CONFLICT (document_id, round, user_id) DO UPDATE SET vote = EXCLUDED.vote, note = EXCLUDED.note, "
@@ -401,6 +410,7 @@ async def withdraw_check_in(doc_id: UUID, user_id: UUID) -> DocDetail:
     doc, reviewers, access = await get_access(doc_id, user_id)
     if doc["status"] != "IN_REVIEW":
         raise HTTPException(status_code=409, detail="The script isn't in review")
+    await sharedrev.act(doc, user_id, "withdraw")
     await execute("DELETE FROM script_document_checkins WHERE document_id = $1 AND round = $2 AND user_id = $3 RETURNING user_id",
                   doc_id, doc["round"], user_id)
     await _broadcast_state(doc_id)
@@ -442,6 +452,7 @@ async def finalize(doc_id: UUID, user_id: UUID, req: Finalize) -> DocDetail:
         raise HTTPException(status_code=403, detail="Only a content reviewer who checked in can decide where the script goes")
     if not _all_checked(doc, reviewers):
         raise HTTPException(status_code=409, detail="Every reviewer has to check in first")
+    await sharedrev.act(doc, user_id, "finalize", route=req.route, note=req.note)
     votes = _votes(reviewers)
     if votes["CHANGES"]:
         notes = "; ".join(f"{r['name']}: {r['note']}" for r in votes["CHANGES"] if r["note"])
@@ -466,6 +477,7 @@ async def decide(doc_id: UUID, user_id: UUID, req: ManagerDecision) -> DocDetail
         raise HTTPException(status_code=403, detail="Only the Content Manager decides here")
     if req.decision == "SEND_BACK" and not (req.note or "").strip():
         raise HTTPException(status_code=400, detail="Say what needs to change")
+    await sharedrev.act(doc, user_id, "decide", decision=req.decision, note=req.note)
     if req.decision == "APPROVE":
         await _close(doc, "APPROVED", user_id, req.note, "Approved by Content Manager", "APPROVED")
         await _pages_module()._approved(doc)

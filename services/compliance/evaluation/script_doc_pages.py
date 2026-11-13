@@ -20,6 +20,7 @@ from models.compliance.submission_model import SubmissionCreate, SubmissionUpdat
 from postgresql_db.database import execute, fetch_all, fetch_one, get_pool
 from services.compliance.evaluation import script_batch_service as batches
 from services.compliance.evaluation import script_doc_service as core
+from services.compliance.evaluation import shared_script_service as shared
 from services.compliance.evaluation.script_doc_templates import empty_script_html, text_to_html
 from services.compliance.evaluation.script_split import split_scripts
 from services.compliance.evaluation.script_doc_split import split_document
@@ -125,6 +126,7 @@ async def _new_page(set_id: UUID, creator: UUID, title: str, html: str, text: st
         "RETURNING id", title[:300], creator, html, text, set_id, json.dumps(subs._json(set_row["details"]) or {}))
     await core._event(row["id"], 0, creator, "CREATED", {"page": True})
     await execute("UPDATE script_sets SET updated_at = NOW() WHERE id = $1 RETURNING id", set_id)
+    await shared.ensure_shared_document(row["id"])
     return row["id"]
 
 
@@ -233,4 +235,5 @@ async def delete_set(set_id: UUID, user_id: UUID) -> None:
         raise HTTPException(status_code=409, detail="Only a script that hasn't been sent for review can be deleted")
     await fetch_all("UPDATE script_documents SET deleted_at = NOW() WHERE set_id = $1 AND deleted_at IS NULL RETURNING id", set_id)
     await execute("UPDATE script_sets SET deleted_at = NOW() WHERE id = $1 RETURNING id", set_id)
+    await shared.delete_shared_documents(set_id=set_id)  # every page's shared document goes in one call (best-effort)
     await log_audit_event("script_document", str(set_id), "DELETE_SET", user_id, {})

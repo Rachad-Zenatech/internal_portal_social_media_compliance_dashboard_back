@@ -21,11 +21,14 @@ from services.compliance.evaluation import script_doc_realtime as realtime
 from services.compliance.evaluation import script_doc_pages as pages
 from services.compliance.evaluation import script_doc_reads as reads
 from services.compliance.evaluation import script_doc_service as svc
+from services.compliance.evaluation import shared_script_review as sharedrev
+from tools.compliance.submissions.script_directory_router import router as directory_router
 from services.shared.auth.auth_service import AUTH_COOKIE_NAME, get_current_user_id_dependency, verify_token
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/script-docs", tags=["Script Documents"])
+router.include_router(directory_router)  # /script-docs/service/script-users, for the Share Document portal (declared first so no /{doc_id} route takes it)
 CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 
 
@@ -63,6 +66,13 @@ async def list_docs(user_id: CurrentUser, scope: Literal["mine", "review", "all"
 @router.post("", response_model=DocDetail)
 async def create_doc(req: DocCreate, user_id: CurrentUser):
     return await svc.create(user_id, req)
+
+
+@router.get("/{doc_id}/shared-editor")
+async def get_shared_editor(doc_id: UUID, user_id: CurrentUser):
+    """Where the Share Document server's editor for this script is, and a 15-minute sign-in for it (for the iframe)."""
+    doc, _, _ = await svc.get_access(doc_id, user_id)
+    return await sharedrev.editor_session(doc, user_id)
 
 
 @router.get("/{doc_id}", response_model=DocDetail)
@@ -192,14 +202,15 @@ async def _ws_user(ws: WebSocket) -> Optional[UUID]:
 
 
 @router.websocket("/{doc_id}/live")
-async def live(ws: WebSocket, doc_id: UUID):
-    """The live editing connection for one script."""
+async def live(ws: WebSocket, doc_id: UUID, notes_only: bool = Query(False)):
+    """The live connection for one script: its text and notes, or (`notes_only`, for a script edited in the Share Document
+    portal) just the notes."""
     await ws.accept()
     user_id = await _ws_user(ws)
     if not user_id:
         await ws.close(code=status.WS_1008_POLICY_VIOLATION)
         return
     try:
-        await realtime.run(ws, doc_id, user_id)
+        await realtime.run(ws, doc_id, user_id, notes_only)
     except HTTPException:
         await ws.close(code=status.WS_1008_POLICY_VIOLATION)

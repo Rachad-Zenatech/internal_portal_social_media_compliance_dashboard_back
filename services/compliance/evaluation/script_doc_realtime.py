@@ -96,6 +96,8 @@ async def _on_remote(raw: str) -> None:
 
 async def start_listener() -> None:
     """Background task: receives other workers' messages (reconnects when the connection drops)."""
+    from services.compliance.evaluation.shared_script_sync import start_consumer  # the shared editor's events, alongside
+    asyncio.get_running_loop().create_task(start_consumer())
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         logger.warning("DATABASE_URL not configured. Script document relay between workers disabled.")
@@ -155,21 +157,25 @@ async def _send_loop(c: Conn) -> None:
         await c.ws.send_text(json.dumps(msg))
 
 
-async def run(ws: WebSocket, doc_id: UUID, user_id: UUID) -> None:
-    """One person's live connection to a script, until they close it."""
+async def run(ws: WebSocket, doc_id: UUID, user_id: UUID, notes_only: bool = False) -> None:
+    """One person's live connection to a script, until they close it. `notes_only` is for a script whose text lives in the
+    Share Document portal: the connection carries the notes (highlights and comments) and nothing of the text, and never
+    gives the page its starting text."""
     from services.compliance.evaluation import script_doc_service as svc
 
     doc, reviewers, access = await svc.get_access(doc_id, user_id)
     name = await svc._name(user_id) or "Someone"
     c = Conn(ws, user_id, name, doc_id)
-    c.can_edit, c.can_note = access.can_edit, access.can_note
+    c.can_edit, c.can_note = access.can_edit and not notes_only, access.can_note
 
     # The very first person to open a new script gives the editor its starting text (from the template); claimed in the
     # database so two people opening at once on different workers can't both do it.
-    claimed = await fetch_one("UPDATE script_documents SET seeded = TRUE WHERE id = $1 AND seeded = FALSE RETURNING id", doc_id)
+    claimed = None if notes_only else await fetch_one("UPDATE script_documents SET seeded = TRUE WHERE id = $1 AND seeded = FALSE RETURNING id", doc_id)
     c.seeding = bool(claimed)
 
-    rows = await fetch_all("SELECT channel, payload FROM script_document_updates WHERE document_id = $1 ORDER BY id", doc_id)
+    rows = await fetch_all(
+        "SELECT channel, payload FROM script_document_updates WHERE document_id = $1" + (" AND channel = 'notes'" if notes_only else "") + " ORDER BY id",
+        doc_id)
     updates: Dict[str, list] = {"text": [], "notes": []}
     for r in rows:
         updates.setdefault(r["channel"], []).append(base64.b64encode(r["payload"]).decode())
@@ -214,7 +220,7 @@ async def run(ws: WebSocket, doc_id: UUID, user_id: UUID) -> None:
                     seeded_something = True  # the starting text is not a reviewer's change
                     continue
                 await svc.note_change(doc_id, user_id, ch)
-            elif kind == "claim_seed" and not c.seeding:
+            elif kind == "claim_seed" and not c.seeding and not notes_only:
                 # A browser that opened an empty script and wasn't given the starting text asks again (the person who was
                 # may have left before saving it).
                 # Also when an earlier claim never produced the text (its browser left or failed): while the page is still
