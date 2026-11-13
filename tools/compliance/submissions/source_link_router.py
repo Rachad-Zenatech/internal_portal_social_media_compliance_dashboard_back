@@ -1,14 +1,17 @@
 """Router for quick AI checking of submission source links."""
 
+from typing import Annotated
 from uuid import UUID
-from fastapi import APIRouter
+
+from fastapi import APIRouter, Depends
 
 from models.compliance.compliance_model import SourceCheck
 from models.compliance.source_link_model import SourceLinkCheckRequest
 from services.compliance.submissions import source_link_service
-from tools.shared.core.auth_router import CurrentUser
+from services.shared.auth.auth_service import get_current_user_id_dependency
 
 router = APIRouter()
+CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 
 
 @router.post("/{submission_id}/check-source-link", response_model=SourceCheck)
