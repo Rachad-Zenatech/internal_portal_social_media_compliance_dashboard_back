@@ -8,6 +8,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `log_audit_event` (def) L6 - Records an event in the audit_logs table.
 - `get_audit_logs` (def) L30
 
+## services/shared/core/browser_stealth.py (40 lines) - Playwright stealth: hides the usual headless-browser giveaways (navigator.webdriver, missing plugins, the "HeadlessChrome" user agent, .....
+- `apply_stealth` (def) L20 - Apply stealth to a Playwright browser context (every page opened from it after this).
+- `new_stealth_context` (def) L34 - A new browser context with a desktop Chrome user agent and stealth applied.
+
 ## services/shared/core/cache_service.py (202 lines) - Goes up on every invalidation.
 - `AsyncInMemoryCache` (class) L15 - Lightweight in-memory cache with TTL expiration, LRU eviction, and key/prefix invalidation.
     - `__init__` (def) L18
@@ -30,6 +34,6 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `log_background_task_result` (def) L89 - Log a task that exits unexpectedly instead of losing its exception.
 - `asyncio_exception_handler` (def) L106 - Capture detached asyncio failures that would otherwise only reach stderr.
 
-## services/shared/core/startup_service.py (46 lines) - Server startup pieces: the schema setups it runs, and the background tasks it starts and tracks.
-- `run_schema_setups` (def) L30 - Make sure every schema's tables exist.
-- `spawn_background` (def) L40 - Start a background task whose failure is logged, and keep it in `tasks` so shutdown can cancel it.
+## services/shared/core/startup_service.py (47 lines) - Server startup pieces: the schema setups it runs, and the background tasks it starts and tracks.
+- `run_schema_setups` (def) L31 - Make sure every schema's tables exist.
+- `spawn_background` (def) L41 - Start a background task whose failure is logged, and keep it in `tasks` so shutdown can cancel it.

@@ -109,8 +109,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `save_script_highlights` (def) L113 [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
 - `resolve_script_highlights` (def) L119 [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
-## tools/compliance/submissions/source_link_router.py (24 lines) - Router for quick AI checking of submission source links.
-- `check_source_link` (def) L19 [POST /{submission_id}/check-source-link] - Quickly fetch one source URL and check whether it supports the post's current material.
+## tools/compliance/submissions/source_link_router.py (63 lines) - Router for quick AI checking of submission source links.
+- `check_source_link` (def) L18 [POST /{submission_id}/check-source-link] - Quickly fetch one source URL and check whether it supports the post's current material.
+- `check_pasted_source` (def) L24 [POST /{submission_id}/check-pasted-source] - Check the post's claims against a whole article pasted in, and where in it each claim is found.
+- `scan_image_sources` (def) L32 [POST /{submission_id}/scan-image-sources] - Queue image source scanning, web lookup, and scraping as a background job.
+- `get_image_source_scan_job` (def) L58 [GET /{submission_id}/scan-image-sources/{job_id}] - Poll the status and result of a background image source scan job.
+
+## tools/compliance/submissions/source_trust_router.py (27 lines) - Router for people's calls on a post's sources (does a claim match the page? is the page a good source?) and the standing each source's si...
+- `get_source_confirmations` (def) L17 [GET /{submission_id}/source-confirmations] - Everyone's calls on this post's sources, and what reviewers have said about each source's site.
+- `confirm_source` (def) L23 [POST /{submission_id}/source-confirmations] - Confirm (or take back) whether a claim matches its source, or rate the source itself.
 
 ## tools/compliance/submissions/submission_router.py (589 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) L65 [GET /options] - Brands, connected publishing accounts and the allowed values for each field.

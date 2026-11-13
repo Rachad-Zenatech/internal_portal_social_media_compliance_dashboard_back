@@ -88,6 +88,38 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `open_critical_counts` (def) L330 - Per submission: critical (red) flags on its current version that nobody has dismissed.
 - `rule_stats` (def) L335 - How often each rule flagged a submitted version, and how often reviewers dismissed it.
 
+## services/compliance/submissions/image_source_checks.py (107 lines) - Checking a post against more than one candidate source found for an image's citation.
+- `rank_by_authority` (def) L28 - The candidates without repeats, most authoritative first; the search's own order within each kind.
+- `_same_claim` (def) L34
+- `_name` (def) L41
+- `_backing` (def) L45
+- `_merged_claim` (def) L53
+- `merge_checks` (def) L70 - The first source's check with what the other sources add, claim by claim (see the module notes).
+- `check_candidates` (def) L85 - (the merged check, the readable checks it was built from), trying the candidates most authoritative first.
+
+## services/compliance/submissions/image_source_search.py (185 lines) - Find a cited source on the web: Gemini Google Search grounding first, then search APIs (Serper or Google CSE) when configured, then the s...
+- `_extract_grounding_urls` (def) L22 - Collect candidate web URLs from Gemini Google Search grounding metadata or response text.
+- `_google_news_rss_candidates` (def) L40 - Query Google News RSS (no AI quota) for matching article links.
+- `_playwright_search_urls` (def) L66 - Use the repo's Playwright Chromium browser to resolve Google News RSS links and Bing search results.
+- `_search_api_urls` (def) L116 - Optional sanctioned search APIs (Serper or Google Custom Search) when configured in env.
+- `find_source_urls_on_web` (def) L148 - Return candidate URLs via Gemini Google Search grounding, Search APIs, or Playwright + Google News RSS/Bing.
+- `find_source_url_on_web` (def) L181 - Return the top candidate URL for a named source.
+
+## services/compliance/submissions/image_source_service.py (371 lines) - Scan an image for source citations (URLs or named title + date references), locate the source on the web, and scrape/verify it.
+- `_tesseract_ocr` (def) L59 - Run local Tesseract OCR (matching admin's pdf_extraction_service) when pytesseract + binary are available.
+- `_read_image_text` (def) L82 - Read all visible text from an image using image_text_service's Gemini Vision setup.
+- `_extract_fallback_source` (def) L92 - Fallback Gemini Vision pass when pattern matching finds no explicit 'Source:' prefix.
+- `_check_supporting_document` (def) L124 - Check if an attached SUPPORTING document on the submission matches the cited named source.
+- `_load_submission_image` (def) L162 - Load already-read image_text or raw image bytes from the submission's attached image.
+- `_vision_text` (def) L203 - Gemini Vision's reading of the image, or "" when no model could read it.
+- `_read_image` (def) L212 - (the image's text, its bytes, its type, whether there is an image at all).
+- `_find_citations` (def) L236
+- `_candidate_urls` (def) L248
+- `scan_image_and_check_source` (def) L256 - Scan an uploaded (or attached) image for source citations, find the source online, and check the image's claims
+- `_run_scan_job` (def) L299 - Execute image OCR, web search, and scraping in the background and record the job result.
+- `start_scan_job` (def) L330 - Queue image source scanning + web scraping as a background task so the request returns immediately.
+- `get_scan_job` (def) L361 - Return the current status and result of a background image source scan job.
+
 ## services/compliance/submissions/post_steps_service.py (117 lines) - The five steps a creator works through, and how far each post has got.
 - `missing_words` (def) L33
 - `_aware` (def) L37
@@ -124,13 +156,26 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_photo_text` (def) L179 - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) L200 - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
-## services/compliance/submissions/source_link_service.py (107 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
-- `normalize_source_url` (def) L16 - Trim and validate a source URL, adding https:// when the creator omitted the scheme.
-- `normalize_source_links` (def) L31 - Validate and deduplicate source URLs saved on a submission.
-- `apply_update_fields` (def) L36 - Validate and copy rule_sets and source_links from a draft patch into SQL fields.
-- `with_source_links` (def) L47 - Append saved source_links to post text parts so full compliance checks read them.
-- `check_single_url` (def) L53 - Fetch one explicit URL and compare the post's material against it, including where in the source each claim appears.
-- `check_submission_source_link` (def) L71 - Quickly fetch one source URL and check whether it supports the post's current material.
+## services/compliance/submissions/source_link_service.py (142 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
+- `normalize_source_url` (def) L17 - Trim and validate a source URL, adding https:// when the creator omitted the scheme.
+- `normalize_source_links` (def) L32 - Validate and deduplicate source URLs saved on a submission.
+- `apply_update_fields` (def) L37 - Validate and copy rule_sets and source_links from a draft patch into SQL fields.
+- `with_source_links` (def) L48 - Append saved source_links to post text parts so full compliance checks read them.
+- `check_single_url` (def) L54 - Fetch one explicit URL and compare the post's material against it, including where in the source each claim appears.
+- `compare_with_source` (def) L64 - Fill in a read source's claims: the post's claims compared with the source's text, through the safeguards.
+- `check_submission_source_link` (def) L77 - Quickly fetch one source URL and check whether it supports the post's current material.
+- `check_submission_pasted_source` (def) L87 - Check the post's claims against an article pasted in whole, and say where in it each claim is found.
+- `submission_material` (def) L106 - Everything the post says, as one text: caption, script, documents, transcript and text read from its images.
+
+## services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
+- `host_of` (def) L33
+- `claim_key` (def) L38 - The claim as worded, ignoring case, spacing and punctuation; '' for a call on the page itself.
+- `_standing` (def) L44
+- `trust_for` (def) L64 - Each site's standing from reviewers' calls, by site.
+- `rank_by_trust` (def) L86 - The URLs with sites reviewers rated good first and poor ones last, keeping the order within each.
+- `counts_toward_trust` (def) L95 - Whether this person's calls on this post's sources count towards a site's standing: someone deciding on it, not
+- `record` (def) L112 - Keep (or take back) one call, and return the post's calls with the site's standing as it now is.
+- `for_submission` (def) L142 - Everyone's calls on this post's sources, and the standing of the given sources' sites.
 
 ## services/compliance/submissions/submission_service.py (3051 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_same_value` (def) L115 - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).

@@ -33,7 +33,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_download` (def) L54
 - `add_image_text` (def) L66 - Set item["image_text"] on items that have image_urls.
 
-## scripts/scrape_x_playwright.py (621 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
+## scripts/scrape_x_playwright.py (617 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - `snowflake_time` (def) L114 - When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits).
 - `_extract_tweets_from_rendered_profile` (def) L123 - Parse X posts from a rendered public X profile: text, link and real post time (from the post id).
 - `_page_status` (def) L172 - Why a page gave what it gave: SUCCESS, EMPTY (loaded, nothing there), AUTH_REQUIRED or RATE_LIMITED.
@@ -58,8 +58,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_collect_post_searches` (def) L417 - News searches built from each draft's own words.
 - `read_post_searches` (def) L468
 - `build_live_x_listening_json` (def) L473 - Launch Playwright headless Chromium and collect candidates for each market topic and for searches about the
-    - `out_of_time` (def) L486
-- `main` (def) L602
+    - `out_of_time` (def) L487
+- `main` (def) L598
 
 ## scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - `_row` (def) L62 - A submission row shaped like sentiment_service._load_submission's, for a text-only post.

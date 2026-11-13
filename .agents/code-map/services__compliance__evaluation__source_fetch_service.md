@@ -4,22 +4,22 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_fetch_service.py (321 lines) - Source fetcher: opens a link a post cites and returns its readable text.
-- `FetchedSource` (class) L54
-- `_Refused` (class) L71
-- `_forbidden` (def) L77
-- `_check_destination` (def) L85
-- `_Text` (class) L120 - Visible text of a page, with the article's own text kept apart (it beats menus and related-story lists).
-    - `__init__` (def) L123
-    - `handle_starttag` (def) L134
-    - `handle_endtag` (def) L154
-    - `handle_data` (def) L164
-    - `_put` (def) L171
-- `_tidy` (def) L177
-- `html_to_text` (def) L191 - (text, title, published date) of an HTML page.
-- `_decode` (def) L206
-- `_fail` (def) L216
-- `_get_once` (def) L220 - One request, its body read as a stream and cut off at the size limit.
-- `_download` (def) L238 - (bytes, content type, final url), following a few redirects, checking every destination.
-- `fetch` (def) L265 - Open a link and return its readable text, or the reason it couldn't be read.
-- `_fetch` (def) L277
+## services/compliance/evaluation/source_fetch_service.py (332 lines) - Source fetcher: opens a link a post cites and returns its readable text.
+- `FetchedSource` (class) L59
+- `_Refused` (class) L76
+- `_forbidden` (def) L82
+- `_check_destination` (def) L90
+- `_Text` (class) L125 - Visible text of a page, with the article's own text kept apart (it beats menus and related-story lists).
+    - `__init__` (def) L128
+    - `handle_starttag` (def) L139
+    - `handle_endtag` (def) L159
+    - `handle_data` (def) L169
+    - `_put` (def) L176
+- `_tidy` (def) L182
+- `html_to_text` (def) L196 - (text, title, published date) of an HTML page.
+- `_decode` (def) L211
+- `_fail` (def) L221
+- `_get_once` (def) L225 - One request, its body read as a stream and cut off at the size limit.
+- `_download` (def) L243 - (bytes, content type, final url), following a few redirects, checking every destination.
+- `fetch` (def) L270 - Open a link and return its readable text, or the reason it couldn't be read.
+- `_fetch` (def) L288

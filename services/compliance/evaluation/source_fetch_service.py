@@ -8,6 +8,9 @@ The link comes from whoever wrote the post, so it is treated as hostile:
 - a short time limit and a size limit, read as a stream;
 - only text, HTML and PDF come back, and what is read is capped, so a page can't flood a model request.
 
+A page the plain request can't read (bot protection, built by JavaScript) is tried once more in a headless browser
+(source_browser_fetch), under the same address checks.
+
 Nothing here uses AI. A page that can't be read (blocked, not found, needs a login or JavaScript, too large) comes back
 with a plain reason the author can act on. Pages are remembered for a few minutes, so checking again costs nothing.
 """
@@ -27,22 +30,24 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 
+from services.compliance.evaluation import source_settings
 from services.compliance.media import document_layout
 
 logger = logging.getLogger(__name__)
 
 TIMEOUT_SEC = float(os.getenv("SOURCE_FETCH_TIMEOUT_SEC", "12"))
 MAX_BYTES = int(os.getenv("SOURCE_FETCH_MAX_BYTES", str(3 * 1024 * 1024)))
-MAX_REDIRECTS = 4
+MAX_REDIRECTS = int(os.getenv("SOURCE_FETCH_MAX_REDIRECTS", "4"))
 # How long a connection (the TCP and TLS handshake) gets, and how many times it is tried.
 CONNECT_TIMEOUT_SEC = float(os.getenv("SOURCE_FETCH_CONNECT_TIMEOUT_SEC", "5"))
 CONNECT_TRIES = int(os.getenv("SOURCE_FETCH_CONNECT_TRIES", "4"))
-# What a model is given of one source, at most.
-MAX_TEXT_CHARS = int(os.getenv("SOURCE_MAX_CHARS", "60000"))
+# What is kept of one source, at most. A model is given all of it only when it is short; a long source is given as
+# the passages nearest the post's claims (source_passages), so nothing past a cut-off is lost.
+MAX_TEXT_CHARS = int(os.getenv("SOURCE_MAX_CHARS", "250000"))
 # Under this, a page has nothing to check a claim against (a script-built page, a login wall, an empty shell).
-MIN_TEXT_CHARS = 200
+MIN_TEXT_CHARS = int(os.getenv("SOURCE_MIN_CHARS", "200"))
 CACHE_TTL_SEC = int(os.getenv("SOURCE_FETCH_CACHE_SECONDS", "900"))
-USER_AGENT = "ZenaTech-Compliance-SourceCheck/1.0 (internal compliance tool)"
+USER_AGENT = source_settings.USER_AGENT  # SOURCE_FETCH_USER_AGENT
 ALLOWED_PORTS = {None, 80, 443}
 
 # OK, or why not: BLOCKED (refused for safety), NOT_FOUND, FORBIDDEN (login or bot wall), TIMEOUT, TOO_LARGE,
@@ -268,6 +273,12 @@ async def fetch(url: str) -> FetchedSource:
     if hit and time.monotonic() - hit[0] < CACHE_TTL_SEC:
         return hit[1]
     result = await _fetch(url)
+    if not result.ok:
+        # Script-built pages and bot walls: try once more in a headless browser (source_browser_fetch).
+        from services.compliance.evaluation import source_browser_fetch
+
+        if result.status in source_browser_fetch.RETRY_STATUSES:
+            result = await source_browser_fetch.fetch(url) or result
     if len(_cache) >= _CACHE_MAX:
         _cache.pop(next(iter(_cache)))
     _cache[url] = (time.monotonic(), result)

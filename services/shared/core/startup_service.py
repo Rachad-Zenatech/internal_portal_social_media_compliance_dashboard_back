@@ -24,6 +24,7 @@ SCHEMA_SETUPS = [
     ("setup_script_batches_schema", "Script batch schema setup note"),
     ("setup_script_docs_schema", "Script document schema setup note"),
     ("setup_teams_schema", "Teams schema setup note"),
+    ("setup_source_trust_schema", "Source trust schema setup note"),
 ]
 
 

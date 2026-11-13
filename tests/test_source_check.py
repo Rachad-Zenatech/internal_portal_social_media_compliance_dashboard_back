@@ -11,6 +11,12 @@ from models.compliance.compliance_model import (
     ComplianceCheckRequest, ComplianceRule, ComplianceViolation, ProvidedSource, SourceCheck, SourceClaim,
 )
 from services.compliance.evaluation import compliance_service, source_check_service as sc, source_fetch_service as sf
+from services.compliance.evaluation import source_browser_fetch, source_passages
+
+# No real browser in these tests: a page the plain fetch can't read stays unread (the fallback has its own tests).
+source_browser_fetch.ENABLED = False
+# No embedding calls either: passages are ranked by keywords alone.
+source_passages.EMBED_ENABLED = False
 
 PRESS_RELEASE = (
     "ZenaTech Unveils Stacklens, AI-Powered Smart Safety Glasses Built for Field Technicians and Industrial Workers. "

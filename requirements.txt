@@ -29,6 +29,9 @@ python-dotenv>=1.0.0
 google-genai>=2.8.0
 pymupdf>=1.24.0
 motor>=3.7.0
+# Local Tesseract OCR (matches admin portal; falls back to Gemini Vision if tesseract binary is absent)
+pillow>=10.0.0
+pytesseract>=0.3.13
 
 # Event-Driven Messaging & Presence
 paho-mqtt>=2.1.0
@@ -42,6 +45,7 @@ tzdata>=2024.1
 # Social Listening & X (Twitter) Sentiment Testing
 vaderSentiment>=3.3.2
 playwright>=1.49.0
+playwright-stealth>=2.0.0
 # Local trained sentiment model for scraped X posts and headlines (VADER is the fallback when these aren't installed).
 # In Docker/Linux use the CPU build to avoid a multi-GB CUDA download: pip install torch --index-url https://download.pytorch.org/whl/cpu
 transformers>=4.45.0

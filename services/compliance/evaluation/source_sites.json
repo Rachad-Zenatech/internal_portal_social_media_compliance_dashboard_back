@@ -1,0 +1,13 @@
+{
+  "_about": "Which sites count as official, the company's own, press-release wires or news when a post's sources are ranked. Edit this file, point SOURCE_SITES_FILE at another one, or override a list with its environment variable (comma separated): SOURCE_OFFICIAL_ENDINGS, SOURCE_OFFICIAL_SITES, SOURCE_COMPANY_SITES, SOURCE_COMPANY_SITE_WORDS, SOURCE_RELEASE_WIRES, SOURCE_NEWS_SITES.",
+  "official_endings": [".gov", ".mil", ".gc.ca", ".gov.uk", ".mod.uk", ".gov.au", ".europa.eu", ".int"],
+  "official_sites": ["sec.gov", "sedarplus.ca", "sedar.com", "nasdaq.com", "faa.gov", "tc.canada.ca"],
+  "company_sites": [],
+  "company_site_words": ["zena"],
+  "release_wires": ["businesswire.com", "prnewswire.com", "globenewswire.com", "newswire.ca", "accesswire.com"],
+  "news_sites": [
+    "reuters.com", "apnews.com", "bloomberg.com", "wsj.com", "nytimes.com", "ft.com", "cnbc.com", "bbc.com",
+    "theguardian.com", "washingtonpost.com", "defensenews.com", "breakingdefense.com", "defenseone.com",
+    "thedrive.com", "techcrunch.com", "theverge.com", "forbes.com", "axios.com", "politico.com", "c4isrnet.com"
+  ]
+}
