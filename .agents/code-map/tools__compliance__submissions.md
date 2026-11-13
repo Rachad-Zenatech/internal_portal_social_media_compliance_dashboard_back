@@ -103,8 +103,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `save_script_highlights` (def) L113 [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
 - `resolve_script_highlights` (def) L119 [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
 
-## tools/compliance/submissions/source_link_router.py (23 lines) - Router for quick AI checking of submission source links.
-- `check_source_link` (def) L18 [POST /{submission_id}/check-source-link] - Quickly fetch one source URL and check whether it supports the post's current material.
+## tools/compliance/submissions/source_link_router.py (24 lines) - Router for quick AI checking of submission source links.
+- `check_source_link` (def) L19 [POST /{submission_id}/check-source-link] - Quickly fetch one source URL and check whether it supports the post's current material.
 
 ## tools/compliance/submissions/submission_router.py (589 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) L65 [GET /options] - Brands, connected publishing accounts and the allowed values for each field.

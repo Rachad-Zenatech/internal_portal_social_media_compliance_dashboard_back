@@ -20,8 +20,8 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 # compliance_service.rulebook_version).
 VERSION = "signals-1"
 
-# The brand guidance says 3-5 hashtags; more than this reads as a hashtag wall.
-MAX_HASHTAGS = 5
+# More than this reads as a hashtag wall (the most any platform suits; see hashtag_library.PLATFORM_MAX).
+MAX_HASHTAGS = 10
 
 # --- Patterns over the raw text ---------------------------------------------------------------------------------
 
@@ -149,7 +149,7 @@ class PostSignals:
                 "and is cleared to share."
             )
         if len(self.hashtags) > MAX_HASHTAGS:
-            out.append(f"{len(self.hashtags)} hashtags: the brand guidance is 3 to 5, more reads as a hashtag wall.")
+            out.append(f"{len(self.hashtags)} hashtags: more than {MAX_HASHTAGS} reads as a hashtag wall.")
         return out
 
 

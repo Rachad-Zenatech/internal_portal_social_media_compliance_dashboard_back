@@ -11,6 +11,7 @@ from services.compliance.submissions import source_link_service
 from services.shared.auth.auth_service import get_current_user_id_dependency
 
 router = APIRouter()
+CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 
 CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 

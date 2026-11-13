@@ -110,7 +110,7 @@ class EmbeddingQuotaExhausted(RuntimeError):
 
 def check_embedding_quota() -> None:
     """Raise EmbeddingQuotaExhausted while embeddings are paused for the quota."""
-    left = _embed_paused_until - time.monotonic()
+    left = _embed_paused_until - time.time()
     if left > 0:
         raise EmbeddingQuotaExhausted(f"Embedding quota used up; embeddings paused for another {left:.0f}s")
 
@@ -126,7 +126,9 @@ def note_embedding_error(error: Exception) -> None:
     wait = float(m.group(1)) if m else 60.0
     if "perday" in text.lower().replace(" ", "").replace("_", ""):
         wait = max(wait, EMBED_DAILY_QUOTA_PAUSE_SECONDS)
-    _embed_paused_until = max(_embed_paused_until, time.monotonic() + wait)
+    # Wall-clock time, not monotonic: Docker's VM is suspended while the computer sleeps, and a monotonic clock would
+    # not count those hours, so a pause until the daily quota resets would outlast the reset.
+    _embed_paused_until = max(_embed_paused_until, time.time() + wait)
     logger.warning("Gemini embedding quota reached; skipping embeddings for %.0fs", wait)
 
 

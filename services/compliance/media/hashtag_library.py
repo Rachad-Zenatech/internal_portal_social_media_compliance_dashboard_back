@@ -17,19 +17,20 @@ CASHTAG = "$ZENA"
 CASHTAG_SUGGESTED_NOTE = "This post is for investors, and $ZENA is the tag they follow. Investor-disclosure rules apply to the whole post."
 CASHTAG_NOTE = "Reaches investors following the stock. Investor-disclosure rules then apply to the whole post."
 
-# How many hashtags suit each platform. Reddit and websites don't use them.
+# How many hashtags suit each platform. Reddit and websites don't use them. (YouTube ignores every hashtag on a
+# video that has more than 15.)
 PLATFORM_MAX: Dict[str, int] = {
-    "X": 2,
-    "LINKEDIN": 3,
-    "FACEBOOK": 3,
-    "YOUTUBE": 3,
-    "YOUTUBE_SHORTS": 3,
-    "TIKTOK": 4,
-    "INSTAGRAM": 5,
+    "X": 3,
+    "LINKEDIN": 5,
+    "FACEBOOK": 5,
+    "YOUTUBE": 8,
+    "YOUTUBE_SHORTS": 8,
+    "TIKTOK": 8,
+    "INSTAGRAM": 10,
     "REDDIT": 0,
     "WEBSITE": 0,
 }
-DEFAULT_MAX = 3
+DEFAULT_MAX = 5
 
 PLATFORM_LABELS: Dict[str, str] = {
     "X": "X", "LINKEDIN": "LinkedIn", "FACEBOOK": "Facebook", "YOUTUBE": "YouTube", "YOUTUBE_SHORTS": "YouTube Shorts",

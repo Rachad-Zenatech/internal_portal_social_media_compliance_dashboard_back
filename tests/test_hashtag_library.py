@@ -28,8 +28,8 @@ class LibraryTests(unittest.TestCase):
         self.assertIn("investor", cashtag.note.lower())
 
     def test_the_strictest_platform_sets_the_limit(self):
-        self.assertEqual(hl.max_hashtags(["INSTAGRAM", "X"]), 2)
-        self.assertEqual(hl.max_reason(["INSTAGRAM", "X"]), "Up to 2 for X")
+        self.assertEqual(hl.max_hashtags(["INSTAGRAM", "X"]), 3)
+        self.assertEqual(hl.max_reason(["INSTAGRAM", "X"]), "Up to 3 for X")
         self.assertEqual(hl.max_hashtags([]), hl.DEFAULT_MAX)
         self.assertEqual(hl.max_hashtags(["REDDIT"]), 0)
         self.assertEqual(hl.max_reason(["REDDIT"]), "No hashtags on Reddit")

@@ -1133,8 +1133,8 @@ CONTENT TO EVALUATE
 \"\"\"
 """
     config = types.GenerateContentConfig(
-        response_mime_type="application/json", response_schema=_SEMANTIC_SCHEMA, temperature=0
-    )
+        response_mime_type="application/json", response_schema=_SEMANTIC_SCHEMA, temperature=0,  # per model; then the next
+        http_options=types.HttpOptions(timeout=int(os.getenv("COMPLIANCE_AI_TIMEOUT_SEC", "60")) * 1000))
     try:
         response = await generate_content_with_fallback(client, prompt, config, feature="COMPLIANCE_CHECK")
         parsed = json.loads(response.text or "{}")
