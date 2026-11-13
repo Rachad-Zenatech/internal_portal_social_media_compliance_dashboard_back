@@ -46,6 +46,13 @@ class TestLinks:
     def test_a_source_cue_makes_even_a_home_page_a_citation(self):
         assert [c.kind for c in cf.find("Source: https://www.faa.gov/")] == ["URL"]
 
+    def test_a_link_under_a_sources_heading_is_a_citation_even_for_a_home_page(self):
+        """The author's "Source links" are added to the check's text as a "Sources:" heading with the links below it."""
+        found = cf.find("Our new Mesa office is open.\n\nSources:\nhttps://www.droneasaservice.com/")
+        assert [(c.kind, c.cue) for c in found] == [("URL", "sources")]
+        # a blank line ends the block, so a call-to-action link after it is still just an invitation
+        assert cf.find("Sources:\n\nLearn more: https://www.zenatech.com/") == []
+
     def test_social_profiles_are_not_citations(self):
         assert cf.find("Follow us https://www.linkedin.com/company/zenatech") == []
         assert cf.find("https://www.instagram.com/zenatech/") == []

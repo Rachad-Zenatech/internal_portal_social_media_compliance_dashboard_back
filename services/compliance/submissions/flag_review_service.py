@@ -26,7 +26,6 @@ from models.compliance.flag_review_model import (
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.core.audit_service import log_audit_event
 from services.compliance.submissions import finding_precedent_service
-from services.compliance.evaluation.compliance_service import CRITICAL_SCORE_CAP
 
 # The least rulebook score (counting only flags nobody has dismissed) content needs to be approved.
 MIN_APPROVAL_SCORE = int(os.getenv("MIN_APPROVAL_SCORE", "70"))
@@ -259,10 +258,7 @@ def score_after_dismissals(check: Optional[Dict[str, Any]], dismissed: Set[str])
             points += int(v.get("uncounted_penalty") or 0)
         else:
             points += int(v.get("penalty") or 0)
-    score = max(0, 100 - points)
-    if any(v.get("traffic_light") == "RED" for v in open_flags):
-        score = min(score, CRITICAL_SCORE_CAP)
-    return score
+    return max(0, 100 - points)
 
 
 @dataclass(frozen=True)

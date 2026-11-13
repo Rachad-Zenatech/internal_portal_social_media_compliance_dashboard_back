@@ -41,7 +41,7 @@ from services.ai.observability import ai_observability
 from services.ai.observability.ai_guardrails import screen_input
 from services.ai.core.gemini_service import is_rotatable_model_error
 from services.compliance.evaluation import (
-    citation_finder, context_evaluator, source_fetch_service, source_passages, source_settings,
+    citation_finder, context_evaluator, newsroom_facts, source_fetch_service, source_passages, source_settings,
 )
 # The safeguards on the model's answers live in their own module; these names stay importable from here.
 from services.compliance.evaluation.source_claim_checks import (  # noqa: F401
@@ -63,6 +63,7 @@ MAX_POST_CHARS = int(os.getenv("SOURCE_CHECK_MAX_POST_CHARS", "12000"))
 MAX_CLAIMS = int(os.getenv("SOURCE_CHECK_MAX_CLAIMS", "12"))
 CACHE_TTL_SEC = int(os.getenv("SOURCE_CHECK_CACHE_TTL_SECONDS", str(24 * 3600)))
 
+NOT_FOUND_TITLE = "Claim not found in its source"
 # Points a claim that contradicts its source costs: the same as any high-severity finding.
 PENALTY_CONTRADICTED = 20
 
@@ -301,7 +302,8 @@ async def run(text: str, provided: Sequence[ProvidedSource] = ()) -> SourceCheck
         return result
     citations = citation_finder.find(text)
     docs = [d for d in provided if (d.text or "").strip()]
-    if not citations and not docs:
+    newsroom = await newsroom_facts.material(text)  # the company's own published facts, as one more source
+    if not citations and not docs and not newsroom:
         return result
 
     # Named sources an attached document stands in for are covered by that document.
@@ -327,12 +329,16 @@ async def run(text: str, provided: Sequence[ProvidedSource] = ()) -> SourceCheck
         reading.append((SourceCheck(reference=d.name, kind="DOCUMENT", where="attached", status="READ", title=d.name),
                         (f"attached document {d.name}", shown)))
 
+    if newsroom:
+        reading.append((newsroom[0], newsroom[1]))
+
     async def compare(check: SourceCheck, material: Tuple[str, str]) -> None:
         label, source_text = material
         results, model = await _compare(text, label, check.title, check.url, check.published, source_text)
         if results is None:
-            result.ai_failed = True
-            check.message = "No AI model could read this source just now, so it hasn't been compared. It is re-checked automatically."
+            if not newsroom_facts.is_newsroom(check):  # the newsroom is extra: it never makes the check incomplete
+                result.ai_failed = True
+                check.message = "No AI model could read this source just now, so it hasn't been compared. It is re-checked automatically."
             return
         check.model = model
         check.claims = await source_passages.checked_claims(results, source_text)
@@ -340,7 +346,8 @@ async def run(text: str, provided: Sequence[ProvidedSource] = ()) -> SourceCheck
             check.message = "No claim in the post turned out to depend on this source."
 
     await asyncio.gather(*(compare(check, material) for check, material in reading if material))
-    result.checks = [check for check, _ in reading]
+    # The newsroom only shows when it said something about the post's claims.
+    result.checks = [check for check, _ in reading if check.claims or not newsroom_facts.is_newsroom(check)]
     return result
 
 
@@ -369,17 +376,28 @@ def findings(checks: Sequence[SourceCheck]) -> List[ComplianceViolation]:
     settle, and sources that couldn't be checked, are for a person."""
     out: List[ComplianceViolation] = []
     for check in checks:
+        newsroom = newsroom_facts.is_newsroom(check)
         for claim in check.claims:
-            if claim.verdict == "CONTRADICTED":
+            if claim.verdict == "CONTRADICTED" and newsroom:
+                # Not cited by the author, and a fact is a short summary of an older article: a person confirms, no points.
+                out.append(_finding(
+                    CONTRADICTED_ID, "NEEDS_REVIEW", "HIGH", "Claim differs from the newsroom", claim, check,
+                    f"The post says \"{claim.claim}\" but the ZenaTech newsroom says: {claim.evidence or claim.note}. "
+                    "The newsroom may be out of date, so a person should confirm which is right.",
+                    claim.note or "Check the claim against the newsroom article, and correct it if the post is wrong.",
+                ))
+            elif claim.verdict == "CONTRADICTED":
                 out.append(_finding(
                     CONTRADICTED_ID, "VIOLATION", "HIGH", "Claim doesn't match its source", claim, check,
                     f"The post says \"{claim.claim}\" but {_label(check)} says otherwise: {claim.evidence or claim.note}",
                     claim.note or "Change the claim to what the source says, or cite a source that supports it.",
                 ))
+            elif newsroom_facts.unsettled(claim) and (newsroom or newsroom_facts.supports(checks, claim.claim)):
+                continue  # the newsroom says nothing here (it wasn't cited), or it supports a claim the source left open
             elif claim.verdict in ("NOT_FOUND", "UNCLEAR"):
                 out.append(_finding(
                     NOT_FOUND_ID, "NEEDS_REVIEW", "MEDIUM",
-                    "Claim not found in its source" if claim.verdict == "NOT_FOUND" else "Source doesn't clearly settle the claim",
+                    NOT_FOUND_TITLE if claim.verdict == "NOT_FOUND" else "Source doesn't clearly settle the claim",
                     claim, check,
                     f"\"{claim.claim}\": {claim.note or 'a person should check it against ' + _label(check) + '.'}",
                     claim.note or f"Check this claim against {_label(check)}.",
@@ -393,6 +411,19 @@ def findings(checks: Sequence[SourceCheck]) -> List[ComplianceViolation]:
                 "Fix the link or attach a copy of the source under Supporting documents, then check again.",
             ))
     return out
+
+
+def charge_not_found(violations: Sequence[ComplianceViolation], points: int, room: int) -> List[ComplianceViolation]:
+    """A claim its source doesn't mention is unproven, like one that needs a source: each costs `points`, up to `room` in
+    all (what is left of the cap shared with the claims that need a source). Returns the findings that now cost points."""
+    costing = []
+    for v in violations:
+        if v.category == "Source Check" and v.status == "NEEDS_REVIEW" and v.title == NOT_FOUND_TITLE:
+            v.penalty = max(0, min(points, room))
+            room -= v.penalty
+            if v.penalty:
+                costing.append(v)
+    return costing
 
 
 def _tokens(text: str) -> set:

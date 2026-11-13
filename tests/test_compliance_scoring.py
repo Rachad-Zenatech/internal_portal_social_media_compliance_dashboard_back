@@ -117,14 +117,31 @@ class ScoringTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((result.score, result.traffic_light, result.is_compliant), (100 - cs.PENALTY_OTHER, "YELLOW", False))
         self.assertEqual(result.violations[0].traffic_light, "YELLOW")
 
-    async def test_a_critical_finding_blocks_and_caps_the_score(self):
+    async def test_a_critical_finding_blocks_but_does_not_cap_the_score(self):
         rules = [rule(severity="CRITICAL", traffic_light="RED", prohibited_terms=["deployed in combat"])]
         result = await self.check(rules, "Our drone has been deployed in combat.")
         self.assertTrue(result.blocked)
         self.assertEqual(result.traffic_light, "RED")
         self.assertEqual(result.raw_score, 100 - cs.PENALTY_CRITICAL)
-        self.assertEqual(result.score, cs.CRITICAL_SCORE_CAP)
-        self.assertEqual(result.score_cap, cs.CRITICAL_SCORE_CAP)
+        self.assertEqual(result.score, 100 - cs.PENALTY_CRITICAL)
+        self.assertIsNone(result.score_cap)
+
+    async def test_context_rules_are_still_read_when_a_critical_rule_is_broken(self):
+        """A critical hit blocks the post but doesn't stop the other rules: a CONTEXT rule's match still goes to the model."""
+        critical = rule(severity="CRITICAL", traffic_light="RED", prohibited_terms=["deployed in combat"])
+        other = rule(severity="HIGH", traffic_light="YELLOW", prohibited_terms=["endorsed by"], evaluation_mode="CONTEXT")
+        with patch("services.compliance.evaluation.compliance_service.context_evaluator.evaluate", new=AsyncMock()) as read:
+            result = await self.check([critical, other], "Deployed in combat, and endorsed by the army.")
+        self.assertTrue(result.blocked)
+        read.assert_awaited_once()
+        candidates = read.await_args.args[0]
+        self.assertEqual([c.rule.id for c in candidates], [other.id])
+
+    async def test_the_image_label_does_not_make_words_for_a_rule_to_match(self):
+        """"Text in image 1: DRONE AS A SERVICE" must not read as the words "1 drone"."""
+        rules = [rule(prohibited_terms=["1 drone"])]
+        self.assertTrue((await self.check(rules, "Our news. Text in image 1: DRONE AS A SERVICE expands.")).is_compliant)
+        self.assertFalse((await self.check(rules, "We are the #1 drone company.")).is_compliant)
 
     async def test_a_missing_disclaimer_is_a_yellow_finding(self):
         rules = [rule(required_disclaimers=["Concept rendering, not an operational system"], disclaimer_triggers=["concept"])]

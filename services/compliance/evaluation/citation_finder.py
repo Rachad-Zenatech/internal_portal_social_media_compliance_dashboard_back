@@ -37,6 +37,8 @@ _SOURCE_LINE = re.compile(
     r"\s*[:–—-]\s*(?P<rest>.+)$",
     re.IGNORECASE,
 )
+# A "Sources:" heading on a line of its own: every link under it, until a blank line, is given as a source.
+_SOURCES_HEADING = re.compile(r"^\s*(?:sources?(?:\s+links?)?|references?|citations?)\s*[:–—-]\s*$", re.IGNORECASE)
 # "According to Gartner, ...", "per the FAA", "as reported by Reuters": a named source in the sentence itself.
 _ATTRIBUTION = re.compile(
     r"\b(?P<cue>(?i:according\s+to|as\s+reported\s+(?:by|in)|reported\s+(?:by|in)|data\s+from|per))\s+(?:the\s+)?"
@@ -123,6 +125,7 @@ def find(text: str) -> List[Citation]:
     found: List[Citation] = []
     seen = set()
     in_image = False
+    under_heading = False
 
     def add(c: Citation) -> None:
         key = (c.kind, re.sub(r"\W+", "", c.reference.lower()))
@@ -134,6 +137,10 @@ def find(text: str) -> List[Citation]:
         if _IMAGE_MARK.match(line):
             in_image = True
         where: Literal["caption", "image"] = "image" if in_image else "caption"
+        if _SOURCES_HEADING.match(line):
+            under_heading = True
+        elif not line.strip():
+            under_heading = False
 
         # 1. "Source: ..." lines (and the lines that carry one on).
         m = _SOURCE_LINE.search(line)
@@ -163,10 +170,10 @@ def find(text: str) -> List[Citation]:
             cue = _SOURCE_CUE.search(before)
             # Without a cue, only a link to a page of its own counts: "Learn more: zenatech.com" is an invitation, not
             # a source, while "Learn more: zenatech.com/some-article-title" is the article the post is about.
-            if not cue and (_is_social(host) or not _article_like(path)):
+            if not cue and not under_heading and (_is_social(host) or not _article_like(path)):
                 continue
             add(Citation(
-                "URL", link, where, cue.group(1).strip().lower() if cue else "link in the post",
+                "URL", link, where, cue.group(1).strip().lower() if cue else "sources" if under_heading else "link in the post",
                 truncated=bool(_CUT_SHORT.search(raw)),
             ))
 
