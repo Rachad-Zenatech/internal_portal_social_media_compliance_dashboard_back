@@ -479,6 +479,7 @@ async def build_live_x_listening_json(output_path: Optional[Path] = None) -> Dic
     import time
     from playwright.async_api import async_playwright
     from services.compliance.analytics.listening_sources import build_queries, load_plan
+    from services.shared.core.browser_stealth import new_stealth_context
 
     started = time.monotonic()
     deadline_hit = False
@@ -499,12 +500,7 @@ async def build_live_x_listening_json(output_path: Optional[Path] = None) -> Dic
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-            )
-        )
+        context = await new_stealth_context(browser)
         page = await context.new_page()
 
         unique_handles = list(dict.fromkeys(h for t in market_topics for h in t.get("x_handles", [])))
