@@ -28,6 +28,15 @@ class NewsroomFactTests(unittest.IsolatedAsyncioTestCase):
     def test_the_image_label_is_not_a_word_of_the_post(self):
         self.assertNotIn("image", nf._words("Text in image 1: hello"))
 
+    def test_a_claim_the_post_never_makes_is_dropped(self):
+        post = ("With TillerStack's Osra+, technicians can connect with remote experts and access guidance through "
+                "smart glasses while keeping their hands free.")
+        made = claim("TillerStack's Osra+ lets technicians connect with remote experts and access guidance through smart glasses", "SUPPORTED")
+        invented = [claim("Stacklens is currently in the prototype and testing stage", "SUPPORTED"),
+                    claim("Customer pilots for Stacklens are expected in 2027", "SUPPORTED"),
+                    claim("Stacklens smart glasses are available for use.", "CONTRADICTED")]
+        self.assertEqual(nf.in_post([made, *invented], post), [made])
+
     async def test_the_newsroom_is_a_source_with_the_close_facts_in_its_text(self):
         with patch.object(nf, "fetch_all", new=AsyncMock(return_value=[MESA, OTHER])):
             made = await nf.material(POST)
@@ -69,6 +78,39 @@ class NewsroomFindingsTests(unittest.TestCase):
     def test_a_claim_that_contradicts_a_cited_source_still_costs_points(self):
         source = check("https://x.com/a", [claim("Revenue grew 60%", "CONTRADICTED", "Revenue grew 425%")])
         self.assertEqual([(f.status, f.penalty) for f in sc.findings([source])], [("VIOLATION", sc.PENALTY_CONTRADICTED)])
+
+
+class PublishedFiguresTests(unittest.TestCase):
+    def hit(self, number, terms):
+        import uuid
+        from models.compliance.compliance_model import ComplianceViolation
+
+        return ComplianceViolation(
+            rule_id=uuid.uuid4(), rule_number=number, title="t", category="c", severity="CRITICAL", traffic_light="RED",
+            flagged_terms=terms, explanation="x", penalty=20, status="VIOLATION",
+            passage="ZenaTech's DaaS locations have signed three new construction survey contracts.",
+        )
+
+    def supported(self, authority):
+        said = "ZenaTech's DaaS locations have signed three new construction survey contracts on transportation projects."
+        return check("https://www.zenatech.com/a/", [claim(said, "SUPPORTED", "signed three new construction survey contracts")],
+                     authority=authority)
+
+    def test_a_company_page_that_says_it_clears_a_non_public_data_hit(self):
+        v = self.hit("Rule 6", ["signed three new construction survey contracts"])
+        self.assertEqual(sc.clear_supported([v], [self.supported("COMPANY")]), 1)
+        self.assertEqual((v.status, v.penalty, v.traffic_light), ("CLEARED", 0, "GREEN"))
+        self.assertIn("already published", v.explanation)
+
+    def test_a_source_that_is_not_the_company_or_official_does_not(self):
+        v = self.hit("Rule 6", ["signed three new construction survey contracts"])
+        self.assertEqual(sc.clear_supported([v], [self.supported("OTHER")]), 0)
+        self.assertEqual(v.status, "VIOLATION")
+
+    def test_other_rules_are_not_cleared_by_a_source(self):
+        v = self.hit("Rule 99", ["signed three new construction survey contracts"])
+        self.assertEqual(sc.clear_supported([v], [self.supported("COMPANY")]), 0)
+        self.assertEqual(v.status, "VIOLATION")
 
 
 class NotFoundCostsPointsTests(unittest.TestCase):

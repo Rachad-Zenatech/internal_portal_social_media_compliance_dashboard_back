@@ -64,6 +64,9 @@ MAX_CLAIMS = int(os.getenv("SOURCE_CHECK_MAX_CLAIMS", "12"))
 CACHE_TTL_SEC = int(os.getenv("SOURCE_CHECK_CACHE_TTL_SECONDS", str(24 * 3600)))
 
 NOT_FOUND_TITLE = "Claim not found in its source"
+# Rules about not disclosing non-public contract, pipeline or revenue data: what the company's own site (or an official
+# one) already publishes is public, so a claim it supports clears a hit on them.
+PUBLISHED_OK_RULES = {r.strip() for r in os.getenv("SOURCE_CLEARS_RULES", "Rule 6,Rule 25").split(",") if r.strip()}
 # Points a claim that contradicts its source costs: the same as any high-severity finding.
 PENALTY_CONTRADICTED = 20
 
@@ -309,7 +312,9 @@ async def run(text: str, provided: Sequence[ProvidedSource] = ()) -> SourceCheck
     # Named sources an attached document stands in for are covered by that document.
     covered = {id(c) for c in citations if c.kind == "NAMED" and any(_matches(c.reference, d) for d in docs)}
     reading: List[Tuple[SourceCheck, Optional[Tuple[str, str]]]] = []
-    links = [c for c in citations if c.kind == "URL"]
+    # Only the links the author put in the Source links field are read, not links written into the caption or the image
+    # (often the same page, cut short): the claims are matched against the sources that were added.
+    links = [c for c in citations if c.kind == "URL" and c.where == "source_links"]
     for read in await asyncio.gather(*(_read_link(c, text) for c in links)):
         reading.append(read)
     for c in citations:
@@ -342,6 +347,8 @@ async def run(text: str, provided: Sequence[ProvidedSource] = ()) -> SourceCheck
             return
         check.model = model
         check.claims = await source_passages.checked_claims(results, source_text)
+        if newsroom_facts.is_newsroom(check):
+            check.claims = newsroom_facts.in_post(check.claims, text)
         if not check.claims:
             check.message = "No claim in the post turned out to depend on this source."
 
@@ -445,24 +452,29 @@ def _same_claim(supported: str, v: ComplianceViolation) -> bool:
 
 
 def clear_supported(violations: Sequence[ComplianceViolation], checks: Sequence[SourceCheck]) -> int:
-    """A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place).
-    Returns how many were cleared."""
+    """A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place). So is
+    a hit on a rule about disclosing non-public data (PUBLISHED_OK_RULES) when the company's own published page or an
+    official one says the same thing: it is already public. Returns how many were cleared."""
     supported = [(claim, check) for check in checks if check.status == "READ" for claim in check.claims
                  if claim.verdict == "SUPPORTED"]
     cleared = 0
     for v in violations:
-        if v.status != "EVIDENCE_REQUIRED":
+        if v.status != "EVIDENCE_REQUIRED" and not (v.status == "VIOLATION" and v.rule_number in PUBLISHED_OK_RULES):
             continue
         for claim, check in supported:
+            if v.status == "VIOLATION" and check.authority not in ("COMPANY", "OFFICIAL"):
+                continue
             if _same_claim(claim.claim, v):
+                was = v.status
                 v.status = "CLEARED"
                 v.penalty, v.uncounted_penalty, v.counted_with = 0, 0, None
                 v.traffic_light = "GREEN"
-                v.explanation = (f"{_label(check)} supports this: {claim.evidence or claim.claim}. "
-                                 f"(It would otherwise need a source.)")
+                v.explanation = (f"{_label(check)} supports this: {claim.evidence or claim.claim}. " + (
+                    "(It would otherwise need a source.)" if was == "EVIDENCE_REQUIRED"
+                    else "It is already published there, so it isn't non-public information."))
                 v.evaluation = ContextEvaluation(
                     decision="CLEARED", matched_text=claim.claim, reasoning=claim.evidence or "",
-                    confidence=claim.confidence, rule_decision="EVIDENCE_REQUIRED", source="AI", model=check.model,
+                    confidence=claim.confidence, rule_decision=was, source="AI", model=check.model,
                 )
                 cleared += 1
                 break

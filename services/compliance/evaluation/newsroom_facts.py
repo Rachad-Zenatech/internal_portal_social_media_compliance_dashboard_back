@@ -20,6 +20,7 @@ from typing import List, Optional, Sequence, Tuple
 
 from models.compliance.compliance_model import SourceCheck, SourceClaim
 from postgresql_db.database import fetch_all
+from services.compliance.evaluation.source_claim_checks import evidence_overlap
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,8 @@ NEWSROOM_URL = "https://www.zenatech.com/newsroom/"
 MAX_FACTS = 8
 MIN_SHARED_WORDS = 3
 MAX_TEXT_CHARS = 7000
+# A claim counts as the post's own when at least this share of its distinctive words are in the post.
+IN_POST_MIN = 0.6
 
 _IMAGE_MARK = re.compile(r"Text in image \d+\s*:", re.IGNORECASE)
 _WORD = re.compile(r"[a-z0-9]{4,}")
@@ -77,10 +80,17 @@ async def material(post_text: str) -> Optional[Tuple[SourceCheck, Tuple[str, str
         f"{f['title']} ({f['url'] or NEWSROOM_URL}): {f['body']}" for f in facts
     )
     check = SourceCheck(
-        reference=REFERENCE, kind="URL", where="caption", cue="newsroom facts", status="READ", title=REFERENCE,
+        reference=REFERENCE, kind="URL", where="newsroom", cue="newsroom facts", status="READ", title=REFERENCE,
         url=NEWSROOM_URL, authority="COMPANY",
     )
     return check, (REFERENCE + " facts", text[:MAX_TEXT_CHARS])
+
+
+def in_post(claims: Sequence[SourceClaim], post_text: str) -> List[SourceClaim]:
+    """The claims the post really makes. The model reads the facts beside the post and can word a claim the post never
+    makes (it saw "smart glasses" and wrote one about another product's glasses), so a claim whose distinctive words
+    aren't mostly in the post is dropped."""
+    return [c for c in claims if evidence_overlap(c.claim, post_text) >= IN_POST_MIN]
 
 
 def is_newsroom(check: SourceCheck) -> bool:

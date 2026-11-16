@@ -53,7 +53,7 @@ def with_source_links(row: Dict[str, Any], parts: Sequence[str]) -> List[str]:
 
 async def check_single_url(url: str, post_text: str) -> SourceCheck:
     """Fetch one explicit URL and compare the post's material against it, including where in the source each claim appears."""
-    citation = citation_finder.Citation(reference=url, kind="URL", where="caption", cue="source")
+    citation = citation_finder.Citation(reference=url, kind="URL", where="source_links", cue="source")
     check, material = await source_check_service._read_link(citation, post_text)
     if not material:
         return check

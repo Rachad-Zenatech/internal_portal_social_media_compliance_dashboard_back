@@ -63,7 +63,8 @@ class Citation:
     kind: Literal["URL", "NAMED"]
     # The link (URL) or the cited text as written (NAMED).
     reference: str
-    where: Literal["caption", "image"]
+    # source_links: a link under a "Sources:" heading, which is where the post's Source links field is put.
+    where: Literal["caption", "image", "source_links"]
     # The words that marked it as a citation ("Source:", "Read the full article", "link in the post").
     cue: str
     # The link ends in "..." so it can't be opened as written.
@@ -126,6 +127,7 @@ def find(text: str) -> List[Citation]:
     seen = set()
     in_image = False
     under_heading = False
+    given: List[Citation] = []  # links under a "Sources:" heading: the author's own list (the "Source links" field)
 
     def add(c: Citation) -> None:
         key = (c.kind, re.sub(r"\W+", "", c.reference.lower()))
@@ -172,11 +174,18 @@ def find(text: str) -> List[Citation]:
             # a source, while "Learn more: zenatech.com/some-article-title" is the article the post is about.
             if not cue and not under_heading and (_is_social(host) or not _article_like(path)):
                 continue
-            add(Citation(
-                "URL", link, where, cue.group(1).strip().lower() if cue else "sources" if under_heading else "link in the post",
+            citation = Citation(
+                "URL", link, "source_links" if under_heading else where, cue.group(1).strip().lower() if cue else "sources" if under_heading else "link in the post",
                 truncated=bool(_CUT_SHORT.search(raw)),
-            ))
+            )
+            add(citation)
+            if under_heading:
+                given.append(citation)
 
+    # When the author listed the sources (the "Source links" field), those are the links to read: a link in the caption
+    # is usually the same one, often cut short ("zenatech.com/some-article...") and so unreadable.
+    if given:
+        found = [c for c in found if c.kind != "URL"] + [c for i, c in enumerate(given) if c not in given[:i]]
     return found[:MAX_CITATIONS]
 
 

@@ -53,6 +53,17 @@ class TestLinks:
         # a blank line ends the block, so a call-to-action link after it is still just an invitation
         assert cf.find("Sources:\n\nLearn more: https://www.zenatech.com/") == []
 
+    def test_when_source_links_are_given_a_cut_short_link_in_the_caption_is_ignored(self):
+        text = ("Read the full press release: https://www.zenatech.com/zenatechs-drone-as-a-service.../\n\n"
+                "Sources:\nhttps://www.zenatech.com/the-full-article-about-the-contracts/")
+        found = cf.find(text)
+        assert [(c.kind, c.reference) for c in found] == [("URL", "https://www.zenatech.com/the-full-article-about-the-contracts/")]
+        assert cf.describe(found[0]) is None
+
+    def test_without_source_links_a_link_in_the_caption_still_counts(self):
+        found = cf.find("Read the full press release: https://www.zenatech.com/zenatechs-drone-as-a-service.../")
+        assert len(found) == 1 and found[0].truncated is True
+
     def test_social_profiles_are_not_citations(self):
         assert cf.find("Follow us https://www.linkedin.com/company/zenatech") == []
         assert cf.find("https://www.instagram.com/zenatech/") == []

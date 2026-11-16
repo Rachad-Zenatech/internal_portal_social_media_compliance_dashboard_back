@@ -270,7 +270,8 @@ class SourceCheck(BaseModel):
     """A source the post cites (or that was attached), and what reading it showed."""
     reference: str
     kind: Literal["URL", "NAMED", "DOCUMENT"]
-    where: Literal["caption", "image", "attached"] = "caption"
+    # source_links: a link from the post's Source links field. newsroom: the ZenaTech newsroom facts.
+    where: Literal["caption", "image", "attached", "source_links", "newsroom"] = "caption"
     cue: Optional[str] = None
     # READ: opened and checked. UNREADABLE: couldn't be opened or read (see message). NOT_PROVIDED: cited by name only.
     status: Literal["READ", "UNREADABLE", "NOT_PROVIDED"]
