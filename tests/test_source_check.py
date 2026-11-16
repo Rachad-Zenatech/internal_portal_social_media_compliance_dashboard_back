@@ -24,8 +24,11 @@ PRESS_RELEASE = (
     "Developed by TillerStack, a ZenaTech subsidiary, it is designed to let a technician view instructions, call an "
     "expert and capture an inspection without putting down their tools. " * 2
 )
+# The article is in the Source links field, which the check adds to the text under a "Sources:" heading: only those are read.
 CAPTION = """Stacklens is at the prototype and testing stage, with customer pilots expected to begin in 2027.
-Read the full article here: https://www.zenatech.com/zenatech-unveils-stacklens-ai-powered-smart-safety-glasses/"""
+
+Sources:
+https://www.zenatech.com/zenatech-unveils-stacklens-ai-powered-smart-safety-glasses/"""
 AGINCOURT_IMAGE = """Text in image 1: The authorities still need Congress
 OCT 2027 Target date to establish the command
 30 DAYS To submit a plan of action and milestones
@@ -158,7 +161,7 @@ class RunTests(unittest.TestCase):
         self.assertEqual([(f.status, f.penalty) for f in found], [("NEEDS_REVIEW", 0)])
 
     def test_a_cut_short_link_cant_be_opened_and_says_why(self):
-        text = "Read the full article here: https://www.zenatech.com/zenatech-unveils-stacklens-ai.../"
+        text = "Sources:\nhttps://www.zenatech.com/zenatech-unveils-stacklens-ai.../"
         out, fetch, compare = self.go(text)
         fetch.assert_not_called()
         self.assertEqual(out.checks[0].status, "UNREADABLE")
@@ -202,6 +205,11 @@ class RunTests(unittest.TestCase):
         self.assertTrue(out.ai_failed)
         self.assertEqual(out.checks[0].claims, [])
         self.assertIn("No AI model", out.checks[0].message)
+
+    def test_a_link_written_in_the_caption_is_not_read(self):
+        out, fetch, _ = self.go("Read the full article here: https://www.zenatech.com/zenatech-unveils-stacklens-ai-powered-smart-safety-glasses/")
+        fetch.assert_not_called()
+        self.assertEqual(out.checks, [])
 
     def test_switched_off(self):
         with patch.object(sc, "ENABLED", False):

@@ -250,9 +250,9 @@ class ScoreAfterDismissalsTests(unittest.TestCase):
         self.assertEqual(self.score(flags, dismissed=["a"]), 60)
         self.assertEqual(self.score(flags, dismissed=["a", "b"]), 80)
 
-    def test_the_critical_cap_lasts_only_while_a_critical_flag_is_open(self):
+    def test_a_critical_flag_costs_its_points_and_is_not_capped(self):
         flags = [self.flag("red", 35, "RED"), self.flag("y", 10)]
-        self.assertEqual(self.score(flags), 40)  # 55, capped at 40
+        self.assertEqual(self.score(flags), 55)  # no cap at 40
         self.assertEqual(self.score(flags, dismissed=["red"]), 90)
 
     def test_dismissing_the_stricter_of_two_flags_on_the_same_words_doesnt_make_them_free(self):

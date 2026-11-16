@@ -42,6 +42,7 @@ from services.compliance.evaluation import context_evaluator
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
 from services.compliance.evaluation import source_check_service
+from services.compliance.evaluation.image_marks import without_image_marks
 from services.shared.core.audit_service import log_audit_event
 from services.shared.core.cache_service import AsyncInMemoryCache, emit_cache_invalidation, rules_cache
 
@@ -772,7 +773,6 @@ PENALTY_CRITICAL = 35
 PENALTY_HIGH = 20
 PENALTY_OTHER = 10
 PENALTY_MISSING_DISCLAIMER = 20
-CRITICAL_SCORE_CAP = 40
 # A rule's penalty covers its first claim. Each further, separate claim under the same rule costs a little more, up
 # to a cap, so a post that breaks a rule eight times scores below one that breaks it once.
 EXTRA_CLAIM_PENALTY = 5
@@ -1237,7 +1237,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     signals = post_signals.extract(req.text)
     scope = check_scope(req, signals)
     rules = await applicable_rules(req)
-    padded_text = f" {_normalize(chr(10).join([req.text, *signals.hashtag_phrases]))} "
+    padded_text = f" {_normalize(chr(10).join([without_image_marks(req.text), *signals.hashtag_phrases]))} "
     hashtag_keys = signals.hashtag_keys
     # Where a required disclaimer has to be: the published parts only, when the caller says which those are.
     disclaimer_padded = (
@@ -1338,7 +1338,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # "compliant" always agree; a cleared trigger doesn't count.
     overall_traffic_light = "RED" if blocked else "YELLOW" if (breaches or open_warnings) else "GREEN"
     raw_score = max(0, 100 - sum(v.penalty for v in (*breaches, *unsupported, *to_check)))
-    score = min(raw_score, CRITICAL_SCORE_CAP) if blocked else raw_score
+    score = raw_score  # a critical rule blocks the post (red) but doesn't cap the score: it is what the points add up to
 
     recommendations: List[str] = []
     if blocked:
@@ -1406,7 +1406,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         raw_score=raw_score,
         blocked=blocked,
         ai_unavailable=ai_unavailable,
-        score_cap=CRITICAL_SCORE_CAP if blocked and raw_score > CRITICAL_SCORE_CAP else None,
+        score_cap=None,
         violations_count=len(breaches),
         review_count=needs_review,
         evidence_count=needs_evidence,
@@ -1492,7 +1492,7 @@ def _charge_unsupported_claims(violations: List[ComplianceViolation]) -> List[Co
         charged += v.penalty
         if v.penalty:
             costing.append(v)
-    return costing
+    return costing + source_check_service.charge_not_found(violations, EVIDENCE_PENALTY, EVIDENCE_CAP - charged)  # unproven too
 
 
 def review_penalty(rule: ComplianceRule, kind: str, confidence: float) -> int:

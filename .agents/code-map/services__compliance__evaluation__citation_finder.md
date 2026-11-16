@@ -4,14 +4,14 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/citation_finder.py (185 lines) - Citation finder: what a post says it got its claims from.
-- `Citation` (class) L60
-- `_clean_link` (def) L71
-- `_host_and_path` (def) L78
-- `_article_like` (def) L86 - A path that names a page (an article, a report, a PDF), not a home page or a section front.
-- `_is_social` (def) L96
-- `_named_parts` (def) L100 - The sources in a "Source: ..." line: links and hashtags are taken out; several are split on ";".
-- `_continues` (def) L108 - Whether a line carries on the source line before it.
-- `find` (def) L120 - The citations in this text, each once, in the order they appear, at most MAX_CITATIONS.
-    - `add` (def) L127
-- `describe` (def) L176 - Why a citation can't be checked as it stands, or None when it can.
+## services/compliance/evaluation/citation_finder.py (192 lines) - Citation finder: what a post says it got its claims from.
+- `Citation` (class) L62
+- `_clean_link` (def) L73
+- `_host_and_path` (def) L80
+- `_article_like` (def) L88 - A path that names a page (an article, a report, a PDF), not a home page or a section front.
+- `_is_social` (def) L98
+- `_named_parts` (def) L102 - The sources in a "Source: ..." line: links and hashtags are taken out; several are split on ";".
+- `_continues` (def) L110 - Whether a line carries on the source line before it.
+- `find` (def) L122 - The citations in this text, each once, in the order they appear, at most MAX_CITATIONS.
+    - `add` (def) L130
+- `describe` (def) L183 - Why a citation can't be checked as it stands, or None when it can.

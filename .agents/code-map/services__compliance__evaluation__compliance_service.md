@@ -5,39 +5,39 @@
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
 ## services/compliance/evaluation/compliance_service.py (1648 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
-- `_get_gemini_client` (def) L77
-- `_ai_switched_off` (def) L92 - The AI meaning check was turned off on purpose (not a failure).
-- `_ai_viability_enabled` (def) L97
-- `_row_to_rule` (def) L104
-- `_clean_scope` (def) L135 - Validate scope lists against the known rule sets, brands, audiences, regions and platforms.
-- `_clean_applies_to` (def) L161 - Lowercase and de-duplicate a rule's "applies to", rejecting anything the check can't match.
-- `_duplicate_number` (def) L175
-- `list_compliance_rules` (def) L182 - Retrieve compliance rules with multi-criteria filtering.
-- `get_compliance_rule` (def) L252 - Fetch single compliance rule by ID.
-- `create_compliance_rule` (def) L258 - Add a new custom rule.
-- `update_compliance_rule` (def) L325 - Update an existing rule.
-- `delete_compliance_rule` (def) L399 - Remove a rule from screening.
-- `_normalize` (def) L431 - Lowercase and collapse punctuation to spaces, so "combat-proven" matches "combat proven".
-- `_term_pattern` (def) L437 - A trigger phrase as a regex over normalized text.
-- `_matches` (def) L449
-- `_spans` (def) L457 - Where a phrase occurs in normalized, space-padded text.
-- `_negated` (def) L483 - Whether the phrase at `start` is denied: a negator right before it, or before one verb that precedes it.
-- `_hit` (def) L491 - A phrase counts unless every place it occurs sits inside one of the rule's exceptions, so "not combat
-- `_hashtag_hit` (def) L504 - A multi-word phrase run together in a hashtag ("#combatproven" for "combat proven"), unless one of the rule's
-- `_disclaimer_present` (def) L536 - A disclaimer counts as present if it's there word for word, or nearly so: wording drifts a little
-- `flag_segments` (def) L571 - Which transcript segments contain flagged wording, using the same matcher as the check itself, so the
-- `parts_for` (def) L597 - What content is made of, as the parts a rule's "applies to" names.
-- `ImpliedBy` (class) L637
-- `_wording_for` (def) L656 - The wording in the post that brings in this rule set, as written where possible, at most 5.
-- `implied_by_wording` (def) L672 - {rule set: the wording that brings it in} for every rule set the post's wording implies, whatever it was
-- `brands_of` (def) L685 - Every brand a stored submission is for (brand_code alone for rows saved before there could be several).
-- `audiences_of` (def) L691 - Every audience a stored submission targets (audience alone for rows saved before there could be several).
-- `implied_audiences` (def) L697 - Audiences a post reaches whatever it targets: investor wording ($ZENA, "shareholders") means investors read it,
-- `CheckScope` (class) L707
-- `check_scope` (def) L723 - Who the content reaches and what it's made of, for picking the rules that apply to it.
-- `_rule_applies` (def) L742 - A rule applies unless it's limited to values the content doesn't have.
-    - `overlaps` (def) L747
-- `applicable_rules` (def) L763 - Active rules whose scope matches the content (also used to pick sentiment-analysis guidelines).
+- `_get_gemini_client` (def) L78
+- `_ai_switched_off` (def) L93 - The AI meaning check was turned off on purpose (not a failure).
+- `_ai_viability_enabled` (def) L98
+- `_row_to_rule` (def) L105
+- `_clean_scope` (def) L136 - Validate scope lists against the known rule sets, brands, audiences, regions and platforms.
+- `_clean_applies_to` (def) L162 - Lowercase and de-duplicate a rule's "applies to", rejecting anything the check can't match.
+- `_duplicate_number` (def) L176
+- `list_compliance_rules` (def) L183 - Retrieve compliance rules with multi-criteria filtering.
+- `get_compliance_rule` (def) L253 - Fetch single compliance rule by ID.
+- `create_compliance_rule` (def) L259 - Add a new custom rule.
+- `update_compliance_rule` (def) L326 - Update an existing rule.
+- `delete_compliance_rule` (def) L400 - Remove a rule from screening.
+- `_normalize` (def) L432 - Lowercase and collapse punctuation to spaces, so "combat-proven" matches "combat proven".
+- `_term_pattern` (def) L438 - A trigger phrase as a regex over normalized text.
+- `_matches` (def) L450
+- `_spans` (def) L458 - Where a phrase occurs in normalized, space-padded text.
+- `_negated` (def) L484 - Whether the phrase at `start` is denied: a negator right before it, or before one verb that precedes it.
+- `_hit` (def) L492 - A phrase counts unless every place it occurs sits inside one of the rule's exceptions, so "not combat
+- `_hashtag_hit` (def) L505 - A multi-word phrase run together in a hashtag ("#combatproven" for "combat proven"), unless one of the rule's
+- `_disclaimer_present` (def) L537 - A disclaimer counts as present if it's there word for word, or nearly so: wording drifts a little
+- `flag_segments` (def) L572 - Which transcript segments contain flagged wording, using the same matcher as the check itself, so the
+- `parts_for` (def) L598 - What content is made of, as the parts a rule's "applies to" names.
+- `ImpliedBy` (class) L638
+- `_wording_for` (def) L657 - The wording in the post that brings in this rule set, as written where possible, at most 5.
+- `implied_by_wording` (def) L673 - {rule set: the wording that brings it in} for every rule set the post's wording implies, whatever it was
+- `brands_of` (def) L686 - Every brand a stored submission is for (brand_code alone for rows saved before there could be several).
+- `audiences_of` (def) L692 - Every audience a stored submission targets (audience alone for rows saved before there could be several).
+- `implied_audiences` (def) L698 - Audiences a post reaches whatever it targets: investor wording ($ZENA, "shareholders") means investors read it,
+- `CheckScope` (class) L708
+- `check_scope` (def) L724 - Who the content reaches and what it's made of, for picking the rules that apply to it.
+- `_rule_applies` (def) L743 - A rule applies unless it's limited to values the content doesn't have.
+    - `overlaps` (def) L748
+- `applicable_rules` (def) L764 - Active rules whose scope matches the content (also used to pick sentiment-analysis guidelines).
 - `_quoted` (def) L796 - a", "b"'.
 - `_penalty_and_light` (def) L801
 - `_evaluate_rule` (def) L812 - One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
