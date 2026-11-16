@@ -4,10 +4,12 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_doc_templates.py (92 lines) - Script templates: a table of beats, each with what is seen, what is said and the text on screen.
+## services/compliance/evaluation/script_doc_templates.py (133 lines) - Script templates: a table of beats, each with what is seen, what is said and the text on screen.
 - `_t` (def) L10
 - `get_template` (def) L25
 - `_esc` (def) L29
 - `template_html` (def) L33 - The starting text of a script made from the template: for the blank script, an empty page.
 - `empty_script_html` (def) L49 - A new page: the same format as the template (numbered heading, storyline, facts line, table of beats), empty.
-- `text_to_html` (def) L61 - The editor's page for an uploaded script's text (as read from the file: "| a | b |" table rows, "# " headings).
+- `_beats_table` (def) L66 - The Reels AV script table (the same layout as the template's) for beats read back as text.
+- `shared_script_html` (def) L72 - Any script read back from the shared editor as text, drawn the way every script page is: numbered heading, storyline,
+- `text_to_html` (def) L102 - The editor's page for an uploaded script's text (as read from the file: "| a | b |" table rows, "# " headings).

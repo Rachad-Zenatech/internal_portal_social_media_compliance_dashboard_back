@@ -56,12 +56,53 @@ def empty_script_html(n: int, title: str) -> str:
 
 
 _MARKS = re.compile(r"\*\*|(?<![\w])_(?=\S)|(?<=\S)_(?![\w])")
+# A beat as the Share Document server reads a script back: "[0:30] Visual: ... | Voiceover: ... | On-screen: ...".
+_BEAT = re.compile(r"^\[([^\]]*)\]\s*Visual:\s*(.*?)\s*\|\s*Voiceover:\s*(.*?)\s*\|\s*On-screen:\s*(.*)$")
+_FACT = re.compile(r"^(Hook score|Duration|Lane):\s*(.*)$")
+_BEATS_HEAD = ("<tr><th><p>Time</p></th><th><p>Visual / footage</p></th><th><p>Voiceover</p></th>"
+               "<th><p>On-screen text</p></th></tr>")
+
+
+def _beats_table(beats: List[tuple]) -> str:
+    """The Reels AV script table (the same layout as the template's) for beats read back as text."""
+    rows = "".join("<tr>" + "".join(f"<td><p>{_esc(c)}</p></td>" for c in b) + "</tr>" for b in beats)
+    return f"<table><tbody>{_BEATS_HEAD}{rows}</tbody></table>"
+
+
+def shared_script_html(number: int, title: str, text: str) -> str:
+    """Any script read back from the shared editor as text, drawn the way every script page is: numbered heading, storyline,
+    facts line and the table of beats. A script that has no beats yet still gets the (empty) table, so every script looks
+    the same to reviewers, whether it was just made, uploaded or edited since."""
+    out = [f"<h2>{number}. {_esc(title)}</h2>"]
+    facts: List[str] = []
+    beats: List[tuple] = []
+    story: List[str] = []
+    notes: List[str] = []
+    for raw in (text or "").replace("\r\n", "\n").split("\n"):
+        line = raw.strip()
+        beat, fact, st = _BEAT.match(line), _FACT.match(line), re.match(r"^Storyline:\s*(.*)$", line)
+        if not line or re.match(r"^--- Page \d+ ---$", line):
+            continue
+        if beat:
+            beats.append(tuple(g.strip() for g in beat.groups()))
+        elif fact:
+            facts.append(f"Hook score {fact.group(2)}" if fact.group(1) == "Hook score" else fact.group(2))
+        elif st:
+            story.append(st.group(1))
+        else:
+            notes.append(_MARKS.sub("", line))
+    out.append(f"<p><strong>Storyline:</strong> {_esc(' '.join(story))}</p>")
+    if facts:
+        out.append(f"<p>{_esc(' | '.join(facts))}</p>")
+    out.append(_beats_table(beats or [("", "", "", "")] * 5))
+    out.extend(f"<p>{_esc(n)}</p>" for n in notes)
+    return "".join(out) + "<p></p>"
 
 
 def text_to_html(title: str, body: str) -> str:
     """The editor's page for an uploaded script's text (as read from the file: "| a | b |" table rows, "# " headings)."""
-    out = [f"<h2>{_esc(title)}</h2>"]
     lines = (body or "").replace("\r\n", "\n").split("\n")
+    out = [f"<h2>{_esc(title)}</h2>"]
     i = 0
     while i < len(lines):
         line = lines[i].strip()

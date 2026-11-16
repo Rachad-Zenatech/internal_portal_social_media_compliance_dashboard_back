@@ -16,7 +16,7 @@ from fastapi import HTTPException
 
 from postgresql_db.database import fetch_all, fetch_one
 from services.compliance.evaluation import shared_script_service as shared
-from services.compliance.evaluation.script_doc_templates import text_to_html
+from services.compliance.evaluation.script_doc_templates import shared_script_html
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ async def body(doc: Dict[str, Any]) -> Optional[Tuple[str, str]]:
         return None
     got = await _call("GET", f"/{sid}", ["script_documents:read"], params={"email": await _email(doc["created_by"])})
     text = (got.get("text") or "").strip()
-    return text_to_html(doc["title"], text), text
+    return shared_script_html(doc.get("position") or 1, doc["title"], text), text
 
 
 async def send(doc: Dict[str, Any], user_id: UUID, picks: List[Any], managers: List[UUID], can_review: Dict[UUID, bool], note: Optional[str]) -> None:

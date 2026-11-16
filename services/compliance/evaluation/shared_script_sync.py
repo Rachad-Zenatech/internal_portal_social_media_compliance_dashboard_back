@@ -33,7 +33,7 @@ STATUSES = {"IN_REVIEW", "LEVEL2_REVIEW", "CHANGES_REQUESTED", "APPROVED"}
 
 async def _page(share_id: str) -> Optional[Dict[str, Any]]:
     return await fetch_one(
-        """SELECT d.id, d.title, d.status, d.created_by, u.email FROM script_documents d JOIN users u ON u.id = d.created_by
+        """SELECT d.id, d.title, d.status, d.created_by, d.position, u.email FROM script_documents d JOIN users u ON u.id = d.created_by
            WHERE d.share_document_id = $1 AND d.deleted_at IS NULL""", share_id)
 
 
@@ -45,11 +45,11 @@ async def refresh_text(page: Dict[str, Any], share_id: str) -> None:
         # The reviewers read the script in this portal's own (read-only) editor, drawn from body_html: keep it as current as the
         # text, and tell the people who have the page open to read it again.
         from services.compliance.evaluation import script_doc_service as core
-        from services.compliance.evaluation.script_doc_templates import text_to_html
+        from services.compliance.evaluation.script_doc_templates import shared_script_html
 
         changed = await fetch_one(
-            "UPDATE script_documents SET body_text = $2, body_html = $3, updated_at = NOW() WHERE id = $1 AND body_text IS DISTINCT FROM $2 RETURNING id",
-            page["id"], text, text_to_html(page["title"], text))
+            "UPDATE script_documents SET body_text = $2, body_html = $3, updated_at = NOW() WHERE id = $1 AND (body_text IS DISTINCT FROM $2 OR body_html IS DISTINCT FROM $3) RETURNING id",
+            page["id"], text, shared_script_html(page["position"] or 1, page["title"], text))
         if changed:
             await core._broadcast_state(page["id"])
 

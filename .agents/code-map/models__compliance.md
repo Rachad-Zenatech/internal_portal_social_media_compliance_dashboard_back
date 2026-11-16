@@ -29,7 +29,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `CaptionSuggestion` (class) L23
 - `CaptionSuggestions` (class) L32
 
-## models/compliance/compliance_model.py (330 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (331 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class) L11
 - `ComplianceRuleCreate` (class) L57
 - `ComplianceRuleUpdate` (class) L61
@@ -45,8 +45,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `CheckSignals` (class) L233 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
 - `SourceClaim` (class) L249 - One claim the post makes, and whether the source it cites backs it up.
 - `SourceCheck` (class) L269 - A source the post cites (or that was attached), and what reading it showed.
-- `AddedRuleSet` (class) L288 - A rule set checked because of what the post says, not because it was chosen.
-- `ComplianceCheckResponse` (class) L294
+- `AddedRuleSet` (class) L289 - A rule set checked because of what the post says, not because it was chosen.
+- `ComplianceCheckResponse` (class) L295
 
 ## models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - `ContextEntryIn` (class) L12
