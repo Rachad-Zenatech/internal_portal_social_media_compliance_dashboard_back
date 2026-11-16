@@ -19,30 +19,71 @@ def acquire_timeout() -> float:
     return float(os.getenv("DB_POOL_ACQUIRE_TIMEOUT", "10.0"))
 
 
-class _AcquireContext:
-    """Terminates dead or timed-out connections on exit so asyncpg doesn't hang for 60s in _wait_for_cancellation."""
+_IDLE_PING_AFTER_SEC = 20.0
+_IDLE_PING_TIMEOUT_SEC = 3.0
+_last_active: dict[int, float] = {}
 
-    def __init__(self, ctx):
-        self._ctx = ctx
+
+def _conn_key(conn: asyncpg.Connection) -> int:
+    return id(getattr(conn, "_con", conn))
+
+
+async def _init_conn(conn: asyncpg.Connection) -> None:
+    _last_active[_conn_key(conn)] = asyncio.get_running_loop().time()
+
+
+class _AcquireContext:
+    """Validates idle pooled connections and terminates dead or timed-out ones on exit so asyncpg doesn't hang."""
+
+    def __init__(self, pool: asyncpg.Pool, timeout: float):
+        self._pool = pool
+        self._timeout = timeout
+        self._ctx = pool.acquire(timeout=timeout)
         self._conn = None
 
     def __await__(self):
         return self._ctx.__await__()
 
     async def __aenter__(self) -> asyncpg.Connection:
-        self._conn = await self._ctx.__aenter__()
+        loop = asyncio.get_running_loop()
+        for attempt in range(2):
+            self._conn = await self._ctx.__aenter__()
+            key = _conn_key(self._conn)
+            last = _last_active.get(key)
+            if last is None or (loop.time() - last) < _IDLE_PING_AFTER_SEC:
+                _last_active[key] = loop.time()
+                return self._conn
+            try:
+                await asyncio.wait_for(self._conn.execute("SELECT 1"), timeout=_IDLE_PING_TIMEOUT_SEC)
+                _last_active[key] = loop.time()
+                return self._conn
+            except Exception:
+                _last_active.pop(key, None)
+                try:
+                    self._conn.terminate()
+                except Exception:
+                    pass
+                await self._ctx.__aexit__(None, None, None)
+                self._pool.expire_connections()
+                if attempt == 1:
+                    raise
+                self._ctx = self._pool.acquire(timeout=self._timeout)
         return self._conn
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if (
-            self._conn is not None
-            and exc_type is not None
-            and issubclass(exc_type, (asyncio.TimeoutError, TimeoutError, asyncio.CancelledError, asyncpg.PostgresConnectionError, OSError))
-        ):
-            try:
-                self._conn.terminate()
-            except Exception:
-                pass
+        if self._conn is not None:
+            key = _conn_key(self._conn)
+            if exc_type is not None and issubclass(
+                exc_type, (asyncio.TimeoutError, TimeoutError, asyncio.CancelledError, asyncpg.PostgresConnectionError, OSError)
+            ):
+                _last_active.pop(key, None)
+                try:
+                    self._conn.terminate()
+                except Exception:
+                    pass
+                self._pool.expire_connections()
+            elif exc_type is None:
+                _last_active[key] = asyncio.get_running_loop().time()
         return await self._ctx.__aexit__(exc_type, exc_val, exc_tb)
 
 
@@ -54,7 +95,7 @@ class PoolWrapper:
         self._pool = pool
 
     def acquire(self, *, timeout=None):
-        return _AcquireContext(self._pool.acquire(timeout=acquire_timeout() if timeout is None else timeout))
+        return _AcquireContext(self._pool, acquire_timeout() if timeout is None else timeout)
 
     async def close(self):
         return await self._pool.close()
@@ -84,10 +125,10 @@ async def create_pool():
         retries = 5
         for attempt in range(retries):
             try:
-                min_size = int(os.getenv("DB_POOL_MIN_SIZE", "2"))
+                min_size = int(os.getenv("DB_POOL_MIN_SIZE", "0"))
                 max_size = int(os.getenv("DB_POOL_MAX_SIZE", "10"))
                 max_queries = int(os.getenv("DB_POOL_MAX_QUERIES", "50000"))
-                max_inactive_lifetime = float(os.getenv("DB_POOL_MAX_INACTIVE_LIFETIME", "300.0"))
+                max_inactive_lifetime = float(os.getenv("DB_POOL_MAX_INACTIVE_LIFETIME", "60.0"))
                 cmd_timeout = float(os.getenv("DB_COMMAND_TIMEOUT", "30.0"))
 
                 ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
@@ -118,8 +159,9 @@ async def create_pool():
                     max_queries=max_queries,
                     timeout=float(os.getenv("DB_CONNECT_TIMEOUT", "15.0")),
                     command_timeout=cmd_timeout,
-                    max_inactive_connection_lifetime=float(os.getenv("DB_POOL_MAX_INACTIVE_LIFETIME", "60.0")),
+                    max_inactive_connection_lifetime=max_inactive_lifetime,
                     server_settings=server_settings,
+                    init=_init_conn,
                 )
                 _pool = PoolWrapper(raw_pool)
                 break
@@ -137,8 +179,12 @@ async def create_pool():
 async def close_pool():
     global _pool
     if _pool:
-        await _pool.close()
+        old_pool = _pool
         _pool = None
+        try:
+            await asyncio.wait_for(old_pool.close(), timeout=5)
+        except Exception:
+            old_pool.terminate()
         logger.info("Closed PostgreSQL connection pool", extra={"event": "database_pool_closed"})
 
 

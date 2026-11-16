@@ -51,7 +51,8 @@ logger = logging.getLogger(__name__)
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused.
 PROMPT_VERSION = "context-v2"
 MODELS = without_retired([m.strip() for m in os.getenv(
-    "CONTEXT_EVAL_MODELS", os.getenv("SENTIMENT_MODELS", "gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite")
+    "CONTEXT_EVAL_MODELS",
+    os.getenv("SENTIMENT_MODELS", "gemini-3-flash-preview,gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite"),
 ).split(",") if m.strip()])
 TIMEOUT_SEC = int(os.getenv("CONTEXT_EVAL_TIMEOUT_SEC", "40"))
 # Pause before the second pass over the models when none could answer the first time.

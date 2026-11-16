@@ -105,20 +105,21 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `find_source_urls_on_web` (def) L148 - Return candidate URLs via Gemini Google Search grounding, Search APIs, or Playwright + Google News RSS/Bing.
 - `find_source_url_on_web` (def) L181 - Return the top candidate URL for a named source.
 
-## services/compliance/submissions/image_source_service.py (371 lines) - Scan an image for source citations (URLs or named title + date references), locate the source on the web, and scrape/verify it.
-- `_tesseract_ocr` (def) L59 - Run local Tesseract OCR (matching admin's pdf_extraction_service) when pytesseract + binary are available.
-- `_read_image_text` (def) L82 - Read all visible text from an image using image_text_service's Gemini Vision setup.
-- `_extract_fallback_source` (def) L92 - Fallback Gemini Vision pass when pattern matching finds no explicit 'Source:' prefix.
-- `_check_supporting_document` (def) L124 - Check if an attached SUPPORTING document on the submission matches the cited named source.
-- `_load_submission_image` (def) L162 - Load already-read image_text or raw image bytes from the submission's attached image.
-- `_vision_text` (def) L203 - Gemini Vision's reading of the image, or "" when no model could read it.
-- `_read_image` (def) L212 - (the image's text, its bytes, its type, whether there is an image at all).
-- `_find_citations` (def) L236
-- `_candidate_urls` (def) L248
-- `scan_image_and_check_source` (def) L256 - Scan an uploaded (or attached) image for source citations, find the source online, and check the image's claims
-- `_run_scan_job` (def) L299 - Execute image OCR, web search, and scraping in the background and record the job result.
-- `start_scan_job` (def) L330 - Queue image source scanning + web scraping as a background task so the request returns immediately.
-- `get_scan_job` (def) L361 - Return the current status and result of a background image source scan job.
+## services/compliance/submissions/image_source_service.py (386 lines) - Scan an image for source citations (URLs or named title + date references), locate the source on the web, and scrape/verify it.
+- `_tesseract_ocr` (def) L60 - Run local Tesseract OCR (matching admin's pdf_extraction_service) when pytesseract + binary are available.
+- `_read_image_text` (def) L83 - Read all visible text from an image using image_text_service's Gemini Vision setup.
+- `_extract_fallback_source` (def) L93 - Fallback Gemini Vision pass when pattern matching finds no explicit 'Source:' prefix.
+- `_check_supporting_document` (def) L125 - Check if an attached SUPPORTING document on the submission matches the cited named source.
+- `_load_submission_image` (def) L163 - Load already-read image_text or raw image bytes from the submission's attached image.
+- `_vision_text` (def) L204 - Gemini Vision's reading of the image, or "" when no model could read it.
+- `_read_image` (def) L213 - (the image's text, its bytes, its type, whether there is an image at all).
+- `_find_citations` (def) L237
+- `_candidate_urls` (def) L249
+- `scan_image_and_check_source` (def) L257 - Scan an uploaded (or attached) image for source citations, find the source online, and check the image's claims
+- `_run_scan_job` (def) L300 - Execute image OCR, web search, and scraping in the background and record the job result.
+- `start_scan_job` (def) L331 - Queue image source scanning + web scraping as a background task so the request returns immediately.
+- `get_active_scan_jobs` (def) L364 - Return any in-progress background image source scan jobs for this submission.
+- `get_scan_job` (def) L376 - Return the current status and result of a background image source scan job.
 
 ## services/compliance/submissions/post_steps_service.py (117 lines) - The five steps a creator works through, and how far each post has got.
 - `missing_words` (def) L33

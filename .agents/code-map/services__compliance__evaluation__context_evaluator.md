@@ -4,17 +4,17 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/context_evaluator.py (367 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
-- `_Result` (class) L105
-- `_Response` (class) L115
-- `_enum` (def) L119
-- `Candidate` (class) L148 - A rule match to be read in context: the finding, the rule, the line it's in and the lines around it.
-- `_get_client` (def) L158
-- `_norm` (def) L168
-- `_key` (def) L172
-- `_item` (def) L182
-- `_precedent` (def) L206
-- `_ask` (def) L214
-- `_judge` (def) L236 - One request for a batch, trying each model in turn.
-- `_apply` (def) L259 - Put the model's answer on the finding, through the safeguards.
-- `evaluate` (def) L337 - Read each candidate in context and set its status (in place).
+## services/compliance/evaluation/context_evaluator.py (368 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+- `_Result` (class) L106
+- `_Response` (class) L116
+- `_enum` (def) L120
+- `Candidate` (class) L149 - A rule match to be read in context: the finding, the rule, the line it's in and the lines around it.
+- `_get_client` (def) L159
+- `_norm` (def) L169
+- `_key` (def) L173
+- `_item` (def) L183
+- `_precedent` (def) L207
+- `_ask` (def) L215
+- `_judge` (def) L237 - One request for a batch, trying each model in turn.
+- `_apply` (def) L260 - Put the model's answer on the finding, through the safeguards.
+- `evaluate` (def) L338 - Read each candidate in context and set its status (in place).

@@ -39,7 +39,7 @@ from models.compliance.compliance_model import (
 )
 from services.ai.observability import ai_observability
 from services.ai.observability.ai_guardrails import screen_input
-from services.ai.core.gemini_service import is_rotatable_model_error
+from services.ai.core.gemini_service import is_rotatable_model_error, without_retired
 from services.compliance.evaluation import (
     citation_finder, context_evaluator, newsroom_facts, source_fetch_service, source_passages, source_settings,
 )
@@ -55,7 +55,10 @@ logger = logging.getLogger(__name__)
 PROMPT_VERSION = "source-v3"
 VERSION = f"sources-1|{citation_finder.VERSION}|{PROMPT_VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
-MODELS = context_evaluator.MODELS
+MODELS = without_retired([m.strip() for m in os.getenv(
+    "SOURCE_CHECK_MODELS",
+    "gemini-3-flash-preview,gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite",
+).split(",") if m.strip()])
 TIMEOUT_SEC = int(os.getenv("SOURCE_CHECK_TIMEOUT_SEC", "45"))
 RETRY_PAUSE_SEC = context_evaluator.RETRY_PAUSE_SEC
 # What a model is given of the post, at most.
@@ -309,14 +312,18 @@ async def run(text: str, provided: Sequence[ProvidedSource] = ()) -> SourceCheck
     if not citations and not docs and not newsroom:
         return result
 
-    # Named sources an attached document stands in for are covered by that document.
-    covered = {id(c) for c in citations if c.kind == "NAMED" and any(_matches(c.reference, d) for d in docs)}
+    # Named sources an attached document or a read source link stands in for are covered by that source.
     reading: List[Tuple[SourceCheck, Optional[Tuple[str, str]]]] = []
     # Only the links the author put in the Source links field are read, not links written into the caption or the image
     # (often the same page, cut short): the claims are matched against the sources that were added.
     links = [c for c in citations if c.kind == "URL" and c.where == "source_links"]
     for read in await asyncio.gather(*(_read_link(c, text) for c in links)):
         reading.append(read)
+    read_sources = [
+        *docs,
+        *(ProvidedSource(name=chk.title or chk.reference, text=mat[1]) for chk, mat in reading if mat),
+    ]
+    covered = {id(c) for c in citations if c.kind == "NAMED" and any(_matches(c.reference, d) for d in read_sources)}
     for c in citations:
         if c.kind == "NAMED" and id(c) not in covered:
             reading.append((SourceCheck(
