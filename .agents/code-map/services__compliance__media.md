@@ -114,6 +114,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `build` (def) L120 - The library for one post.
     - `keep` (def) L125
 
+## services/compliance/media/html_layout.py (114 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
+- `_HtmlLayoutParser` (class) L13 - Converts rich HTML (tables, headings, lists, bold) into document_layout's light-mark plain text.
+    - `__init__` (def) L16
+    - `_flush_runs` (def) L27
+    - `flush_block` (def) L32
+    - `handle_starttag` (def) L46
+    - `handle_endtag` (def) L72
+    - `handle_data` (def) L100
+- `html_to_text` (def) L105 - Turn Share Document HTML into light-mark text so tables, headings, lists and bold keep their layout.
+
 ## services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
 - `_safe_href` (def) L20
 - `_Sanitizer` (class) L28

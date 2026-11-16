@@ -21,6 +21,7 @@ from postgresql_db.database import execute, fetch_all, fetch_one, get_pool
 from services.compliance.evaluation import script_batch_service as batches
 from services.compliance.evaluation import script_doc_service as core
 from services.compliance.evaluation import shared_script_service as shared
+from services.compliance.media import html_layout
 from services.compliance.evaluation.script_doc_templates import empty_script_html, text_to_html
 from services.compliance.evaluation.script_split import split_scripts
 from services.compliance.evaluation.script_doc_split import split_document
@@ -51,7 +52,8 @@ async def _make_posts(doc_id: UUID) -> int:
     if have and have["submission_id"]:
         return 0
     shared = BatchDetails(**(subs._json(doc["details"]) or {})).model_dump(exclude_none=True)
-    title, text = doc["title"], doc["body_text"]
+    title = doc["title"]
+    text = html_layout.html_to_text(doc.get("body_html")) or doc["body_text"]
     post = await subs.create_submission(SubmissionCreate(title=title, content_type="VIDEO"), creator)
     try:
         await subs.update_submission(post.id, SubmissionUpdate(**shared), creator)
@@ -83,6 +85,25 @@ async def create_posts(doc_id: UUID, user_id: UUID) -> DocDetail:
         raise HTTPException(status_code=403, detail="Only the creator can make the post")
     await _make_posts(doc_id)
     return await core.get(doc_id, user_id)
+
+
+async def hydrate_doc_layout(submission_id: UUID, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Backfill light-mark layout on read for posts created before html_to_text was saved on approval."""
+    if len(rows) == 1 and not rows[0]["file_name"] and not re.search(r"(?m)^\|.*\|$", rows[0]["body"] or ""):
+        doc_row = await fetch_one(
+            """
+            SELECT d.body_html FROM script_document_posts p
+            JOIN script_documents d ON d.id = p.document_id
+            WHERE p.submission_id = $1 AND d.body_html IS NOT NULL
+            LIMIT 1
+            """,
+            submission_id,
+        )
+        if doc_row and doc_row["body_html"]:
+            laid_out = html_layout.html_to_text(doc_row["body_html"])
+            if laid_out:
+                return [{**rows[0], "body": laid_out}]
+    return rows
 
 
 # --- The creator's document: its pages ---------------------------------------------------------------------------------

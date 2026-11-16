@@ -97,7 +97,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/policy_watch_service.py (439 lines) - Policy watch: keeps the platform content-policy norms (Messaging Context entries seeded as "policy:...") up to date.
 - services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - services/compliance/evaluation/script_batch_service.py (663 lines) - Script batches.
-- services/compliance/evaluation/script_doc_pages.py (240 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
+- services/compliance/evaluation/script_doc_pages.py (261 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
 - services/compliance/evaluation/script_doc_reads.py (86 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
 - services/compliance/evaluation/script_doc_realtime.py (256 lines) - Live editing of script documents.
 - services/compliance/evaluation/script_doc_service.py (494 lines) - Script documents.
@@ -121,6 +121,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/document_layout.py (419 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
 - services/compliance/media/document_text_service.py (245 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - services/compliance/media/hashtag_library.py (145 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
+- services/compliance/media/html_layout.py (114 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
 - services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
 - services/compliance/media/image_text_service.py (206 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/media/transcription_service.py (258 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.

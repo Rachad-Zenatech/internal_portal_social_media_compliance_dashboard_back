@@ -145,9 +145,9 @@ async def _versions(submission_id: UUID) -> List[ScriptVersion]:
         LEFT JOIN content_submission_files f ON f.id = v.file_id
         WHERE v.submission_id = $1
         ORDER BY v.version_number
-        """,
-        submission_id,
-    )
+        """, submission_id)
+    from services.compliance.evaluation.script_doc_pages import hydrate_doc_layout
+    rows = await hydrate_doc_layout(submission_id, rows)
     return [
         ScriptVersion(
             version_number=r["version_number"], body=r["body"], source=r["source"], file_name=r["file_name"],
