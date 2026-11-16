@@ -100,11 +100,11 @@ async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: O
     )
 
 
-async def _generate(contents, feature: str = "IMAGE_TEXT") -> object:
+async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None) -> object:
     """Ask the first model in MODELS that answers; quota, rate-limit and unavailable-model errors move on to the next.
     Also used to read PDF scripts (see document_text_service), with its own feature label."""
     config = types.GenerateContentConfig(
-        response_mime_type="application/json", response_schema=RESPONSE_SCHEMA, temperature=0,
+        response_mime_type="application/json", response_schema=response_schema or RESPONSE_SCHEMA, temperature=0,
         # A request stuck behind "high demand" moves on to the next model instead of hanging.
         http_options=types.HttpOptions(timeout=TIMEOUT_SEC * 1000),
     )

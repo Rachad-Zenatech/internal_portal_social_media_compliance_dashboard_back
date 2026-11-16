@@ -470,10 +470,7 @@ async def get_latest(submission_id: UUID, viewer: Optional[UUID] = None) -> Opti
     )
     if not row:
         return None
-    if row["status"] == "SCHEDULED":
-        if await promote_due(submission_id):
-            row = await fetch_one("SELECT * FROM content_sentiment_analyses WHERE id = $1", row["id"]) or row
-    elif row["status"] in ("WAITING_TRANSCRIPT", "PENDING", "PROCESSING") and row["id"] not in _running:
+    if row.get("trigger") == "MANUAL" and row["status"] in ("WAITING_TRANSCRIPT", "PENDING", "PROCESSING") and row["id"] not in _running:
         await resume_unfinished(submission_id)
         row = await fetch_one("SELECT * FROM content_sentiment_analyses WHERE id = $1", row["id"]) or row
     current_hash = None

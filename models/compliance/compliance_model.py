@@ -186,6 +186,14 @@ class ContextEvaluation(BaseModel):
     model: Optional[str] = None
 
 
+class ImageFindingRegion(BaseModel):
+    file_id: UUID
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    w: float = Field(gt=0, le=1)
+    h: float = Field(gt=0, le=1)
+
+
 class ComplianceViolation(BaseModel):
     rule_id: UUID
     rule_number: str
@@ -194,6 +202,7 @@ class ComplianceViolation(BaseModel):
     severity: str
     traffic_light: str
     flagged_terms: List[str]
+    image_regions: List[ImageFindingRegion] = Field(default_factory=list)
     explanation: str
     remediation_guidance: Optional[str] = None
     # PROHIBITED_TERM: wording the rule forbids. MISSING_DISCLAIMER: wording that needs a disclaimer, without it.
