@@ -12,6 +12,14 @@ logger = logging.getLogger(__name__)
 CACHE_CHANNEL = os.getenv("CACHE_INVALIDATION_CHANNEL", "zenatech_cache_events")
 
 
+def is_cache_enabled() -> bool:
+    """In development, caches are off by default so code/data changes show immediately (override with CACHE_ENABLED)."""
+    raw = os.getenv("CACHE_ENABLED", "").strip().lower()
+    if raw:
+        return raw not in {"0", "false", "no", "off"}
+    return os.getenv("APP_ENV", "development").strip().lower() == "production"
+
+
 class AsyncInMemoryCache:
     """Lightweight in-memory cache with TTL expiration, LRU eviction, and key/prefix invalidation."""
 
@@ -24,6 +32,8 @@ class AsyncInMemoryCache:
         self.generation = 0
 
     async def get(self, key: str) -> Optional[Any]:
+        if not is_cache_enabled():
+            return None
         async with self._lock:
             entry = self._cache.get(key)
             if not entry:
@@ -35,6 +45,8 @@ class AsyncInMemoryCache:
             return value
 
     async def set(self, key: str, value: Any, ttl_seconds: int = 60) -> None:
+        if not is_cache_enabled():
+            return
         async with self._lock:
             if len(self._cache) >= self._maxsize:
                 # Evict expired or oldest entries
@@ -192,10 +204,17 @@ async def start_cache_invalidation_listener():
                     pass
             break
         except Exception as e:
-            logger.warning(f"Cache invalidation listener disconnected ({e}), reconnecting in 5s...")
+            err_desc = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+            logger.warning(f"Cache invalidation listener disconnected ({err_desc}), reconnecting in 5s...")
+            try:
+                from postgresql_db.database import get_pool
+
+                get_pool().expire_connections()
+            except Exception:
+                pass
             if conn and not conn.is_closed():
                 try:
-                    await conn.close()
+                    conn.terminate()
                 except Exception:
                     pass
             await asyncio.sleep(5)

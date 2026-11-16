@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 MAX_JOBS = 200
 _jobs: Dict[str, ImageSourceScanJobResponse] = {}
+_job_submissions: Dict[str, UUID] = {}
 _job_tasks: Set[asyncio.Task] = set()
 
 _EXTRACT_SOURCE_PROMPT = (
@@ -341,6 +342,7 @@ async def start_scan_job(
     if len(_jobs) >= MAX_JOBS:
         oldest_key = next(iter(_jobs))
         _jobs.pop(oldest_key, None)
+        _job_submissions.pop(oldest_key, None)
 
     job_id = str(uuid4())
     job = ImageSourceScanJobResponse(
@@ -349,6 +351,7 @@ async def start_scan_job(
         message="Scanning image and scraping source in the background...",
     )
     _jobs[job_id] = job
+    _job_submissions[job_id] = submission_id
     task = asyncio.create_task(
         _run_scan_job(job_id, submission_id, user_id, image_bytes, mime_type, file_id=file_id),
         name=f"image-source-scan-{job_id}",
@@ -356,6 +359,18 @@ async def start_scan_job(
     _job_tasks.add(task)
     task.add_done_callback(_job_tasks.discard)
     return job
+
+
+async def get_active_scan_jobs(submission_id: UUID, user_id: UUID) -> List[ImageSourceScanJobResponse]:
+    """Return any in-progress background image source scan jobs for this submission."""
+    from services.compliance.submissions import submission_service
+
+    await submission_service._get_owned_row(submission_id, user_id, manager_can_read=True)
+    return [
+        job
+        for job_id, job in _jobs.items()
+        if _job_submissions.get(job_id) == submission_id and job.status == "PROCESSING"
+    ]
 
 
 async def get_scan_job(submission_id: UUID, job_id: str, user_id: UUID) -> ImageSourceScanJobResponse:

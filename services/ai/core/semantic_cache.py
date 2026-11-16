@@ -51,7 +51,8 @@ CANDIDATES = 2000  # newest live entries compared per lookup
 
 
 def is_enabled() -> bool:
-    return (os.getenv("AI_SEMANTIC_CACHE_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+    default = "true" if os.getenv("APP_ENV", "development").strip().lower() == "production" else "false"
+    return (os.getenv("AI_SEMANTIC_CACHE_ENABLED", default).strip().lower() not in {"0", "false", "no", "off"}
             and bool(os.getenv("GEMINI_API_KEY")))
 
 

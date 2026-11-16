@@ -18,7 +18,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "scripts/scrape_x_playwright.py": {
-      "max_lines": 620,
+      "max_lines": 616,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "server.py": {
@@ -54,7 +54,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/sentiment/jobs.py": {
-      "max_lines": 544,
+      "max_lines": 542,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
@@ -104,7 +104,7 @@
       "kind": "py_function"
     },
     "scripts/scrape_x_playwright.py#build_live_x_listening_json": {
-      "max_lines": 127,
+      "max_lines": 123,
       "kind": "py_function"
     },
     "scripts/validate_mood_flow.py#scenarios": {

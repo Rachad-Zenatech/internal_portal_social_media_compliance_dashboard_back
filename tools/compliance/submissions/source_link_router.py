@@ -1,6 +1,6 @@
 """Router for quick AI checking of submission source links."""
 
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
@@ -53,6 +53,12 @@ async def scan_image_sources(
         mime_type=mime_type,
         file_id=file_id,
     )
+
+
+@router.get("/{submission_id}/scan-image-sources", response_model=List[ImageSourceScanJobResponse])
+async def list_active_image_source_scan_jobs(submission_id: UUID, user_id: CurrentUser):
+    """Return any background image source scan jobs currently running for this submission."""
+    return await image_source_service.get_active_scan_jobs(submission_id=submission_id, user_id=user_id)
 
 
 @router.get("/{submission_id}/scan-image-sources/{job_id}", response_model=ImageSourceScanJobResponse)

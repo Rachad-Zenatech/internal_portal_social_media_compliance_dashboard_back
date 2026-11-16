@@ -12,20 +12,21 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `apply_stealth` (def) L20 - Apply stealth to a Playwright browser context (every page opened from it after this).
 - `new_stealth_context` (def) L34 - A new browser context with a desktop Chrome user agent and stealth applied.
 
-## services/shared/core/cache_service.py (202 lines) - Goes up on every invalidation.
-- `AsyncInMemoryCache` (class) L15 - Lightweight in-memory cache with TTL expiration, LRU eviction, and key/prefix invalidation.
-    - `__init__` (def) L18
-    - `get` (def) L26
-    - `set` (def) L37
-    - `set_if_unchanged` (def) L55 - set(), unless the cache was invalidated since `generation` was read (the value may be stale).
-    - `invalidate` (def) L60
-    - `invalidate_prefix` (def) L65
-    - `clear` (def) L72
-- `_apply_cache_invalidation` (def) L86 - Apply invalidation to local process in-memory caches.
-- `emit_cache_invalidation` (def) L119 - Broadcast a cache invalidation event.
-- `_create_notification_handler` (def) L141 - Create a callback for PostgreSQL NOTIFY events received from other workers.
-    - `handle_notification` (def) L143
-- `start_cache_invalidation_listener` (def) L157 - Background worker that listens for PostgreSQL NOTIFY events on CACHE_CHANNEL.
+## services/shared/core/cache_service.py (221 lines) - cache service (shared core)
+- `is_cache_enabled` (def) L15 - In development, caches are off by default so code/data changes show immediately (override with CACHE_ENABLED).
+- `AsyncInMemoryCache` (class) L23 - Lightweight in-memory cache with TTL expiration, LRU eviction, and key/prefix invalidation.
+    - `__init__` (def) L26
+    - `get` (def) L34
+    - `set` (def) L47
+    - `set_if_unchanged` (def) L67 - set(), unless the cache was invalidated since `generation` was read (the value may be stale).
+    - `invalidate` (def) L72
+    - `invalidate_prefix` (def) L77
+    - `clear` (def) L84
+- `_apply_cache_invalidation` (def) L98 - Apply invalidation to local process in-memory caches.
+- `emit_cache_invalidation` (def) L131 - Broadcast a cache invalidation event.
+- `_create_notification_handler` (def) L153 - Create a callback for PostgreSQL NOTIFY events received from other workers.
+    - `handle_notification` (def) L155
+- `start_cache_invalidation_listener` (def) L169 - Background worker that listens for PostgreSQL NOTIFY events on CACHE_CHANNEL.
 
 ## services/shared/core/logging_service.py (122 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
 - `JsonFormatter` (class) L39 - Emit one compact JSON object per line for CloudWatch Logs Insights.

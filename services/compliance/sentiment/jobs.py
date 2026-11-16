@@ -504,10 +504,7 @@ async def schedule_after_reset(submission_id: UUID, analysis_id: UUID) -> Sentim
     if row["status"] != "FAILED" or not row.get("retry_at"):
         raise HTTPException(status_code=409, detail="Only an analysis stopped by Gemini's daily limit can be scheduled")
     updated = await fetch_one(
-        """
-        UPDATE content_sentiment_analyses SET status = 'SCHEDULED', updated_at = NOW()
-        WHERE id = $1 AND status = 'FAILED' RETURNING *
-        """,
+        "UPDATE content_sentiment_analyses SET status = 'SCHEDULED', updated_at = NOW() WHERE id = $1 AND status = 'FAILED' RETURNING *",
         analysis_id,
     )
     if not updated:
@@ -537,8 +534,9 @@ async def scheduled_runs_loop() -> None:
             started = await promote_due()
             if started:
                 logger.info("Started %d scheduled sentiment analyses after the quota reset", started)
+        except (TimeoutError, asyncio.TimeoutError, OSError) as err:
+            logger.warning("Scheduled sentiment check skipped (%s); will retry", type(err).__name__)
         except Exception:
             logger.exception("Couldn't start scheduled sentiment analyses")
         await asyncio.sleep(SCHEDULE_CHECK_SEC)
-
 
