@@ -58,15 +58,19 @@ def details_missing(r: Mapping[str, Any]) -> List[str]:
         missing.append("account_id")
     if not r.get("rule_sets"):
         missing.append("rule_sets")
-    if not (r.get("caption_text") or "").strip():
-        missing.append("caption")
-    # Types that carry media need it; a text post doesn't. A social post takes images only, so a video on one is a gap.
-    if r.get("main_required") and not r.get("has_main"):
-        missing.append("main_file")
-    elif r.get("content_type") == "SOCIAL_POST" and r.get("main_is_video"):
-        missing.append("main_file")
-    if r.get("script_stage") and r.get("script_status") != "APPROVED":
-        missing.append("script_approval")
+    script_only = bool(r.get("script_stage")) and not r.get("main_is_video")
+    if script_only:
+        if not r.get("has_script"):
+            missing.append("script")
+    else:
+        if not (r.get("caption_text") or "").strip():
+            missing.append("caption")
+        if r.get("main_required") and not r.get("has_main"):
+            missing.append("main_file")
+        elif r.get("content_type") == "SOCIAL_POST" and r.get("main_is_video"):
+            missing.append("main_file")
+        if r.get("script_stage") and r.get("script_status") != "APPROVED":
+            missing.append("script_approval")
     return missing
 
 
@@ -83,7 +87,7 @@ def _tool(done_at: Optional[datetime], edited_at: Optional[datetime], running: b
 def compute_steps(r: Mapping[str, Any]) -> SubmissionSteps:
     """The steps for one post, from a row of what the list query reads (see submission_service.list_submissions)."""
     status = r.get("status")
-    locked = status not in EDITABLE_STATUSES
+    locked = status not in EDITABLE_STATUSES or (bool(r.get("script_stage")) and r.get("script_status") == "IN_REVIEW")
     missing = details_missing(r)
     if locked:
         # Sent: everything was done when it went. Nothing to run and nothing to send.
@@ -107,9 +111,10 @@ def compute_steps(r: Mapping[str, Any]) -> SubmissionSteps:
     sentiment = _tool(r.get("sentiment_at"), edited_at, bool(r.get("sentiment_running")))
     mood = _tool(r.get("mood_at"), edited_at)
 
-    done = {"details": details, "compliance": compliance, "sentiment": sentiment, "mood": mood}
-    next_step = next((k for k in ("details", "compliance", "sentiment", "mood") if done[k] != "done"), "send")
-    ready = all(v == "done" for v in done.values())
+    done = {"details": details, "compliance": compliance, "sentiment": sentiment}
+    required = ("details", "compliance") if r.get("script_stage") and not r.get("main_is_video") else ("details", "compliance", "sentiment")
+    next_step = next((k for k in required if done[k] != "done"), "send")
+    ready = all(done[k] == "done" for k in required)
     return SubmissionSteps(
         details=details, compliance=compliance, sentiment=sentiment, mood=mood, send="todo",
         next=next_step, ready_to_send=ready, locked=False, missing=missing,

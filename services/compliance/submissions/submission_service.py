@@ -578,7 +578,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.brand_codes, s.platforms, s.status,
                s.current_version, s.publish_at, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
                s.due_at, s.due_kind, s.rule_sets, s.region, s.script_required, s.platform_captions,
-               -- What the five steps are worked out from: when each tool last ran, and when the content last changed.
+               (EXISTS (SELECT 1 FROM content_submission_files sf WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL) OR EXISTS (SELECT 1 FROM content_script_versions sv WHERE sv.submission_id = s.id)) AS has_script,
                s.content_edited_at,
                (s.latest_check->>'checked_at')::timestamptz AS check_at,
                (SELECT max(a.completed_at) FROM content_sentiment_analyses a
@@ -1505,7 +1505,7 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
     row = await _get_owned_row(submission_id, user_id)
     if not _check_text(row):
         raise HTTPException(status_code=422, detail="Add a title or caption before running the check")
-    await require_details_complete(row, "running the compliance check")
+    await manual_check_service.require_compliance_ready(row)
     # Duplicates are settled before the compliance check, not when the post is sent: a true duplicate is refused here,
     # and a repost for another date is confirmed here (sending still refuses a duplicate made by later edits).
     duplicates = await _require_not_duplicate(row, confirm_repost)
@@ -1588,7 +1588,7 @@ _SEND_ONLY_FIELDS = {"approval_needed_by", "reviewer_ids"}
 
 async def details_missing(row: Dict[str, Any]) -> List[str]:
     """What the post still needs before its compliance check, sentiment analysis and public mood can be run."""
-    return [m for m in await _missing_for_submit(row) if m not in _SEND_ONLY_FIELDS]
+    return await manual_check_service.analysis_details_missing(row)
 
 
 async def require_details_complete(row: Dict[str, Any], doing: str) -> None:

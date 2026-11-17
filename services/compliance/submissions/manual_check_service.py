@@ -45,3 +45,60 @@ def require_current_check(row, rulebook_version, *, allow_incomplete=False, vali
         raise HTTPException(422, "The compliance check has no completed score. Run it on the Compliance page and wait for it to finish.")
     result = ComplianceCheckResponse.model_validate(check) if validate else None
     return result, check
+
+
+async def analysis_details_missing(row):
+    from services.compliance.submissions import submission_service as subs
+    missing = [m for m in await subs._missing_for_submit(row) if m not in subs._SEND_ONLY_FIELDS]
+    if row.get("content_type") != "VIDEO" or row.get("script_status") == "APPROVED":
+        return missing
+    script = await readable_script(row["id"])
+    if subs.script_stage_on(row) or script:
+        missing = [m for m in missing if m not in {"main_file", "caption", "script_approval"}]
+        if not script:
+            missing.append("script")
+    return missing
+
+
+async def readable_script(submission_id):
+    from services.compliance.submissions import submission_service as subs
+    return await subs.fetch_one(
+        "SELECT 1 FROM content_submission_files WHERE submission_id = $1 AND kind = 'SCRIPT' "
+        "AND deleted_at IS NULL AND doc_text_status = 'COMPLETED' AND btrim(coalesce(doc_text, '')) <> '' "
+        "UNION ALL SELECT 1 FROM content_script_versions WHERE submission_id = $1 "
+        "AND btrim(coalesce(body, '')) <> '' LIMIT 1", submission_id,
+    )
+
+
+async def require_sentiment_ready(submission_id, user_id):
+    """Video sentiment starts only after a real video is attached; scripts do not require it."""
+    from services.compliance.submissions import submission_service as subs
+    row = await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
+    if row.get("content_type") == "VIDEO":
+        video = await subs.fetch_one(
+            "SELECT 1 FROM content_submission_files WHERE submission_id = $1 AND kind = 'MAIN' "
+            "AND deleted_at IS NULL AND mime_type LIKE 'video/%' LIMIT 1", submission_id,
+        )
+        if not video:
+            raise HTTPException(422, "Sentiment analysis is available after the actual video is uploaded. Scripts only need compliance review.")
+    await subs.require_details_complete(row, "running the sentiment analysis")
+
+
+async def require_compliance_ready(row):
+    """Check the script while no actual video exists, including after script approval."""
+    from services.compliance.submissions import submission_service as subs
+    if row.get("content_type") == "VIDEO":
+        video = await subs.fetch_one(
+            "SELECT 1 FROM content_submission_files WHERE submission_id = $1 AND kind = 'MAIN' "
+            "AND deleted_at IS NULL AND mime_type LIKE 'video/%' LIMIT 1", row["id"],
+        )
+        if not video:
+            if not await readable_script(row["id"]):
+                raise HTTPException(422, "Attach a script and wait for its text to finish reading before running script compliance.")
+            missing = [key for key in await subs._missing_for_submit(row)
+                       if key not in subs._SEND_ONLY_FIELDS | {"main_file", "caption", "script_approval"}]
+            if missing:
+                raise HTTPException(422, "Fill in the script details before running compliance. Still needed: "
+                                    + subs.post_steps_service.missing_words(missing) + ".")
+            return
+    await subs.require_details_complete(row, "running the compliance check")

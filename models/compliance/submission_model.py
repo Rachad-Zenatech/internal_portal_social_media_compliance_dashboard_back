@@ -245,7 +245,7 @@ class SubmissionSummary(BaseModel):
     caption_text: Optional[str] = None
     # Platforms with their own caption (plain text); the others use caption_text.
     platform_captions: Dict[str, str] = Field(default_factory=dict)
-    # Video posts with a script stage: the start of the script, shown on the card until a video is added.
+    has_script: bool = False
     script_excerpt: Optional[str] = None
     cover: Optional[SubmissionFile] = None
     created_by: Optional[UUID] = None

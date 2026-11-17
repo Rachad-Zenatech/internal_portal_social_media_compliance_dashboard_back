@@ -24,6 +24,30 @@ def post(**over):
 
 
 class StepsTests(unittest.TestCase):
+    def test_script_stage_does_not_require_sentiment_until_actual_video_exists(self):
+        script = post(content_type="VIDEO", script_stage=True, script_status="APPROVED",
+                      main_required=False, has_main=False, main_is_video=False, has_script=True, sentiment_at=None)
+        steps = ps.compute_steps(script)
+        self.assertEqual((steps.next, steps.ready_to_send), ("send", True))
+        video = {**script, "has_main": True, "main_is_video": True}
+        steps = ps.compute_steps(video)
+        self.assertEqual((steps.next, steps.ready_to_send), ("sentiment", False))
+
+    def test_attached_script_completes_details_before_video_caption_or_approval(self):
+        steps = ps.compute_steps(post(content_type="VIDEO", script_stage=True, script_status="DRAFT",
+                                      has_script=True, has_main=False, main_is_video=False, caption_text=None,
+                                      check_at=None, latest_score=None, sentiment_at=None))
+        self.assertEqual(steps.details, "done")
+        self.assertEqual(steps.missing, [])
+        self.assertEqual(steps.next, "compliance")
+
+    def test_script_details_require_the_attachment_and_scope(self):
+        base = post(content_type="VIDEO", script_stage=True, script_status="DRAFT", has_script=False,
+                    has_main=False, main_is_video=False, caption_text=None)
+        self.assertEqual(ps.details_missing(base), ["script"])
+        self.assertEqual(set(ps.details_missing({**base, "has_script": True, "title": "", "platforms": []})),
+                         {"title", "platforms"})
+
     def test_a_finished_draft_is_ready_to_send_and_sits_on_the_send_step(self):
         s = ps.compute_steps(post())
         self.assertEqual((s.details, s.compliance, s.sentiment, s.mood, s.send), ("done", "done", "done", "done", "todo"))
@@ -40,7 +64,7 @@ class StepsTests(unittest.TestCase):
         s = ps.compute_steps(post(sentiment_at=None, mood_at=None))
         self.assertEqual((s.next, s.ready_to_send), ("sentiment", False))
         s = ps.compute_steps(post(mood_at=None))
-        self.assertEqual((s.next, s.ready_to_send), ("mood", False))
+        self.assertEqual((s.next, s.ready_to_send), ("send", True))
 
     def test_a_tool_run_before_the_last_edit_is_out_of_date(self):
         edited = NOW - timedelta(minutes=5)
@@ -86,9 +110,9 @@ class StepsTests(unittest.TestCase):
         self.assertIn("main_file", s.missing)
 
     def test_a_video_needs_its_script_approved_first(self):
-        s = ps.compute_steps(post(script_stage=True, script_status="DRAFT"))
+        s = ps.compute_steps(post(content_type="VIDEO", script_stage=True, script_status="DRAFT", main_is_video=True))
         self.assertIn("script_approval", s.missing)
-        s = ps.compute_steps(post(script_stage=True, script_status="APPROVED"))
+        s = ps.compute_steps(post(content_type="VIDEO", script_stage=True, script_status="APPROVED", main_is_video=True))
         self.assertEqual(s.details, "done")
 
     def test_the_fields_that_belong_to_sending_are_not_part_of_the_details_step(self):
@@ -113,6 +137,18 @@ class LockedTests(unittest.TestCase):
     def test_changes_requested_with_nothing_edited_can_be_resent(self):
         s = ps.compute_steps(post(status="CHANGES_REQUESTED"))
         self.assertEqual((s.locked, s.ready_to_send, s.next), (False, True, "send"))
+
+
+class ScriptSummaryTests(unittest.TestCase):
+    def test_list_response_exposes_whether_a_script_is_attached(self):
+        from uuid import uuid4
+        from models.compliance.submission_model import SubmissionSummary
+        for attached in (True, False):
+            with self.subTest(attached=attached):
+                summary = SubmissionSummary(id=uuid4(), reference_code="SUB-1172", title="Script draft",
+                                            content_type="VIDEO", status="DRAFT", current_version=0,
+                                            created_at=NOW, updated_at=NOW, has_script=attached)
+                self.assertEqual(summary.model_dump(mode="json")["has_script"], attached)
 
 
 if __name__ == "__main__":
