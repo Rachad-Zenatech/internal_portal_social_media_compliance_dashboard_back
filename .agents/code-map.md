@@ -41,6 +41,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__script_doc_split.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_templates.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_match.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__script_review_details.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_review_service.md | 1 | 5 KB |
 | .agents/code-map/services__compliance__evaluation__script_split.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__shared_script_review.md | 1 | 1 KB |

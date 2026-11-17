@@ -135,7 +135,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `result` (def) L70
 - `sanitize_caption_html` (def) L77 - The caption HTML with only safe formatting left.
 
-## services/compliance/media/image_finding_service.py (195 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+## services/compliance/media/image_finding_service.py (207 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - `normalized` (def) L31
 - `text_spans` (def) L35 - Whole-word occurrences in normalized OCR text, including text that wraps over lines.
 - `overlaps_flagged_text` (def) L43 - A returned line may include context on either side of the flagged words.

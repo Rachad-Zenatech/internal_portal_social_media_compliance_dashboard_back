@@ -141,26 +141,26 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `DocDetail` (class) L197
 - `DocHistory` (class) L232
 
-## models/compliance/script_review_model.py (233 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+## models/compliance/script_review_model.py (234 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class) L15
 - `ScriptSuggestion` (class) L33 - A suggesting reviewer's own suggestion on a script version: their edited wording and their notes on it.
 - `ScriptBatchRef` (class) L41 - Where this script sits in the batch it was uploaded with, for stepping through the batch one script at a time.
 - `ScriptStage` (class) L57
-- `ScriptDecisionRequest` (class) L92 - The reviewer's call on the script.
-- `ScriptReviseRequest` (class) L105
-- `ScriptSubmitRequest` (class) L112
-- `ScriptCheckRequest` (class) L117
-- `FlagFixRequest` (class) L121 - One flagged passage of a script and the rule it broke, to have a compliant rewrite suggested.
-- `FlagFixSuggestion` (class) L130
-- `ScriptQueueItem` (class) L135 - A script waiting for a reviewer, as the Content Screener's Scripts tab lists it.
-- `ScriptHighlight` (class) L162 - A stretch of the script the reviewer highlighted, with an optional note on it.
-- `ScriptResolution` (class) L177
-- `ScriptResolutionsRequest` (class) L183
-- `ScriptSuggestionRequest` (class) L187 - What a suggesting reviewer saves: their edited wording and their notes on it.
-- `ScriptHighlightsRequest` (class) L193
-- `SuggesterItem` (class) L197 - A post or script sent to a suggesting reviewer, and what they have done on it so far.
-- `SuggesterActivity` (class) L215 - One thing the suggesting reviewer did: a comment, or a saved suggestion.
-- `SuggesterDashboard` (class) L225
+- `ScriptDecisionRequest` (class) L93 - The reviewer's call on the script.
+- `ScriptReviseRequest` (class) L106
+- `ScriptSubmitRequest` (class) L113
+- `ScriptCheckRequest` (class) L118
+- `FlagFixRequest` (class) L122 - One flagged passage of a script and the rule it broke, to have a compliant rewrite suggested.
+- `FlagFixSuggestion` (class) L131
+- `ScriptQueueItem` (class) L136 - A script waiting for a reviewer, as the Content Screener's Scripts tab lists it.
+- `ScriptHighlight` (class) L163 - A stretch of the script the reviewer highlighted, with an optional note on it.
+- `ScriptResolution` (class) L178
+- `ScriptResolutionsRequest` (class) L184
+- `ScriptSuggestionRequest` (class) L188 - What a suggesting reviewer saves: their edited wording and their notes on it.
+- `ScriptHighlightsRequest` (class) L194
+- `SuggesterItem` (class) L198 - A post or script sent to a suggesting reviewer, and what they have done on it so far.
+- `SuggesterActivity` (class) L216 - One thing the suggesting reviewer did: a comment, or a saved suggestion.
+- `SuggesterDashboard` (class) L226
 
 ## models/compliance/sentiment_model.py (314 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - `Tone` (class) L19

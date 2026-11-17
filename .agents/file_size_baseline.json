@@ -50,7 +50,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/script_review_service.py": {
-      "max_lines": 1106,
+      "max_lines": 1098,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/sentiment/jobs.py": {
