@@ -27,7 +27,7 @@ from services.shared.core.logging_service import (
     request_id_ctx,
 )
 from services.shared.core.cache_service import start_cache_invalidation_listener
-from services.shared.core.startup_service import run_schema_setups, spawn_background
+from services.shared.core.startup_service import spawn_background
 from services.shared.auth.auth_service import (
     current_user_id_ctx,
     get_current_user_id_dependency,
@@ -87,16 +87,6 @@ async def lifespan(app: FastAPI):
     loop.set_exception_handler(asyncio_exception_handler)
     try:
         await create_pool()
-        # Ensure schema tables exist (auto-runs in dev, explicit/pre-deploy in production)
-        should_auto_migrate = _env_flag(
-            "AUTO_MIGRATE_SCHEMA",
-            "true" if os.getenv("APP_ENV", "development") == "development" else "false",
-        )
-        if should_auto_migrate:
-            logger.info("Running automated schema verification and migration", extra={"event": "schema_migration_start"})
-            await run_schema_setups()
-        else:
-            logger.info("Skipping startup schema auto-migration (AUTO_MIGRATE_SCHEMA=false or production mode)", extra={"event": "schema_migration_skipped"})
     except Exception:
         logger.exception("Application startup failed", extra={"event": "application_startup_failed"})
         raise

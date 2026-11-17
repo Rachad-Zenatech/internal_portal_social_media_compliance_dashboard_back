@@ -56,7 +56,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/scrape_x_playwright.py (617 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
-- server.py (619 lines) - server
+- server.py (609 lines) - server
 - services/ai/core/assistant_chat_service.py (258 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/gemini_service.py (154 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
@@ -188,7 +188,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/core/browser_stealth.py (40 lines) - Playwright stealth: hides the usual headless-browser giveaways (navigator.webdriver, missing plugins, the "HeadlessChrome" user agent, .....
 - services/shared/core/cache_service.py (221 lines) - cache service (shared core)
 - services/shared/core/logging_service.py (124 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
-- services/shared/core/startup_service.py (47 lines) - Server startup pieces: the schema setups it runs, and the background tasks it starts and tracks.
+- services/shared/core/startup_service.py (15 lines) - Server startup helpers for tracked background tasks.
 - tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
 - tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - tools/compliance/analytics/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).
