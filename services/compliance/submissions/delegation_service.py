@@ -205,5 +205,6 @@ async def delegation_count(user_id: UUID) -> Optional[int]:
 def split_picked_reviewers(row, requested):
     """(who stays on the post, who was newly picked). A post sent back for changes keeps the reviewers and suggesting
     reviewers who asked for them: more people can be added, but nobody is taken off."""
-    kept = list(row.get("reviewer_ids") or []) if row.get("status") == "CHANGES_REQUESTED" else []
+    keep = row.get("status") == "CHANGES_REQUESTED" or row.get("script_status") in ("EDITS_PROPOSED", "CHANGES_REQUESTED", "APPROVED")
+    kept = list(row.get("reviewer_ids") or []) if keep else []
     return kept, [r for r in dict.fromkeys(requested) if r not in kept]

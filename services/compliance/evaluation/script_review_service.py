@@ -13,6 +13,7 @@ uploaded once the script is approved, and the approved wording is what the video
 
 import asyncio
 from services.compliance.evaluation.script_review_details import assigned_reviewer_names
+from services.compliance.evaluation.script_creator_workflow import can_revise
 import hashlib
 import json
 import logging
@@ -262,7 +263,7 @@ async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
         can_submit=bool(status) and is_creator and editable and status in ("DRAFT", "CHANGES_REQUESTED")
         and send_state["status"] != "PROCESSING",
         can_review=status == "IN_REVIEW" and await _reviewer_may_act(row, user_id),
-        can_respond=bool(status) and is_creator and editable and status in CREATOR_TURN,
+        can_respond=bool(status) and is_creator and editable and await can_revise(row),
         processing=send_state["status"] == "PROCESSING",
         send_error=send_state["error"] if send_state["status"] == "FAILED" else None,
         batch=await batch_ref(submission_id),
@@ -566,7 +567,7 @@ async def _send_checked(row: Dict[str, Any], body: str, source: str, user_id: UU
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            await _lock_status(conn, row["id"], ("DRAFT",) + CREATOR_TURN)
+            await _lock_status(conn, row["id"], ("DRAFT", "APPROVED") + CREATOR_TURN)
             version = await _add_version(conn, row, body, source, user_id, check, file_id)
             await conn.execute(
                 """
@@ -738,14 +739,13 @@ async def accept(submission_id: UUID, user_id: UUID) -> ScriptStage:
                            f"/compliance/scanner?id={submission_id}", submission_id)
     return await get_stage(submission_id, user_id)
 
-
 async def revise(submission_id: UUID, user_id: UUID, req: ScriptReviseRequest) -> ScriptStage:
     """The creator edits the script in the platform (after edits or a change request) and sends it back."""
     row = await subs._get_owned_row(submission_id, user_id)
     subs._require_editable(row)
     _require_stage(row)
-    if _status(row) not in CREATOR_TURN:
-        raise HTTPException(status_code=409, detail="The script isn't waiting on you")
+    if not await can_revise(row):
+        raise HTTPException(status_code=409, detail="The script cannot be revised now; it is in review or a video is already attached")
     versions = await _versions(submission_id)
     body = _clean(req.text)
     if versions and _same(versions[-1].body, body):
