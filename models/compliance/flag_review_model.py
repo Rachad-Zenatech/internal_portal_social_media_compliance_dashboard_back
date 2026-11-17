@@ -36,6 +36,12 @@ class FlagReview(BaseModel):
     decided_at: datetime
 
 
+class CreatorFlagDismissalRequest(FlagReview):
+    """A creator's request for a reviewer to dismiss a finding; never a dismissal by itself."""
+    status: Literal["PENDING", "APPROVED"] = "PENDING"
+    requested_by_name: Optional[str] = None
+
+
 FindingVerdictKind = Literal["CORRECT", "OVER_FLAGGED"]
 
 

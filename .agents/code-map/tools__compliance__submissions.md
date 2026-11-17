@@ -124,7 +124,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_source_confirmations` (def) L17 [GET /{submission_id}/source-confirmations] - Everyone's calls on this post's sources, and what reviewers have said about each source's site.
 - `confirm_source` (def) L23 [POST /{submission_id}/source-confirmations] - Confirm (or take back) whether a claim matches its source, or rate the source itself.
 
-## tools/compliance/submissions/submission_router.py (566 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submissions/submission_router.py (581 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) L64 [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
 - `list_reviewers` (def) L70 [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
 - `get_hashtag_library` (def) L77 [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
@@ -183,12 +183,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `reopen_approval` (def) L495 [POST /{submission_id}/reopen] - Reviewer takes back an approval and sends the content to its creator as changes requested.
 - `reschedule` (def) L501 [POST /{submission_id}/reschedule] - Reviewer moves approved content to a new publish time; the approval stands.
 - `list_flag_reviews` (def) L507 [GET /{submission_id}/flags] - Reviewers' dismissals of automated compliance flags, on every version.
-- `dismiss_flag` (def) L513 [PUT /{submission_id}/flags/{rule_id}] - Dismiss a flag on the version in review as a false alarm, with a reason.
-- `restore_flag` (def) L519 [DELETE /{submission_id}/flags/{rule_id}] - Undo a dismissal on the version in review.
-- `list_flag_verdicts` (def) L525 [GET /{submission_id}/flag-verdicts] - Reviewers' calls on the automated flags (right, or a false alarm), on every version.
-- `confirm_flag` (def) L531 [PUT /{submission_id}/flags/{rule_id}/confirm] - Say a flag on the version in review is right.
-- `unconfirm_flag` (def) L537 [DELETE /{submission_id}/flags/{rule_id}/confirm] - Take back a confirmation.
-- `list_comments` (def) L543 [GET /{submission_id}/comments] - Review comments on every version, oldest first.
-- `add_comment` (def) L549 [POST /{submission_id}/comments] - Add a comment on the current version (reviewers and the creator), optionally pinned to a video time range.
-- `update_comment` (def) L555 [PATCH /{submission_id}/comments/{comment_id}] - Mark a comment resolved (or reopen it).
-- `delete_comment` (def) L561 [DELETE /{submission_id}/comments/{comment_id}] - Delete your own comment.
+- `creator_flag_dismissals` (def) L513 [GET /{submission_id}/creator-flag-dismissals]
+- `request_creator_flag_dismissal` (def) L518 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}]
+- `approve_creator_flag_dismissal` (def) L523 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}/approve]
+- `dismiss_flag` (def) L528 [PUT /{submission_id}/flags/{rule_id}] - Dismiss a flag on the version in review as a false alarm, with a reason.
+- `restore_flag` (def) L534 [DELETE /{submission_id}/flags/{rule_id}] - Undo a dismissal on the version in review.
+- `list_flag_verdicts` (def) L540 [GET /{submission_id}/flag-verdicts] - Reviewers' calls on the automated flags (right, or a false alarm), on every version.
+- `confirm_flag` (def) L546 [PUT /{submission_id}/flags/{rule_id}/confirm] - Say a flag on the version in review is right.
+- `unconfirm_flag` (def) L552 [DELETE /{submission_id}/flags/{rule_id}/confirm] - Take back a confirmation.
+- `list_comments` (def) L558 [GET /{submission_id}/comments] - Review comments on every version, oldest first.
+- `add_comment` (def) L564 [POST /{submission_id}/comments] - Add a comment on the current version (reviewers and the creator), optionally pinned to a video time range.
+- `update_comment` (def) L570 [PATCH /{submission_id}/comments/{comment_id}] - Mark a comment resolved (or reopen it).
+- `delete_comment` (def) L576 [DELETE /{submission_id}/comments/{comment_id}] - Delete your own comment.

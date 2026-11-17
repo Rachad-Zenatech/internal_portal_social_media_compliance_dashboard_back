@@ -58,12 +58,13 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `PolicyWatch` (class) L87 - How the weekly check of the policy pages went, and the drafted updates waiting for a decision.
 - `PolicyProposalApprove` (class) L96 - Approve a drafted update, optionally with the super admin's own edits to its wording.
 
-## models/compliance/flag_review_model.py (67 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
+## models/compliance/flag_review_model.py (73 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - `FlagDismissRequest` (class) L21
 - `FlagReview` (class) L26
-- `FlagConfirmRequest` (class) L42
-- `FindingVerdict` (class) L46 - A reviewer's call on a finding, kept as a labelled example: the flag was right, or it was a false alarm.
-- `RuleFlagStats` (class) L59
+- `CreatorFlagDismissalRequest` (class) L39 - A creator's request for a reviewer to dismiss a finding; never a dismissal by itself.
+- `FlagConfirmRequest` (class) L48
+- `FindingVerdict` (class) L52 - A reviewer's call on a finding, kept as a labelled example: the flag was right, or it was a false alarm.
+- `RuleFlagStats` (class) L65
 
 ## models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
 - `CommentSample` (class) L13

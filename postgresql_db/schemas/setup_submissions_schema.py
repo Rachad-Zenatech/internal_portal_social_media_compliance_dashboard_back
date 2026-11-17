@@ -7,17 +7,15 @@ import logging
 import os
 
 from postgresql_db.database import get_pool, close_pool
+from postgresql_db.schemas.creator_flag_dismissal_requests_schema import ensure_creator_flag_dismissal_requests
 from postgresql_db.schemas.setup_source_links_schema import ensure_source_links_column
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
 async def setup():
     pool = get_pool()
     async with pool.acquire() as conn:
         logger.info("Setting up content submission schema...")
-
         await conn.execute("""
             CREATE SEQUENCE IF NOT EXISTS content_submission_ref_seq START 1001;
 
@@ -433,6 +431,7 @@ async def setup():
             CREATE INDEX IF NOT EXISTS idx_ai_usage_user_time ON ai_usage_events(user_id, created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_ai_usage_submission_time ON ai_usage_events(submission_id, created_at DESC);
         """)
+        await ensure_creator_flag_dismissal_requests(conn)
 
         # The five brands content is filed under. The software products (ZooOffice, DeskFlex, Othership,
         # Zena Studios) roll up into "Software Brands"; Shaun's own posts are their own brand.

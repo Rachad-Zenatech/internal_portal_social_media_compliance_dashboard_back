@@ -49,7 +49,7 @@ from services.compliance.analytics import sentiment_service
 from services.compliance.submissions import flag_review_service
 from services.compliance.submissions import submission_service as svc
 from tools.compliance.submissions.review_queue_router import router as review_queue_router
-from models.compliance.flag_review_model import FindingVerdict, FlagConfirmRequest, FlagDismissRequest, FlagReview
+from models.compliance.flag_review_model import CreatorFlagDismissalRequest, FindingVerdict, FlagConfirmRequest, FlagDismissRequest, FlagReview
 from services.shared.auth.auth_service import get_current_user_id_dependency, require_permission
 from services.compliance.media.hashtag_library import HashtagLibrary
 
@@ -508,6 +508,21 @@ async def reschedule(submission_id: UUID, data: RescheduleRequest, user_id: Curr
 async def list_flag_reviews(submission_id: UUID, user_id: CurrentUser):
     """Reviewers' dismissals of automated compliance flags, on every version."""
     return await flag_review_service.list_for(submission_id, user_id)
+
+
+@router.get("/{submission_id}/creator-flag-dismissals", response_model=List[CreatorFlagDismissalRequest])
+async def creator_flag_dismissals(submission_id: UUID, user_id: CurrentUser):
+    return await flag_review_service.creator_requests_for(submission_id, user_id)
+
+
+@router.put("/{submission_id}/creator-flag-dismissals/{rule_id}", response_model=CreatorFlagDismissalRequest)
+async def request_creator_flag_dismissal(submission_id: UUID, rule_id: UUID, data: FlagDismissRequest, user_id: CurrentUser):
+    return await flag_review_service.request_dismissal(submission_id, rule_id, user_id, data)
+
+
+@router.put("/{submission_id}/creator-flag-dismissals/{rule_id}/approve", response_model=FlagReview)
+async def approve_creator_flag_dismissal(submission_id: UUID, rule_id: UUID, user_id: CurrentUser):
+    return await flag_review_service.approve_creator_request(submission_id, rule_id, user_id)
 
 
 @router.put("/{submission_id}/flags/{rule_id}", response_model=FlagReview)

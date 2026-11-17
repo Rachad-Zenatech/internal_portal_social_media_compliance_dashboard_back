@@ -69,24 +69,28 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `remember_all_in_background` (def) L118 - Startup: index verdicts given while the vector store was off or the server was down.
 - `similar` (def) L128 - Past verdicts on this rule for wording like `text`, closest first, as {score, verdict, reason, note, passage}.
 
-## services/compliance/submissions/flag_review_service.py (360 lines) - Reviewers' calls on automated compliance flags.
-- `_json` (def) L34
-- `_out` (def) L38
-- `list_for` (def) L53
-- `_reviewable` (def) L61 - The submission, if this user may make calls on its flags now: a reviewer, while it's in review.
-- `dismiss` (def) L75
-- `_save_verdict` (def) L122 - Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag.
-- `undo` (def) L144
-- `_verdict_out` (def) L169
-- `verdicts_for` (def) L183 - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
-- `confirm` (def) L194 - A reviewer says a flag is right.
-- `unconfirm` (def) L228
-- `score_after_dismissals` (def) L242 - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
-- `ApprovalStanding` (class) L265
-    - `score_too_low` (def) L275
-- `approval_standing` (def) L279 - Per submission, what stands between its current version and approval: open critical flags and the score
-- `open_critical_counts` (def) L326 - Per submission: critical (red) flags on its current version that nobody has dismissed.
-- `rule_stats` (def) L331 - How often each rule flagged a submitted version, and how often reviewers dismissed it.
+## services/compliance/submissions/flag_review_service.py (417 lines) - Reviewers' calls on automated compliance flags.
+- `_json` (def) L35
+- `_out` (def) L39
+- `_creator_request_out` (def) L59
+- `creator_requests_for` (def) L69
+- `request_dismissal` (def) L76
+- `approve_creator_request` (def) L99
+- `list_for` (def) L110
+- `_reviewable` (def) L118 - The submission, if this user may make calls on its flags now: a reviewer, while it's in review.
+- `dismiss` (def) L132
+- `_save_verdict` (def) L179 - Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag.
+- `undo` (def) L201
+- `_verdict_out` (def) L226
+- `verdicts_for` (def) L240 - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
+- `confirm` (def) L251 - A reviewer says a flag is right.
+- `unconfirm` (def) L285
+- `score_after_dismissals` (def) L299 - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
+- `ApprovalStanding` (class) L322
+    - `score_too_low` (def) L332
+- `approval_standing` (def) L336 - Per submission, what stands between its current version and approval: open critical flags and the score
+- `open_critical_counts` (def) L383 - Per submission: critical (red) flags on its current version that nobody has dismissed.
+- `rule_stats` (def) L388 - How often each rule flagged a submitted version, and how often reviewers dismissed it.
 
 ## services/compliance/submissions/image_source_checks.py (107 lines) - Checking a post against more than one candidate source found for an image's citation.
 - `rank_by_authority` (def) L28 - The candidates without repeats, most authoritative first; the search's own order within each kind.
