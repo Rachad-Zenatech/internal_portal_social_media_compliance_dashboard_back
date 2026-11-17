@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import FileResponse
+from services.compliance.media.file_mime_policy import safe_disposition_type
 
 from models.compliance.brand_voice_model import BrandVoice, BrandVoiceIn
 from models.compliance.context_model import (
@@ -109,7 +110,7 @@ async def download_brand_manual(brand_code: str, user_id: CurrentUser):
 @router.get("/brand-voices/{brand_code}/logo")
 async def brand_logo(brand_code: str, user_id: CurrentUser):
     path, mime, _ = await voices.file_path(brand_code, "logo")
-    return FileResponse(path, media_type=mime)
+    return FileResponse(path, media_type=mime, content_disposition_type=safe_disposition_type(mime))
 
 
 @router.post("", response_model=ContextEntry, status_code=status.HTTP_201_CREATED)

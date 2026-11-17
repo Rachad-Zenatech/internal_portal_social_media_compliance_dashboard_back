@@ -382,14 +382,16 @@ async def logout(request: Request):
 
     if token:
         import jwt
-        from services.shared.auth.auth_service import JWT_SECRET, JWT_ALGORITHM
+        from services.shared.auth.auth_service import JWT_SECRET, JWT_ALGORITHM, JWT_ISSUER, JWT_AUDIENCE
         from services.shared.core.cache_service import emit_cache_invalidation
         try:
             payload = jwt.decode(
                 token,
                 JWT_SECRET,
                 algorithms=[JWT_ALGORITHM],
-                options={"verify_exp": False, "require": ["sub", "iat"], "verify_iss": False}
+                issuer=JWT_ISSUER,
+                audience=JWT_AUDIENCE,
+                options={"verify_exp": False, "require": ["sub", "iat", "iss", "aud"]},
             )
         except jwt.PyJWTError:
             payload = None

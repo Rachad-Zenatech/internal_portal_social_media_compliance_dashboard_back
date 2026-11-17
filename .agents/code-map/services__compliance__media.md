@@ -101,6 +101,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `schedule_missing` (def) L224 - Read the documents among these that were never read, or whose read was abandoned (e.g.
 - `paragraphs` (def) L241 - A read document's paragraphs, in order (one per line as stored).
 
+## services/compliance/media/file_mime_policy.py (60 lines) - Server-side MIME type and Content-Disposition policy for user-uploaded files.
+- `safe_file_mime` (def) L50 - Return an allowlisted MIME type based on file extension, or application/octet-stream.
+- `safe_disposition_type` (def) L56 - Allow inline browser preview only for safe raster images, videos, and PDFs.
+
 ## services/compliance/media/hashtag_library.py (145 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - `LibraryTag` (class) L61
 - `LibraryGroup` (class) L67
@@ -180,8 +184,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `locate_video_findings` (def) L43 - Attach tight OCR boxes to matching transcript moments in a video.
 - `locate_media_findings` (def) L75 - Keep image and video localization beside the media-specific implementations.
 
-## services/compliance/media/video_job_service.py (182 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
+## services/compliance/media/video_job_service.py (190 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
 - `create_video_job` (def) L57 - Initialize a new video processing background job.
-- `get_video_job` (def) L102 - Retrieve current status and progress of a background video job.
-- `list_video_jobs` (def) L107 - List recent video processing jobs.
-- `run_video_processing_pipeline` (def) L114 - Background task simulating end-to-end video processing through all stages.
+- `get_video_job` (def) L102 - Retrieve current status and progress of a background video job owned by user_id.
+- `list_video_jobs` (def) L112 - List recent video processing jobs belonging to user_id.
+- `run_video_processing_pipeline` (def) L122 - Background task simulating end-to-end video processing through all stages.

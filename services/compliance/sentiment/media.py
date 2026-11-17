@@ -62,4 +62,6 @@ async def analysed_image(submission_id: UUID, analysis_id: UUID, index: int) -> 
     path = (STORAGE_ROOT / f["storage_path"]).resolve() if f else None
     if not path or STORAGE_ROOT not in path.parents or not path.is_file():
         raise HTTPException(status_code=404, detail="The image is no longer available")
-    return path, f["mime_type"]
+    from services.compliance.media.file_mime_policy import safe_file_mime
+
+    return path, safe_file_mime(path.name)

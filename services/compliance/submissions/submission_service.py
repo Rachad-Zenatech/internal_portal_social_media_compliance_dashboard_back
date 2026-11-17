@@ -6,7 +6,7 @@ import asyncio
 import json
 import time
 import logging
-import mimetypes
+from services.compliance.media.file_mime_policy import safe_file_mime
 import os
 import re
 import shutil
@@ -997,7 +997,7 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
         path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail="The file is empty")
 
-    mime = upload.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
+    mime = safe_file_mime(original_name)
     saved = await _record_file(row, kind, file_id, path, original_name, mime, size, user_id)
     if kind == "SCRIPT":
         # A new script file enables the script stage on the post and resets it to DRAFT so it goes through review.
@@ -1250,7 +1250,7 @@ async def get_file_for_download(submission_id: UUID, file_id: UUID, user_id: UUI
     path = (STORAGE_ROOT / f["storage_path"]).resolve()
     if STORAGE_ROOT not in path.parents or not path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
-    return path, f["mime_type"], f["original_name"]
+    return path, safe_file_mime(f["original_name"]), f["original_name"]
 
 
 # ---------------------------------------------------------------------------

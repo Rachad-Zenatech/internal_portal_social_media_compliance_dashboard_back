@@ -91,6 +91,6 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `promote_due` (def) L512 - Start scheduled analyses whose quota reset time has passed (all of them, or one submission's).
 - `scheduled_runs_loop` (def) L527 - Background loop (started with the app): runs scheduled analyses once Gemini's daily limit has reset.
 
-## services/compliance/sentiment/media.py (66 lines) - Video frames and attached images for sentiment findings.
+## services/compliance/sentiment/media.py (68 lines) - Video frames and attached images for sentiment findings.
 - `video_frame` (def) L18 - A JPEG of the analysed video at a moment (cached on disk), so a finding can show what was on screen.
 - `analysed_image` (def) L50 - One of the images an analysis looked at (1 = the first), as (path, mime type), so a finding can show it.

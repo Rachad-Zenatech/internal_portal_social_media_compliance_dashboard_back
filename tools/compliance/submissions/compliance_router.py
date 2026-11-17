@@ -157,15 +157,15 @@ async def start_video_upload_job(
 
 
 @router.get("/jobs/{job_id}")
-async def get_video_job_status(job_id: str, _user_id: CurrentUser):
+async def get_video_job_status(job_id: str, user_id: CurrentUser):
     """Get the real-time status, progress, and logs of a video background job."""
-    job = vjs.get_video_job(job_id)
+    job = vjs.get_video_job(job_id, user_id=str(user_id))
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video job not found")
     return job
 
 
 @router.get("/jobs")
-async def list_video_jobs(_user_id: CurrentUser, limit: int = 10):
+async def list_video_jobs(user_id: CurrentUser, limit: int = 10):
     """List recent video upload and screening background jobs."""
-    return vjs.list_video_jobs(limit=limit)
+    return vjs.list_video_jobs(limit=limit, user_id=str(user_id))

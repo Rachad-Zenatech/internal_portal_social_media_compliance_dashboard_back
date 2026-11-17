@@ -39,10 +39,10 @@ from models.compliance.submission_model import (
     DuplicateReport,
     SubmitRequest,
 )
-from services.ai.observability import ai_observability
+from services.ai.observability import ai_observability, ai_usage_service
 from services.compliance.submissions import delegation_service
 from services.compliance.submissions import duplicate_service
-from services.ai.observability import ai_usage_service
+from services.compliance.media.file_mime_policy import safe_disposition_type
 from services.compliance.media import caption_service
 from services.compliance.analytics import conversation_evidence, conversation_feedback, public_mood_service
 from services.compliance.analytics import sentiment_service
@@ -162,7 +162,7 @@ async def upload_file(
 async def download_file(submission_id: UUID, file_id: UUID, user_id: CurrentUser):
     """Stream a file for preview. Supports range requests, so videos can seek."""
     path, mime, name = await svc.get_file_for_download(submission_id, file_id, user_id)
-    return FileResponse(path, media_type=mime, filename=name, content_disposition_type="inline")
+    return FileResponse(path, media_type=mime, filename=name, content_disposition_type=safe_disposition_type(mime))
 
 
 @router.post("/{submission_id}/files/{file_id}/transcribe", response_model=SubmissionFile, status_code=status.HTTP_202_ACCEPTED)
