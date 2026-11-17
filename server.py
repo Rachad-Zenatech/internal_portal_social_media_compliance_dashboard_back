@@ -595,11 +595,10 @@ async def request_observability(request: Request, call_next):
     request_id_ctx.reset(token)
     return response
 
-
 # --- CORS Configuration ---
-_cors_env = os.getenv("CORS_ALLOWED_ORIGINS", "") or os.getenv("CORS_ORIGINS", "")
-cors_origins = [orig.strip() for orig in _cors_env.split(",") if orig.strip()] if _cors_env else []
-_cors_regex = None if _is_prod else r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.\d+\.\d+\.\d+)(:\d+)?$"
+cors_origins = [origin.strip() for origin in (os.getenv("CORS_ALLOWED_ORIGINS", "") or os.getenv("CORS_ORIGINS", "")).split(",") if origin.strip()]
+if _is_prod and not cors_origins: raise RuntimeError("CORS_ALLOWED_ORIGINS must list explicit HTTPS origins when APP_ENV=production")
+_cors_regex = None if _is_prod else r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$"
 
 app.add_middleware(
     CORSMiddleware,

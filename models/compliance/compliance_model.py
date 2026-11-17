@@ -192,6 +192,17 @@ class ImageFindingRegion(BaseModel):
     y: float = Field(ge=0, le=1)
     w: float = Field(gt=0, le=1)
     h: float = Field(gt=0, le=1)
+    # Present for a video frame. Image regions intentionally have no time range.
+    start_sec: Optional[float] = Field(None, ge=0)
+    end_sec: Optional[float] = Field(None, ge=0)
+
+    @model_validator(mode="after")
+    def _time_range_is_whole(self):
+        if (self.start_sec is None) != (self.end_sec is None):
+            raise ValueError("A video region needs both a start and end time")
+        if self.start_sec is not None and self.end_sec < self.start_sec:
+            raise ValueError("A video region cannot end before it starts")
+        return self
 
 
 class ComplianceViolation(BaseModel):

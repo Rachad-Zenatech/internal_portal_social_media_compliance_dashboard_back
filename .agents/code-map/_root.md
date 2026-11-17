@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## server.py (620 lines) - server
+## server.py (619 lines) - server
 - `_graph_background_sync_enabled` (def) L74
 - `_env_flag` (def) L78
 - `lifespan` (def) L83

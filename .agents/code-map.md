@@ -54,9 +54,9 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__source_passages.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__source_settings.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__synthetic_media_disclosure.md | 1 | 1 KB |
-| .agents/code-map/services__compliance__media.md | 12 | 12 KB |
+| .agents/code-map/services__compliance__media.md | 13 | 12 KB |
 | .agents/code-map/services__compliance__sentiment.md | 8 | 7 KB |
-| .agents/code-map/services__compliance__submissions.md | 18 | 26 KB |
+| .agents/code-map/services__compliance__submissions.md | 19 | 26 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |
 | .agents/code-map/services__notifications.md | 9 | 9 KB |
 | .agents/code-map/services__shared__auth.md | 5 | 4 KB |

@@ -47,7 +47,7 @@ def overlaps_flagged_text(visible, text, terms):
     return any(max(a, c) < min(b, d) for a, b in visible_spans for c, d in flagged_spans)
 
 
-def region_from_box(file_id, box):
+def region_from_box(file_id, box, start_sec=None, end_sec=None):
     """Reject off-image/empty coordinates; Gemini uses [top, left, bottom, right]."""
     if not isinstance(box, list) or len(box) != 4:
         return None
@@ -57,7 +57,8 @@ def region_from_box(file_id, box):
     if not (0 <= left < right <= 1000 and 0 <= top < bottom <= 1000):
         return None
     return ImageFindingRegion(file_id=file_id, x=left / 1000, y=top / 1000,
-                              w=(right - left) / 1000, h=(bottom - top) / 1000)
+                              w=(right - left) / 1000, h=(bottom - top) / 1000,
+                              start_sec=start_sec, end_sec=end_sec)
 
 
 def _ocr_word_boxes(data):
@@ -97,7 +98,7 @@ def _ocr_word_boxes(data):
         return []
 
 
-def _ocr_regions(file_id, words, terms):
+def _ocr_regions(file_id, words, terms, start_sec=None, end_sec=None):
     """Find flagged phrases in OCR words and return one tight region per affected text line."""
     tokens = [word["text"] for word in words]
     regions = []
@@ -117,7 +118,7 @@ def _ocr_regions(file_id, words, terms):
                 left = min(box[1] for box in boxes)
                 bottom = max(box[2] for box in boxes)
                 right = max(box[3] for box in boxes)
-                region = region_from_box(file_id, [top, left, bottom, right])
+                region = region_from_box(file_id, [top, left, bottom, right], start_sec, end_sec)
                 if region and region not in regions:
                     regions.append(region)
             break

@@ -187,6 +187,14 @@ class CriticalRulesAreNotLetGoOnUncertainAnswers(unittest.TestCase):
         f = self.judge("NEEDS_REVIEW", 0.4, severity="MEDIUM", traffic_light="YELLOW")
         self.assertEqual((f.status, f.penalty), ("NEEDS_REVIEW", 0))
 
+    def test_a_test_label_does_not_clear_a_visible_image_claim(self):
+        rule = make_rule(severity="MEDIUM", traffic_light="YELLOW")
+        finding = make_violation(rule, traffic_light="YELLOW", flagged_terms=["risk free"], penalty=10)
+        candidate = ce.Candidate(finding, rule, "Text in image 1: RISK FREE — TEST ONLY", "Text in image 1: RISK FREE — TEST ONLY")
+        result = ce._Result(id="0", status="NO_VIOLATION", matched_text="RISK FREE", reasoning="It is a test.", confidence=0.99)
+        ce._apply(candidate, result, "model", injected=False)
+        self.assertEqual((finding.status, finding.penalty), ("VIOLATION", 10))
+
 
 class OpenYellowFlagsNeedAnAnswer(unittest.IsolatedAsyncioTestCase):
     async def standing(self, violations, dismissed=(), confirmed=()):
