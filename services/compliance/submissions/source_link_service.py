@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import HTTPException
 
 from models.compliance.compliance_model import ProvidedSource, SourceCheck
-from postgresql_db.database import fetch_all
+from postgresql_db.database import execute, fetch_all
 from services.ai.observability.ai_guardrails import screen_input
 from services.compliance.evaluation import citation_finder, source_check_service, source_fetch_service, source_passages
 from services.compliance.media import document_layout
@@ -74,6 +74,40 @@ async def compare_with_source(check: SourceCheck, post_text: str, label: str, so
     return check
 
 
+async def save_source_link_check(
+    submission_id: UUID, url: str, check: SourceCheck, *, add_link: bool = False,
+) -> None:
+    """Persist an extracted/checked source result (and optionally its URL) on the submission row."""
+    payload = json.dumps({url: check.model_dump(mode="json")})
+    if add_link:
+        await execute(
+            """
+            UPDATE content_submissions
+            SET source_links = CASE
+                    WHEN $3 = ANY(COALESCE(source_links, '{}')) THEN COALESCE(source_links, '{}')
+                    ELSE array_append(COALESCE(source_links, '{}'), $3)
+                END,
+                source_link_checks = COALESCE(source_link_checks, '{}'::jsonb) || $2::jsonb,
+                updated_at = NOW()
+            WHERE id = $1 AND deleted_at IS NULL
+            """,
+            submission_id,
+            payload,
+            url,
+        )
+    else:
+        await execute(
+            """
+            UPDATE content_submissions
+            SET source_link_checks = COALESCE(source_link_checks, '{}'::jsonb) || $2::jsonb,
+                updated_at = NOW()
+            WHERE id = $1 AND deleted_at IS NULL
+            """,
+            submission_id,
+            payload,
+        )
+
+
 async def check_submission_source_link(
     submission_id: UUID, url: str, user_id: UUID, image_text: Optional[str] = None,
 ) -> SourceCheck:
@@ -81,7 +115,9 @@ async def check_submission_source_link(
     text of an image just scanned (it may not be attached to the post yet)."""
     clean_url = normalize_source_url(url)
     material = await submission_material(submission_id, user_id, image_text)
-    return await check_single_url(clean_url, material)
+    check = await check_single_url(clean_url, material)
+    await save_source_link_check(submission_id, clean_url, check)
+    return check
 
 
 async def check_submission_pasted_source(

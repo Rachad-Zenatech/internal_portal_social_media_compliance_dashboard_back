@@ -473,7 +473,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         context_picks=_context_picks(row),
         platform_captions=_platform_captions(row),
         rule_sets=list(row["rule_sets"] or []),
-        source_links=list(row.get("source_links") or []),
+        source_links=list(row.get("source_links") or []), source_link_checks=_json(row.get("source_link_checks")) or {},
         reviewer_route=list(row["reviewer_route"] or []),
         reviewer_ids=list(row.get("reviewer_ids") or []),
         status=row["status"],

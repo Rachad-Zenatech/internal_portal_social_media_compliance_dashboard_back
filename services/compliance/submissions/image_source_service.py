@@ -279,6 +279,8 @@ async def scan_image_and_check_source(
     if candidate_urls:
         merged, read = await image_source_checks.check_candidates(submission_id, candidate_urls, user_id, text)
     if read:
+        if merged and read[0].url:
+            await source_link_service.save_source_link_check(submission_id, read[0].url, merged, add_link=True)
         return ImageSourceScanResponse(**reply, resolved_url=read[0].url, check=merged, source_checks=read)
 
     # No page could be read (bot walls, nothing found): an attached Supporting Document may be the source.
