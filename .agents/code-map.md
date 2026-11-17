@@ -59,7 +59,7 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions.md | 18 | 26 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |
 | .agents/code-map/services__notifications.md | 9 | 9 KB |
-| .agents/code-map/services__shared__auth.md | 4 | 4 KB |
+| .agents/code-map/services__shared__auth.md | 5 | 4 KB |
 | .agents/code-map/services__shared__core.md | 5 | 3 KB |
 | .agents/code-map/tools__ai.md | 2 | 1 KB |
 | .agents/code-map/tools__compliance__analytics.md | 4 | 4 KB |

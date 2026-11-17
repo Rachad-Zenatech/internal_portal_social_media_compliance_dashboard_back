@@ -5,17 +5,17 @@
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
 ## server.py (620 lines) - server
-- `_graph_background_sync_enabled` (def) L72
-- `_env_flag` (def) L76
-- `lifespan` (def) L81
-    - `resume_reads` (def) L144
-- `MessageItem` (class) L245
-- `ChatRequest` (class) L249
-- `ai_chat` (def) L256 [POST /ai/chat]
-- `root` (def) L302 [GET /]
-- `health_live` (def) L306 [GET /health/live]
-- `health_ready` (def) L310 [GET /health/ready]
-- `integration_status` (def) L319 [GET /api/integration-status, GET /api/integration/status]
+- `_graph_background_sync_enabled` (def) L74
+- `_env_flag` (def) L78
+- `lifespan` (def) L83
+    - `resume_reads` (def) L146
+- `MessageItem` (class) L247
+- `ChatRequest` (class) L251
+- `ai_chat` (def) L258 [POST /ai/chat]
+- `root` (def) L304 [GET /]
+- `health_live` (def) L308 [GET /health/live]
+- `health_ready` (def) L312 [GET /health/ready]
+- `integration_status` (def) L321 [GET /api/integration-status, GET /api/integration/status]
 - `_sweep_rate_buckets` (def) L411
 - `_client_ip` (def) L415
 - `_session_identity` (def) L421
