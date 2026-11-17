@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -36,6 +36,20 @@ class UnreadableFindingTests(unittest.TestCase):
         f = finding(r, penalty=20, light="YELLOW")
         ce._apply(ce.Candidate(f, r, "p", "c"), None, None, False)
         self.assertEqual((f.status, f.penalty), ("NEEDS_REVIEW", 0))
+
+
+class ContextFallbackTests(unittest.IsolatedAsyncioTestCase):
+    async def test_a_partial_fallback_response_retries_only_its_missing_findings(self):
+        first = ce._Result(id="0", status="VIOLATION", reasoning="r", confidence=1)
+        second = ce._Result(id="1", status="VIOLATION", reasoning="r", confidence=1)
+        ask = AsyncMock(side_effect=[ce._Response(results=[first]), ce._Response(results=[second])])
+        batch = [(0, MagicMock()), (1, MagicMock())]
+        with patch.object(ce, "MODELS", ["first", "second"]), \
+             patch.object(ce, "_item", side_effect=lambda index, _: {"id": str(index)}), \
+             patch.object(ce, "_ask", new=ask):
+            answers, model = await ce._judge(batch, MagicMock())
+        self.assertEqual((set(answers), model), ({0, 1}, "second"))
+        self.assertEqual([call.args[1] for call in ask.await_args_list], [[{"id": "0"}, {"id": "1"}], [{"id": "1"}]])
 
 
 class ApprovalGateTests(unittest.IsolatedAsyncioTestCase):

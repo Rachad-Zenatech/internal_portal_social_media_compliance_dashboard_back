@@ -28,12 +28,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `handle_notification` (def) L155
 - `start_cache_invalidation_listener` (def) L169 - Background worker that listens for PostgreSQL NOTIFY events on CACHE_CHANNEL.
 
-## services/shared/core/logging_service.py (122 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
+## services/shared/core/logging_service.py (124 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
 - `JsonFormatter` (class) L39 - Emit one compact JSON object per line for CloudWatch Logs Insights.
     - `format` (def) L42
 - `configure_logging` (def) L64 - Configure stdout once; AWS container log drivers collect this stream.
-- `log_background_task_result` (def) L89 - Log a task that exits unexpectedly instead of losing its exception.
-- `asyncio_exception_handler` (def) L106 - Capture detached asyncio failures that would otherwise only reach stderr.
+- `log_background_task_result` (def) L91 - Log a task that exits unexpectedly instead of losing its exception.
+- `asyncio_exception_handler` (def) L108 - Capture detached asyncio failures that would otherwise only reach stderr.
 
 ## services/shared/core/startup_service.py (47 lines) - Server startup pieces: the schema setups it runs, and the background tasks it starts and tracks.
 - `run_schema_setups` (def) L31 - Make sure every schema's tables exist.

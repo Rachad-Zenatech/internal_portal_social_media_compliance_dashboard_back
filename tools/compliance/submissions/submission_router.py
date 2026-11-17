@@ -26,9 +26,6 @@ from models.compliance.submission_model import (
     ReviewDecisionRequest,
     ReopenRequest,
     RescheduleRequest,
-    QueueTab,
-    ReviewQueueCounts,
-    ReviewQueueItem,
     ReviewerOption,
     VersionView,
     Submission,
@@ -51,6 +48,7 @@ from services.compliance.analytics import conversation_evidence, conversation_fe
 from services.compliance.analytics import sentiment_service
 from services.compliance.submissions import flag_review_service
 from services.compliance.submissions import submission_service as svc
+from tools.compliance.submissions.review_queue_router import router as review_queue_router
 from models.compliance.flag_review_model import FindingVerdict, FlagConfirmRequest, FlagDismissRequest, FlagReview
 from services.shared.auth.auth_service import get_current_user_id_dependency, require_permission
 from services.compliance.media.hashtag_library import HashtagLibrary
@@ -58,6 +56,7 @@ from services.compliance.media.hashtag_library import HashtagLibrary
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/submissions", tags=["Content Submissions"])
+router.include_router(review_queue_router)
 
 CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 
@@ -87,28 +86,6 @@ async def get_hashtag_library(
     """Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
     rules that apply would flag, and how many the strictest platform suits. Drafts can call it before they're saved."""
     return await caption_service.get_hashtag_library(brand_codes[:10], audiences[:10], region, platforms[:20], rule_sets[:10])
-
-
-# scope=mine: only the user's own content, seen as its creator (a super admin viewing the app as a creator). It only
-# ever narrows what's returned; it never grants access.
-ViewScope = Literal["all", "mine"]
-
-
-@router.get("/review-queue", response_model=List[ReviewQueueItem])
-async def review_queue(
-    user_id: CurrentUser,
-    tab: QueueTab = Query("review"),
-    search: Optional[str] = Query(None, max_length=200),
-    scope: ViewScope = Query("all"),
-):
-    """Submitted posts for one Content Screener tab (declared before /{submission_id} so it isn't parsed as an id)."""
-    return await svc.review_queue(user_id, tab, search, mine=scope == "mine")
-
-
-@router.get("/review-queue/counts", response_model=ReviewQueueCounts)
-async def review_queue_counts(user_id: CurrentUser, scope: ViewScope = Query("all")):
-    """How many posts are in each Content Screener tab."""
-    return await svc.review_queue_counts(user_id, mine=scope == "mine")
 
 
 @router.get("/delegations", response_model=List[Delegation])

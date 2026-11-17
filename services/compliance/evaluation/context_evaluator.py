@@ -236,8 +236,10 @@ async def _ask(model: str, items: List[Dict[str, Any]], guard: Any) -> _Response
 
 async def _judge(batch: List[Tuple[int, Candidate]], guard: Any) -> Tuple[Dict[int, _Result], Optional[str]]:
     """One request for a batch, trying each model in turn. Returns the answers by index and the model that gave them."""
-    items = [_item(i, c) for i, c in batch]
     wanted = {str(i): i for i, _ in batch}
+    remaining = list(batch)
+    answers: Dict[int, _Result] = {}
+    answered_by: Optional[str] = None
     # Two passes over the models: a timeout or a busy model is often fine a few seconds later, and a finding that no model
     # read is left for a person, so it is worth one more try.
     for sweep in range(2):
@@ -245,16 +247,21 @@ async def _judge(batch: List[Tuple[int, Candidate]], guard: Any) -> Tuple[Dict[i
             await asyncio.sleep(RETRY_PAUSE_SEC)
         for model in MODELS:
             try:
-                response = await _ask(model, items, guard)
+                response = await _ask(model, [_item(i, c) for i, c in remaining], guard)
             except Exception as e:
                 # Quota, a busy or retired model, a timeout or a malformed answer: the next model gets a go.
                 level = logging.INFO if (is_rotatable_model_error(e) or isinstance(e, ValueError)) else logging.WARNING
                 logger.log(level, "Context evaluation: %s couldn't answer (%s); trying the next model", model, str(e)[:160])
                 continue
-            # Only answers to items that were actually asked, once each.
-            answers = {wanted[r.id]: r for r in response.results if r.id in wanted}
-            return answers, model
-    return {}, None
+            # A valid response can still omit an item. Keep its usable answers and let the next model read only what
+            # remains, rather than marking the whole check unavailable after a successful fallback.
+            requested = {str(i) for i, _ in remaining}
+            answers.update({wanted[r.id]: r for r in response.results if r.id in requested})
+            remaining = [(i, c) for i, c in remaining if i not in answers]
+            answered_by = model
+            if not remaining:
+                return answers, answered_by
+    return answers, answered_by
 
 
 def _apply(c: Candidate, result: Optional[_Result], model: Optional[str], injected: bool) -> None:

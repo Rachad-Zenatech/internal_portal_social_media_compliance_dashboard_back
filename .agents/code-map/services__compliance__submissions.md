@@ -139,6 +139,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_tool` (def) L77 - done, stale (run before the last edit), running, or todo (never run).
 - `compute_steps` (def) L87 - The steps for one post, from a row of what the list query reads (see submission_service.list_submissions).
 
+## services/compliance/submissions/request_coalescer.py (50 lines) - Short-lived request sharing for expensive submission-list reads.
+- `ShortLivedRequestCache` (class) L10 - Share concurrent reads and retain the completed result briefly.
+    - `__init__` (def) L17
+    - `get_or_load` (def) L23
+
 ## services/compliance/submissions/review_approval_service.py (75 lines) - Approval gates for a submitted post: saved checks, findings and final approvers.
 - `require_approval` (def) L5 - Validate approval and return the refreshed row and its effective score.
 

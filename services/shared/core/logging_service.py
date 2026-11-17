@@ -64,8 +64,10 @@ class JsonFormatter(logging.Formatter):
 def configure_logging() -> None:
     """Configure stdout once; AWS container log drivers collect this stream."""
 
-    level_name = os.getenv("LOG_LEVEL", "DEBUG").upper()
-    level = getattr(logging, level_name, logging.DEBUG)
+    # Query-level database diagnostics are useful only when explicitly debugging;
+    # normal development runs should keep request warnings and errors readable.
+    level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter())
 
