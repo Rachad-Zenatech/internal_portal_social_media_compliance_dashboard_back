@@ -1,7 +1,7 @@
 """Models for submission source links and quick AI link checks."""
 
 import os
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 from models.compliance.compliance_model import SourceCheck
@@ -13,6 +13,7 @@ PASTED_MAX_CHARS = int(os.getenv("SOURCE_MAX_CHARS", "250000"))
 
 class SourceLinksMixin(BaseModel):
     source_links: List[str] = Field(default_factory=list)
+    source_link_checks: Dict[str, Any] = Field(default_factory=dict)
 
 
 class SourceLinksUpdateMixin(BaseModel):

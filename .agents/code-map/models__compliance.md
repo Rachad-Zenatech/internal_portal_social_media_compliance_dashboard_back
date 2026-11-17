@@ -192,14 +192,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `EvalCaseIn` (class) L293 - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
 - `EvalCase` (class) L301
 
-## models/compliance/source_link_model.py (55 lines) - Models for submission source links and quick AI link checks.
+## models/compliance/source_link_model.py (56 lines) - Models for submission source links and quick AI link checks.
 - `SourceLinksMixin` (class) L14
-- `SourceLinksUpdateMixin` (class) L18
-- `SourceLinkCheckRequest` (class) L22
-- `PastedSourceCheckRequest` (class) L26 - A whole article (or memo, release...) pasted in as the source, for when its page can't be opened.
-- `ImageSourceCitation` (class) L34
-- `ImageSourceScanResponse` (class) L40
-- `ImageSourceScanJobResponse` (class) L51
+- `SourceLinksUpdateMixin` (class) L19
+- `SourceLinkCheckRequest` (class) L23
+- `PastedSourceCheckRequest` (class) L27 - A whole article (or memo, release...) pasted in as the source, for when its page can't be opened.
+- `ImageSourceCitation` (class) L35
+- `ImageSourceScanResponse` (class) L41
+- `ImageSourceScanJobResponse` (class) L52
 
 ## models/compliance/source_trust_model.py (50 lines) - Models for people's calls on sources (does this claim match the page? is the page a good source?) and the standing a site earns from revi...
 - `SourceConfirmationRequest` (class) L9 - One call.

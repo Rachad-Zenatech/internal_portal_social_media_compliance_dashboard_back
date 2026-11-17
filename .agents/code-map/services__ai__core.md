@@ -43,18 +43,18 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `find` (def) L105
 - `count` (def) L118
 
-## services/ai/core/semantic_cache.py (203 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
+## services/ai/core/semantic_cache.py (202 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
 - `_env_float` (def) L40
 - `is_enabled` (def) L53
-- `Hit` (class) L60
-- `Lookup` (class) L68 - What a lookup learned, so storing the answer afterwards doesn't embed the question again.
-- `normalise` (def) L77
-- `numbers` (def) L82
-- `_embed` (def) L86
-- `lookup` (def) L107 - A cached answer to the question, if any.
-- `_lookup` (def) L121
-- `store` (def) L171 - Cache an answer for the question of an earlier lookup.
-- `clear` (def) L195 - Drop cached answers (one feature's, or all) when what they were built from has changed.
+- `Hit` (class) L59
+- `Lookup` (class) L67 - What a lookup learned, so storing the answer afterwards doesn't embed the question again.
+- `normalise` (def) L76
+- `numbers` (def) L81
+- `_embed` (def) L85
+- `lookup` (def) L106 - A cached answer to the question, if any.
+- `_lookup` (def) L120
+- `store` (def) L170 - Cache an answer for the question of an earlier lookup.
+- `clear` (def) L194 - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
 ## services/ai/core/vector_store_service.py (342 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
 - `_setting` (def) L46

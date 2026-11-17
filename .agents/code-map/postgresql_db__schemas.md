@@ -50,7 +50,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `setup` (def) L13
 - `_main` (def) L119
 
-## postgresql_db/schemas/setup_source_links_schema.py (11 lines) - Schema helper for submission source_links column.
+## postgresql_db/schemas/setup_source_links_schema.py (14 lines) - Schema helper for submission source_links column.
 - `ensure_source_links_column` (def) L6
 
 ## postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
