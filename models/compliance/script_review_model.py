@@ -62,6 +62,7 @@ class ScriptStage(BaseModel):
     required: bool
     status: Optional[ScriptStatus] = None
     versions: List[ScriptVersion] = Field(default_factory=list)
+    reviewer_names: List[str] = Field(default_factory=list)
     # The script file the creator uploaded, as read now (what "Send script for review" would send).
     file_name: Optional[str] = None
     file_status: Optional[str] = None

@@ -12,6 +12,7 @@ uploaded once the script is approved, and the approved wording is what the video
 """
 
 import asyncio
+from services.compliance.evaluation.script_review_details import assigned_reviewer_names
 import hashlib
 import json
 import logging
@@ -244,16 +245,6 @@ async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
     file_text = _clean(file["doc_text"]) if file and file.get("doc_text") else None
     stored = subs._json(row.get("script_precheck")) or {}
     precheck = stored.get("check") if status in ("DRAFT", "CHANGES_REQUESTED") and file_text else None
-    if versions and status in ("IN_REVIEW", "DRAFT", "CHANGES_REQUESTED", "EDITS_PROPOSED"):
-        latest = versions[-1]
-        if current_rb and (latest.check or {}).get("rulebook_version") != current_rb:
-            fresh = await check_text(row, latest.body)
-            await execute(
-                "UPDATE content_script_versions SET check_result = $3::jsonb WHERE submission_id = $1 AND version_number = $2",
-                submission_id, latest.version_number, json.dumps(fresh),
-            )
-            latest.check = fresh
-            await _adopt_check(execute, submission_id, fresh)
     return ScriptStage(
         submission_id=row["id"],
         reference_code=row["reference_code"],
@@ -261,6 +252,7 @@ async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
         required=subs.script_stage_on(row),
         status=status,
         versions=versions,
+        reviewer_names=await assigned_reviewer_names(row),
         file_name=file["original_name"] if file else None,
         file_status=file["doc_text_status"] if file else None,
         file_error=file["doc_text_error"] if file else None,
