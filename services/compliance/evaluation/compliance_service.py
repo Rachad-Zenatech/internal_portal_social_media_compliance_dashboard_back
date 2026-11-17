@@ -68,7 +68,7 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-14"
+SCOPE_VERSION = "scope-15"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
@@ -785,8 +785,7 @@ EVIDENCE_CAP = 10
 
 # A finding a person has to check costs points by how sure the model is that the rule is broken: at REVIEW_SURE or
 # above, REVIEW_SURE_SHARE of what the violation would cost (half of a critical rule's 35 is 18, missing disclaimer or not); from REVIEW_LIKELY up
-# to that, the same few points as a claim that needs a source; below it, nothing. Dismissing the flag gives them back.
-# Only the model's own judgment counts: a finding it would have cleared, or one no model could read, costs nothing.
+# to that, or for a rule-based missing disclosure, five points. Dismissing the flag gives them back.
 REVIEW_SURE = 0.8
 REVIEW_LIKELY = 0.5
 REVIEW_SURE_SHARE = 0.5
@@ -1516,10 +1515,11 @@ def _charge_review_findings(violations: List[ComplianceViolation],
         if v.status != "NEEDS_REVIEW":
             continue
         ev, rule = v.evaluation, by_id.get(v.rule_id)
-        # ADJUSTED: the model would have cleared it, so its confidence is that the rule isn't broken.
-        if rule is None or ev is None or ev.source != "AI":
+        # A rule-based missing disclosure carries the likely-review cost; adjusted AI judgments stay free.
+        if rule is None or (ev is not None and ev.source != "AI"):
             continue
-        v.penalty = review_penalty(rule, v.kind, ev.confidence)
+        confidence = ev.confidence if ev else (REVIEW_LIKELY if v.kind == "MISSING_DISCLAIMER" else 0)
+        v.penalty = review_penalty(rule, v.kind, confidence)
         if v.penalty:
             costing.append(v)
     return costing

@@ -31,7 +31,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_load_rules` (def) L178
 - `is_ceo_content` (def) L194 - Shaun's own thought leadership: posted through his account or checked against his rule set.
 
-## services/compliance/submissions/delegation_service.py (210 lines) - Review delegation: a reviewer hands a post in review to someone else.
+## services/compliance/submissions/creator_dismissal_service.py (25 lines) - Creator dismissal requests that must follow a submission into review.
+- `carry_pending_requests` (def) L9 - Move draft requests to the review version created when the post is sent.
+- `repair_pending_review_requests` (def) L21 - Repair requests created before draft requests were carried into review.
+
+## services/compliance/submissions/delegation_service.py (211 lines) - Review delegation: a reviewer hands a post in review to someone else.
 - `extend` (def) L18 - Named final approvers plus whoever they delegated the post to (and on down the chain).
 - `edges_for` (def) L33 - Each post's hand-offs as (from, to) pairs, for many posts in one query.
 - `with_delegates` (def) L48
@@ -69,24 +73,29 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `remember_all_in_background` (def) L118 - Startup: index verdicts given while the vector store was off or the server was down.
 - `similar` (def) L128 - Past verdicts on this rule for wording like `text`, closest first, as {score, verdict, reason, note, passage}.
 
-## services/compliance/submissions/flag_review_service.py (360 lines) - Reviewers' calls on automated compliance flags.
-- `_json` (def) L34
-- `_out` (def) L38
-- `list_for` (def) L53
-- `_reviewable` (def) L61 - The submission, if this user may make calls on its flags now: a reviewer, while it's in review.
-- `dismiss` (def) L75
-- `_save_verdict` (def) L122 - Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag.
-- `undo` (def) L144
-- `_verdict_out` (def) L169
-- `verdicts_for` (def) L183 - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
-- `confirm` (def) L194 - A reviewer says a flag is right.
-- `unconfirm` (def) L228
-- `score_after_dismissals` (def) L242 - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
-- `ApprovalStanding` (class) L265
-    - `score_too_low` (def) L275
-- `approval_standing` (def) L279 - Per submission, what stands between its current version and approval: open critical flags and the score
-- `open_critical_counts` (def) L326 - Per submission: critical (red) flags on its current version that nobody has dismissed.
-- `rule_stats` (def) L331 - How often each rule flagged a submitted version, and how often reviewers dismissed it.
+## services/compliance/submissions/flag_review_service.py (456 lines) - Reviewers' calls on automated compliance flags.
+- `_json` (def) L36
+- `_out` (def) L40
+- `_creator_request_out` (def) L60
+- `creator_requests_for` (def) L70
+- `request_dismissal` (def) L80
+- `approve_creator_request` (def) L103
+- `reject_creator_request` (def) L114 - Decline the request and use the normal review decision to return the post for changes.
+- `list_for` (def) L149
+- `_reviewable` (def) L157 - The submission, if this user may make calls on its flags now: a reviewer, while it's in review.
+- `dismiss` (def) L171
+- `_save_verdict` (def) L218 - Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag.
+- `undo` (def) L240
+- `_verdict_out` (def) L265
+- `verdicts_for` (def) L279 - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
+- `confirm` (def) L290 - A reviewer says a flag is right.
+- `unconfirm` (def) L324
+- `score_after_dismissals` (def) L338 - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
+- `ApprovalStanding` (class) L361
+    - `score_too_low` (def) L371
+- `approval_standing` (def) L375 - Per submission, what stands between its current version and approval: open critical flags and the score
+- `open_critical_counts` (def) L422 - Per submission: critical (red) flags on its current version that nobody has dismissed.
+- `rule_stats` (def) L427 - How often each rule flagged a submitted version, and how often reviewers dismissed it.
 
 ## services/compliance/submissions/image_source_checks.py (107 lines) - Checking a post against more than one candidate source found for an image's citation.
 - `rank_by_authority` (def) L28 - The candidates without repeats, most authoritative first; the search's own order within each kind.
@@ -132,12 +141,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `require_sentiment_ready` (def) L73 - Video sentiment starts only after a real video is attached; scripts do not require it.
 - `require_compliance_ready` (def) L87 - Check the script while no actual video exists, including after script approval.
 
-## services/compliance/submissions/post_steps_service.py (122 lines) - The five steps a creator works through, and how far each post has got.
-- `missing_words` (def) L33
-- `_aware` (def) L37
-- `details_missing` (def) L43 - What the post still needs before its details are complete.
-- `_tool` (def) L77 - done, stale (run before the last edit), running, or todo (never run).
-- `compute_steps` (def) L87 - The steps for one post, from a row of what the list query reads (see submission_service.list_submissions).
+## services/compliance/submissions/post_steps_service.py (130 lines) - The five steps a creator works through, and how far each post has got.
+- `missing_words` (def) L34
+- `_aware` (def) L38
+- `details_missing` (def) L44 - What the post still needs before its details are complete.
+- `_tool` (def) L78 - done, stale (run before the last edit), running, or todo (never run).
+- `compute_steps` (def) L88 - The steps for one post, from a row of what the list query reads (see submission_service.list_submissions).
 
 ## services/compliance/submissions/request_coalescer.py (50 lines) - Short-lived request sharing for expensive submission-list reads.
 - `ShortLivedRequestCache` (class) L10 - Share concurrent reads and retain the completed result briefly.
@@ -175,6 +184,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `query_text` (def) L170 - The text a post is matched on: the same parts that are stored for past reviews.
 - `_photo_text` (def) L179 - The text read from the post's photos, which the analysis input only refers to by file.
 - `similar` (def) L200 - The past reviews most like this content, closest first, as {score, title, text, meta}.
+
+## services/compliance/submissions/revision_steps.py (46 lines) - Progress for a new revision round; previous submission checks do not count.
+- `for_submissions` (def) L6
+- `compute` (def) L20
+    - `checked` (def) L26
 
 ## services/compliance/submissions/source_link_service.py (178 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
 - `normalize_source_url` (def) L17 - Trim and validate a source URL, adding https:// when the creator omitted the scheme.
@@ -270,10 +284,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_require_not_duplicate` (def) L1612 - The same content and caption, already sent for approval to the same place on the same date, can't be sent
 - `_review_job` (def) L1638
 - `submit_for_review` (def) L1658
-- `_queue_filter` (def) L1867
-- `dashboard_summary` (def) L1890 - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
-- `review_queue_counts` (def) L1983 - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
-- `review_queue` (def) L2009 - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
+- `_queue_filter` (def) L1868
+- `dashboard_summary` (def) L1891 - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
+- `review_queue_counts` (def) L1984 - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
+- `review_queue` (def) L2010 - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
 - `get_version` (def) L2131 - A past (or the current) submitted version, for looking back at what it was and how it was decided.
 - `get_history` (def) L2180
 - `_reviewer_ids` (def) L2223 - Active users who can review: super admins and roles with "Review & Publish Content".

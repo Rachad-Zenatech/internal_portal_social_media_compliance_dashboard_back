@@ -99,14 +99,22 @@ def create_video_job(
     return job_data
 
 
-def get_video_job(job_id: str) -> Optional[Dict[str, Any]]:
-    """Retrieve current status and progress of a background video job."""
-    return _VIDEO_JOBS.get(job_id)
+def get_video_job(job_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Retrieve current status and progress of a background video job owned by user_id."""
+    job = _VIDEO_JOBS.get(job_id)
+    if not job:
+        return None
+    if user_id is not None and job.get("user_id") != str(user_id):
+        return None
+    return job
 
 
-def list_video_jobs(limit: int = 10) -> List[Dict[str, Any]]:
-    """List recent video processing jobs."""
-    jobs = list(_VIDEO_JOBS.values())
+def list_video_jobs(limit: int = 10, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List recent video processing jobs belonging to user_id."""
+    jobs = [
+        j for j in _VIDEO_JOBS.values()
+        if user_id is None or j.get("user_id") == str(user_id)
+    ]
     jobs.sort(key=lambda j: j.get("created_at", ""), reverse=True)
     return jobs[:limit]
 

@@ -38,25 +38,25 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_rule_applies` (def) L743 - A rule applies unless it's limited to values the content doesn't have.
     - `overlaps` (def) L748
 - `applicable_rules` (def) L764 - Active rules whose scope matches the content (also used to pick sentiment-analysis guidelines).
-- `_quoted` (def) L796 - a", "b"'.
-- `_penalty_and_light` (def) L801
-- `_evaluate_rule` (def) L812 - One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
-    - `found` (def) L820
-- `_sentences` (def) L888 - The post's sentences worth searching on: long enough to say something, each once, in order, at most `limit`.
-- `_vector_context_for_check` (def) L902 - Query the MongoDB Atlas vector store for:
-- `_full_rule_mode` (def) L1006 - off (default): the trigger phrases and the sentence-by-sentence search pick what the AI reads; auto: also read the post
-- `_looks_like_claims` (def) L1034
-- `_semantic_findings` (def) L1041 - Rules the exact wording missed but the vector store says the post is close to in meaning, confirmed by Gemini.
-- `_passage` (def) L1207 - The sentence a finding's wording sits in, and the sentences around it, for judging it in context.
-- `plain_text_lines` (def) L1225
-- `check_compliance` (def) L1229 - Screen text against the active rules that apply to this content's rule sets, brand,
-- `flagged_tags` (def) L1431 - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
-- `_count_overlaps_once` (def) L1447 - When two rules flag the very same words (e.g.
-    - `spans` (def) L1450
-- `_charge_unsupported_claims` (def) L1467 - Give each claim that needs a source its small penalty.
-    - `claim` (def) L1473
-- `review_penalty` (def) L1498 - What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE).
-- `_charge_review_findings` (def) L1510 - Give each finding a person has to check its points by the model's confidence.
+- `_quoted` (def) L795 - a", "b"'.
+- `_penalty_and_light` (def) L800
+- `_evaluate_rule` (def) L811 - One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
+    - `found` (def) L819
+- `_sentences` (def) L887 - The post's sentences worth searching on: long enough to say something, each once, in order, at most `limit`.
+- `_vector_context_for_check` (def) L901 - Query the MongoDB Atlas vector store for:
+- `_full_rule_mode` (def) L1005 - off (default): the trigger phrases and the sentence-by-sentence search pick what the AI reads; auto: also read the post
+- `_looks_like_claims` (def) L1033
+- `_semantic_findings` (def) L1040 - Rules the exact wording missed but the vector store says the post is close to in meaning, confirmed by Gemini.
+- `_passage` (def) L1206 - The sentence a finding's wording sits in, and the sentences around it, for judging it in context.
+- `plain_text_lines` (def) L1224
+- `check_compliance` (def) L1228 - Screen text against the active rules that apply to this content's rule sets, brand,
+- `flagged_tags` (def) L1430 - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
+- `_count_overlaps_once` (def) L1446 - When two rules flag the very same words (e.g.
+    - `spans` (def) L1449
+- `_charge_unsupported_claims` (def) L1466 - Give each claim that needs a source its small penalty.
+    - `claim` (def) L1472
+- `review_penalty` (def) L1497 - What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE).
+- `_charge_review_findings` (def) L1509 - Give each finding a person has to check its points by the model's confidence.
 - `_count_extra_claims` (def) L1528 - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
 - `rulebook_version` (def) L1554 - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
 - `_examples` (def) L1575 - (example, quoted) pairs from a rule's example text.

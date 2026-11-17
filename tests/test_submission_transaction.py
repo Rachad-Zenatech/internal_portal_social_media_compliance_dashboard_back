@@ -33,6 +33,8 @@ class SubmissionTransactionTests(unittest.IsolatedAsyncioTestCase):
         await self.conn.execute("CREATE TEMP SEQUENCE test_submission_event_ids")
         await self.conn.execute("ALTER TABLE pg_temp.content_submission_events ALTER COLUMN id "
                                 "SET DEFAULT nextval('pg_temp.test_submission_event_ids')")
+        await self.conn.execute("CREATE TEMP TABLE creator_flag_dismissal_requests "
+                                "(submission_id UUID, version_number INT, status VARCHAR(20)) ON COMMIT DROP")
 
     async def asyncTearDown(self):
         await self.transaction.rollback()
@@ -59,6 +61,8 @@ class SubmissionTransactionTests(unittest.IsolatedAsyncioTestCase):
             permission, row["publish_at"],
         )
         result = SimpleNamespace(traffic_light="GREEN", score=100, violations_count=0)
+        await self.conn.execute("INSERT INTO creator_flag_dismissal_requests VALUES ($1, $2, 'PENDING')",
+                                submission_id, version)
         # All persistence and event SQL is real. External reads/notifications are isolated.
         mocks = {
             "_get_owned_row": AsyncMock(return_value=row),
@@ -92,6 +96,9 @@ class SubmissionTransactionTests(unittest.IsolatedAsyncioTestCase):
         current = await self.conn.fetchrow("SELECT * FROM content_submissions WHERE id = $1", submission_id)
         self.assertEqual(current["status"], "APPROVED" if published else "IN_REVIEW")
         self.assertEqual(current["current_version"], version + 1)
+        carried_version = await self.conn.fetchval(
+            "SELECT version_number FROM creator_flag_dismissal_requests WHERE submission_id=$1", submission_id)
+        self.assertEqual(carried_version, version + 1)
         self.assertFalse(current["publish_after_changes"])
         self.assertEqual(current["due_at"] is None, published)
         self.assertEqual(current["due_kind"], None if published else "REVIEW")

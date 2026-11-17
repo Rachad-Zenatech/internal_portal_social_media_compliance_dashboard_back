@@ -27,24 +27,24 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_video_job_status` (def) L159 [GET /jobs/{job_id}] - Get the real-time status, progress, and logs of a video background job.
 - `list_video_jobs` (def) L168 [GET /jobs] - List recent video upload and screening background jobs.
 
-## tools/compliance/submissions/context_router.py (128 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
-- `list_entries` (def) L30 [GET ] - Everyone can read it: it's the guidance their content is assessed against.
-- `newsroom_sync_status` (def) L36 [GET /newsroom-sync] - The newsroom sync running now, or how the last one went (none yet: null).
-- `start_newsroom_sync` (def) L42 [POST /newsroom-sync] - Read the ZenaTech newsroom now and add or update its facts (it also runs once a day).
-- `policy_watch_overview` (def) L50 [GET /policy-watch] - How the last check of the policy pages went, and the drafted updates waiting for a decision.
-- `policy_watch_check_now` (def) L56 [POST /policy-watch] - Re-read the policy pages now (it also runs once a week).
-- `approve_policy_update` (def) L62 [POST /policy-watch/proposals/{proposal_id}/approve] - Replace the norm's wording with the drafted update, or with the super admin's edits to it.
-- `reject_policy_update` (def) L68 [POST /policy-watch/proposals/{proposal_id}/reject]
-- `list_brand_voices` (def) L73 [GET /brand-voices] - Every brand's voice: what was read from its brand manual (or written by hand), and whether the viewer may edit it.
-- `get_brand_voice` (def) L79 [GET /brand-voices/{brand_code}]
-- `upload_brand_manual` (def) L84 [POST /brand-voices/{brand_code}/manual] - Upload the brand's manual (PDF).
-- `reread_brand_manual` (def) L91 [POST /brand-voices/{brand_code}/read] - Read the uploaded manual again (e.g.
-- `update_brand_voice` (def) L97 [PUT /brand-voices/{brand_code}] - Edit the brand voice by hand (what was read from the manual, or without one).
-- `download_brand_manual` (def) L103 [GET /brand-voices/{brand_code}/manual]
-- `brand_logo` (def) L109 [GET /brand-voices/{brand_code}/logo]
-- `create_entry` (def) L115 [POST ]
-- `update_entry` (def) L120 [PUT /{entry_id}]
-- `delete_entry` (def) L125 [DELETE /{entry_id}]
+## tools/compliance/submissions/context_router.py (129 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
+- `list_entries` (def) L31 [GET ] - Everyone can read it: it's the guidance their content is assessed against.
+- `newsroom_sync_status` (def) L37 [GET /newsroom-sync] - The newsroom sync running now, or how the last one went (none yet: null).
+- `start_newsroom_sync` (def) L43 [POST /newsroom-sync] - Read the ZenaTech newsroom now and add or update its facts (it also runs once a day).
+- `policy_watch_overview` (def) L51 [GET /policy-watch] - How the last check of the policy pages went, and the drafted updates waiting for a decision.
+- `policy_watch_check_now` (def) L57 [POST /policy-watch] - Re-read the policy pages now (it also runs once a week).
+- `approve_policy_update` (def) L63 [POST /policy-watch/proposals/{proposal_id}/approve] - Replace the norm's wording with the drafted update, or with the super admin's edits to it.
+- `reject_policy_update` (def) L69 [POST /policy-watch/proposals/{proposal_id}/reject]
+- `list_brand_voices` (def) L74 [GET /brand-voices] - Every brand's voice: what was read from its brand manual (or written by hand), and whether the viewer may edit it.
+- `get_brand_voice` (def) L80 [GET /brand-voices/{brand_code}]
+- `upload_brand_manual` (def) L85 [POST /brand-voices/{brand_code}/manual] - Upload the brand's manual (PDF).
+- `reread_brand_manual` (def) L92 [POST /brand-voices/{brand_code}/read] - Read the uploaded manual again (e.g.
+- `update_brand_voice` (def) L98 [PUT /brand-voices/{brand_code}] - Edit the brand voice by hand (what was read from the manual, or without one).
+- `download_brand_manual` (def) L104 [GET /brand-voices/{brand_code}/manual]
+- `brand_logo` (def) L110 [GET /brand-voices/{brand_code}/logo]
+- `create_entry` (def) L116 [POST ]
+- `update_entry` (def) L121 [PUT /{entry_id}]
+- `delete_entry` (def) L126 [DELETE /{entry_id}]
 
 ## tools/compliance/submissions/review_queue_router.py (39 lines) - Review Queue endpoints, protected from duplicate browser requests.
 - `review_queue` (def) L18 [GET /review-queue] - Submitted posts for one Content Screener tab.
@@ -96,22 +96,24 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_ws_user` (def) L184 - Who the connection is: the sign-in cookie, or a first message {"type": "auth", "token": ...}.
 - `live` (def) L204 [WEBSOCKET /{doc_id}/live] - The live connection for one script: its text and notes, or (`notes_only`, for a script edited in the Share Document
 
-## tools/compliance/submissions/script_review_router.py (125 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
-- `suggest_fix` (def) L33 [POST /scripts/suggest-fix] - A compliant rewrite of one flagged passage of a script, for the creator to use or not.
-- `suggester_dashboard` (def) L39 [GET /scripts/suggester-dashboard] - A suggesting reviewer's dashboard: what is sent to them, and what they have done on it.
-- `script_queue` (def) L45 [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
-- `get_script` (def) L51 [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
-- `submit_script` (def) L57 [POST /{submission_id}/script/submit] - Send the uploaded script for review.
-- `decide_script` (def) L64 [POST /{submission_id}/script/decision] - Approve the script, or send it back with a note and/or the reviewer's edited version.
-- `save_script_suggestion` (def) L70 [PUT /{submission_id}/script/suggestion] - A suggesting reviewer saves their edited wording and notes for the script in review (theirs alone for now).
-- `discard_script_suggestion` (def) L76 [DELETE /{submission_id}/script/suggestion] - Take back a suggesting reviewer's own suggestion on the script.
-- `accept_script_edits` (def) L82 [POST /{submission_id}/script/accept] - Accept the reviewer's edits; the script is approved.
-- `revise_script` (def) L88 [POST /{submission_id}/script/revise] - Send an edited script back to the reviewer.
-- `precheck_script` (def) L94 [POST /{submission_id}/script/precheck] - Creator: check the uploaded script against the rulebook before sending it (the result is kept).
-- `check_script` (def) L101 [POST /{submission_id}/script/check] - Check wording being edited, without saving it.
-- `get_script_highlights` (def) L107 [GET /{submission_id}/script/highlights] - The reviewer's highlights and notes on a script version (the creator sees them too).
-- `save_script_highlights` (def) L113 [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
-- `resolve_script_highlights` (def) L119 [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
+## tools/compliance/submissions/script_review_router.py (145 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+- `suggest_fix` (def) L35 [POST /scripts/suggest-fix] - A compliant rewrite of one flagged passage of a script, for the creator to use or not.
+- `suggester_dashboard` (def) L41 [GET /scripts/suggester-dashboard] - A suggesting reviewer's dashboard: what is sent to them, and what they have done on it.
+- `script_queue` (def) L47 [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
+- `script_queue_summary` (def) L53 [GET /scripts/queue/summary]
+- `get_script` (def) L58 [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
+- `submit_script` (def) L64 [POST /{submission_id}/script/submit] - Send the uploaded script for review.
+- `decide_script` (def) L71 [POST /{submission_id}/script/decision] - Approve the script, or send it back with a note and/or the reviewer's edited version.
+- `save_script_suggestion` (def) L77 [PUT /{submission_id}/script/suggestion] - A suggesting reviewer saves their edited wording and notes for the script in review (theirs alone for now).
+- `discard_script_suggestion` (def) L83 [DELETE /{submission_id}/script/suggestion] - Take back a suggesting reviewer's own suggestion on the script.
+- `accept_script_edits` (def) L89 [POST /{submission_id}/script/accept] - Accept the reviewer's edits; the script is approved.
+- `revise_script` (def) L95 [POST /{submission_id}/script/revise] - Send an edited script back to the reviewer.
+- `precheck_script` (def) L101 [POST /{submission_id}/script/precheck] - Creator: check the uploaded script against the rulebook before sending it (the result is kept).
+- `check_script` (def) L108 [POST /{submission_id}/script/check] - Check wording being edited, without saving it.
+- `get_script_highlights` (def) L114 [GET /{submission_id}/script/highlights] - The reviewer's highlights and notes on a script version (the creator sees them too).
+- `save_script_highlights` (def) L120 [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
+- `resolve_script_highlights` (def) L126 [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
+- `export_script` (def) L134 [GET /{submission_id}/script/export] - Download the exact saved script version the caller may read.
 
 ## tools/compliance/submissions/source_link_router.py (69 lines) - Router for quick AI checking of submission source links.
 - `check_source_link` (def) L18 [POST /{submission_id}/check-source-link] - Quickly fetch one source URL and check whether it supports the post's current material.
@@ -124,7 +126,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_source_confirmations` (def) L17 [GET /{submission_id}/source-confirmations] - Everyone's calls on this post's sources, and what reviewers have said about each source's site.
 - `confirm_source` (def) L23 [POST /{submission_id}/source-confirmations] - Confirm (or take back) whether a claim matches its source, or rate the source itself.
 
-## tools/compliance/submissions/submission_router.py (566 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+## tools/compliance/submissions/submission_router.py (589 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) L64 [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
 - `list_reviewers` (def) L70 [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
 - `get_hashtag_library` (def) L77 [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
@@ -183,12 +185,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `reopen_approval` (def) L495 [POST /{submission_id}/reopen] - Reviewer takes back an approval and sends the content to its creator as changes requested.
 - `reschedule` (def) L501 [POST /{submission_id}/reschedule] - Reviewer moves approved content to a new publish time; the approval stands.
 - `list_flag_reviews` (def) L507 [GET /{submission_id}/flags] - Reviewers' dismissals of automated compliance flags, on every version.
-- `dismiss_flag` (def) L513 [PUT /{submission_id}/flags/{rule_id}] - Dismiss a flag on the version in review as a false alarm, with a reason.
-- `restore_flag` (def) L519 [DELETE /{submission_id}/flags/{rule_id}] - Undo a dismissal on the version in review.
-- `list_flag_verdicts` (def) L525 [GET /{submission_id}/flag-verdicts] - Reviewers' calls on the automated flags (right, or a false alarm), on every version.
-- `confirm_flag` (def) L531 [PUT /{submission_id}/flags/{rule_id}/confirm] - Say a flag on the version in review is right.
-- `unconfirm_flag` (def) L537 [DELETE /{submission_id}/flags/{rule_id}/confirm] - Take back a confirmation.
-- `list_comments` (def) L543 [GET /{submission_id}/comments] - Review comments on every version, oldest first.
-- `add_comment` (def) L549 [POST /{submission_id}/comments] - Add a comment on the current version (reviewers and the creator), optionally pinned to a video time range.
-- `update_comment` (def) L555 [PATCH /{submission_id}/comments/{comment_id}] - Mark a comment resolved (or reopen it).
-- `delete_comment` (def) L561 [DELETE /{submission_id}/comments/{comment_id}] - Delete your own comment.
+- `creator_flag_dismissals` (def) L513 [GET /{submission_id}/creator-flag-dismissals]
+- `request_creator_flag_dismissal` (def) L518 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}]
+- `approve_creator_flag_dismissal` (def) L523 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}/approve]
+- `reject_creator_flag_dismissal` (def) L528 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}/reject] - Decline a creator's dismissal request and send the post back through the standard changes flow.
+- `dismiss_flag` (def) L536 [PUT /{submission_id}/flags/{rule_id}] - Dismiss a flag on the version in review as a false alarm, with a reason.
+- `restore_flag` (def) L542 [DELETE /{submission_id}/flags/{rule_id}] - Undo a dismissal on the version in review.
+- `list_flag_verdicts` (def) L548 [GET /{submission_id}/flag-verdicts] - Reviewers' calls on the automated flags (right, or a false alarm), on every version.
+- `confirm_flag` (def) L554 [PUT /{submission_id}/flags/{rule_id}/confirm] - Say a flag on the version in review is right.
+- `unconfirm_flag` (def) L560 [DELETE /{submission_id}/flags/{rule_id}/confirm] - Take back a confirmation.
+- `list_comments` (def) L566 [GET /{submission_id}/comments] - Review comments on every version, oldest first.
+- `add_comment` (def) L572 [POST /{submission_id}/comments] - Add a comment on the current version (reviewers and the creator), optionally pinned to a video time range.
+- `update_comment` (def) L578 [PATCH /{submission_id}/comments/{comment_id}] - Mark a comment resolved (or reopen it).
+- `delete_comment` (def) L584 [DELETE /{submission_id}/comments/{comment_id}] - Delete your own comment.

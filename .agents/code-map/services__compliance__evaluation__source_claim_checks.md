@@ -4,10 +4,10 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_claim_checks.py (110 lines) - Safeguards on the model's claim-by-claim answer for a source.
-- `_digits` (def) L35 - Text with figures in one form: no thousands commas, and the common number words as digits.
-- `missing_figures` (def) L41 - Figures and years in the claim that the source's text never mentions (in digits or as words).
-- `_stems` (def) L63 - Distinctive words, cut to their first five letters so "establish" matches "establishment".
-- `evidence_overlap` (def) L69 - Share of the evidence's distinctive words that the source's text contains (1.0 when too short to judge).
-- `_add` (def) L80
-- `_to_claims` (def) L84 - The model's answers, through the safeguards.
+## services/compliance/evaluation/source_claim_checks.py (114 lines) - Safeguards on the model's claim-by-claim answer for a source.
+- `_digits` (def) L36 - Text with figures in one form: no thousands commas, and the common number words as digits.
+- `missing_figures` (def) L42 - Figures and years in the claim that the source's text never mentions (in digits or as words).
+- `_stems` (def) L64 - Distinctive words, cut to their first five letters so "establish" matches "establishment".
+- `evidence_overlap` (def) L70 - Share of the evidence's distinctive words that the source's text contains (1.0 when too short to judge).
+- `_add` (def) L81
+- `_to_claims` (def) L85 - The model's answers, through the safeguards.

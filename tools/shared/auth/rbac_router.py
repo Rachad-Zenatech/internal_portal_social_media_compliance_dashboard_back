@@ -74,7 +74,7 @@ async def list_login_activities(user_id: UUID = Depends(require_permission("AUDI
 
 # --- USERS ---
 @router.get("/configuration/users")
-async def list_users(is_active: Optional[bool] = None, user_id: UUID = Depends(get_current_user_id_dependency)):
+async def list_users(is_active: Optional[bool] = None, user_id: UUID = Depends(require_permission("CONFIG_USERS_READ"))):
     return await get_all_users(is_active=is_active)
 
 @router.post("/configuration/users")

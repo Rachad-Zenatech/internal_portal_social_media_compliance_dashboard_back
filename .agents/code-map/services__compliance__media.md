@@ -101,6 +101,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `schedule_missing` (def) L224 - Read the documents among these that were never read, or whose read was abandoned (e.g.
 - `paragraphs` (def) L241 - A read document's paragraphs, in order (one per line as stored).
 
+## services/compliance/media/file_mime_policy.py (60 lines) - Server-side MIME type and Content-Disposition policy for user-uploaded files.
+- `safe_file_mime` (def) L50 - Return an allowlisted MIME type based on file extension, or application/octet-stream.
+- `safe_disposition_type` (def) L56 - Allow inline browser preview only for safe raster images, videos, and PDFs.
+
 ## services/compliance/media/hashtag_library.py (145 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - `LibraryTag` (class) L61
 - `LibraryGroup` (class) L67
@@ -135,14 +139,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `result` (def) L70
 - `sanitize_caption_html` (def) L77 - The caption HTML with only safe formatting left.
 
-## services/compliance/media/image_finding_service.py (207 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+## services/compliance/media/image_finding_service.py (208 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - `normalized` (def) L31
 - `text_spans` (def) L35 - Whole-word occurrences in normalized OCR text, including text that wraps over lines.
 - `overlaps_flagged_text` (def) L43 - A returned line may include context on either side of the flagged words.
 - `region_from_box` (def) L50 - Reject off-image/empty coordinates; Gemini uses [top, left, bottom, right].
-- `_ocr_word_boxes` (def) L63 - Return Tesseract word boxes in Gemini's 0--1000 coordinate system when available.
-- `_ocr_regions` (def) L100 - Find flagged phrases in OCR words and return one tight region per affected text line.
-- `locate_image_findings` (def) L127 - Locate flagged wording, including warnings that still need evidence.
+- `_ocr_word_boxes` (def) L64 - Return Tesseract word boxes in Gemini's 0--1000 coordinate system when available.
+- `_ocr_regions` (def) L101 - Find flagged phrases in OCR words and return one tight region per affected text line.
+- `locate_image_findings` (def) L128 - Locate flagged wording, including warnings that still need evidence.
 
 ## services/compliance/media/image_text_service.py (206 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def) L62
@@ -157,6 +161,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `resume_interrupted` (def) L174 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
 - `schedule_missing` (def) L191 - Read the images among these that were never read, or whose read was abandoned (e.g.
 
+## services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
+- `node` (def) L12
+- `paragraph` (def) L16
+- `script_docx` (def) L34
+
 ## services/compliance/media/transcription_service.py (258 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
 - `_get_client` (def) L65
 - `_to_seconds` (def) L75 - Accept numbers or "MM:SS(.s)" / "HH:MM:SS" strings, which models sometimes return anyway.
@@ -169,8 +178,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `schedule` (def) L204 - Start background transcription for each video not already being transcribed by this process.
 - `schedule_missing` (def) L215 - Queue videos that were never transcribed, or whose previous attempt was abandoned.
 
-## services/compliance/media/video_job_service.py (182 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
+## services/compliance/media/video_finding_service.py (79 lines) - Locate exact flagged wording in video frames without inventing a visual region.
+- `_frame_bytes` (def) L17 - Read one PNG frame to memory; no temporary media files are created.
+- `_seconds` (def) L35
+- `locate_video_findings` (def) L43 - Attach tight OCR boxes to matching transcript moments in a video.
+- `locate_media_findings` (def) L75 - Keep image and video localization beside the media-specific implementations.
+
+## services/compliance/media/video_job_service.py (190 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
 - `create_video_job` (def) L57 - Initialize a new video processing background job.
-- `get_video_job` (def) L102 - Retrieve current status and progress of a background video job.
-- `list_video_jobs` (def) L107 - List recent video processing jobs.
-- `run_video_processing_pipeline` (def) L114 - Background task simulating end-to-end video processing through all stages.
+- `get_video_job` (def) L102 - Retrieve current status and progress of a background video job owned by user_id.
+- `list_video_jobs` (def) L112 - List recent video processing jobs belonging to user_id.
+- `run_video_processing_pipeline` (def) L122 - Background task simulating end-to-end video processing through all stages.

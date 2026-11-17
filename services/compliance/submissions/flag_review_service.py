@@ -19,6 +19,8 @@ from models.compliance.flag_review_model import (
     REASON_LABELS,
     FindingVerdict,
     FlagConfirmRequest,
+    CreatorFlagDismissalRequest,
+    CreatorFlagDismissalRejection,
     FlagDismissRequest,
     FlagReview,
     RuleFlagStats,
@@ -48,6 +50,100 @@ _SELECT = """
     SELECT f.*, u.full_name AS decided_by_name
     FROM flag_reviews f LEFT JOIN users u ON u.id = f.decided_by
 """
+
+_CREATOR_REQUEST_SELECT = """
+    SELECT r.*, u.full_name AS requested_by_name
+    FROM creator_flag_dismissal_requests r LEFT JOIN users u ON u.id = r.requested_by
+"""
+
+
+def _creator_request_out(r: Dict[str, Any]) -> CreatorFlagDismissalRequest:
+    return CreatorFlagDismissalRequest(
+        rule_id=r["rule_id"], rule_number=r["rule_number"], version_number=r["version_number"],
+        flagged_terms=list(r["flagged_terms"] or []), traffic_light=r["traffic_light"], reason=r["reason"],
+        reason_label=REASON_LABELS.get(r["reason"], r["reason"]), note=r["note"],
+        decided_by_name=r.get("requested_by_name"), requested_by_name=r.get("requested_by_name"),
+        decided_at=r["requested_at"], status=r["status"],
+    )
+
+
+async def creator_requests_for(submission_id: UUID, user_id: UUID) -> List[CreatorFlagDismissalRequest]:
+    from services.compliance.submissions import submission_service
+    row = await submission_service._get_owned_row(submission_id, user_id, manager_can_read=True)
+    if row["status"] == "IN_REVIEW" and row["current_version"] > 0:
+        from services.compliance.submissions import creator_dismissal_service
+        await creator_dismissal_service.repair_pending_review_requests(submission_id, row["current_version"])
+    rows = await fetch_all(_CREATOR_REQUEST_SELECT + " WHERE r.submission_id = $1 ORDER BY r.version_number DESC, r.requested_at", submission_id)
+    return [_creator_request_out(r) for r in rows]
+
+
+async def request_dismissal(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagDismissRequest) -> CreatorFlagDismissalRequest:
+    from services.compliance.submissions import submission_service
+    row = await submission_service._get_owned_row(submission_id, user_id, manager_can_read=True)
+    if row["created_by"] != user_id:
+        raise HTTPException(status_code=403, detail="Only the creator can request a flag dismissal")
+    check = _json(row["latest_check"]) or {}
+    finding = next((v for v in check.get("violations") or [] if str(v.get("rule_id")) == str(rule_id)), None)
+    if not finding:
+        raise HTTPException(status_code=404, detail="That rule is not flagged on this version")
+    note = (req.note or "").strip() or None
+    if req.reason in {"OTHER", "EVIDENCE_ON_FILE"} and not note:
+        raise HTTPException(status_code=422, detail="Add a note explaining the requested dismissal")
+    async with get_pool().acquire() as conn:
+        await conn.execute(
+            """INSERT INTO creator_flag_dismissal_requests (submission_id, version_number, rule_id, rule_number, flagged_terms, traffic_light, reason, note, requested_by)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (submission_id, version_number, rule_id) DO UPDATE SET
+               reason=EXCLUDED.reason, note=EXCLUDED.note, requested_by=EXCLUDED.requested_by, requested_at=NOW(), status='PENDING'""",
+            submission_id, row["current_version"], rule_id, finding.get("rule_number"), list(finding.get("flagged_terms") or []), finding.get("traffic_light") or "YELLOW", req.reason, note, user_id,
+        )
+    saved = await fetch_one(_CREATOR_REQUEST_SELECT + " WHERE r.submission_id=$1 AND r.version_number=$2 AND r.rule_id=$3", submission_id, row["current_version"], rule_id)
+    return _creator_request_out(saved)
+
+
+async def approve_creator_request(submission_id: UUID, rule_id: UUID, user_id: UUID) -> FlagReview:
+    row = await _reviewable(submission_id, user_id)
+    request = await fetch_one("SELECT reason, note FROM creator_flag_dismissal_requests WHERE submission_id=$1 AND version_number=$2 AND rule_id=$3 AND status='PENDING'", submission_id, row["current_version"], rule_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="No pending creator dismissal request for this flag")
+    review = await dismiss(submission_id, rule_id, user_id, FlagDismissRequest(reason=request["reason"], note=request["note"]))
+    async with get_pool().acquire() as conn:
+        await conn.execute("UPDATE creator_flag_dismissal_requests SET status='APPROVED' WHERE submission_id=$1 AND version_number=$2 AND rule_id=$3", submission_id, row["current_version"], rule_id)
+    return review
+
+
+async def reject_creator_request(
+    submission_id: UUID, rule_id: UUID, user_id: UUID, req: CreatorFlagDismissalRejection,
+) -> Any:
+    """Decline the request and use the normal review decision to return the post for changes."""
+    row = await _reviewable(submission_id, user_id)
+    request = await fetch_one(
+        "SELECT rule_number FROM creator_flag_dismissal_requests "
+        "WHERE submission_id=$1 AND version_number=$2 AND rule_id=$3 AND status='PENDING'",
+        submission_id, row["current_version"], rule_id,
+    )
+    if not request:
+        raise HTTPException(status_code=404, detail="No pending creator dismissal request for this flag")
+    notes = req.notes.strip()
+    if not notes:
+        raise HTTPException(status_code=422, detail="Say what the creator needs to change")
+
+    from models.compliance.submission_model import ReviewDecisionRequest
+    from services.compliance.submissions import submission_service
+
+    submission = await submission_service.decide_review(
+        submission_id, user_id, ReviewDecisionRequest(decision="REQUEST_CHANGES", notes=notes),
+    )
+    async with get_pool().acquire() as conn:
+        await conn.execute(
+            "UPDATE creator_flag_dismissal_requests SET status='REJECTED' "
+            "WHERE submission_id=$1 AND version_number=$2 AND rule_id=$3 AND status='PENDING'",
+            submission_id, row["current_version"], rule_id,
+        )
+    await log_audit_event(
+        "content_submission", str(submission_id), "REJECT_CREATOR_DISMISSAL_REQUEST", user_id,
+        {"rule_number": request["rule_number"], "notes": notes, "version": row["current_version"]},
+    )
+    return submission
 
 
 async def list_for(submission_id: UUID, user_id: UUID) -> List[FlagReview]:

@@ -1,4 +1,4 @@
-"""Server startup pieces: the schema setups it runs, and the background tasks it starts and tracks."""
+"""Server startup helpers for schema updates and tracked background tasks."""
 
 import asyncio
 import importlib

@@ -29,7 +29,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `CaptionSuggestion` (class) L23
 - `CaptionSuggestions` (class) L32
 
-## models/compliance/compliance_model.py (340 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (351 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class) L11
 - `ComplianceRuleCreate` (class) L57
 - `ComplianceRuleUpdate` (class) L61
@@ -41,13 +41,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `_keep_audience_and_audiences_in_step` (def) L151
 - `ContextEvaluation` (class) L171 - How the AI read a rule's trigger in context, kept beside the finding so the decision can be audited.
 - `ImageFindingRegion` (class) L189
-- `ComplianceViolation` (class) L197
-- `ManualReviewRule` (class) L233 - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
-- `CheckSignals` (class) L242 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
-- `SourceClaim` (class) L258 - One claim the post makes, and whether the source it cites backs it up.
-- `SourceCheck` (class) L278 - A source the post cites (or that was attached), and what reading it showed.
-- `AddedRuleSet` (class) L298 - A rule set checked because of what the post says, not because it was chosen.
-- `ComplianceCheckResponse` (class) L304
+    - `_time_range_is_whole` (def) L200
+- `ComplianceViolation` (class) L208
+- `ManualReviewRule` (class) L244 - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
+- `CheckSignals` (class) L253 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
+- `SourceClaim` (class) L269 - One claim the post makes, and whether the source it cites backs it up.
+- `SourceCheck` (class) L289 - A source the post cites (or that was attached), and what reading it showed.
+- `AddedRuleSet` (class) L309 - A rule set checked because of what the post says, not because it was chosen.
+- `ComplianceCheckResponse` (class) L315
 
 ## models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - `ContextEntryIn` (class) L12
@@ -58,12 +59,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `PolicyWatch` (class) L87 - How the weekly check of the policy pages went, and the drafted updates waiting for a decision.
 - `PolicyProposalApprove` (class) L96 - Approve a drafted update, optionally with the super admin's own edits to its wording.
 
-## models/compliance/flag_review_model.py (67 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
+## models/compliance/flag_review_model.py (78 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - `FlagDismissRequest` (class) L21
 - `FlagReview` (class) L26
-- `FlagConfirmRequest` (class) L42
-- `FindingVerdict` (class) L46 - A reviewer's call on a finding, kept as a labelled example: the flag was right, or it was a false alarm.
-- `RuleFlagStats` (class) L59
+- `CreatorFlagDismissalRequest` (class) L39 - A creator's request for a reviewer to dismiss a finding; never a dismissal by itself.
+- `CreatorFlagDismissalRejection` (class) L45 - A reviewer's reason for sending a declined dismissal request back to its creator.
+- `FlagConfirmRequest` (class) L53
+- `FindingVerdict` (class) L57 - A reviewer's call on a finding, kept as a labelled example: the flag was right, or it was a false alarm.
+- `RuleFlagStats` (class) L70
 
 ## models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
 - `CommentSample` (class) L13
@@ -140,6 +143,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `UploadedPages` (class) L193
 - `DocDetail` (class) L197
 - `DocHistory` (class) L232
+
+## models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
+- `ScriptQueueSummary` (class) L7
 
 ## models/compliance/script_review_model.py (234 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class) L15
@@ -219,8 +225,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `AnalysisStep` (class) L161 - One part of the post still being read before the rulebook check can score it.
 - `AnalysisProgress` (class) L172 - How far the post's reading has got and when the score is expected.
 - `SubmissionSteps` (class) L187 - How far a post has got through the five steps a creator works through (see post_steps_service).
-- `SubmissionSummary` (class) L204
-- `Submission` (class) L271
+- `SubmissionSummary` (class) L203
+- `Submission` (class) L270
 - `SubmissionVersion` (class) L342
 - `VersionView` (class) L349 - One submitted version as it was: what was sent, its video, its automated check and its decision.
 - `ReviewJob` (class) L361

@@ -27,8 +27,8 @@ from pydantic import BaseModel, Field
 
 from models.compliance.brand_voice_model import BrandColor, BrandTypeface, BrandVoice, BrandVoiceIn, PaletteRow
 from postgresql_db.database import fetch_all, fetch_one
+from services.compliance.media.file_mime_policy import safe_file_mime
 from services.shared.core.audit_service import log_audit_event
-
 logger = logging.getLogger(__name__)
 
 STORAGE_ROOT = Path(os.getenv("BRAND_VOICE_STORAGE_DIR", ".data/brand_voice")).resolve()
@@ -141,7 +141,7 @@ async def file_path(brand_code: str, which: str) -> Tuple[Path, str, str]:
         raise HTTPException(status_code=404, detail="Not found")
     if which == "manual":
         return path, "application/pdf", row["manual_name"] or f"{brand_code}-brand-manual.pdf"
-    return path, row["logo_mime"] or "image/png", f"{brand_code}-logo{path.suffix}"
+    return path, safe_file_mime(path.name), f"{brand_code}-logo{path.suffix}"
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -593,7 +593,7 @@ async def extract(brand_code: str) -> None:
         target = STORAGE_ROOT / brand_code / f"logo.{ext}"
         await asyncio.to_thread(target.write_bytes, image)
         logo_path = str(target.relative_to(STORAGE_ROOT))
-        logo_mime = "image/jpeg" if ext == "jpg" else f"image/{ext}"
+        logo_mime = safe_file_mime(f"logo.{ext}")
 
     await fetch_one(
         """

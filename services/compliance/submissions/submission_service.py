@@ -6,7 +6,7 @@ import asyncio
 import json
 import time
 import logging
-import mimetypes
+from services.compliance.media.file_mime_policy import safe_file_mime
 import os
 import re
 import shutil
@@ -61,14 +61,14 @@ from services.compliance.submissions import approval_path_service, source_link_s
 from services.compliance.submissions import delegation_service
 from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
-from services.compliance.submissions import flag_review_service
+from services.compliance.submissions import creator_dismissal_service, flag_review_service
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
-from services.compliance.submissions import post_steps_service, manual_check_service
+from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps
 from services.compliance.media import document_layout
 from services.compliance.media import document_text_service
-from services.compliance.media import image_text_service, image_finding_service
+from services.compliance.media import image_text_service, video_finding_service
 from services.compliance.submissions import review_memory_service, review_approval_service
 from services.compliance.evaluation import script_match
 from services.ai.observability.ai_usage_service import AiLimitExceeded
@@ -486,7 +486,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         script_status=(row.get("script_status") or "DRAFT") if script_stage_on(row) else None,
         submitted_at=row["submitted_at"],
         created_at=row["created_at"],
-        updated_at=row["updated_at"],
+        updated_at=row["updated_at"], content_edited_at=row.get("content_edited_at"),
     )
 
 
@@ -666,6 +666,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         # Everyone else's content only for the brands the viewer works on.
         brand_scope,
     )
+    revision = await revision_steps.for_submissions(rows)
     summaries = []
     edges = await delegation_service.edges_for([r["id"] for r in rows if r["status"] == "IN_REVIEW"])
     for r in rows:
@@ -690,14 +691,13 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             **_approval_fields(rules, r, user_id, is_reviewer, is_super, _accounts(r), edges.get(r["id"])),
             can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
             steps=post_steps_service.compute_steps({
-                **r,
+                **r, **revision.get(r["id"], {}),
                 "has_account": bool(_accounts(r)),
                 "main_required": r["content_type"] in MAIN_FILE_REQUIRED,
                 "script_stage": script_stage_on(r),
                 "latest_score": r["latest_score"],
             }),
         ))
-    # Posts still being read: what's left and when their score should be ready.
     progress = await analysis_progress_service.for_submissions([s.id for s in summaries if s.analysis_pending])
     for s in summaries:
         s.analysis_progress = progress.get(s.id)
@@ -998,7 +998,7 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
         path.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail="The file is empty")
 
-    mime = upload.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
+    mime = safe_file_mime(original_name)
     saved = await _record_file(row, kind, file_id, path, original_name, mime, size, user_id)
     if kind == "SCRIPT":
         # A new script file enables the script stage on the post and resets it to DRAFT so it goes through review.
@@ -1251,7 +1251,7 @@ async def get_file_for_download(submission_id: UUID, file_id: UUID, user_id: UUI
     path = (STORAGE_ROOT / f["storage_path"]).resolve()
     if STORAGE_ROOT not in path.parents or not path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
-    return path, f["mime_type"], f["original_name"]
+    return path, safe_file_mime(f["original_name"]), f["original_name"]
 
 
 # ---------------------------------------------------------------------------
@@ -1361,7 +1361,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     flags for the reviewer's timeline, and says what was read and which rules need a person."""
     video = await fetch_one(
         """
-        SELECT original_name, transcript, transcript_status, transcript_error FROM content_submission_files
+        SELECT id, original_name, storage_path, mime_type, transcript, transcript_status, transcript_error FROM content_submission_files
         WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL AND mime_type LIKE 'video/%'
         ORDER BY created_at DESC LIMIT 1
         """,
@@ -1443,7 +1443,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         check_request(row, text, has_video=bool(video), has_images=bool(images), sources=sources,
                       disclaimer_text=published)
     )
-    await image_finding_service.locate_image_findings(images, result.violations)
+    await video_finding_service.locate_media_findings(images, video, segments, result.violations)
     match = script_match.compare(script, spoken) if script and segments else None
     script_match.flag_mismatch(result, match)
     check = {
@@ -1810,6 +1810,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
                 None if publish_after_changes else review_deadline_service.due_date("REVIEW", row["publish_at"], requested=needed_by),
                 reviewer_ids, publish_after_changes,
             )
+            await creator_dismissal_service.carry_pending_requests(conn, submission_id, row["current_version"], version)
             await _add_event(conn, submission_id, "SUBMITTED",
                              f"Version {version} published after requested changes" if publish_after_changes else f"Version {version} submitted for review", user_id,
                              {"version": version, "review_job_id": str(job["id"])})
@@ -1899,18 +1900,19 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
     since = f"NOW() - INTERVAL '{DASHBOARD_DAYS} days'"
     args = (user_id, see_all, scope)
 
-    activity, decisions, scores, findings, script_decisions = await asyncio.gather(
-        fetch_all(
+    # Keep this read to one pooled database connection at a time.  Fanning out five dashboard reads can exhaust the
+    # small development pool while background analysis is active, turning an otherwise read-only page into a 500.
+    activity = await fetch_all(
             f"""
             SELECT * FROM (
                 SELECT e.created_at AS at, e.actor_user_id AS actor_id, {_ACTIVITY_ACTIONS} AS action,
                        s.id AS submission_id, s.reference_code, s.title
                 FROM content_submission_events e JOIN content_submissions s ON s.id = e.submission_id
-                WHERE {visible}
+                WHERE {visible} AND e.created_at >= {since}
                 UNION ALL
                 SELECT c.created_at, c.author_id, 'commented on', s.id, s.reference_code, s.title
                 FROM content_review_comments c JOIN content_submissions s ON s.id = c.submission_id
-                WHERE {visible} AND c.deleted_at IS NULL
+                WHERE {visible} AND c.deleted_at IS NULL AND c.created_at >= {since}
             ) a
             LEFT JOIN LATERAL (SELECT full_name FROM users WHERE id = a.actor_id) u ON true
             WHERE a.action IS NOT NULL
@@ -1918,8 +1920,8 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             LIMIT {DASHBOARD_ACTIVITY_LIMIT}
             """,
             *args,
-        ),
-        fetch_one(
+        )
+    decisions = await fetch_one(
             f"""
             SELECT count(*) AS completed,
                    count(*) FILTER (WHERE j.decision = 'APPROVE') AS approved,
@@ -1930,16 +1932,16 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             WHERE {visible} AND j.decision IS NOT NULL AND j.decided_at >= {since}
             """,
             *args,
-        ),
-        fetch_one(
+        )
+    scores = await fetch_one(
             f"""
             SELECT round(avg(j.score))::int AS average
             FROM content_review_jobs j JOIN content_submissions s ON s.id = j.submission_id
             WHERE {visible} AND j.score IS NOT NULL AND NOT {_pending_sql("j.automated_check")} AND NOT {_unavailable_sql("j.automated_check")} AND j.created_at >= {since}
             """,
             *args,
-        ),
-        fetch_all(
+        )
+    findings = await fetch_all(
             f"""
             SELECT v->>'rule_number' AS rule_number, max(v->>'title') AS title, count(*) AS count
             FROM content_review_jobs j JOIN content_submissions s ON s.id = j.submission_id,
@@ -1949,9 +1951,9 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             GROUP BY 1 ORDER BY 3 DESC, 1 LIMIT 5
             """,
             *args,
-        ),
+        )
         # A reviewer's call on a script counts as a review too: approved, or sent back (with edits or a note).
-        fetch_one(
+    script_decisions = await fetch_one(
             f"""
             SELECT count(*) AS completed,
                    count(*) FILTER (WHERE v.review_decision = 'APPROVED') AS approved,
@@ -1960,8 +1962,7 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             WHERE {visible} AND v.review_decision IS NOT NULL AND v.reviewed_at >= {since}
             """,
             *args,
-        ),
-    )
+        )
     return DashboardSummary(
         activity=[
             DashboardActivity(
@@ -2075,7 +2076,6 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
     # Images uploaded before their text was read (or whose read was abandoned) are read now; the check of
     # each open item updates when that's done.
     await image_text_service.schedule_missing([img["id"] for img in image_rows if img["image_text_status"] in (None, "PROCESSING")])
-    # Posts still being read: what's left and when their score should be ready.
     progress = await analysis_progress_service.for_submissions(
         [r["id"] for r in rows if analysis_pending(_json(r["latest_check"]))]
     )

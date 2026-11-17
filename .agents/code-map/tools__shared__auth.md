@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## tools/shared/auth/auth_router.py (425 lines) - auth router (shared auth)
+## tools/shared/auth/auth_router.py (427 lines) - auth router (shared auth)
 - `_sha256` (def) L37
 - `microsoft_login` (def) L68 [GET /auth/microsoft/login]
 - `microsoft_callback` (def) L99 [GET /auth/microsoft/callback]

@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from models.compliance.compliance_model import SourceClaim
 from services.compliance.evaluation.source_claim_checks import _stems, _to_claims
+from services.compliance.evaluation.source_image_claims import label as capability_label
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +188,7 @@ async def rank(queries: Sequence[str], passages: Sequence[Passage]) -> List[List
 def _statements(post_text: str) -> List[str]:
     """The post's lines and sentences that could hold a claim (a figure, or a few real words)."""
     parts = [s.strip() for line in (post_text or "").split("\n") for s in _SENTENCE.split(line)]
-    keep = [p for p in parts if _NUMBER.search(p) or len(_stems(p)) >= 3]
+    keep = [p for p in parts if _NUMBER.search(p) or len(_stems(p)) >= 3 or capability_label(p)]
     return list(dict.fromkeys(keep))[:40]
 
 

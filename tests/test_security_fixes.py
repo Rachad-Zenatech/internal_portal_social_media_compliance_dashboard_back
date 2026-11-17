@@ -190,5 +190,61 @@ class ServiceAndForeignTokenTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(e.exception.detail, "Logged out due to inactivity")
 
 
+class MimeAndAuthorizationHardeningTests(unittest.IsolatedAsyncioTestCase):
+    def test_safe_file_mime_and_disposition_reject_active_content(self):
+        from services.compliance.media.file_mime_policy import safe_disposition_type, safe_file_mime
+
+        self.assertEqual(safe_file_mime("photo.jpg"), "image/jpeg")
+        self.assertEqual(safe_file_mime("clip.mp4"), "video/mp4")
+        self.assertEqual(safe_file_mime("manual.pdf"), "application/pdf")
+        self.assertEqual(safe_file_mime("payload.html"), "application/octet-stream")
+        self.assertEqual(safe_file_mime("vector.svg"), "application/octet-stream")
+        self.assertEqual(safe_disposition_type("image/png"), "inline")
+        self.assertEqual(safe_disposition_type("application/pdf"), "inline")
+        self.assertEqual(safe_disposition_type("text/html"), "attachment")
+        self.assertEqual(safe_disposition_type("image/svg+xml"), "attachment")
+        self.assertEqual(safe_disposition_type("application/zip"), "attachment")
+        self.assertEqual(safe_disposition_type("text/plain"), "attachment")
+
+    def test_video_jobs_are_isolated_by_owner(self):
+        from services.compliance.media import video_job_service as vjs
+
+        vjs._VIDEO_JOBS.clear()
+        j1 = vjs.create_video_job("a.mp4", "A", user_id="user-1")
+        j2 = vjs.create_video_job("b.mp4", "B", user_id="user-2")
+        self.assertIsNotNone(vjs.get_video_job(j1["job_id"], user_id="user-1"))
+        self.assertIsNone(vjs.get_video_job(j1["job_id"], user_id="user-2"))
+        self.assertEqual([j["job_id"] for j in vjs.list_video_jobs(user_id="user-1")], [j1["job_id"]])
+        self.assertEqual([j["job_id"] for j in vjs.list_video_jobs(user_id="user-2")], [j2["job_id"]])
+
+    def test_configuration_users_requires_admin_read_permission(self):
+        from tools.shared.auth.rbac_router import router as rbac_router
+
+        route = next(r for r in rbac_router.routes if getattr(r, "path", None) == "/configuration/users" and "GET" in r.methods)
+        dep_fns = [getattr(d.call, "__qualname__", "") for d in route.dependant.dependencies]
+        self.assertTrue(any("require_permission" in fn for fn in dep_fns))
+
+    async def test_logout_ignores_tokens_for_other_apps(self):
+        import jwt
+        from tools.shared.auth.auth_router import logout
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        foreign_token = jwt.encode(
+            {"sub": str(uuid4()), "iss": "other-portal", "aud": "finance", "iat": now},
+            auth_service.JWT_SECRET,
+            algorithm=auth_service.JWT_ALGORITHM,
+        )
+        req = SimpleNamespace(
+            headers={"Authorization": f"Bearer {foreign_token}"},
+            cookies={},
+            session={},
+        )
+        pool_mock = AsyncMock()
+        with patch("tools.shared.auth.auth_router.get_pool", return_value=pool_mock):
+            resp = await logout(req)
+        self.assertEqual(resp.status_code, 200)
+        pool_mock.acquire.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

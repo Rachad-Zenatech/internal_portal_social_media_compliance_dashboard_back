@@ -33,6 +33,8 @@ from services.shared.auth.auth_service import (
     get_current_user_id_dependency,
 )
 
+from services.shared.auth.secret_config import require_secret
+
 # FastAPI routers
 from tools.shared.core.search import router as search_router
 from tools.notifications.message_hub_router import message_hub_router
@@ -379,16 +381,14 @@ app.include_router(canva_router, prefix="/api", tags=["Canva"])
 app.include_router(vector_store_router, prefix="/api", tags=["Vector Store"])
 app.include_router(sentiment_router, prefix="/api", tags=["Sentiment Quality"])
 
-
 # --- Session Middleware ---
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ.get("SESSION_SECRET", "default_session_secret_key_needs_32_characters!"),
+    secret_key=require_secret("SESSION_SECRET"),
     same_site="lax",
     https_only=os.getenv("SESSION_COOKIE_SECURE", "true" if _is_prod else "false").lower() in ("true", "1", "yes"),
     max_age=3600,
 )
-
 
 # --- Rate Limiting Middleware ---
 _RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
@@ -595,11 +595,10 @@ async def request_observability(request: Request, call_next):
     request_id_ctx.reset(token)
     return response
 
-
 # --- CORS Configuration ---
-_cors_env = os.getenv("CORS_ALLOWED_ORIGINS", "") or os.getenv("CORS_ORIGINS", "")
-cors_origins = [orig.strip() for orig in _cors_env.split(",") if orig.strip()] if _cors_env else []
-_cors_regex = None if _is_prod else r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.\d+\.\d+\.\d+)(:\d+)?$"
+cors_origins = [origin.strip() for origin in (os.getenv("CORS_ALLOWED_ORIGINS", "") or os.getenv("CORS_ORIGINS", "")).split(",") if origin.strip()]
+if _is_prod and not cors_origins: raise RuntimeError("CORS_ALLOWED_ORIGINS must list explicit HTTPS origins when APP_ENV=production")
+_cors_regex = None if _is_prod else r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$"
 
 app.add_middleware(
     CORSMiddleware,
