@@ -50,6 +50,19 @@ class ReviewPenaltyTests(unittest.TestCase):
         self.assertEqual(charge(r, to_check(r, 0.95, source="ADJUSTED")), 0)
         self.assertEqual(charge(r, to_check(r, 0.0, source="UNAVAILABLE")), 0)
 
+    def test_rule_based_missing_disclosure_uses_likely_review_points(self):
+        r = rule()
+        v = to_check(r, 0.0, kind="MISSING_DISCLAIMER")
+        v.evaluation = None
+        self.assertEqual(charge(r, v), 5)
+        self.assertEqual(compliance_service._charge_review_findings([v], [r]), [v])
+
+    def test_other_rule_based_warnings_without_ai_remain_free(self):
+        r = rule()
+        v = to_check(r, 0.0)
+        v.evaluation = None
+        self.assertEqual(charge(r, v), 0)
+
     def test_other_statuses_are_left_alone(self):
         r = rule()
         self.assertEqual(charge(r, to_check(r, 0.95, status="CLEARED")), 0)
