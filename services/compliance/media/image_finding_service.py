@@ -135,11 +135,15 @@ async def locate_image_findings(images, findings):
         text = normalized(image["image_text"] or "")
         candidates = [f for f in findings if f.status != "CLEARED" and
                       any(text_spans(t, text) for t in f.flagged_terms)]
+        logger.info("Image localization: file=%s status=%s active_findings=%d candidates=%d",
+                    image["id"], image["image_text_status"],
+                    sum(f.status != "CLEARED" for f in findings), len(candidates))
         if not candidates:
             continue
         try:
             path = (STORAGE_ROOT / image["storage_path"]).resolve()
             if STORAGE_ROOT not in path.parents or not path.is_file():
+                logger.warning("Image localization skipped: file=%s image is unavailable in storage", image["id"])
                 continue
             data, mime = await asyncio.to_thread(_image_bytes, path, image["mime_type"])
             words = await asyncio.to_thread(_ocr_word_boxes, data)
@@ -171,7 +175,9 @@ async def locate_image_findings(images, findings):
                 )
             regions = json.loads(response.text or "{}").get("regions", [])
             if not isinstance(regions, list):
+                logger.warning("Image localization: file=%s model response has no region list", image["id"])
                 continue
+            accepted = 0
             for item in regions:
                 if not isinstance(item, dict):
                     continue
@@ -189,6 +195,12 @@ async def locate_image_findings(images, findings):
                 # Preserve the finding, but do not present that misleading region to a reviewer.
                 if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in finding.image_regions:
                     finding.image_regions.append(region)
+                    accepted += 1
+            logger.info("Image localization: file=%s model_regions=%d accepted_regions=%d",
+                        image["id"], len(regions), accepted)
+            if not accepted:
+                logger.warning("Image localization: file=%s no usable coordinates returned for %d finding(s)",
+                               image["id"], len(candidates))
         except Exception:
             # Localization must never lose a valid check or fabricate a highlight.
             logger.warning("Could not locate compliance findings in image %s", image["id"], exc_info=True)
