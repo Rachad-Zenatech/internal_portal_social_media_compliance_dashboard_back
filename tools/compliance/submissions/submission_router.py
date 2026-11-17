@@ -48,7 +48,7 @@ from services.compliance.analytics import conversation_evidence, conversation_fe
 from services.compliance.analytics import sentiment_service
 from services.compliance.submissions import flag_review_service
 from services.compliance.submissions import submission_service as svc
-from tools.compliance.submissions.review_queue_router import router as review_queue_router
+from tools.compliance.submissions.review_queue_router import ViewScope, router as review_queue_router
 from models.compliance.flag_review_model import CreatorFlagDismissalRequest, FindingVerdict, FlagConfirmRequest, FlagDismissRequest, FlagReview
 from services.shared.auth.auth_service import get_current_user_id_dependency, require_permission
 from services.compliance.media.hashtag_library import HashtagLibrary
