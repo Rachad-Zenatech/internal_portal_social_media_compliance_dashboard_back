@@ -2353,7 +2353,16 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
         # Nothing can be approved on a check that wasn't read in full: with the AI down every finding is only a
         # "needs review", so there'd be no score to hold to the minimum.
         saved = _json(row["latest_check"]) or {}
-        manual_check_service.require_current_check(row, await compliance_rulebook_version())
+        current_rulebook = await compliance_rulebook_version()
+        if saved and saved.get("rulebook_version") != current_rulebook:
+            # Keep approval safe when the rules changed after the check: refresh the stored result before applying
+            # the detailed approval gates below.
+            await _recheck_one(dict(row), lambda before, result, check: None)
+            row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
+            if row["status"] != "IN_REVIEW":
+                raise HTTPException(status_code=409, detail="The post changed while it was re-checked; open it again")
+            saved = _json(row["latest_check"]) or {}
+        manual_check_service.require_current_check(row, current_rulebook, allow_incomplete=True, validate=False)
         if analysis_pending(saved):
             raise HTTPException(
                 status_code=422,

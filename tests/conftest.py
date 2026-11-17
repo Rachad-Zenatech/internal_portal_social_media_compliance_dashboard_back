@@ -8,6 +8,8 @@ It is only ever used by the tests; a real value in the environment is left alone
 import os
 
 os.environ.setdefault("JWT_SECRET", "test-only-secret-not-used-anywhere-else-0123456789")
+# Cache behavior is covered by the test suite; production development defaults remain cache-off.
+os.environ.setdefault("CACHE_ENABLED", "true")
 
 
 import pytest
