@@ -12,6 +12,7 @@ import re
 from typing import Any, List, Sequence
 
 from models.compliance.compliance_model import SourceClaim
+from .source_image_claims import evidence_covers
 
 SUPPORT_MIN_CONFIDENCE = float(os.getenv("SOURCE_CHECK_MIN_CONFIDENCE", "0.7"))
 # Share of the evidence's distinctive words the source's text must contain.
@@ -99,6 +100,9 @@ def _to_claims(results: Sequence[Any], source_text: str) -> List[SourceClaim]:
             elif evidence_overlap(evidence, source_text) < EVIDENCE_MIN_OVERLAP:
                 verdict = "UNCLEAR"
                 note = _add(note, "The evidence given couldn't be found in the source's text, so a person should confirm it.")
+        if verdict == "SUPPORTED" and r.where == "image" and not evidence_covers(r.claim, evidence or "", source_text):
+            verdict = "UNCLEAR"
+            note = _add(note, "The evidence does not establish this specific capability, so a person should confirm it.")
         loc = (r.source_location or "").strip() or None
         out.append(SourceClaim(
             claim=(r.claim or "").strip()[:400], verdict=verdict, where="image" if r.where == "image" else "caption",

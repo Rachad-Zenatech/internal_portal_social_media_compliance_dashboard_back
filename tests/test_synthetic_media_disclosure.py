@@ -82,3 +82,6 @@ class RerunTests(unittest.IsolatedAsyncioTestCase):
                 finding, = [f for f in result.violations if f.rule_number == "Rule 9"]
                 self.assertEqual(finding.status, "NEEDS_REVIEW")
                 self.assertEqual(result.traffic_light, "YELLOW")
+                self.assertEqual(finding.penalty, 5)
+                self.assertEqual(result.score, 95)
+                self.assertFalse(result.blocked)

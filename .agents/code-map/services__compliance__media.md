@@ -157,6 +157,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `resume_interrupted` (def) L174 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
 - `schedule_missing` (def) L191 - Read the images among these that were never read, or whose read was abandoned (e.g.
 
+## services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
+- `node` (def) L12
+- `paragraph` (def) L16
+- `script_docx` (def) L34
+
 ## services/compliance/media/transcription_service.py (258 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
 - `_get_client` (def) L65
 - `_to_seconds` (def) L75 - Accept numbers or "MM:SS(.s)" / "HH:MM:SS" strings, which models sometimes return anyway.

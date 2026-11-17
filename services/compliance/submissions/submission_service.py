@@ -65,7 +65,7 @@ from services.compliance.submissions import creator_dismissal_service, flag_revi
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
-from services.compliance.submissions import post_steps_service, manual_check_service
+from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps
 from services.compliance.media import document_layout
 from services.compliance.media import document_text_service
 from services.compliance.media import image_text_service, video_finding_service
@@ -485,7 +485,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         script_status=(row.get("script_status") or "DRAFT") if script_stage_on(row) else None,
         submitted_at=row["submitted_at"],
         created_at=row["created_at"],
-        updated_at=row["updated_at"],
+        updated_at=row["updated_at"], content_edited_at=row.get("content_edited_at"),
     )
 
 
@@ -665,6 +665,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         # Everyone else's content only for the brands the viewer works on.
         brand_scope,
     )
+    revision = await revision_steps.for_submissions(rows)
     summaries = []
     edges = await delegation_service.edges_for([r["id"] for r in rows if r["status"] == "IN_REVIEW"])
     for r in rows:
@@ -689,14 +690,13 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
             **_approval_fields(rules, r, user_id, is_reviewer, is_super, _accounts(r), edges.get(r["id"])),
             can_manage_approval=r["status"] == "APPROVED" and is_reviewer and (r["created_by"] != user_id or is_super),
             steps=post_steps_service.compute_steps({
-                **r,
+                **r, **revision.get(r["id"], {}),
                 "has_account": bool(_accounts(r)),
                 "main_required": r["content_type"] in MAIN_FILE_REQUIRED,
                 "script_stage": script_stage_on(r),
                 "latest_score": r["latest_score"],
             }),
         ))
-    # Posts still being read: what's left and when their score should be ready.
     progress = await analysis_progress_service.for_submissions([s.id for s in summaries if s.analysis_pending])
     for s in summaries:
         s.analysis_progress = progress.get(s.id)
@@ -2061,7 +2061,6 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
     # Images uploaded before their text was read (or whose read was abandoned) are read now; the check of
     # each open item updates when that's done.
     await image_text_service.schedule_missing([img["id"] for img in image_rows if img["image_text_status"] in (None, "PROCESSING")])
-    # Posts still being read: what's left and when their score should be ready.
     progress = await analysis_progress_service.for_submissions(
         [r["id"] for r in rows if analysis_pending(_json(r["latest_check"]))]
     )

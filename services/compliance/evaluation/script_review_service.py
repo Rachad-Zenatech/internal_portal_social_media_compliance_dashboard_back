@@ -13,6 +13,7 @@ uploaded once the script is approved, and the approved wording is what the video
 
 import asyncio
 from services.compliance.evaluation.script_review_details import assigned_reviewer_names
+from services.compliance.evaluation.script_creator_workflow import can_revise
 import hashlib
 import json
 import logging
@@ -46,6 +47,7 @@ from services.compliance.media import document_text_service
 from services.compliance.submissions import review_deadline_service
 from services.compliance.submissions.flag_review_service import MIN_APPROVAL_SCORE
 from services.compliance.submissions import submission_service as subs
+from services.compliance.evaluation.script_queue_service import QUEUE_TABS as _QUEUE_TABS
 from services.compliance.evaluation.compliance_service import check_compliance, rulebook_version
 from services.shared.core.audit_service import log_audit_event
 
@@ -261,7 +263,7 @@ async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
         can_submit=bool(status) and is_creator and editable and status in ("DRAFT", "CHANGES_REQUESTED")
         and send_state["status"] != "PROCESSING",
         can_review=status == "IN_REVIEW" and await _reviewer_may_act(row, user_id),
-        can_respond=bool(status) and is_creator and editable and status in CREATOR_TURN,
+        can_respond=bool(status) and is_creator and editable and await can_revise(row),
         processing=send_state["status"] == "PROCESSING",
         send_error=send_state["error"] if send_state["status"] == "FAILED" else None,
         batch=await batch_ref(submission_id),
@@ -565,7 +567,7 @@ async def _send_checked(row: Dict[str, Any], body: str, source: str, user_id: UU
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            await _lock_status(conn, row["id"], ("DRAFT",) + CREATOR_TURN)
+            await _lock_status(conn, row["id"], ("DRAFT", "APPROVED") + CREATOR_TURN)
             version = await _add_version(conn, row, body, source, user_id, check, file_id)
             await conn.execute(
                 """
@@ -737,14 +739,13 @@ async def accept(submission_id: UUID, user_id: UUID) -> ScriptStage:
                            f"/compliance/scanner?id={submission_id}", submission_id)
     return await get_stage(submission_id, user_id)
 
-
 async def revise(submission_id: UUID, user_id: UUID, req: ScriptReviseRequest) -> ScriptStage:
     """The creator edits the script in the platform (after edits or a change request) and sends it back."""
     row = await subs._get_owned_row(submission_id, user_id)
     subs._require_editable(row)
     _require_stage(row)
-    if _status(row) not in CREATOR_TURN:
-        raise HTTPException(status_code=409, detail="The script isn't waiting on you")
+    if not await can_revise(row):
+        raise HTTPException(status_code=409, detail="The script cannot be revised now; it is in review or a video is already attached")
     versions = await _versions(submission_id)
     body = _clean(req.text)
     if versions and _same(versions[-1].body, body):
@@ -765,14 +766,6 @@ async def preview_check(submission_id: UUID, user_id: UUID, text: str) -> Dict[s
 # Which scripts each Content Screener tab lists, as SQL on content_submissions (s) and its latest script version (v):
 # waiting for a reviewer (oldest first); sent back to the creator; approved with the video still to come (the post
 # itself takes over in the queue once the video is submitted), both over the last 30 days, newest first.
-_QUEUE_TABS = {
-    "review": ("s.script_status = 'IN_REVIEW'", "v.created_at"),
-    "sent_back": ("s.script_status IN ('CHANGES_REQUESTED', 'EDITS_PROPOSED')", "s.updated_at DESC"),
-    "done": ("s.script_status = 'APPROVED' AND s.status = 'DRAFT' AND s.updated_at > NOW() - INTERVAL '30 days'",
-             "s.updated_at DESC"),
-}
-
-
 _refreshing: set = set()  # (post id, version) pairs being re-checked, so a busy list doesn't start the same one twice
 
 
