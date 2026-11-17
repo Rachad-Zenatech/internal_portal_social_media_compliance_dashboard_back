@@ -17,5 +17,18 @@ services:
       timeout: 5s
       retries: 10
 
+  backend:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@db:5432/social_media_compliance_restored"
+    ports:
+      - "8009:8009"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   social_media_db_data_17:

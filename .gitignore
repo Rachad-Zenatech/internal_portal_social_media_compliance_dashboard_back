@@ -242,6 +242,7 @@ models/*.candidate.json
 models/*.candidate.xgb
 
 # Docker local overrides
+mosquitto.local.conf
 
 # Test files
 test_cases.md
