@@ -207,7 +207,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `SourceTrust` (class) L30 - What reviewers have said about a site, across every post checked against it.
 - `SourceConfirmationsResponse` (class) L43
 
-## models/compliance/submission_model.py (663 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+## models/compliance/submission_model.py (675 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - `BrandOption` (class) L50
 - `AccountOption` (class) L55
 - `SubmissionOptions` (class) L67
@@ -220,28 +220,29 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `AnalysisProgress` (class) L172 - How far the post's reading has got and when the score is expected.
 - `SubmissionSteps` (class) L187 - How far a post has got through the five steps a creator works through (see post_steps_service).
 - `SubmissionSummary` (class) L204
-- `Submission` (class) L269
-- `SubmissionVersion` (class) L338
-- `VersionView` (class) L345 - One submitted version as it was: what was sent, its video, its automated check and its decision.
-- `ReviewJob` (class) L357
-- `ReviewDecisionRequest` (class) L379 - A reviewer's decision on the version currently in review.
-- `ReopenRequest` (class) L398 - A reviewer takes back an approval and sends the content to its creator with what to change.
-- `RescheduleRequest` (class) L407 - A reviewer moves approved content to a different publish time.
-- `DelegateRequest` (class) L412 - A reviewer hands the post in review to someone else; they stay on it and still see its status.
-- `Delegation` (class) L421 - One hand-off of a post in review, with where the post stands now.
-- `ReviewCommentCreate` (class) L446
-    - `_region_is_whole` (def) L462
-- `ReviewCommentUpdate` (class) L473
-- `ReviewComment` (class) L477
-- `SubmissionEvent` (class) L504
-- `SubmissionHistory` (class) L513
-- `ReviewQueueItem` (class) L519 - A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it.
-- `ReviewQueueCounts` (class) L577
-- `DashboardActivity` (class) L588 - One recent thing that happened to content the viewer can see.
-- `DashboardFinding` (class) L600 - A rulebook rule and how often it was flagged on content sent for review.
-- `DashboardSummary` (class) L607 - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
-- `DuplicateDetail` (class) L621 - One Submission Details dropdown, compared with an earlier post that has the same content and caption.
-- `DuplicateMatch` (class) L631 - A post already sent for approval with the same content and caption.
-- `DuplicateReport` (class) L646 - Earlier posts with the same content and caption.
-- `SubmitRequest` (class) L655
-- `SubmitResult` (class) L660
+- `Submission` (class) L271
+- `SubmissionVersion` (class) L342
+- `VersionView` (class) L349 - One submitted version as it was: what was sent, its video, its automated check and its decision.
+- `ReviewJob` (class) L361
+- `ReviewDecisionRequest` (class) L383 - A reviewer's decision on the version currently in review.
+    - `publish_after_changes_only_for_changes` (def) L392
+- `ReopenRequest` (class) L410 - A reviewer takes back an approval and sends the content to its creator with what to change.
+- `RescheduleRequest` (class) L419 - A reviewer moves approved content to a different publish time.
+- `DelegateRequest` (class) L424 - A reviewer hands the post in review to someone else; they stay on it and still see its status.
+- `Delegation` (class) L433 - One hand-off of a post in review, with where the post stands now.
+- `ReviewCommentCreate` (class) L458
+    - `_region_is_whole` (def) L474
+- `ReviewCommentUpdate` (class) L485
+- `ReviewComment` (class) L489
+- `SubmissionEvent` (class) L516
+- `SubmissionHistory` (class) L525
+- `ReviewQueueItem` (class) L531 - A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it.
+- `ReviewQueueCounts` (class) L589
+- `DashboardActivity` (class) L600 - One recent thing that happened to content the viewer can see.
+- `DashboardFinding` (class) L612 - A rulebook rule and how often it was flagged on content sent for review.
+- `DashboardSummary` (class) L619 - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
+- `DuplicateDetail` (class) L633 - One Submission Details dropdown, compared with an earlier post that has the same content and caption.
+- `DuplicateMatch` (class) L643 - A post already sent for approval with the same content and caption.
+- `DuplicateReport` (class) L658 - Earlier posts with the same content and caption.
+- `SubmitRequest` (class) L667
+- `SubmitResult` (class) L672

@@ -28,14 +28,23 @@ SCHEMA_SETUPS = [
 ]
 
 
-async def run_schema_setups() -> None:
-    """Make sure every schema's tables exist. One failing doesn't stop the rest: it is logged and startup goes on."""
-    for module_name, note in SCHEMA_SETUPS:
+async def run_schema_setups(pool) -> None:
+    """Apply schema changes once at a time across workers; fail startup if any setup fails."""
+    async with pool.acquire() as conn:
+        # A session lock spans setups that acquire and commit their own connections.
+        # Poll rather than waiting inside PostgreSQL's short statement/lock timeouts.
+        while not await conn.fetchval("SELECT pg_try_advisory_lock(8009, 1)"):
+            await asyncio.sleep(0.5)
         try:
-            module = importlib.import_module(f"postgresql_db.schemas.{module_name}")
-            await module.setup()
-        except Exception as err:
-            logger.warning(f"{note}: {err}")
+            for module_name, note in SCHEMA_SETUPS:
+                try:
+                    module = importlib.import_module(f"postgresql_db.schemas.{module_name}")
+                    await module.setup()
+                except Exception:
+                    logger.exception("%s failed; stopping startup", note)
+                    raise
+        finally:
+            await conn.execute("SELECT pg_advisory_unlock(8009, 1)")
 
 
 def spawn_background(tasks: List[asyncio.Task], coro: Coroutine[Any, Any, Any], name: str) -> asyncio.Task:

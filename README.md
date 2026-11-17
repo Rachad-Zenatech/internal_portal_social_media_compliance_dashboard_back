@@ -394,6 +394,12 @@ To pull a copy of real live records from AWS RDS into your local Docker DB for r
 * Read-only pull: live AWS RDS remains untouched and safe.
 
 ### 5. Creating Schema Changes & Migrations (PR Workflow)
+The backend automatically runs the idempotent `postgresql_db/schemas/` setup scripts before serving requests in every environment, including production. Add runtime schema changes to the relevant setup script; for example, `publish_after_changes` is added automatically by the submissions setup. A normal backend restart or deployment loads the code and applies these changes, with no separate manual migration command. Workers serialize setup with a PostgreSQL advisory lock, and a failed setup stops startup rather than serving requests against an outdated schema. Startup needs at least two pool connections (the default is ten): one holds the lock and another runs the setup scripts.
+
+`AUTO_MIGRATE_SCHEMA=false` explicitly disables this behavior for deployments that manage schema updates separately. Remove that override or set it to `true` to use automatic updates. Alembic-only revisions still need the separate Alembic workflow below; startup executes the schema setup scripts, not `alembic upgrade head`.
+
+Local Docker Compose mounts the source and runs Uvicorn with reload enabled: saving Python code restarts the worker and reapplies the schema setups automatically. Submission uploads and other `.data` assets live in the persistent `social_media_backend_data` volume, so rebuilding or replacing the backend container preserves them. Dependency and Dockerfile changes still require rebuilding the image. Production images keep the normal multi-worker command without source watching.
+
 When making table or column changes on a new branch:
 
 1. **Create and Switch to Your New Feature Branch**:

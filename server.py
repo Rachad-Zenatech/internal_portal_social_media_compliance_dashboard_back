@@ -84,17 +84,17 @@ async def lifespan(app: FastAPI):
     previous_exception_handler = loop.get_exception_handler()
     loop.set_exception_handler(asyncio_exception_handler)
     try:
-        await create_pool()
-        # Ensure schema tables exist (auto-runs in dev, explicit/pre-deploy in production)
+        pool = await create_pool()
+        # Apply schema changes before serving requests in every environment.
         should_auto_migrate = _env_flag(
             "AUTO_MIGRATE_SCHEMA",
-            "true" if os.getenv("APP_ENV", "development") == "development" else "false",
+            "true",
         )
         if should_auto_migrate:
             logger.info("Running automated schema verification and migration", extra={"event": "schema_migration_start"})
-            await run_schema_setups()
+            await run_schema_setups(pool)
         else:
-            logger.info("Skipping startup schema auto-migration (AUTO_MIGRATE_SCHEMA=false or production mode)", extra={"event": "schema_migration_skipped"})
+            logger.info("Skipping startup schema auto-migration (AUTO_MIGRATE_SCHEMA=false)", extra={"event": "schema_migration_skipped"})
     except Exception:
         logger.exception("Application startup failed", extra={"event": "application_startup_failed"})
         raise

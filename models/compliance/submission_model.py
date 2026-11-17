@@ -211,6 +211,8 @@ class SubmissionSummary(BaseModel):
     status: str
     current_version: int
     publish_at: Optional[datetime] = None
+    # Set by a reviewer who lets the creator publish the corrected version without another review round.
+    publish_after_changes: bool = False
     approval_needed_by: Optional[datetime] = None
     # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
     due_at: Optional[datetime] = None
@@ -283,6 +285,8 @@ class Submission(SourceLinksMixin):
     account_ids: List[UUID] = Field(default_factory=list)
     accounts: List[AccountOption] = Field(default_factory=list)
     publish_at: Optional[datetime] = None
+    # The creator may publish the corrected version directly after the reviewer requests changes.
+    publish_after_changes: bool = False
     # When the creator needs it approved by; the reviewer's deadline once it's submitted.
     approval_needed_by: Optional[datetime] = None
     # When the next step is due: the reviewer's decision (REVIEW) or the creator's resubmission (REVISION).
@@ -381,6 +385,14 @@ class ReviewDecisionRequest(BaseModel):
     decision: ReviewDecisionType
     # Required when requesting changes (unless there are open comments on this version); shown to the creator.
     notes: Optional[str] = Field(None, max_length=5000)
+    # Request changes, but let the creator publish the corrected version without resubmitting for review.
+    publish_after_changes: bool = False
+
+    @model_validator(mode="after")
+    def publish_after_changes_only_for_changes(self):
+        if self.publish_after_changes and self.decision != "REQUEST_CHANGES":
+            raise ValueError("publish_after_changes is only valid when requesting changes")
+        return self
     # Approve: schedule on the calendar for this time (defaults to the submission's planned publish date)...
     publish_at: Optional[datetime] = None
     # ...or approve to publish straight away.

@@ -24,6 +24,12 @@ services:
       - .env
     environment:
       DATABASE_URL: "postgresql://postgres:postgres@db:5432/social_media_compliance_restored"
+      AUTO_MIGRATE_SCHEMA: "true"
+      WATCHFILES_FORCE_POLLING: "true"
+    command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8009", "--reload"]
+    volumes:
+      - .:/app
+      - social_media_backend_data:/app/.data
     ports:
       - "8009:8009"
     depends_on:
@@ -32,3 +38,4 @@ services:
 
 volumes:
   social_media_db_data_17:
+  social_media_backend_data:

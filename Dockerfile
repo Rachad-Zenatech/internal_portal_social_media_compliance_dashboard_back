@@ -36,7 +36,7 @@ COPY . .
 
 # Create non-root application user
 RUN useradd --create-home --uid 10001 appuser \
-    && mkdir -p /app/data \
+    && mkdir -p /app/data /app/.data/submission_files \
     && chown -R appuser:appuser /app
 
 USER appuser

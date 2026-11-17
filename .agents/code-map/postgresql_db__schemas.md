@@ -56,14 +56,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
 - `setup` (def) L13
 
-## postgresql_db/schemas/setup_submissions_schema.py (707 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (709 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def) L16
-- `_sync_script_checks` (def) L458
-- `_retire_product_brands` (def) L489 - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
-- `_account_key` (def) L596 - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
-- `_retire_demo_social_accounts` (def) L620 - Remove the earlier demo accounts.
-- `_seed_demo_social_accounts` (def) L653 - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
-- `_main` (def) L696
+- `_sync_script_checks` (def) L460
+- `_retire_product_brands` (def) L491 - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
+- `_account_key` (def) L598 - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
+- `_retire_demo_social_accounts` (def) L622 - Remove the earlier demo accounts.
+- `_seed_demo_social_accounts` (def) L655 - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
+- `_main` (def) L698
 
 ## postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - `setup` (def) L13

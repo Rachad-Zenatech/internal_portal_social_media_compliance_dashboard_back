@@ -71,6 +71,8 @@ async def setup():
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS due_overdue_notified_at TIMESTAMP WITH TIME ZONE;
             -- When the creator needs the post approved by; it becomes the reviewer's deadline on submit.
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS approval_needed_by TIMESTAMP WITH TIME ZONE;
+            -- A reviewer may allow the creator to publish the corrected version without another review round.
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS publish_after_changes BOOLEAN NOT NULL DEFAULT false;
             -- When the post's content last changed (a field, the caption, a file). A compliance check, sentiment analysis or
             -- public mood read from before then is out of date. Null means never changed since it was created.
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS content_edited_at TIMESTAMP WITH TIME ZONE;

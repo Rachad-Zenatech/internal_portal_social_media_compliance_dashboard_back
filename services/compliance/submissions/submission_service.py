@@ -466,6 +466,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         account_ids=_account_ids(row),
         accounts=_accounts(row),
         publish_at=row["publish_at"],
+        publish_after_changes=bool(row.get("publish_after_changes")),
         approval_needed_by=row.get("approval_needed_by"),
         **_due(row),
         caption_html=row["caption_html"],
@@ -576,7 +577,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
     rows = await fetch_all(
         """
         SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.brand_codes, s.platforms, s.status,
-               s.current_version, s.publish_at, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
+               s.current_version, s.publish_at, s.publish_after_changes, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
                s.due_at, s.due_kind, s.rule_sets, s.region, s.script_required, s.platform_captions,
                (EXISTS (SELECT 1 FROM content_submission_files sf WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL) OR EXISTS (SELECT 1 FROM content_script_versions sv WHERE sv.submission_id = s.id)) AS has_script,
                s.content_edited_at,
@@ -1555,9 +1556,9 @@ async def _missing_for_submit(row: Dict[str, Any]) -> List[str]:
         missing.append("account_id")
     if not row["rule_sets"]:
         missing.append("rule_sets")
-    if not row.get("approval_needed_by"):
+    if not row.get("approval_needed_by") and not (row["status"] == "CHANGES_REQUESTED" and row.get("publish_after_changes")):
         missing.append("approval_needed_by")
-    if not row.get("reviewer_ids"):
+    if not row.get("reviewer_ids") and not (row["status"] == "CHANGES_REQUESTED" and row.get("publish_after_changes")):
         missing.append("reviewer_ids")
     has_main = await fetch_one(
         "SELECT 1 AS ok FROM content_submission_files WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL LIMIT 1",
@@ -1657,6 +1658,7 @@ def _review_job(r: Dict[str, Any]) -> ReviewJob:
 async def submit_for_review(submission_id: UUID, user_id: UUID,
                             confirm_repost: bool = False) -> Tuple[Submission, ReviewJob]:
     row = await _get_owned_row(submission_id, user_id)
+    publish_after_changes = row["status"] == "CHANGES_REQUESTED" and bool(row.get("publish_after_changes"))
     if row["status"] == "IN_REVIEW":
         raise HTTPException(status_code=409, detail="This submission is already in review")
     _require_editable(row)
@@ -1680,12 +1682,12 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
             "missing": ["platforms"],
         })
     now = datetime.now(timezone.utc)
-    if row["publish_at"] and row["publish_at"] < now:
+    if not publish_after_changes and row["publish_at"] and row["publish_at"] < now:
         missing.append("publish_at")
     needed_by = row.get("approval_needed_by")
-    if needed_by and needed_by < now:
+    if not publish_after_changes and needed_by and needed_by < now:
         missing.append("approval_needed_by")
-    if needed_by and row["publish_at"] and needed_by > row["publish_at"] and "publish_at" not in missing:
+    if not publish_after_changes and needed_by and row["publish_at"] and needed_by > row["publish_at"] and "publish_at" not in missing:
         raise HTTPException(status_code=422, detail={
             "message": "The approval date has to be on or before the publish date.",
             "missing": ["approval_needed_by"],
@@ -1701,7 +1703,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
     # Sent to the reviewers picked (required, see _missing_for_submit) who can still review it, and its final
     # approvers, who must see it to approve it.
     reviewer_ids = list(row.get("reviewer_ids") or [])
-    if reviewer_ids:
+    if reviewer_ids and not publish_after_changes:
         creator_out = await _creator_exclusion(row["created_by"])
         eligible = set(await _reviewer_ids(exclude=creator_out, brand_codes=brands_of(row)))
         suggesters = set(await _suggester_ids(exclude=creator_out, brand_codes=brands_of(row)))
@@ -1780,50 +1782,62 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
             job = await conn.fetchrow(
                 """
                 INSERT INTO content_review_jobs
-                    (submission_id, version_number, status, reviewer_route, automated_check, traffic_light, score, created_by)
-                VALUES ($1, $2, 'AWAITING_REVIEW', $3, $4::jsonb, $5, $6, $7)
+                    (submission_id, version_number, status, reviewer_route, automated_check, traffic_light, score,
+                     created_by, decision, decision_notes, decided_by, decided_at, completed_at)
+                VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9::varchar, $10, $8, CASE WHEN $9::varchar = 'APPROVE' THEN NOW() END,
+                        CASE WHEN $9::varchar = 'APPROVE' THEN NOW() END)
                 RETURNING *
                 """,
-                submission_id, version, list(row["reviewer_route"] or []), json.dumps(check),
-                result.traffic_light, result.score, user_id,
+                submission_id, version, "APPROVED" if publish_after_changes else "AWAITING_REVIEW",
+                list(row["reviewer_route"] or []), json.dumps(check), result.traffic_light, result.score, user_id,
+                "APPROVE" if publish_after_changes else None,
+                "Published by the creator after the reviewer requested changes" if publish_after_changes else None,
             )
             await conn.execute(
                 """
                 UPDATE content_submissions
-                SET status = 'IN_REVIEW', current_version = $2, latest_check = $3::jsonb,
+                SET status = CASE WHEN $7 THEN 'APPROVED' ELSE 'IN_REVIEW' END,
+                    current_version = $2, latest_check = $3::jsonb,
                     submitted_at = NOW(), updated_at = NOW(), updated_by = $4,
-                    due_at = $5, due_kind = 'REVIEW', due_reminded_at = NULL, due_overdue_notified_at = NULL,
-                    reviewer_ids = $6::uuid[]
+                    publish_at = CASE WHEN $7 THEN NOW() ELSE publish_at END,
+                    due_at = CASE WHEN $7 THEN NULL ELSE $5::timestamptz END,
+                    due_kind = CASE WHEN $7 THEN NULL ELSE 'REVIEW' END,
+                    due_reminded_at = NULL, due_overdue_notified_at = NULL,
+                    reviewer_ids = $6::uuid[], publish_after_changes = false
                 WHERE id = $1
                 """,
                 submission_id, version, json.dumps(check), user_id,
-                review_deadline_service.due_date("REVIEW", row["publish_at"], requested=needed_by),
-                reviewer_ids,
+                None if publish_after_changes else review_deadline_service.due_date("REVIEW", row["publish_at"], requested=needed_by),
+                reviewer_ids, publish_after_changes,
             )
-            await _add_event(conn, submission_id, "SUBMITTED", f"Version {version} submitted for review", user_id,
+            await _add_event(conn, submission_id, "SUBMITTED",
+                             f"Version {version} published after requested changes" if publish_after_changes else f"Version {version} submitted for review", user_id,
                              {"version": version, "review_job_id": str(job["id"])})
             await _add_event(conn, submission_id, "CHECK_COMPLETED",
                              _check_summary(result, check), user_id,
                              {"traffic_light": result.traffic_light, "score": result.score})
-            await _add_event(conn, submission_id, "REVIEW_REQUESTED", "Sent to the review queue", user_id)
+            if not publish_after_changes:
+                await _add_event(conn, submission_id, "REVIEW_REQUESTED", "Sent to the review queue", user_id)
 
-    await log_audit_event("content_submission", str(submission_id), "SUBMIT_FOR_REVIEW", user_id,
+    await log_audit_event("content_submission", str(submission_id), "PUBLISH_AFTER_CHANGES" if publish_after_changes else "SUBMIT_FOR_REVIEW", user_id,
                           {"reference_code": row["reference_code"], "version": version,
                            "traffic_light": result.traffic_light, "score": result.score})
-    try:
-        from services.notifications.notification_service import create_notification
-        await create_notification(NotificationCreate(
-            user_id=str(user_id),
-            type="SUBMISSION",
-            title=f"{row['reference_code']} submitted for review",
-            message=f"\"{row['title']}\" (version {version}) is in the review queue. {_score_line(result, check)}",
-            link_url=f"/submissions/{submission_id}",
-            entity_type="content_submission",
-            entity_id=str(submission_id),
-        ))
-    except Exception:
-        logger.warning("Could not create submission notification", exc_info=True)
-    await _notify_reviewers(row, version, _score_line(result, check), user_id)
+    if not publish_after_changes:
+        try:
+            from services.notifications.notification_service import create_notification
+            await create_notification(NotificationCreate(
+                user_id=str(user_id),
+                type="SUBMISSION",
+                title=f"{row['reference_code']} submitted for review",
+                message=f"\"{row['title']}\" (version {version}) is in the review queue. {_score_line(result, check)}",
+                link_url=f"/submissions/{submission_id}",
+                entity_type="content_submission",
+                entity_id=str(submission_id),
+            ))
+        except Exception:
+            logger.warning("Could not create submission notification", exc_info=True)
+    if not publish_after_changes:
+        await _notify_reviewers(row, version, _score_line(result, check), user_id)
     # Sentiment analysis isn't started here: the reviewer runs it from the review screen when they want it.
 
     return await get_submission(submission_id, user_id), _review_job(dict(job))
@@ -2417,19 +2431,22 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
             await conn.execute(
                 """
                 UPDATE content_submissions
-                SET status = $2, publish_at = $3, updated_at = NOW(), updated_by = $4,
+                SET status = $2::varchar, publish_at = $3,
+                    publish_after_changes = CASE WHEN $2::varchar = 'CHANGES_REQUESTED' THEN $6 ELSE false END,
+                    updated_at = NOW(), updated_by = $4,
                     due_at = $5, due_kind = CASE WHEN $5::timestamptz IS NULL THEN NULL ELSE 'REVISION' END,
                     due_reminded_at = NULL, due_overdue_notified_at = NULL
                 WHERE id = $1
                 """,
                 submission_id, new_status, publish_at, user_id, revision_due,
+                bool(req.publish_after_changes) if req.decision == "REQUEST_CHANGES" else False,
             )
             await _add_event(conn, submission_id, "REVIEW_DECISION", f"Version {version}: {label}", user_id,
                              {"decision": req.decision, "notes": notes, "version": version,
                               "revision_days": req.revision_days,
                               "revision_due": revision_due.isoformat() if revision_due else None,
                               "publish_at": publish_at.isoformat() if publish_at else None,
-                              "publish_now": req.publish_now, "manual_checks": manual_checks,
+                              "publish_now": req.publish_now, "publish_after_changes": req.publish_after_changes, "manual_checks": manual_checks,
                               "approval_score": approval_score})
 
     await log_audit_event("content_submission", str(submission_id), f"REVIEW_{req.decision}", user_id,

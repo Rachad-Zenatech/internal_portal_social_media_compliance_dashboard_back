@@ -25,7 +25,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/sentiment_model.py (314 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - models/compliance/source_link_model.py (56 lines) - Models for submission source links and quick AI link checks.
 - models/compliance/source_trust_model.py (50 lines) - Models for people's calls on sources (does this claim match the page? is the page a good source?) and the standing a site earns from revi...
-- models/compliance/submission_model.py (663 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+- models/compliance/submission_model.py (675 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
 - models/shared/oauth_connection_model.py (127 lines) - Pydantic models for Organization, Company, and OAuth connections.
 - models/shared/rbac_model.py (146 lines) - rbac model (shared)
@@ -45,7 +45,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
 - postgresql_db/schemas/setup_source_links_schema.py (14 lines) - Schema helper for submission source_links column.
 - postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
-- postgresql_db/schemas/setup_submissions_schema.py (707 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+- postgresql_db/schemas/setup_submissions_schema.py (709 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
@@ -156,7 +156,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/review_memory_service.py (229 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/submissions/source_link_service.py (178 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
 - services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
-- services/compliance/submissions/submission_service.py (2978 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2995 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
 - services/notifications/ceo_event_publisher.py (50 lines) - Cross-application event publisher for CEO Dashboard integration.
@@ -176,7 +176,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/core/browser_stealth.py (40 lines) - Playwright stealth: hides the usual headless-browser giveaways (navigator.webdriver, missing plugins, the "HeadlessChrome" user agent, .....
 - services/shared/core/cache_service.py (221 lines) - cache service (shared core)
 - services/shared/core/logging_service.py (124 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
-- services/shared/core/startup_service.py (47 lines) - Server startup pieces: the schema setups it runs, and the background tasks it starts and tracks.
+- services/shared/core/startup_service.py (56 lines) - Server startup pieces: the schema setups it runs, and the background tasks it starts and tracks.
 - tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
 - tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - tools/compliance/analytics/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).
