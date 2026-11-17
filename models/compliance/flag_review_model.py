@@ -38,8 +38,13 @@ class FlagReview(BaseModel):
 
 class CreatorFlagDismissalRequest(FlagReview):
     """A creator's request for a reviewer to dismiss a finding; never a dismissal by itself."""
-    status: Literal["PENDING", "APPROVED"] = "PENDING"
+    status: Literal["PENDING", "APPROVED", "REJECTED"] = "PENDING"
     requested_by_name: Optional[str] = None
+
+
+class CreatorFlagDismissalRejection(BaseModel):
+    """A reviewer's reason for sending a declined dismissal request back to its creator."""
+    notes: str = Field(..., min_length=1, max_length=5000)
 
 
 FindingVerdictKind = Literal["CORRECT", "OVER_FLAGGED"]

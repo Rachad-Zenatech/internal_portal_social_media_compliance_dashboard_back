@@ -135,14 +135,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `result` (def) L70
 - `sanitize_caption_html` (def) L77 - The caption HTML with only safe formatting left.
 
-## services/compliance/media/image_finding_service.py (207 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+## services/compliance/media/image_finding_service.py (208 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - `normalized` (def) L31
 - `text_spans` (def) L35 - Whole-word occurrences in normalized OCR text, including text that wraps over lines.
 - `overlaps_flagged_text` (def) L43 - A returned line may include context on either side of the flagged words.
 - `region_from_box` (def) L50 - Reject off-image/empty coordinates; Gemini uses [top, left, bottom, right].
-- `_ocr_word_boxes` (def) L63 - Return Tesseract word boxes in Gemini's 0--1000 coordinate system when available.
-- `_ocr_regions` (def) L100 - Find flagged phrases in OCR words and return one tight region per affected text line.
-- `locate_image_findings` (def) L127 - Locate flagged wording, including warnings that still need evidence.
+- `_ocr_word_boxes` (def) L64 - Return Tesseract word boxes in Gemini's 0--1000 coordinate system when available.
+- `_ocr_regions` (def) L101 - Find flagged phrases in OCR words and return one tight region per affected text line.
+- `locate_image_findings` (def) L128 - Locate flagged wording, including warnings that still need evidence.
 
 ## services/compliance/media/image_text_service.py (206 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def) L62
@@ -168,6 +168,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_run` (def) L197
 - `schedule` (def) L204 - Start background transcription for each video not already being transcribed by this process.
 - `schedule_missing` (def) L215 - Queue videos that were never transcribed, or whose previous attempt was abandoned.
+
+## services/compliance/media/video_finding_service.py (79 lines) - Locate exact flagged wording in video frames without inventing a visual region.
+- `_frame_bytes` (def) L17 - Read one PNG frame to memory; no temporary media files are created.
+- `_seconds` (def) L35
+- `locate_video_findings` (def) L43 - Attach tight OCR boxes to matching transcript moments in a video.
+- `locate_media_findings` (def) L75 - Keep image and video localization beside the media-specific implementations.
 
 ## services/compliance/media/video_job_service.py (182 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
 - `create_video_job` (def) L57 - Initialize a new video processing background job.

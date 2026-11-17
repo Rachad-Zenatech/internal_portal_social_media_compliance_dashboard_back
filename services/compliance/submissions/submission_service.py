@@ -61,14 +61,14 @@ from services.compliance.submissions import approval_path_service, source_link_s
 from services.compliance.submissions import delegation_service
 from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
-from services.compliance.submissions import flag_review_service
+from services.compliance.submissions import creator_dismissal_service, flag_review_service
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
 from services.compliance.submissions import post_steps_service, manual_check_service
 from services.compliance.media import document_layout
 from services.compliance.media import document_text_service
-from services.compliance.media import image_text_service, image_finding_service
+from services.compliance.media import image_text_service, video_finding_service
 from services.compliance.submissions import review_memory_service, review_approval_service
 from services.compliance.evaluation import script_match
 from services.ai.observability.ai_usage_service import AiLimitExceeded
@@ -1360,7 +1360,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     flags for the reviewer's timeline, and says what was read and which rules need a person."""
     video = await fetch_one(
         """
-        SELECT original_name, transcript, transcript_status, transcript_error FROM content_submission_files
+        SELECT id, original_name, storage_path, mime_type, transcript, transcript_status, transcript_error FROM content_submission_files
         WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL AND mime_type LIKE 'video/%'
         ORDER BY created_at DESC LIMIT 1
         """,
@@ -1442,7 +1442,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         check_request(row, text, has_video=bool(video), has_images=bool(images), sources=sources,
                       disclaimer_text=published)
     )
-    await image_finding_service.locate_image_findings(images, result.violations)
+    await video_finding_service.locate_media_findings(images, video, segments, result.violations)
     match = script_match.compare(script, spoken) if script and segments else None
     script_match.flag_mismatch(result, match)
     check = {
@@ -1800,8 +1800,8 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
                 review_deadline_service.due_date("REVIEW", row["publish_at"], requested=needed_by),
                 reviewer_ids,
             )
-            await _add_event(conn, submission_id, "SUBMITTED", f"Version {version} submitted for review", user_id,
-                             {"version": version, "review_job_id": str(job["id"])})
+            await creator_dismissal_service.carry_pending_requests(conn, submission_id, row["current_version"], version)
+            await _add_event(conn, submission_id, "SUBMITTED", f"Version {version} submitted for review", user_id, {"version": version, "review_job_id": str(job["id"])})
             await _add_event(conn, submission_id, "CHECK_COMPLETED",
                              _check_summary(result, check), user_id,
                              {"traffic_light": result.traffic_light, "score": result.score})
@@ -1885,18 +1885,19 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
     since = f"NOW() - INTERVAL '{DASHBOARD_DAYS} days'"
     args = (user_id, see_all, scope)
 
-    activity, decisions, scores, findings, script_decisions = await asyncio.gather(
-        fetch_all(
+    # Keep this read to one pooled database connection at a time.  Fanning out five dashboard reads can exhaust the
+    # small development pool while background analysis is active, turning an otherwise read-only page into a 500.
+    activity = await fetch_all(
             f"""
             SELECT * FROM (
                 SELECT e.created_at AS at, e.actor_user_id AS actor_id, {_ACTIVITY_ACTIONS} AS action,
                        s.id AS submission_id, s.reference_code, s.title
                 FROM content_submission_events e JOIN content_submissions s ON s.id = e.submission_id
-                WHERE {visible}
+                WHERE {visible} AND e.created_at >= {since}
                 UNION ALL
                 SELECT c.created_at, c.author_id, 'commented on', s.id, s.reference_code, s.title
                 FROM content_review_comments c JOIN content_submissions s ON s.id = c.submission_id
-                WHERE {visible} AND c.deleted_at IS NULL
+                WHERE {visible} AND c.deleted_at IS NULL AND c.created_at >= {since}
             ) a
             LEFT JOIN LATERAL (SELECT full_name FROM users WHERE id = a.actor_id) u ON true
             WHERE a.action IS NOT NULL
@@ -1904,8 +1905,8 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             LIMIT {DASHBOARD_ACTIVITY_LIMIT}
             """,
             *args,
-        ),
-        fetch_one(
+        )
+    decisions = await fetch_one(
             f"""
             SELECT count(*) AS completed,
                    count(*) FILTER (WHERE j.decision = 'APPROVE') AS approved,
@@ -1916,16 +1917,16 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             WHERE {visible} AND j.decision IS NOT NULL AND j.decided_at >= {since}
             """,
             *args,
-        ),
-        fetch_one(
+        )
+    scores = await fetch_one(
             f"""
             SELECT round(avg(j.score))::int AS average
             FROM content_review_jobs j JOIN content_submissions s ON s.id = j.submission_id
             WHERE {visible} AND j.score IS NOT NULL AND NOT {_pending_sql("j.automated_check")} AND NOT {_unavailable_sql("j.automated_check")} AND j.created_at >= {since}
             """,
             *args,
-        ),
-        fetch_all(
+        )
+    findings = await fetch_all(
             f"""
             SELECT v->>'rule_number' AS rule_number, max(v->>'title') AS title, count(*) AS count
             FROM content_review_jobs j JOIN content_submissions s ON s.id = j.submission_id,
@@ -1935,9 +1936,9 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             GROUP BY 1 ORDER BY 3 DESC, 1 LIMIT 5
             """,
             *args,
-        ),
+        )
         # A reviewer's call on a script counts as a review too: approved, or sent back (with edits or a note).
-        fetch_one(
+    script_decisions = await fetch_one(
             f"""
             SELECT count(*) AS completed,
                    count(*) FILTER (WHERE v.review_decision = 'APPROVED') AS approved,
@@ -1946,8 +1947,7 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
             WHERE {visible} AND v.review_decision IS NOT NULL AND v.reviewed_at >= {since}
             """,
             *args,
-        ),
-    )
+        )
     return DashboardSummary(
         activity=[
             DashboardActivity(
