@@ -191,13 +191,12 @@ class SubmissionSteps(BaseModel):
     sentiment: StepState
     mood: StepState
     send: StepState
-    # Where to carry on: the first of details, compliance, sentiment and mood that isn't done, else send. None once sent.
-    next: Optional[Literal["details", "compliance", "sentiment", "mood", "send"]] = None
-    # All four earlier steps are done and up to date: the only time it can be sent for review.
+    revision: bool = False
+    suggestions: StepState = "todo"
+    next: Optional[Literal["suggestions", "details", "compliance", "sentiment", "mood", "send"]] = None
     ready_to_send: bool = False
     # Sent (in review, approved or published): nothing can be edited or re-run.
     locked: bool = False
-    # What the details step is still missing, by field name.
     missing: List[str] = Field(default_factory=list)
 
 
@@ -333,6 +332,7 @@ class Submission(SourceLinksMixin):
     submitted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    content_edited_at: Optional[datetime] = None
 
 
 class SubmissionVersion(BaseModel):

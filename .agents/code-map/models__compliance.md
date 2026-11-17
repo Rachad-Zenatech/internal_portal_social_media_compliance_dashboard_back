@@ -142,6 +142,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `DocDetail` (class) L197
 - `DocHistory` (class) L232
 
+## models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
+- `ScriptQueueSummary` (class) L7
+
 ## models/compliance/script_review_model.py (234 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - `ScriptVersion` (class) L15
 - `ScriptSuggestion` (class) L33 - A suggesting reviewer's own suggestion on a script version: their edited wording and their notes on it.
@@ -220,8 +223,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `AnalysisStep` (class) L161 - One part of the post still being read before the rulebook check can score it.
 - `AnalysisProgress` (class) L172 - How far the post's reading has got and when the score is expected.
 - `SubmissionSteps` (class) L187 - How far a post has got through the five steps a creator works through (see post_steps_service).
-- `SubmissionSummary` (class) L204
-- `Submission` (class) L269
+- `SubmissionSummary` (class) L203
+- `Submission` (class) L268
 - `SubmissionVersion` (class) L338
 - `VersionView` (class) L345 - One submitted version as it was: what was sent, its video, its automated check and its decision.
 - `ReviewJob` (class) L357

@@ -28,7 +28,9 @@ class StepsTests(unittest.TestCase):
         script = post(content_type="VIDEO", script_stage=True, script_status="APPROVED",
                       main_required=False, has_main=False, main_is_video=False, has_script=True, sentiment_at=None)
         steps = ps.compute_steps(script)
-        self.assertEqual((steps.next, steps.ready_to_send), ("send", True))
+        self.assertEqual((steps.next, steps.ready_to_send), (None, False))
+        self.assertEqual((steps.details, steps.compliance, steps.send), ("done", "done", "done"))
+        self.assertFalse(steps.locked)  # the creator can still upload the actual video
         video = {**script, "has_main": True, "main_is_video": True}
         steps = ps.compute_steps(video)
         self.assertEqual((steps.next, steps.ready_to_send), ("sentiment", False))
@@ -132,11 +134,11 @@ class LockedTests(unittest.TestCase):
     def test_changes_requested_unlocks_it_and_the_steps_are_worked_out_again(self):
         s = ps.compute_steps(post(status="CHANGES_REQUESTED", content_edited_at=NOW))
         self.assertFalse(s.locked)
-        self.assertEqual((s.compliance, s.send, s.next), ("stale", "todo", "compliance"))
+        self.assertEqual((s.compliance, s.send, s.next), ("todo", "todo", "suggestions"))
 
-    def test_changes_requested_with_nothing_edited_can_be_resent(self):
+    def test_changes_requested_with_nothing_edited_restarts_the_revision(self):
         s = ps.compute_steps(post(status="CHANGES_REQUESTED"))
-        self.assertEqual((s.locked, s.ready_to_send, s.next), (False, True, "send"))
+        self.assertEqual((s.locked, s.ready_to_send, s.next), (False, False, "suggestions"))
 
 
 class ScriptSummaryTests(unittest.TestCase):

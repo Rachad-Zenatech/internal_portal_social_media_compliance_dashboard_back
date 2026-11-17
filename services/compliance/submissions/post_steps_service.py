@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, List, Mapping, Optional
 
 from models.compliance.submission_model import SubmissionSteps
+from services.compliance.submissions import revision_steps
 
 # Statuses the creator can still change; anything else is locked.
 EDITABLE_STATUSES = ("DRAFT", "CHANGES_REQUESTED")
@@ -93,6 +94,13 @@ def compute_steps(r: Mapping[str, Any]) -> SubmissionSteps:
         # Sent: everything was done when it went. Nothing to run and nothing to send.
         return SubmissionSteps(details="done", compliance="done", sentiment="done", mood="done", send="done",
                                next=None, ready_to_send=False, locked=True, missing=[])
+
+    if status == "CHANGES_REQUESTED":
+        return revision_steps.compute(r, missing)
+
+    if r.get("script_stage") and not r.get("main_is_video") and r.get("script_status") == "APPROVED":
+        return SubmissionSteps(details="done", compliance="done", sentiment="todo", mood="todo", send="done",
+                               next=None, ready_to_send=False, locked=False, missing=[])
 
     edited_at = r.get("content_edited_at") or r.get("created_at")
     details = "todo" if missing else "done"
