@@ -22,6 +22,8 @@ from models.compliance.script_review_model import (
     ScriptSuggestionRequest,
     SuggesterDashboard,
 )
+from models.compliance.script_queue_model import ScriptQueueSummary
+from services.compliance.evaluation import script_queue_service
 from services.compliance.evaluation import script_review_service as svc
 from services.shared.auth.auth_service import get_current_user_id_dependency
 
@@ -46,6 +48,11 @@ async def suggester_dashboard(user_id: CurrentUser):
 async def script_queue(user_id: CurrentUser, tab: Literal["review", "sent_back", "done"] = Query("review")):
     """Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved."""
     return await svc.queue(user_id, tab)
+
+
+@router.get("/scripts/queue/summary", response_model=List[ScriptQueueSummary])
+async def script_queue_summary(user_id: CurrentUser):
+    return await script_queue_service.summary(user_id)
 
 
 @router.get("/{submission_id}/script", response_model=ScriptStage)

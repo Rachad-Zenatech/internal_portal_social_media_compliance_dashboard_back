@@ -46,6 +46,7 @@ from services.compliance.media import document_text_service
 from services.compliance.submissions import review_deadline_service
 from services.compliance.submissions.flag_review_service import MIN_APPROVAL_SCORE
 from services.compliance.submissions import submission_service as subs
+from services.compliance.evaluation.script_queue_service import QUEUE_TABS as _QUEUE_TABS
 from services.compliance.evaluation.compliance_service import check_compliance, rulebook_version
 from services.shared.core.audit_service import log_audit_event
 
@@ -765,14 +766,6 @@ async def preview_check(submission_id: UUID, user_id: UUID, text: str) -> Dict[s
 # Which scripts each Content Screener tab lists, as SQL on content_submissions (s) and its latest script version (v):
 # waiting for a reviewer (oldest first); sent back to the creator; approved with the video still to come (the post
 # itself takes over in the queue once the video is submitted), both over the last 30 days, newest first.
-_QUEUE_TABS = {
-    "review": ("s.script_status = 'IN_REVIEW'", "v.created_at"),
-    "sent_back": ("s.script_status IN ('CHANGES_REQUESTED', 'EDITS_PROPOSED')", "s.updated_at DESC"),
-    "done": ("s.script_status = 'APPROVED' AND s.status = 'DRAFT' AND s.updated_at > NOW() - INTERVAL '30 days'",
-             "s.updated_at DESC"),
-}
-
-
 _refreshing: set = set()  # (post id, version) pairs being re-checked, so a busy list doesn't start the same one twice
 
 
