@@ -118,6 +118,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_fetch_service.py (332 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - services/compliance/evaluation/source_passages.py (262 lines) - Passages of a source: what the model reads of a long source, and where in the source each claim really is.
 - services/compliance/evaluation/source_settings.py (86 lines) - Settings for checking a post's sources, none of them fixed in code.
+- services/compliance/evaluation/synthetic_media_disclosure.py (44 lines) - Keep sensitive imagery disclosure checks independent of optional semantic matching.
 - services/compliance/media/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
 - services/compliance/media/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
 - services/compliance/media/caption_service.py (338 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
