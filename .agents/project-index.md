@@ -125,7 +125,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/hashtag_library.py (145 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - services/compliance/media/html_layout.py (114 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
 - services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
-- services/compliance/media/image_finding_service.py (112 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+- services/compliance/media/image_finding_service.py (195 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - services/compliance/media/image_text_service.py (206 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/media/transcription_service.py (258 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
 - services/compliance/media/video_job_service.py (182 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.

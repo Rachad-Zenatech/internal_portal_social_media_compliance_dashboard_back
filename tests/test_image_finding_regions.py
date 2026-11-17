@@ -36,6 +36,17 @@ class Coordinates(unittest.TestCase):
     def test_old_checks_default_to_no_regions(self):
         self.assertEqual(finding().image_regions, [])
 
+    def test_ocr_words_make_a_tight_phrase_box_not_a_full_creative(self):
+        file_id = uuid4()
+        words = [
+            {"text": "double", "line": (1, 1, 1), "box": [100, 100, 200, 900]},
+            {"text": "risk", "line": (1, 1, 2), "box": [500, 200, 600, 450]},
+            {"text": "free", "line": (1, 1, 2), "box": [500, 460, 600, 700]},
+        ]
+        found = regions._ocr_regions(file_id, words, ["risk free"])
+        self.assertEqual(len(found), 1)
+        self.assertEqual((found[0].x, found[0].y, found[0].w, found[0].h), (0.2, 0.5, 0.5, 0.1))
+
 
 class Localization(unittest.IsolatedAsyncioTestCase):
     async def run_localization(self, findings, response=None, failure=None, image_text="Project Agincourt"):
@@ -62,6 +73,18 @@ class Localization(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(flag.status, "EVIDENCE_REQUIRED")
         self.assertEqual(flag.penalty, 0)
         self.assertEqual(generate.await_args.kwargs["feature"], "IMAGE_FINDING_REGIONS")
+
+    async def test_ocr_region_skips_model_localization_for_risk_free(self):
+        flag = finding(terms=["risk free"])
+        words = [
+            {"text": "risk", "line": (1, 1, 1), "box": [500, 200, 600, 450]},
+            {"text": "free", "line": (1, 1, 1), "box": [500, 460, 600, 700]},
+        ]
+        with patch.object(regions, "_ocr_word_boxes", return_value=words):
+            _, generate = await self.run_localization([flag], image_text="DOUBLE YOUR MONEY RISK FREE")
+        generate.assert_not_awaited()
+        self.assertEqual((flag.image_regions[0].x, flag.image_regions[0].y,
+                          flag.image_regions[0].w, flag.image_regions[0].h), (0.2, 0.5, 0.5, 0.1))
 
     async def test_multiline_phrase_can_have_multiple_boxes(self):
         flag = finding(terms=["Project Agincourt Pathway to the Autonomous Warfare Command"])
@@ -98,6 +121,13 @@ class Localization(unittest.IsolatedAsyncioTestCase):
             {"finding": 10, "text": "Project Agincourt", "box": [0, 0, 100, 100]},
             {"finding": 0, "text": "Project Agincourt", "box": [-20, 0, 100, 100]},
         ]})
+        self.assertEqual(flag.image_regions, [])
+
+    async def test_rejects_a_fallback_box_that_covers_the_whole_creative(self):
+        flag = finding(terms=["risk free"])
+        await self.run_localization([flag], {"regions": [
+            {"finding": 0, "text": "risk free", "box": [0, 0, 1000, 1000]},
+        ]}, image_text="DOUBLE YOUR MONEY RISK FREE")
         self.assertEqual(flag.image_regions, [])
 
     async def test_cleared_or_absent_wording_does_not_call_gemini(self):
