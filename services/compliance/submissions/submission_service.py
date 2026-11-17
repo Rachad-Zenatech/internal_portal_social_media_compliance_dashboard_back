@@ -65,10 +65,10 @@ from services.compliance.submissions import flag_review_service
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
-from services.compliance.submissions import post_steps_service
+from services.compliance.submissions import post_steps_service, manual_check_service
 from services.compliance.media import document_layout
 from services.compliance.media import document_text_service
-from services.compliance.media import image_text_service
+from services.compliance.media import image_text_service, image_finding_service
 from services.compliance.submissions import review_memory_service
 from services.compliance.evaluation import script_match
 from services.ai.observability.ai_usage_service import AiLimitExceeded
@@ -1374,7 +1374,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     # The post's images, in the order it shows them; any never read are read now and re-checked when done.
     images = await fetch_all(
         """
-        SELECT id, original_name, image_text, image_text_status, image_text_error FROM content_submission_files
+        SELECT id, original_name, storage_path, mime_type, image_text, image_text_status, image_text_error FROM content_submission_files
         WHERE submission_id = $1 AND kind = ANY($2::text[]) AND deleted_at IS NULL AND mime_type LIKE 'image/%'
         ORDER BY (kind <> 'MAIN'), created_at
         """,
@@ -1442,7 +1442,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         check_request(row, text, has_video=bool(video), has_images=bool(images), sources=sources,
                       disclaimer_text=published)
     )
-    # Does the video say what the approved script says? Only once the script is approved and the transcript read.
+    await image_finding_service.locate_image_findings(images, result.violations)
     match = script_match.compare(script, spoken) if script and segments else None
     script_match.flag_mismatch(result, match)
     check = {
@@ -1451,8 +1451,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         "includes_transcript": bool(segments),
         # A video whose transcript isn't ready yet is re-checked automatically when it is.
         "transcript_pending": bool(video) and video["transcript_status"] not in ("COMPLETED", "FAILED"),
-        # What was read from the images: how many there are, how many were read, and how many are still being
-        # read (re-checked automatically when done) or couldn't be read (their text wasn't checked).
+        # Image reads still pending are re-checked automatically when done.
         "images_total": len(images),
         "images_read": sum(1 for i in images if i["image_text_status"] == "COMPLETED"),
         "images_pending": sum(1 for i in images if i["image_text_status"] in (None, "PROCESSING")),
@@ -1478,8 +1477,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
             *({"what": "document", "name": d.get("original_name"), "error": d.get("doc_text_error")}
               for d in documents if d["doc_text_status"] == "FAILED"),
         ],
-        # A context rule matched but no AI model could read it (key out of credits, quota used up, service down):
-        # the score would be a guess, so screens show a message instead of it (re-run the check once the AI is back).
+        # No score when AI is unavailable; re-run the check once it is back.
         "ai_unavailable": result.ai_unavailable,
         "script_match": match,
     }
@@ -1527,6 +1525,7 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
         result, check = await _run_check(row)
     finally:
         ai_observability.attempt_listener.reset(token)
+    check.update(manual_requested_at=check["checked_at"], checked_content_edited_at=str(row.get("content_edited_at")) if row.get("content_edited_at") else None)
     check["models"] = {"attempts": list(attempts.values()), "duration_ms": round((time.perf_counter() - started) * 1000)}
     if duplicates.repost:
         check["repost_confirmed"] = duplicates.repost.reference_code  # sending doesn't ask again for the same post
@@ -1718,8 +1717,8 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
         reviewer_ids += [a for a in approver_ids if a not in reviewer_ids and a != creator_out]
     row = {**dict(row), "reviewer_ids": reviewer_ids}
 
-    # Automated rulebook screening is the first step of the review job.
-    result, check = await _run_check(row)
+    # Sending reuses the check the creator explicitly ran; it never starts another analysis.
+    result, check = manual_check_service.require_current_check(row, await compliance_rulebook_version())
 
     files = await _list_files(submission_id)
     # The script's text as read now, kept with the version so later versions can be compared with it.
@@ -2354,13 +2353,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
         # Nothing can be approved on a check that wasn't read in full: with the AI down every finding is only a
         # "needs review", so there'd be no score to hold to the minimum.
         saved = _json(row["latest_check"]) or {}
-        if saved and saved.get("rulebook_version") != await compliance_rulebook_version():
-            # The rulebook changed after this was checked (a re-check may still be queued): approve on today's rules.
-            await _recheck_one(dict(row), lambda before, result, check: None)
-            row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
-            if row["status"] != "IN_REVIEW":
-                raise HTTPException(status_code=409, detail="The post changed while it was re-checked; open it again")
-            saved = _json(row["latest_check"]) or {}
+        manual_check_service.require_current_check(row, await compliance_rulebook_version())
         if analysis_pending(saved):
             raise HTTPException(
                 status_code=422,
@@ -2379,7 +2372,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
             raise HTTPException(
                 status_code=422,
                 detail="The AI review couldn't run, so this has no compliance score and can't be approved yet. It's "
-                       "re-checked automatically once the AI is back. You can still request changes.",
+                       "checked again using the Compliance page once the AI is back. You can still request changes.",
             )
         standing = (await flag_review_service.approval_standing([row])).get(row["id"])
         open_critical = standing.open_critical if standing else 0
@@ -2958,21 +2951,8 @@ async def recheck_outdated_on_start() -> None:
 
 
 def schedule_rulebook_recheck(reason: str) -> None:
-    """Re-check open content shortly after a rule changes; a burst of edits leads to one pass."""
-    import asyncio
-
-    global _rulebook_recheck
-
-    async def run() -> None:
-        await asyncio.sleep(RULEBOOK_RECHECK_DELAY_SEC)
-        try:
-            await recheck_open_submissions(reason)
-        except Exception:
-            logger.exception("Couldn't re-check open submissions after a rulebook change")
-
-    if _rulebook_recheck and not _rulebook_recheck.done():
-        _rulebook_recheck.cancel()
-    _rulebook_recheck = asyncio.create_task(run())
+    """Rulebook edits mark saved results stale; checks run only when requested on the page."""
+    logger.info("Rulebook changed; a manual compliance check is required: %s", reason)
 
 
 async def recheck_after_transcript(file_id: UUID) -> None:
@@ -3003,10 +2983,12 @@ async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
             """,
             file_id, kinds,
         )
-        if not sub:
+        if not sub or not manual_check_service.may_finish_check(sub):
             return
         started = datetime.now(timezone.utc)
         result, check = await _run_check(sub)
+        previous = manual_check_service.saved_check(sub)
+        check.update((key, previous[key]) for key in ("manual_requested_at", "checked_content_edited_at") if key in previous)
         # Tell the creator the first time the video turns out not to match their approved script.
         was_mismatch = ((_json(sub["latest_check"]) or {}).get("script_match") or {}).get("status") == "MISMATCH"
         newly_mismatched = ((check.get("script_match") or {}).get("status") == "MISMATCH") and not was_mismatch

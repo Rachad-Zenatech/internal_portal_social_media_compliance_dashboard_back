@@ -65,7 +65,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_reference_context` (def) L346 - The Messaging Context section of the prompt, grouped by kind, saying plainly what's missing.
 - `suggested_context` (def) L369 - The Messaging Context the analysis would pick on its own for this post, by kind (what the picker suggests).
 
-## services/compliance/sentiment/jobs.py (543 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
+## services/compliance/sentiment/jobs.py (540 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - `_claim` (def) L51 - Atomically move an analysis to PROCESSING unless another worker already has it.
 - `_finish` (def) L66
 - `run_analysis` (def) L100
@@ -86,10 +86,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_same_finding` (def) L421 - Whether two runs flagged the same thing: the same id, or (wording rewritten slightly, or a visual described
 - `_with_comparison` (def) L435 - Attach how this analysis differs from the previous completed one of the same submission.
 - `get_latest` (def) L465 - The most recent analysis, flagged stale if the content, scope or rules changed since it ran.
-- `_analysis_row` (def) L487
-- `schedule_after_reset` (def) L500 - An analysis that failed on Gemini's daily limit runs again once the limit resets.
-- `promote_due` (def) L515 - Start scheduled analyses whose quota reset time has passed (all of them, or one submission's).
-- `scheduled_runs_loop` (def) L530 - Background loop (started with the app): runs scheduled analyses once Gemini's daily limit has reset.
+- `_analysis_row` (def) L484
+- `schedule_after_reset` (def) L497 - An analysis that failed on Gemini's daily limit runs again once the limit resets.
+- `promote_due` (def) L512 - Start scheduled analyses whose quota reset time has passed (all of them, or one submission's).
+- `scheduled_runs_loop` (def) L527 - Background loop (started with the app): runs scheduled analyses once Gemini's daily limit has reset.
 
 ## services/compliance/sentiment/media.py (66 lines) - Video frames and attached images for sentiment findings.
 - `video_frame` (def) L18 - A JPEG of the analysed video at a moment (cached on disk), so a finding can show what was on screen.

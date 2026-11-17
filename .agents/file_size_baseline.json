@@ -22,7 +22,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "server.py": {
-      "max_lines": 631,
+      "max_lines": 619,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/analytics/conversation_evidence.py": {
@@ -54,11 +54,11 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/sentiment/jobs.py": {
-      "max_lines": 542,
+      "max_lines": 539,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
-      "max_lines": 3050,
+      "max_lines": 3032,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/notifications/rabbitmq_service.py": {
@@ -112,7 +112,7 @@
       "kind": "py_function"
     },
     "server.py#lifespan": {
-      "max_lines": 142,
+      "max_lines": 130,
       "kind": "py_function"
     },
     "services/compliance/evaluation/compliance_service.py#check_compliance": {
@@ -120,11 +120,11 @@
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#_run_check": {
-      "max_lines": 133,
+      "max_lines": 131,
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#decide_review": {
-      "max_lines": 177,
+      "max_lines": 171,
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#list_submissions": {

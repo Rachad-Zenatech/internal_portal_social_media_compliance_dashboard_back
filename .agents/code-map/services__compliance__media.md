@@ -135,6 +135,13 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `result` (def) L70
 - `sanitize_caption_html` (def) L77 - The caption HTML with only safe formatting left.
 
+## services/compliance/media/image_finding_service.py (112 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+- `normalized` (def) L26
+- `text_spans` (def) L30 - Whole-word occurrences in normalized OCR text, including text that wraps over lines.
+- `overlaps_flagged_text` (def) L38 - A returned line may include context on either side of the flagged words.
+- `region_from_box` (def) L45 - Reject off-image/empty coordinates; Gemini uses [top, left, bottom, right].
+- `locate_image_findings` (def) L58 - Locate flagged wording, including warnings that still need evidence.
+
 ## services/compliance/media/image_text_service.py (206 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def) L62
 - `_get_client` (def) L66

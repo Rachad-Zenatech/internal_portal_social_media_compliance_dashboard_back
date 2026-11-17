@@ -124,10 +124,6 @@ async def lifespan(app: FastAPI):
     from services.compliance.submissions.review_deadline_service import deadline_loop
     spawn_background(background_tasks, deadline_loop(), "review-deadlines")
 
-    # 3c. Sentiment analyses scheduled to run once Gemini's daily limit resets
-    from services.compliance.analytics.sentiment_service import scheduled_runs_loop
-    spawn_background(background_tasks, scheduled_runs_loop(), "sentiment-scheduled-runs")
-
     # 3d. Review memory: past review decisions as precedent for sentiment analysis (catches up on anything new)
     from services.compliance.submissions.review_memory_service import remember_all_in_background
     spawn_background(background_tasks, remember_all_in_background(), "review-memory-sync")
@@ -136,10 +132,6 @@ async def lifespan(app: FastAPI):
     from services.compliance.submissions.finding_precedent_service import remember_all_in_background as remember_verdicts
     spawn_background(background_tasks, remember_verdicts(), "finding-precedent-sync")
 
-    # 3e. Open content checked against an older rulebook or older built-in claim checks is re-checked
-    from services.compliance.submissions.submission_service import recheck_outdated_on_start
-    spawn_background(background_tasks, recheck_outdated_on_start(), "outdated-check-recheck")
-
     # 3e0. Facts from the ZenaTech newsroom, re-read once a day
     from services.compliance.evaluation.newsroom_sync_service import newsroom_sync_loop
     spawn_background(background_tasks, newsroom_sync_loop(), "newsroom-sync")
@@ -147,10 +139,6 @@ async def lifespan(app: FastAPI):
     # 3e0b. Platform content policies: their policy pages re-read weekly; changes drafted for a super admin to approve
     from services.compliance.evaluation.policy_watch_service import policy_watch_loop
     spawn_background(background_tasks, policy_watch_loop(), "policy-watch")
-
-    # 3e1. Checks the AI couldn't read (key out of credits, quota, down) are retried until it can
-    from services.compliance.submissions.submission_service import ai_recheck_loop
-    spawn_background(background_tasks, ai_recheck_loop(), "ai-unavailable-recheck")
 
     # 3e1b. Image and document reads that a restart cut off are started again
     async def resume_reads() -> None:
