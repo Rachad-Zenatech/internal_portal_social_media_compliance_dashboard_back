@@ -67,7 +67,8 @@ from services.shared.storage.s3_storage_service import ensure_local_file, s3_ena
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
-from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness
+from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness, image_provenance_service
+from services.compliance.evaluation import source_recheck
 from services.compliance.media import document_layout
 from services.compliance.media import document_text_service
 from services.compliance.media import image_text_service, video_finding_service
@@ -331,7 +332,7 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
     manager_can_read, for the brands they work on), with its account joined. Deleted submissions are never returned."""
     row = await fetch_one(
         """
-        SELECT s.*, """ + media_freshness.REVISION_SQL + """ AS media_edited_at,
+        SELECT s.*, """ + image_provenance_service.HAS_IMAGES_SQL + """ AS has_images, """ + media_freshness.REVISION_SQL + """ AS media_edited_at,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
                c.connection_metadata AS acc_connection_metadata,"""
         + _ACCOUNTS_COLUMN
@@ -473,7 +474,8 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         **_due(row),
         caption_html=row["caption_html"],
         caption_text=row["caption_text"],
-        context_picks=_context_picks(row),
+        context_picks=_context_picks(row), ai_generated_images=row.get("ai_generated_images", False),
+        ai_generated_images_confirmed=image_provenance_service.is_confirmed(row),
         platform_captions=_platform_captions(row),
         rule_sets=list(row["rule_sets"] or []),
         source_links=list(row.get("source_links") or []), source_link_checks=_json(row.get("source_link_checks")) or {},
@@ -580,7 +582,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
                s.current_version, s.publish_at, s.publish_after_changes, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
                s.due_at, s.due_kind, s.rule_sets, s.region, s.script_required, s.platform_captions,
                (EXISTS (SELECT 1 FROM content_submission_files sf WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL) OR EXISTS (SELECT 1 FROM content_script_versions sv WHERE sv.submission_id = s.id)) AS has_script,
-               s.content_edited_at, """ + media_freshness.REVISION_SQL + """ AS media_edited_at,
+               s.content_edited_at, """ + image_provenance_service.COLUMNS_SQL + media_freshness.REVISION_SQL + """ AS media_edited_at,
                (s.latest_check->>'checked_at')::timestamptz AS check_at,
                (SELECT max(a.created_at) FROM content_sentiment_analyses a
                  WHERE a.submission_id = s.id AND a.status = 'COMPLETED') AS sentiment_at,
@@ -796,15 +798,13 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["account_id"] = account_ids[0] if account_ids else None
     if payload.get("publish_at"):
         fields["publish_at"] = payload["publish_at"]
-    # Saved as picked; whether it's still in the future (and before the publish date) is checked on submit, so
-    # autosave never fails because time passed.
     if payload.get("approval_needed_by"):
         fields["approval_needed_by"] = payload["approval_needed_by"]
     if "caption_html" in payload:
-        # Shown back to other people in the editor, so only safe formatting is kept.
         fields["caption_html"] = sanitize_caption_html(payload["caption_html"])
     if "caption_text" in payload:
         fields["caption_text"] = payload["caption_text"]
+    fields.update(image_provenance_service.update_fields(row, payload))
     if payload.get("context_picks") is not None:
         fields["context_picks"] = json.dumps(await _clean_context_picks(payload["context_picks"]))
     if payload.get("platform_captions") is not None:
@@ -1326,7 +1326,7 @@ def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: b
         text=text,
         disclaimer_text=disclaimer_text,
         sources=list(sources),
-        source_script=source_script,
+        source_script=source_script, ai_generated_images=has_images and bool(row.get("ai_generated_images")),
         video_title=row["title"],
         content_type=f"{row['content_type']}_{(row['platforms'] or ['GENERAL'])[0]}",
         rule_sets=list(row["rule_sets"] or []),
@@ -1416,8 +1416,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         document_texts.insert(0, f"Script:\n{script}")
     # Scripts and articles carry their page, heading and table marks; the check reads the wording only.
     text = document_layout.plain_text("\n\n".join(p for p in source_link_service.with_source_links(row, [_check_text(row), *document_texts, spoken, visual_text, *image_texts]) if p)) or row["title"]
-    # Documents attached as evidence (Supporting documents): what the post's claims are checked against, with the links it
-    # cites. Read in the background like the script, and re-checked when done.
+    # Supporting documents are read in the background and included as evidence.
     evidence = await fetch_all(
         """
         SELECT id, original_name, doc_text, doc_text_status FROM content_submission_files
@@ -1448,6 +1447,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     await video_finding_service.locate_media_findings(images, video, all_video_segments, result.violations)
     match = script_match.assess_video(script, " ".join(str(s.get("text", "")) for s in segments if s.get("source") != "on_screen"), video, on_screen=" ".join(str(s.get("text", "")) for s in segments if s.get("source") == "on_screen"))
     script_match.flag_mismatch(result, match)
+    source_recheck.record_cleared(result, (_json(row.get("latest_check")) or {}).get("violations") or [])
     check = {
         **result.model_dump(mode="json"),
         "checked_at": datetime.now(timezone.utc).isoformat(),
@@ -1506,7 +1506,7 @@ async def _mirror_to_script_version(conn, submission_id: UUID, check: Dict[str, 
     )
 
 
-async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: bool = False) -> Submission:
+async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: bool = False, *, refresh_sources: bool = False) -> Submission:
     row = await _get_owned_row(submission_id, user_id)
     if not _check_text(row):
         raise HTTPException(status_code=422, detail="Add a title or caption before running the check")
@@ -1526,9 +1526,11 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
             outer(event)
 
     token = ai_observability.attempt_listener.set(record)
+    refresh_token = source_recheck.refresh.set(refresh_sources)
     try:
         result, check = await _run_check(row)
     finally:
+        source_recheck.refresh.reset(refresh_token)
         ai_observability.attempt_listener.reset(token)
     check.update(manual_requested_at=check["checked_at"], checked_content_edited_at=str(row.get("content_edited_at")) if row.get("content_edited_at") else None)
     check["models"] = {"attempts": list(attempts.values()), "duration_ms": round((time.perf_counter() - started) * 1000)}
@@ -1584,6 +1586,8 @@ async def _missing_for_submit(row: Dict[str, Any]) -> List[str]:
         missing.append("caption")
     if script_stage_on(row) and row.get("script_status") != "APPROVED":
         missing.append("script_approval")
+    if image_provenance_service.missing(row):
+        missing.append("ai_generated_images")
     return missing
 
 

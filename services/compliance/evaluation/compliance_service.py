@@ -765,7 +765,7 @@ async def applicable_rules(req: ComplianceCheckRequest) -> List[ComplianceRule]:
     """Active rules whose scope matches the content (also used to pick sentiment-analysis guidelines). Pass the
     post's text to have a cashtag in it bring in the investor rules (see implied_audiences)."""
     scope = check_scope(req)
-    return [r for r in await list_compliance_rules(is_active=True) if _rule_applies(r, req, scope)]
+    return [r for r in await list_compliance_rules(is_active=True) if _rule_applies(r, req, scope) or (req.ai_generated_images and r.rule_number == "Rule 9")]
 
 
 # Points off per finding, and the most a post with a critical finding can score.

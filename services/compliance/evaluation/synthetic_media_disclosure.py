@@ -3,7 +3,6 @@ import re
 from models.compliance.compliance_model import ComplianceViolation
 
 SYNTHETIC_RULE = re.compile(r"\b(ai|synthetic|renders?|rendering)\b", re.I)
-SENSITIVE_TOPIC = re.compile(r"\b(military|combat|battlefield|warzone|war zone|troops?|armed forces)\b", re.I)
 _VISUAL = r"(?:images?|imagery|photos?|photographs?|pictures?|visuals?|videos?|footage|animations?|illustrations?|artwork|scenes?|visualizations?)"
 _MODIFIERS = r"(?:(?:military|combat|battlefield|drone|rescue|3d|photorealistic|realistic|illustrative)\s+){0,4}"
 _SYNTHETIC_VISUAL = re.compile(
@@ -35,7 +34,7 @@ def ensure_review(req, rules, findings):
     """Unknown provenance or the word military alone must not imply that an image was generated."""
     from services.compliance.evaluation import compliance_service as cs
     text = cs.without_image_marks(req.text)
-    evidence = synthetic_evidence(text)
+    evidence = synthetic_evidence(text) or ("Creator declared an AI-generated image" if req.ai_generated_images else None)
     padded_text = f" {cs._normalize(text)} "
     synthetic_rules = [rule for rule in rules if rule.required_disclaimers and SYNTHETIC_RULE.search(f"{rule.category} {rule.title}")]
     if not evidence:
@@ -43,7 +42,7 @@ def ensure_review(req, rules, findings):
             findings[:] = [finding for finding in findings if finding.rule_id != rule.id
                            or finding.status == "CLEARED" or _direct_breach(finding, rule, padded_text)]
         return
-    if "imagery" not in (req.content_parts or cs.parts_for(req.content_type)) or not SENSITIVE_TOPIC.search(text):
+    if "imagery" not in (req.content_parts or cs.parts_for(req.content_type)):
         return
     published = req.disclaimer_text if req.disclaimer_text is not None else text
     padded = f" {cs._normalize(published)} "
@@ -59,7 +58,7 @@ def ensure_review(req, rules, findings):
             severity=rule.severity, traffic_light="YELLOW", status="NEEDS_REVIEW", penalty=0,
             kind="MISSING_DISCLAIMER", flagged_terms=[evidence],
             missing_disclaimers=list(rule.required_disclaimers),
-            explanation="The post describes generated or conceptual visuals in a sensitive military context, "
+            explanation="The post has evidence of generated or conceptual visuals, "
                         "but the published content has no approved disclosure. Confirm the media's origin and label.",
             remediation_guidance="If the image is AI-generated, rendered or conceptual, add the rule's approved label: "
                                  + rule.required_disclaimers[0] + " A generic illustrative-purpose note does not "

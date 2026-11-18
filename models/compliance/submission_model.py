@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 from models.compliance.submission_steps_model import StepState, SubmissionSteps
+from models.compliance.image_provenance_model import ImageProvenanceFields
 from models.compliance.source_link_model import SourceLinksMixin, SourceLinksUpdateMixin
 from models.compliance.duplicate_model import (
     DuplicateDetail as DuplicateDetail,
@@ -117,6 +118,7 @@ class SubmissionUpdate(SourceLinksUpdateMixin):
     # Messaging Context the creator chose for the analysis, by kind (BRAND_VOICE, FACT, PLATFORM_NORM,
     # AUDIENCE_PROFILE). A kind left out is automatic; an empty list means none of that kind.
     context_picks: Optional[Dict[str, List[UUID]]] = None
+    ai_generated_images: Optional[bool] = None
     # A different caption for some platforms, as plain text by platform; the others use caption_text. {} clears them.
     platform_captions: Optional[Dict[str, str]] = Field(None, max_length=len(PLATFORMS))
     rule_sets: Optional[List[str]] = Field(None, max_length=len(RULE_SETS))
@@ -254,7 +256,7 @@ class SubmissionSummary(BaseModel):
     steps: Optional[SubmissionSteps] = None
 
 
-class Submission(SourceLinksMixin):
+class Submission(SourceLinksMixin, ImageProvenanceFields):
     id: UUID
     reference_code: str
     title: str
@@ -619,6 +621,7 @@ class DashboardSummary(BaseModel):
 
 
 class SubmitRequest(BaseModel):
+    refresh_sources: bool = False
     # The creator confirmed sending the same post again for another publish date (see DuplicateReport.repost).
     confirm_repost: bool = False
 
