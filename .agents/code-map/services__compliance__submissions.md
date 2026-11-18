@@ -135,17 +135,18 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_active_scan_jobs` (def) L366 - Return any in-progress background image source scan jobs for this submission.
 - `get_scan_job` (def) L378 - Return the current status and result of a background image source scan job.
 
-## services/compliance/submissions/manual_check_service.py (124 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
+## services/compliance/submissions/manual_check_service.py (133 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
 - `saved_check` (def) L10
 - `allow_scriptless_video_compliance` (def) L15 - Permit local video fixtures to check their uploaded media without a script.
 - `timestamp` (def) L23
 - `content_is_current` (def) L33
 - `may_finish_check` (def) L47
 - `require_current_check` (def) L52
-- `analysis_details_missing` (def) L62
-- `readable_script` (def) L75
-- `require_sentiment_ready` (def) L85 - Video sentiment starts only after a real video is attached; scripts do not require it.
-- `require_compliance_ready` (def) L99 - Check the script while no actual video exists, including after script approval.
+- `require_send_score` (def) L62
+- `analysis_details_missing` (def) L71
+- `readable_script` (def) L84
+- `require_sentiment_ready` (def) L94 - Video sentiment starts only after a real video is attached; scripts do not require it.
+- `require_compliance_ready` (def) L108 - Check the script while no actual video exists, including after script approval.
 
 ## services/compliance/submissions/media_freshness.py (39 lines) - Check freshness follows media revisions, independently of post detail edits.
 - `is_current` (def) L12

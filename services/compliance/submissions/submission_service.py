@@ -1698,7 +1698,6 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
             "message": "Some required information is missing.",
             "missing": sorted(set(missing)),
         })
-    # Settled at the compliance check; checked again here in case the post changed since.
     await _require_not_duplicate(row, confirm_repost, (_json(row.get("latest_check")) or {}).get("repost_confirmed"))
 
     # Sent to the reviewers picked (required, see _missing_for_submit) who can still review it, and its final
@@ -1720,8 +1719,9 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
         reviewer_ids += [a for a in approver_ids if a not in reviewer_ids and a != creator_out]
     row = {**dict(row), "reviewer_ids": reviewer_ids}
 
-    # Sending reuses the check the creator explicitly ran; it never starts another analysis.
     result, check = manual_check_service.require_current_check(row, await compliance_rulebook_version())
+    if not publish_after_changes:
+        manual_check_service.require_send_score(result.score)
 
     files = await _list_files(submission_id)
     # The script's text as read now, kept with the version so later versions can be compared with it.

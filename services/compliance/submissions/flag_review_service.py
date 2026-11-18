@@ -30,7 +30,7 @@ from services.shared.core.audit_service import log_audit_event
 from services.compliance.submissions import finding_precedent_service
 
 # The least rulebook score (counting only flags nobody has dismissed) content needs to be approved.
-MIN_APPROVAL_SCORE = int(os.getenv("MIN_APPROVAL_SCORE", "70"))
+MIN_APPROVAL_SCORE = max(80, int(os.getenv("MIN_APPROVAL_SCORE", "80")))
 
 
 def _json(value: Any) -> Any:

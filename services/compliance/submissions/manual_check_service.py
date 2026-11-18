@@ -59,6 +59,15 @@ def require_current_check(row, rulebook_version, *, allow_incomplete=False, vali
     return result, check
 
 
+def require_send_score(score: int) -> None:
+    from services.compliance.submissions.flag_review_service import MIN_APPROVAL_SCORE
+
+    if score < MIN_APPROVAL_SCORE:
+        raise HTTPException(
+            422, f"The compliance score is {score}/100. Sending for review requires at least {MIN_APPROVAL_SCORE}."
+        )
+
+
 async def analysis_details_missing(row):
     from services.compliance.submissions import submission_service as subs
     missing = [m for m in await subs._missing_for_submit(row) if m not in subs._SEND_ONLY_FIELDS]
