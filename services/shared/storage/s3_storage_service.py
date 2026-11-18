@@ -21,7 +21,7 @@ def s3_enabled() -> bool:
 
 
 def s3_key_for(category: str, rel_path: str) -> str:
-    prefix = (os.getenv("UPLOAD_S3_PREFIX") or "data").strip().strip("/")
+    prefix = (os.getenv("UPLOAD_S3_PREFIX") or "data/uploads").strip().strip("/")
     clean_rel = rel_path.replace("\\", "/").lstrip("/")
     return f"{prefix}/{category}/{clean_rel}" if prefix else f"{category}/{clean_rel}"
 

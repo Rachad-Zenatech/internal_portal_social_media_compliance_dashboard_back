@@ -12,7 +12,9 @@ import json
 import os
 import re
 import tempfile
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 from postgresql_db.database import fetch_all
 from services.compliance.analytics.conversation_evidence import entities_split
@@ -20,7 +22,10 @@ from services.compliance.analytics.conversation_evidence import entities_split
 MAX_QUERIES_PER_DRAFT = 3
 MAX_DRAFTS = int(os.getenv("PUBLIC_MOOD_POST_SEARCH_MAX_DRAFTS", "15"))
 ACTIVE_STATUSES = ("DRAFT", "IN_REVIEW", "CHANGES_REQUESTED")
+ELIGIBLE_POST_STATUSES = ("APPROVED", "IN_REVIEW", "CHANGES_REQUESTED", "DRAFT")
+TODAY_TRACK = "today_posts"
 FILE_ENV = "SCRAPE_POST_QUERIES_FILE"
+APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/New_York")
 
 _HASHTAG = re.compile(r"#([A-Za-z][A-Za-z0-9_]{2,})")
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
@@ -128,11 +133,71 @@ def combine_body(
     )[:6000]
 
 
-async def active_draft_searches() -> List[Dict[str, Any]]:
-    """One entry per active draft that gave at least one search: {id, title, queries, keywords}."""
-    rows = await fetch_all(
-        """
-        SELECT s.id, s.title, s.caption_text,
+def today_window(now: Optional[datetime] = None) -> Tuple[datetime, datetime]:
+    """Start (inclusive) and end (exclusive) of today in APP_TIMEZONE, returned as UTC datetimes."""
+    try:
+        tz = ZoneInfo(APP_TIMEZONE)
+    except Exception:
+        tz = timezone.utc
+    ref = (now or datetime.now(timezone.utc)).astimezone(tz)
+    start_local = ref.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_local = start_local + timedelta(days=1)
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
+
+
+def _in_window(value: Any, start: datetime, end: datetime) -> bool:
+    if not isinstance(value, datetime):
+        return False
+    aware = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return start <= aware < end
+
+
+def today_reason_for_row(row: Dict[str, Any], start: datetime, end: datetime) -> Optional[str]:
+    """Why a post belongs to 'what is getting posted today': scheduled_today > today_activity > None."""
+    if _in_window(row.get("publish_at"), start, end):
+        return "scheduled_today"
+    caption = (row.get("caption_text") or "").upper()
+    if "NOT FOR PUBLICATION" in caption:
+        return None
+    for col in ("submitted_at", "content_edited_at", "created_at", "updated_at"):
+        if _in_window(row.get(col), start, end):
+            return "today_activity"
+    return None
+
+
+def _submission_sql(today_only: bool) -> str:
+    status_filter = (
+        """(
+            s.status = ANY($1::text[])
+            AND (
+                (s.publish_at >= $3 AND s.publish_at < $4)
+                OR (
+                    COALESCE(s.caption_text, '') NOT ILIKE '%NOT FOR PUBLICATION%'
+                    AND (
+                        (s.submitted_at >= $3 AND s.submitted_at < $4)
+                        OR (s.created_at >= $3 AND s.created_at < $4)
+                        OR (COALESCE(s.content_edited_at, s.updated_at) >= $3 AND COALESCE(s.content_edited_at, s.updated_at) < $4)
+                    )
+                )
+            )
+        )"""
+        if today_only
+        else """(
+            s.status = ANY($1::text[])
+            OR (s.status = 'APPROVED' AND s.publish_at IS NOT NULL AND s.publish_at >= $3)
+            OR (
+                s.status = 'APPROVED'
+                AND COALESCE(s.caption_text, '') NOT ILIKE '%NOT FOR PUBLICATION%'
+                AND (
+                    (s.submitted_at >= $3 AND s.submitted_at < $4)
+                    OR (COALESCE(s.content_edited_at, s.updated_at) >= $3 AND COALESCE(s.content_edited_at, s.updated_at) < $4)
+                )
+            )
+        )"""
+    )
+    return f"""
+        SELECT s.id, s.title, s.caption_text, s.status, s.publish_at,
+               s.submitted_at, s.content_edited_at, s.created_at, s.updated_at,
                sv.body AS script_body, v.transcript, sf.doc_text AS script_file_text, img.image_text
         FROM content_submissions s
         LEFT JOIN LATERAL (
@@ -150,29 +215,91 @@ async def active_draft_searches() -> List[Dict[str, Any]]:
             ORDER BY f.created_at DESC LIMIT 1
         ) v ON true
         LEFT JOIN LATERAL (
-            SELECT string_agg(TRIM(image_text), E'\n') AS image_text
+            SELECT string_agg(TRIM(image_text), E'\\n') AS image_text
             FROM content_submission_files f3
             WHERE f3.submission_id = s.id AND f3.kind IN ('MAIN', 'IMAGE')
               AND f3.deleted_at IS NULL AND f3.image_text_status = 'COMPLETED'
               AND NULLIF(TRIM(f3.image_text), '') IS NOT NULL
         ) img ON true
-        WHERE s.deleted_at IS NULL AND s.status = ANY($1::text[])
-        ORDER BY s.updated_at DESC NULLS LAST
+        WHERE s.deleted_at IS NULL AND {status_filter}
+        ORDER BY
+            (s.publish_at >= $3 AND s.publish_at < $4) DESC NULLS LAST,
+            (s.status = 'APPROVED' AND s.publish_at >= $3 AND s.publish_at < $4) DESC NULLS LAST,
+            COALESCE(s.publish_at, s.updated_at) DESC NULLS LAST
         LIMIT $2
-        """,
-        list(ACTIVE_STATUSES), MAX_DRAFTS,
-    )
+        """
+
+
+async def _build_searches_from_rows(rows: List[Any], *, allow_model: bool = True,
+                                    only_today: bool = False) -> List[Dict[str, Any]]:
+    from services.compliance.analytics.post_query_plan import contexts_of, plan_for_text
+
+    day_start, day_end = today_window()
     out: List[Dict[str, Any]] = []
-    for r in rows:
-        transcript = r["transcript"]
+    for raw_row in rows:
+        r = dict(raw_row)
+        reason = today_reason_for_row(r, day_start, day_end)
+        if only_today and reason is None:
+            continue
+        transcript = r.get("transcript")
         segments = json.loads(transcript) if isinstance(transcript, str) else (transcript or [])
         spoken = " ".join(str(x.get("text", "")) for x in segments if isinstance(x, dict))
-        # Everything the draft says: its script, the text of the attached script file, the video transcript, and image text.
-        body = combine_body(r["script_body"], r["script_file_text"], spoken, dict(r).get("image_text"))
-        from services.compliance.analytics.post_query_plan import contexts_of, plan_for_text  # here: it imports this module
-        found = await plan_for_text(r["title"] or "", r["caption_text"] or "", body)
+        body = combine_body(r.get("script_body"), r.get("script_file_text"), spoken, r.get("image_text"))
+        found = await plan_for_text(r.get("title") or "", r.get("caption_text") or "", body, allow_model=allow_model)
         if found["queries"] or contexts_of(found):
-            out.append({"id": str(r["id"]), "title": (r["title"] or "Untitled draft")[:120], **found})
+            pub = r.get("publish_at")
+            out.append({
+                "id": str(r["id"]),
+                "title": (r.get("title") or "Untitled draft")[:120],
+                "is_today": reason is not None,
+                "today_reason": reason,
+                "submission_status": r.get("status"),
+                "publish_at": pub.isoformat() if isinstance(pub, datetime) else pub,
+                **found,
+            })
+    out.sort(key=lambda s: (0 if s.get("today_reason") == "scheduled_today" else 1 if s.get("is_today") else 2))
+    return out
+
+
+async def active_draft_searches() -> List[Dict[str, Any]]:
+    """Active drafts plus posts scheduled/active today (today's posts prioritized first)."""
+    day_start, day_end = today_window()
+    rows = await fetch_all(_submission_sql(today_only=False), list(ACTIVE_STATUSES), MAX_DRAFTS, day_start, day_end)
+    return await _build_searches_from_rows(rows, allow_model=True, only_today=False)
+
+
+async def today_post_searches() -> List[Dict[str, Any]]:
+    """Posts scheduled or worked on today that have searchable topics."""
+    day_start, day_end = today_window()
+    rows = await fetch_all(_submission_sql(today_only=True), list(ELIGIBLE_POST_STATUSES), MAX_DRAFTS, day_start, day_end)
+    return await _build_searches_from_rows(rows, allow_model=True, only_today=True)
+
+
+async def list_today_post_candidates() -> List[Dict[str, Any]]:
+    """Read-only summary of today's posts (scheduled for today or created/edited today) without calling Gemini."""
+    day_start, day_end = today_window()
+    rows = await fetch_all(_submission_sql(today_only=True), list(ELIGIBLE_POST_STATUSES), MAX_DRAFTS, day_start, day_end)
+    from services.compliance.analytics.post_query_plan import contexts_of, plan_for_text
+
+    out: List[Dict[str, Any]] = []
+    for raw_row in rows:
+        r = dict(raw_row)
+        reason = today_reason_for_row(r, day_start, day_end)
+        if reason is None:
+            continue
+        transcript = r.get("transcript")
+        segments = json.loads(transcript) if isinstance(transcript, str) else (transcript or [])
+        spoken = " ".join(str(x.get("text", "")) for x in segments if isinstance(x, dict))
+        body = combine_body(r.get("script_body"), r.get("script_file_text"), spoken, r.get("image_text"))
+        found = await plan_for_text(r.get("title") or "", r.get("caption_text") or "", body, allow_model=False)
+        out.append({
+            "id": str(r["id"]),
+            "title": (r.get("title") or "Untitled post")[:120],
+            "status": r.get("status") or "DRAFT",
+            "publish_at": r.get("publish_at"),
+            "today_reason": reason,
+            "has_searches": bool(found["queries"] or contexts_of(found)),
+        })
     return out
 
 
@@ -198,9 +325,21 @@ def read_file(path: Optional[str] = None) -> List[Dict[str, Any]]:
     return [d for d in data if isinstance(d, dict) and (d.get("queries") or d.get("contexts") or d.get("context_queries"))] if isinstance(data, list) else []
 
 
+def _post_meta(search: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if not search.get("is_today"):
+        return None
+    return {
+        "submission_id": search["id"],
+        "title": search.get("title"),
+        "status": search.get("submission_status"),
+        "publish_at": search.get("publish_at"),
+        "today_reason": search.get("today_reason"),
+    }
+
+
 def topic_for_draft(search: Dict[str, Any]) -> Dict[str, Any]:
     """The listening topic a draft's searches become, matched back to that draft by its own keywords."""
-    return {
+    out = {
         "external_id": f"post-{search['id']}",
         "name": search["title"],
         "description": "Searched from this draft's own title, caption and script.",
@@ -210,6 +349,10 @@ def topic_for_draft(search: Dict[str, Any]) -> Dict[str, Any]:
         "category": "post",
         "priority": "draft",
     }
+    if search.get("is_today"):
+        out["scrape_track"] = TODAY_TRACK
+        out["post_meta"] = _post_meta(search)
+    return out
 
 
 def context_topics_for_draft(search: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -218,8 +361,9 @@ def context_topics_for_draft(search: Dict[str, Any]) -> List[Dict[str, Any]]:
     from services.compliance.analytics.post_query_plan import contexts_of
 
     out = []
+    meta = _post_meta(search)
     for i, c in enumerate(contexts_of(search), 1):
-        out.append({
+        item: Dict[str, Any] = {
             "external_id": f"post-{search['id']}-context-{i}",
             "name": f"Around this topic: {c['topic']}"[:120],
             "description": "A wider subject this draft is part of (not coverage of the draft's own announcement).",
@@ -228,5 +372,52 @@ def context_topics_for_draft(search: Dict[str, Any]) -> List[Dict[str, Any]]:
             "queries": c["queries"],
             "category": "post-context",
             "priority": "context",
-        })
+        }
+        if meta:
+            item["scrape_track"] = TODAY_TRACK
+            item["post_meta"] = meta
+        out.append(item)
     return out
+
+
+_POST_CONTEXT_SUFFIX = re.compile(r"-context-\d+$")
+
+
+def post_id_for_topic(topic_or_ext: Any) -> Optional[str]:
+    """Extract the owning submission ID from a topic dict or external_id (`post-<id>` / `post-<id>-context-N`)."""
+    if isinstance(topic_or_ext, dict):
+        meta = topic_or_ext.get("post_meta") or {}
+        if meta.get("submission_id"):
+            return str(meta["submission_id"])
+        ext = str(topic_or_ext.get("external_id") or "")
+    else:
+        ext = str(topic_or_ext or "")
+    if not ext.startswith("post-"):
+        return None
+    return _POST_CONTEXT_SUFFIX.sub("", ext[5:]) or None
+
+
+def assign_unique_per_post(
+    pool: List[Dict[str, Any]],
+    post_topics: List[Dict[str, Any]],
+    assign_fn,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Deduplicate stories across topics *within each post* without letting one post steal stories from another."""
+    grouped_orders: Dict[str, List[str]] = {}
+    group_by_ext: Dict[str, str] = {}
+    for t in post_topics:
+        ext = t["external_id"]
+        group = post_id_for_topic(t) or "__general__"
+        group_by_ext[ext] = group
+        grouped_orders.setdefault(group, []).append(ext)
+
+    grouped_pools: Dict[str, List[Dict[str, Any]]] = {g: [] for g in grouped_orders}
+    for cand in pool:
+        group = group_by_ext.get(cand["topic"]) or post_id_for_topic(cand["topic"]) or "__general__"
+        if group in grouped_pools:
+            grouped_pools[group].append(cand)
+
+    homes: Dict[str, List[Dict[str, Any]]] = {}
+    for group, order in grouped_orders.items():
+        homes.update(assign_fn(grouped_pools[group], order))
+    return homes

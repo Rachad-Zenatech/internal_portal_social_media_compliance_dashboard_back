@@ -84,34 +84,40 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `PerformanceSummary` (class) L92
 - `PerformanceReport` (class) L106
 
-## models/compliance/public_mood_model.py (342 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
+## models/compliance/public_mood_model.py (381 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - `ListeningPost` (class) L13
-- `TopicSnapshot` (class) L23
-- `MatchedTopic` (class) L41
-- `TopicReading` (class) L55
-- `PublicMoodResult` (class) L61
-- `PublicMoodSummary` (class) L75
-- `MoodFeedbackIn` (class) L89
-- `ConversationMatch` (class) L97 - A scraped news headline or X post found by vector search, and whether it is about this post's subject.
-- `ExcludedMatch` (class) L126 - A retrieved item a reviewer marked unrelated: left out of the mood, listed so it can be put back.
-- `ReviewerCorrection` (class) L138 - A reviewer's view that this assessment's recommendation was wrong (the assessment itself is unchanged).
-- `ConversationMood` (class) L148 - What the verified-relevant conversations found for this post say: specific to this post, not the topic.
-    - `matched_items` (def) L202 - The same list as `matches`, under the name the API contract uses.
-- `UnrelatedIn` (class) L207
-- `SentimentCorrectionIn` (class) L212
-- `CorrectionIn` (class) L217
-- `DismissedTopic` (class) L223
-- `ProcessStep` (class) L230 - One step of how this post's public mood was made, for the page's process log.
-- `PublicMood` (class) L238
-- `ListeningTopic` (class) L256
-- `ListeningTopicUpdate` (class) L276
-- `MatchTestRequest` (class) L282
-- `MatchTestTopic` (class) L286
-- `MatchTestResult` (class) L297
-- `XTrendOpportunity` (class) L303
-- `XCommentInput` (class) L322
-- `XIngestTopicInput` (class) L329
-- `XIngestRequest` (class) L340
+- `TopicSnapshot` (class) L24
+- `MatchedTopic` (class) L42
+- `TopicReading` (class) L56
+- `PublicMoodResult` (class) L62
+- `PublicMoodSummary` (class) L76
+- `MoodFeedbackIn` (class) L90
+- `ConversationMatch` (class) L98 - A scraped news headline or X post found by vector search, and whether it is about this post's subject.
+- `ExcludedMatch` (class) L127 - A retrieved item a reviewer marked unrelated: left out of the mood, listed so it can be put back.
+- `ReviewerCorrection` (class) L139 - A reviewer's view that this assessment's recommendation was wrong (the assessment itself is unchanged).
+- `ConversationMood` (class) L149 - What the verified-relevant conversations found for this post say: specific to this post, not the topic.
+    - `matched_items` (def) L203 - The same list as `matches`, under the name the API contract uses.
+- `UnrelatedIn` (class) L208
+- `SentimentCorrectionIn` (class) L213
+- `CorrectionIn` (class) L218
+- `DismissedTopic` (class) L224
+- `ProcessStep` (class) L231 - One step of how this post's public mood was made, for the page's process log.
+- `PublicMood` (class) L239
+- `ListeningTopic` (class) L257
+- `ListeningTopicUpdate` (class) L277
+- `MatchTestRequest` (class) L283
+- `MatchTestTopic` (class) L287
+- `MatchTestResult` (class) L298
+- `XTrendOpportunity` (class) L304
+- `TodayPostSummary` (class) L332
+- `NavScrapeTrack` (class) L341
+- `NavPublicMoodResponse` (class) L352
+- `XCommentInput` (class) L361
+- `XIngestTopicInput` (class) L368
+- `XIngestRequest` (class) L379
+
+## models/compliance/review_score_model.py (10 lines) - Effective review score fields shared by submission and review queue responses.
+- `ReviewScoreFields` (class) L6
 
 ## models/compliance/script_batch_model.py (132 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - `BatchDetails` (class) L13 - What every post made from the batch shares.
@@ -222,41 +228,41 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `SourceTrust` (class) L30 - What reviewers have said about a site, across every post checked against it.
 - `SourceConfirmationsResponse` (class) L43
 
-## models/compliance/submission_model.py (632 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
-- `BrandOption` (class) L57
-- `AccountOption` (class) L62
-- `SubmissionOptions` (class) L74
-- `ReviewerOption` (class) L84 - Someone a creator can send content to for review.
-- `SubmissionCreate` (class) L94
-- `SubmissionUpdate` (class) L99
-- `TranscriptSegment` (class) L137
-- `SubmissionFile` (class) L145
-- `AnalysisStep` (class) L169 - One part of the post still being read before the rulebook check can score it.
-- `AnalysisProgress` (class) L180 - How far the post's reading has got and when the score is expected.
-- `SubmissionSummary` (class) L192
-- `Submission` (class) L259
-- `SubmissionVersion` (class) L332
-- `VersionView` (class) L339 - One submitted version as it was: what was sent, its video, its automated check and its decision.
-- `ReviewJob` (class) L351
-- `ReviewDecisionRequest` (class) L373 - A reviewer's decision on the version currently in review.
-    - `publish_after_changes_only_for_changes` (def) L382
-- `ReopenRequest` (class) L400 - A reviewer takes back an approval and sends the content to its creator with what to change.
-- `RescheduleRequest` (class) L409 - A reviewer moves approved content to a different publish time.
-- `DelegateRequest` (class) L414 - A reviewer hands the post in review to someone else; they stay on it and still see its status.
-- `Delegation` (class) L423 - One hand-off of a post in review, with where the post stands now.
-- `ReviewCommentCreate` (class) L448
-    - `_region_is_whole` (def) L464
-- `ReviewCommentUpdate` (class) L475
-- `ReviewComment` (class) L479
-- `SubmissionEvent` (class) L506
-- `SubmissionHistory` (class) L515
-- `ReviewQueueItem` (class) L521 - A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it.
-- `ReviewQueueCounts` (class) L579
-- `DashboardActivity` (class) L590 - One recent thing that happened to content the viewer can see.
-- `DashboardFinding` (class) L602 - A rulebook rule and how often it was flagged on content sent for review.
-- `DashboardSummary` (class) L609 - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
-- `SubmitRequest` (class) L623
-- `SubmitResult` (class) L629
+## models/compliance/submission_model.py (626 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+- `BrandOption` (class) L58
+- `AccountOption` (class) L63
+- `SubmissionOptions` (class) L75
+- `ReviewerOption` (class) L85 - Someone a creator can send content to for review.
+- `SubmissionCreate` (class) L95
+- `SubmissionUpdate` (class) L100
+- `TranscriptSegment` (class) L138
+- `SubmissionFile` (class) L146
+- `AnalysisStep` (class) L170 - One part of the post still being read before the rulebook check can score it.
+- `AnalysisProgress` (class) L181 - How far the post's reading has got and when the score is expected.
+- `SubmissionSummary` (class) L193
+- `Submission` (class) L260
+- `SubmissionVersion` (class) L329
+- `VersionView` (class) L336 - One submitted version as it was: what was sent, its video, its automated check and its decision.
+- `ReviewJob` (class) L348
+- `ReviewDecisionRequest` (class) L370 - A reviewer's decision on the version currently in review.
+    - `publish_after_changes_only_for_changes` (def) L379
+- `ReopenRequest` (class) L397 - A reviewer takes back an approval and sends the content to its creator with what to change.
+- `RescheduleRequest` (class) L406 - A reviewer moves approved content to a different publish time.
+- `DelegateRequest` (class) L411 - A reviewer hands the post in review to someone else; they stay on it and still see its status.
+- `Delegation` (class) L420 - One hand-off of a post in review, with where the post stands now.
+- `ReviewCommentCreate` (class) L445
+    - `_region_is_whole` (def) L461
+- `ReviewCommentUpdate` (class) L472
+- `ReviewComment` (class) L476
+- `SubmissionEvent` (class) L503
+- `SubmissionHistory` (class) L512
+- `ReviewQueueItem` (class) L518 - A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it.
+- `ReviewQueueCounts` (class) L573
+- `DashboardActivity` (class) L584 - One recent thing that happened to content the viewer can see.
+- `DashboardFinding` (class) L596 - A rulebook rule and how often it was flagged on content sent for review.
+- `DashboardSummary` (class) L603 - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
+- `SubmitRequest` (class) L617
+- `SubmitResult` (class) L623
 
 ## models/compliance/submission_steps_model.py (22 lines) - Creator progress through submission and revision steps.
 - `SubmissionSteps` (class) L8 - How far a post has got through the five steps a creator works through (see post_steps_service).

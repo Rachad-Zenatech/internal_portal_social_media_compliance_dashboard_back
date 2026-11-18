@@ -22,7 +22,7 @@ from services.ai.core.gemini_service import generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
 
-STORAGE_ROOT = Path(os.getenv("SUBMISSION_STORAGE_DIR", ".data/submission_files")).resolve()
+STORAGE_ROOT = Path(os.getenv("SUBMISSION_STORAGE_DIR", "data/uploads")).resolve()
 # A claim older than this is treated as abandoned (e.g. the server restarted mid-transcription).
 STALE_MINUTES = 15
 FILE_READY_TIMEOUT_SEC = 300

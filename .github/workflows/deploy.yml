@@ -1,4 +1,4 @@
-﻿name: CI/CD Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
@@ -297,6 +297,8 @@ jobs:
               git fetch origin main
               git reset --hard origin/main
             fi
+            # Agent/AI tooling lives in GitHub only: never keep it on the server.
+            rm -rf .agents .cursor .claude .cursorrules AGENTS.md CLAUDE.md GEMINI.md .antigravityignore
             # Do not leave the temporary Actions token in the remote URL.
             git remote set-url origin https://github.com/$DEPLOY_REPOSITORY.git
             echo \"Deploying commit: \$(git rev-parse --short HEAD)\"
@@ -308,7 +310,7 @@ jobs:
             set -e
             cd ~/internal_portal_social_media_compliance_dashboard_back
             chmod 600 .env.production
-            sudo mkdir -p data data/upload_files
+            sudo mkdir -p data data/upload_files data/uploads
             sudo chown -R 10001:10001 data 2>/dev/null || sudo chmod -R 777 data
 
             # Ensure EC2 IMDSv2 hop limit is 2 so Docker container can access IAM role

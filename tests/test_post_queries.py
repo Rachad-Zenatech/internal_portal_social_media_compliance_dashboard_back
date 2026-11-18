@@ -114,8 +114,9 @@ class ScraperUsesThemTests(unittest.TestCase):
         self.assertEqual({p["topic"] for p in pool}, {"post-abc"})
         self.assertEqual([s["items"] for s in sources], [1, 1])
 
-    def test_the_fixed_market_topics_are_off_unless_asked_for(self):
-        self.assertFalse(sx.FIXED_TOPICS_ON)
+    def test_no_hardcoded_market_topics_exist_in_scraper(self):
+        self.assertFalse(hasattr(sx, "TRENDING_MARKET_TOPICS"))
+        self.assertFalse(hasattr(sx, "FIXED_TOPICS_ON"))
 
 
 if __name__ == "__main__":

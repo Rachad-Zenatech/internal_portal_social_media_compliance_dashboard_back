@@ -20,7 +20,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/flag_review_model.py (78 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - models/compliance/image_provenance_model.py (8 lines) - Saved AI-image disclosure and whether the creator explicitly answered the question.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
-- models/compliance/public_mood_model.py (342 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
+- models/compliance/public_mood_model.py (381 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
+- models/compliance/review_score_model.py (10 lines) - Effective review score fields shared by submission and review queue responses.
 - models/compliance/script_batch_model.py (132 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - models/compliance/script_doc_model.py (239 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
@@ -28,7 +29,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/sentiment_model.py (322 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - models/compliance/source_link_model.py (56 lines) - Models for submission source links and quick AI link checks.
 - models/compliance/source_trust_model.py (50 lines) - Models for people's calls on sources (does this claim match the page? is the page a good source?) and the standing a site earns from revi...
-- models/compliance/submission_model.py (632 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+- models/compliance/submission_model.py (626 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/compliance/submission_steps_model.py (22 lines) - Creator progress through submission and revision steps.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
 - models/notifications/review_email_model.py (43 lines) - Small workflow records shared by email selection, scheduling and rendering.
@@ -60,14 +61,14 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
 - scripts/push_local_to_rds.py (159 lines) - Migrate the local Docker PostgreSQL database (or a .dump file) to AWS RDS.
 - scripts/scrape_x_links.py (123 lines) - Is what an item links to about the topic it was collected for? Every outside link of a collected item (see scrape_x_media.source_links) i...
-- scripts/scrape_x_media.py (97 lines) - Source links and image text for scraped X posts and news items.
-- scripts/scrape_x_playwright.py (617 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
+- scripts/scrape_x_media.py (152 lines) - Source links and image text for scraped X posts and news items.
+- scripts/scrape_x_playwright.py (459 lines) - Live Playwright Financial ZenaTech & Today's Posts News Scraper + Sentiment Analyzer.
 - scripts/script_hub_eval.py (148 lines) - Script hub visibility and submitted-upload regression checks; no database or external services.
 - scripts/script_submission_content_eval.py (56 lines) - Imported script content must retain every line and table beat, including long uploads.
 - scripts/script_submission_documents_eval.py (204 lines) - Shared-document adoption and original-post sync regressions, using isolated mocked services.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
-- server.py (496 lines) - server
+- server.py (497 lines) - server
 - services/ai/core/assistant_chat_service.py (258 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/gemini_service.py (154 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
@@ -80,9 +81,13 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/observability/ai_observability.py (410 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - services/ai/observability/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - services/ai/observability/ai_usage_service.py (164 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
-- services/compliance/analytics/conversation_evidence.py (955 lines) - Conversation evidence for public mood: the news articles and X posts a post is compared with, and the saved assessment of what they say a...
+- services/compliance/analytics/conversation_evidence.py (857 lines) - Conversation evidence for public mood: the news articles and X posts a post is compared with, and the saved assessment of what they say a...
 - services/compliance/analytics/conversation_feedback.py (202 lines) - Reviewer input on a conversation assessment, kept against the exact assessment the reviewer was looking at.
-- services/compliance/analytics/listening_providers.py (524 lines) - Social listening providers: where "public mood" data comes from.
+- services/compliance/analytics/conversation_review_actions.py (68 lines) - Reviewer feedback on retrieved conversations (unrelated, wrong sentiment, recommendation corrections).
+- services/compliance/analytics/conversation_text.py (114 lines) - Text normalization, story deduplication, and named-entity helpers for conversation evidence.
+- services/compliance/analytics/daily_scrape_schedule.py (170 lines) - Daily 8:30 AM schedule for refreshing both nav public-mood scrapings (Financial ZenaTech + Today's Posts).
+- services/compliance/analytics/item_sentiment.py (137 lines) - Item-level sentiment models: general X/social RoBERTa, FinBERT for financial news, and VADER fallback.
+- services/compliance/analytics/listening_providers.py (467 lines) - Social listening providers: where "public mood" data comes from.
 - services/compliance/analytics/listening_sources.py (78 lines) - What to listen for about the company itself, besides the market topics (drone delivery, FAA rules...).
 - services/compliance/analytics/mood_auto_train.py (186 lines) - Training the decision model again whenever a reviewer's decision changes, without anyone running it.
 - services/compliance/analytics/mood_dataset.py (236 lines) - A fixed training dataset made from reviewed assessments.
@@ -91,15 +96,18 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/analytics/mood_records.py (113 lines) - Saving an assessment for learning: when the system evaluates a draft it writes one record to `mood_assessments`.
 - services/compliance/analytics/mood_reviews.py (138 lines) - What reviewers say about an assessment, kept for learning (the screen's own state lives in Postgres, see conversation_feedback; these wri...
 - services/compliance/analytics/mood_training.py (375 lines) - Training and judging the decision model.
+- services/compliance/analytics/mood_training_examples.py (36 lines) - What the decision model was trained on: the examples of the dataset behind the current model, for the Training Data page.
+- services/compliance/analytics/nav_public_mood_service.py (247 lines) - Nav Public Mood overview: combines the two public scrapings shown in the navigation page: 1.
 - services/compliance/analytics/performance_service.py (323 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
 - services/compliance/analytics/post_metrics_providers.py (303 lines) - Where published posts' numbers come from, and what each platform's API can actually give us.
-- services/compliance/analytics/post_queries.py (233 lines) - Searches built from what each draft actually says.
+- services/compliance/analytics/post_queries.py (424 lines) - Searches built from what each draft actually says.
 - services/compliance/analytics/post_query_plan.py (167 lines) - The searches for one draft: what its own subject is, and what the wider topic around it is.
 - services/compliance/analytics/post_signals.py (217 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - services/compliance/analytics/public_mood_process.py (149 lines) - A plain-language log of how a post's public mood was made, shown on the page so a person can follow it: what was read from the post, whic...
 - services/compliance/analytics/public_mood_prompt.py (105 lines) - Prompt and structured response schema for the Gemini public-mood summary.
-- services/compliance/analytics/public_mood_service.py (1047 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+- services/compliance/analytics/public_mood_service.py (958 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - services/compliance/analytics/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
+- services/compliance/analytics/zenatech_financial_scrape.py (249 lines) - Financial & company public-sentiment scraping definitions for ZenaTech (NASDAQ: ZENA).
 - services/compliance/evaluation/brand_voice_service.py (708 lines) - Brand voice per brand, read from its brand manual.
 - services/compliance/evaluation/citation_finder.py (201 lines) - Citation finder: what a post says it got its claims from.
 - services/compliance/evaluation/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
@@ -223,7 +231,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/ai/chat_router.py (64 lines) - Streaming AI chat endpoint.
 - tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - tools/compliance/analytics/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).
-- tools/compliance/analytics/listening_router.py (187 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
+- tools/compliance/analytics/listening_router.py (281 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
 - tools/compliance/analytics/performance_router.py (45 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - tools/compliance/analytics/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
 - tools/compliance/submissions/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.
@@ -241,7 +249,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/notifications/message_hub_router.py (57 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
 - tools/notifications/notification_router.py (94 lines) - notification router (notifications)
 - tools/notifications/teams_router.py (55 lines) - Microsoft Teams: the endpoint the bot's messages arrive on, and a person's own on/off switch for them.
-- tools/shared/auth/auth_router.py (433 lines) - auth router (shared auth)
+- tools/shared/auth/auth_router.py (359 lines) - auth router (shared auth)
 - tools/shared/auth/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
 - tools/shared/auth/rbac_router.py (236 lines) - rbac router (shared auth)
 - tools/shared/core/log_router.py (74 lines) - log router (shared core)

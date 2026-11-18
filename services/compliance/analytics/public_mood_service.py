@@ -30,7 +30,6 @@ from google.genai import types
 from pydantic import ValidationError
 
 from models.compliance.public_mood_model import (
-    CorrectionIn,
     DismissedTopic,
     ListeningTopic,
     ListeningTopicUpdate,
@@ -42,9 +41,7 @@ from models.compliance.public_mood_model import (
     PublicMood,
     PublicMoodResult,
     PublicMoodSummary,
-    SentimentCorrectionIn,
     TopicSnapshot,
-    UnrelatedIn,
     XIngestRequest,
     XTrendOpportunity,
 )
@@ -52,7 +49,7 @@ from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.observability import ai_usage_service
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
-from services.compliance.analytics import conversation_evidence, conversation_feedback, public_mood_process
+from services.compliance.analytics import conversation_evidence, public_mood_process
 from services.compliance.evaluation.compliance_service import _matches, _normalize
 from services.compliance.analytics.listening_providers import (
     ListeningUnavailable,
@@ -62,6 +59,16 @@ from services.compliance.analytics.listening_providers import (
     reset_provider_cache,
     save_feed,
     volume_change,
+)
+from services.compliance.analytics.conversation_review_actions import (  # noqa: F401  (re-exported)
+    clear_conversation_correction,
+    clear_conversation_sentiment,
+    confirm_conversation_recommendation,
+    correct_conversation_recommendation,
+    mark_conversation_sentiment,
+    mark_conversation_unrelated,
+    resolve_conversation_decision,
+    restore_conversation_item,
 )
 
 logger = logging.getLogger(__name__)
@@ -544,10 +551,10 @@ def _topic_kind(topic: Dict[str, Any]) -> str:
 
 def _may_show_on(topic: Dict[str, Any], submission_id: UUID) -> bool:
     """A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
-    word with it (the brand name, say) is not about the same subject."""
+    word with it (the brand name, say) is not about the same subject. Nav financial topics stay out of draft mood."""
     ext = str(topic.get("external_id") or "")
     own = f"{POST_TOPIC_PREFIX}{submission_id}"
-    return not ext.startswith(POST_TOPIC_PREFIX) or ext == own or ext.startswith(own + "-context")
+    return not ext.startswith("financial-zenatech") and (not ext.startswith(POST_TOPIC_PREFIX) or ext == own or ext.startswith(own + "-context"))
 
 
 async def _gather(submission_id: UUID, viewer: Optional[UUID] = None) -> Tuple[Dict[str, Any], PublicMood]:
@@ -683,58 +690,6 @@ async def get_public_mood(submission_id: UUID, viewer: Optional[UUID] = None) ->
     return mood
 
 
-async def mark_conversation_unrelated(submission_id: UUID, assessment_id: UUID, item_id: UUID, user_id: UUID,
-                                      data: UnrelatedIn) -> PublicMood:
-    """A reviewer says a retrieved item is not about this post: it is left out of this draft's assessments."""
-    await conversation_feedback.mark_unrelated(submission_id, assessment_id, item_id, user_id, data.reason_code, data.note)
-    return await get_public_mood(submission_id, user_id)
-
-
-async def restore_conversation_item(submission_id: UUID, item_id: UUID, user_id: UUID) -> PublicMood:
-    await conversation_feedback.restore_item(submission_id, item_id)
-    return await get_public_mood(submission_id, user_id)
-
-
-async def correct_conversation_recommendation(submission_id: UUID, assessment_id: UUID, user_id: UUID,
-                                              data: CorrectionIn) -> PublicMood:
-    """A reviewer says the assessment's recommendation was wrong, and why (recorded; the assessment is unchanged)."""
-    await conversation_feedback.correct_recommendation(
-        submission_id, assessment_id, user_id, data.recommendation, data.reason_code, data.note)
-    return await get_public_mood(submission_id, user_id)
-
-
-async def confirm_conversation_recommendation(submission_id: UUID, assessment_id: UUID, user_id: UUID) -> PublicMood:
-    """A reviewer says the assessment's recommendation is right."""
-    await conversation_feedback.confirm_recommendation(submission_id, assessment_id, user_id)
-    return await get_public_mood(submission_id, user_id)
-
-
-async def resolve_conversation_decision(submission_id: UUID, assessment_id: UUID, user_id: UUID,
-                                        data: CorrectionIn) -> PublicMood:
-    """A lead reviewer settles a disagreement between reviewers about an assessment's recommendation."""
-    await conversation_feedback.correct_recommendation(
-        submission_id, assessment_id, user_id, data.recommendation, data.reason_code, data.note, resolution=True)
-    return await get_public_mood(submission_id, user_id)
-
-
-async def mark_conversation_sentiment(submission_id: UUID, assessment_id: UUID, item_id: UUID, user_id: UUID,
-                                      data: SentimentCorrectionIn) -> PublicMood:
-    await conversation_feedback.mark_wrong_sentiment(
-        submission_id, assessment_id, item_id, user_id, data.correct_sentiment, data.note)
-    return await get_public_mood(submission_id, user_id)
-
-
-async def clear_conversation_sentiment(submission_id: UUID, assessment_id: UUID, item_id: UUID,
-                                       user_id: UUID) -> PublicMood:
-    await conversation_feedback.clear_wrong_sentiment(submission_id, assessment_id, item_id, user_id)
-    return await get_public_mood(submission_id, user_id)
-
-
-async def clear_conversation_correction(submission_id: UUID, assessment_id: UUID, user_id: UUID) -> PublicMood:
-    await conversation_feedback.clear_correction(submission_id, assessment_id, user_id)
-    return await get_public_mood(submission_id, user_id)
-
-
 async def dismiss_topic(submission_id: UUID, topic_id: UUID, user_id: UUID) -> PublicMood:
     """Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones)."""
     row, mood = await _gather(submission_id)
@@ -822,61 +777,17 @@ async def list_trend_opportunities(refresh: bool = False) -> List[XTrendOpportun
     """See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
     whether the social team should jump on the trend (POST), wait (WAIT), or avoid/escalate due to
     crisis/backlash (HOLD)."""
+    from services.compliance.analytics.nav_public_mood_service import build_trend_opportunity, sort_opportunities
+
     topics = await list_topics(refresh=refresh)
     opportunities: List[XTrendOpportunity] = []
     for t in topics:
-        snap = t.snapshot
-        if not snap or str(getattr(t, "external_id", "") or "").startswith(POST_TOPIC_PREFIX):
+        if not t.snapshot or str(getattr(t, "external_id", "") or "").startswith(POST_TOPIC_PREFIX):
             continue  # a draft's own searches are shown on that draft, not as market trends
-        rec = snap.recommendation or "WAIT"
-        rec_reason = snap.recommendation_reason or ""
-        # A topic is a good trend to jump on if recommendation is POST and either spiking, growing, or strong net sentiment
-        can_jump = rec == "POST" and (snap.is_spike or (snap.volume_change_pct or 0) >= 10.0 or snap.positive_pct >= 65.0)
-        if can_jump:
-            growth = f" (+{snap.volume_change_pct:.0f}% mentions)" if (snap.volume_change_pct or 0) > 0 else ""
-            angle = (
-                f"Jump on trend: {t.name} is seeing {snap.positive_pct:.0f}% positive sentiment{growth}. "
-                f"Great timing to publish educational, demo, or thought-leadership content."
-            )
-        elif rec == "HOLD":
-            angle = (
-                f"Avoid / Escalate: {t.name} has {snap.negative_pct:.0f}% negative sentiment or crisis sensitivity. "
-                f"Do not publish promotional posts on this topic right now ({rec_reason})."
-            )
-        else:
-            # The rule's own reason (low volume, or not positive enough), not a canned "mixed sentiment".
-            angle = (
-                f"Monitor / Wait: {t.name} ({snap.positive_pct:.0f}% positive, {snap.neutral_pct:.0f}% neutral, "
-                f"{snap.negative_pct:.0f}% negative). {rec_reason or 'Not enough positive evidence yet.'}"
-            )
-        opportunities.append(XTrendOpportunity(
-            topic_id=t.id,
-            external_id=t.name.lower().replace(" ", "-"),
-            name=t.name,
-            description=t.description,
-            positive_pct=snap.positive_pct,
-            neutral_pct=snap.neutral_pct,
-            negative_pct=snap.negative_pct,
-            net_sentiment=snap.net_sentiment,
-            volume=snap.volume,
-            volume_change_pct=snap.volume_change_pct,
-            is_spike=snap.is_spike,
-            recommendation=rec,
-            recommendation_reason=rec_reason,
-            can_jump_on_trend=can_jump,
-            trend_angle=angle,
-            top_posts=snap.top_posts,
-        ))
-    # Sort actionable trends to jump on first, then HOLD alerts, then by volume change / volume
-    opportunities.sort(
-        key=lambda o: (
-            -int(o.can_jump_on_trend),
-            -int(o.is_spike),
-            -(o.volume_change_pct or 0.0),
-            -o.volume,
-        )
-    )
-    return opportunities
+        opp = build_trend_opportunity(t)
+        if opp:
+            opportunities.append(opp)
+    return sort_opportunities(opportunities)
 
 
 async def ingest_x_json(req: XIngestRequest) -> List[XTrendOpportunity]:
