@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_doc_service.py (494 lines) - Script documents.
+## services/compliance/evaluation/script_doc_service.py (498 lines) - Script documents.
 - `templates` (def) L59
 - `_color` (def) L63
 - `_name` (def) L69
@@ -14,24 +14,24 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_doc` (def) L105
 - `_reviewers` (def) L114
 - `_access` (def) L127 - What the user may do with the script, or None when they may not see it.
-- `_all_checked` (def) L169
-- `_state` (def) L174 - What every open editor is told when the review's state moves.
-- `_broadcast_state` (def) L183
-- `get_access` (def) L188 - For the live connection: the script, and what the user may do with it.
-- `_detail` (def) L198
-- `get` (def) L220
+- `_all_checked` (def) L165
+- `_state` (def) L170 - What every open editor is told when the review's state moves.
+- `_broadcast_state` (def) L179
+- `get_access` (def) L184 - For the live connection: the script, and what the user may do with it.
+- `_detail` (def) L194
+- `get` (def) L216
 - `create` (def) L235 - A new document from a template: the document and its first script (page).
 - `update` (def) L253
 - `delete` (def) L271
 - `save_snapshot` (def) L285 - An editor saves the script as it reads now (for lists, the check and history); the live editor itself is kept as updates.
 - `reviewer_options` (def) L297
 - `submit` (def) L303
-- `note_change` (def) L360 - Someone changed the script or its notes.
-- `check_in` (def) L385
-- `withdraw_check_in` (def) L409
-- `_votes` (def) L420
-- `_stamp_version` (def) L428
-- `_close` (def) L435
-- `finalize` (def) L445 - Everyone has checked in: send it to the Content Manager (level 2), or approve it back to the creator.
-- `decide` (def) L473 - The Content Manager's final decision (level 2, or earlier: they can decide at any point in review).
-- `_pages_module` (def) L490 - The pages module (it imports this one, so it is loaded when first needed).
+- `note_change` (def) L362 - Someone changed the script or its notes.
+- `check_in` (def) L387
+- `withdraw_check_in` (def) L411
+- `_votes` (def) L422
+- `_stamp_version` (def) L430
+- `_close` (def) L437
+- `finalize` (def) L449 - Everyone has checked in: send it to the Content Manager (level 2), or approve it back to the creator.
+- `decide` (def) L477 - The Content Manager's final decision (level 2, or earlier: they can decide at any point in review).
+- `_pages_module` (def) L494 - The pages module (it imports this one, so it is loaded when first needed).

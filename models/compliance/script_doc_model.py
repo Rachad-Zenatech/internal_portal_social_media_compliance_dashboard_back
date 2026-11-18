@@ -124,11 +124,15 @@ class DocVersion(BaseModel):
 
 class DocSummary(BaseModel):
     id: UUID
+    # Uploaded Create Post scripts keep their existing submission review workspace.
+    submission_id: Optional[UUID] = None
+    reference_code: Optional[str] = None
+    source_status: Optional[Literal["IN_REVIEW", "CHANGES_REQUESTED", "EDITS_PROPOSED", "APPROVED"]] = None
     title: str
     template_key: str
     status: DocStatus
     round: int
-    creator_id: UUID
+    creator_id: Optional[UUID] = None
     creator_name: Optional[str] = None
     reviewer_names: List[str] = Field(default_factory=list)
     checked_in: int = 0

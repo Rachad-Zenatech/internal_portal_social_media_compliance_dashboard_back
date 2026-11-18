@@ -6,7 +6,7 @@
   },
   "files": {
     "models/compliance/submission_model.py": {
-      "max_lines": 662,
+      "max_lines": 645,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "postgresql_db/schemas/setup_compliance_schema.py": {
@@ -14,7 +14,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "postgresql_db/schemas/setup_submissions_schema.py": {
-      "max_lines": 706,
+      "max_lines": 698,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "scripts/scrape_x_playwright.py": {
@@ -22,7 +22,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "server.py": {
-      "max_lines": 619,
+      "max_lines": 618,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/analytics/conversation_evidence.py": {
@@ -50,7 +50,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/script_review_service.py": {
-      "max_lines": 1098,
+      "max_lines": 1071,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/sentiment/jobs.py": {
@@ -58,7 +58,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
-      "max_lines": 2977,
+      "max_lines": 2967,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/notifications/rabbitmq_service.py": {
@@ -100,7 +100,7 @@
       "kind": "py_function"
     },
     "postgresql_db/schemas/setup_submissions_schema.py#setup": {
-      "max_lines": 440,
+      "max_lines": 432,
       "kind": "py_function"
     },
     "scripts/scrape_x_playwright.py#build_live_x_listening_json": {
@@ -128,7 +128,7 @@
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#submit_for_review": {
-      "max_lines": 173,
+      "max_lines": 159,
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#update_submission": {

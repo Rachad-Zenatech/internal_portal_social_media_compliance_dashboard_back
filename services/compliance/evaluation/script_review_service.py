@@ -60,6 +60,8 @@ CREATOR_TURN = ("EDITS_PROPOSED", "CHANGES_REQUESTED")
 # server may have restarted), so the creator can send it again.
 PROCESSING_TIMEOUT_SEC = 600
 READ_WAIT_SEC = 180
+from services.compliance.evaluation.script_review_persistence import _adopt_check, _add_version, _lock_status
+
 _background: set = set()  # keeps the running sends from being garbage collected
 
 
@@ -189,7 +191,6 @@ async def _reviewer_may_act(row: Dict[str, Any], user_id: UUID) -> bool:
     # Nobody approves their own script but a super admin (as with posts): another reviewer has to.
     return row["created_by"] != user_id or await may_review_own_script(user_id)
 
-
 SELF_REVIEW_MESSAGE = ("Send the script to a reviewer other than yourself: only a super admin can approve "
                        "their own script.")
 
@@ -236,6 +237,9 @@ async def batch_ref(submission_id: UUID) -> Optional[ScriptBatchRef]:
 
 async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
     row = await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
+    from services.compliance.evaluation.script_submission_documents import linked
+    document = await linked(submission_id)
+    from services.compliance.evaluation.shared_script_service import enabled as shared_enabled
     status = _status(row) if subs.script_stage_on(row) else None
     send_state = _send_state(row)
     file = await _script_file(submission_id)
@@ -248,6 +252,8 @@ async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
     stored = subs._json(row.get("script_precheck")) or {}
     precheck = stored.get("check") if status in ("DRAFT", "CHANGES_REQUESTED") and file_text else None
     return ScriptStage(
+        script_document_id=document["id"] if document else None,
+        shared_review_available=shared_enabled(),
         submission_id=row["id"],
         reference_code=row["reference_code"],
         title=row["title"],
@@ -260,51 +266,19 @@ async def get_stage(submission_id: UUID, user_id: UUID) -> ScriptStage:
         file_error=file["doc_text_error"] if file else None,
         file_text=_clean(file["doc_text"]) if file and file.get("doc_text") else None,
         file_url=f"/api/submissions/{submission_id}/files/{file['id']}" if file else None,
-        can_submit=bool(status) and is_creator and editable and status in ("DRAFT", "CHANGES_REQUESTED")
+        can_submit=not document and bool(status) and is_creator and editable and status in ("DRAFT", "CHANGES_REQUESTED")
         and send_state["status"] != "PROCESSING",
-        can_review=status == "IN_REVIEW" and await _reviewer_may_act(row, user_id),
-        can_respond=bool(status) and is_creator and editable and await can_revise(row),
+        can_review=not document and status == "IN_REVIEW" and await _reviewer_may_act(row, user_id),
+        can_respond=not document and bool(status) and is_creator and editable and await can_revise(row),
         processing=send_state["status"] == "PROCESSING",
         send_error=send_state["error"] if send_state["status"] == "FAILED" else None,
         batch=await batch_ref(submission_id),
-        can_suggest=suggester and status == "IN_REVIEW",
+        can_suggest=not document and suggester and status == "IN_REVIEW",
         suggestion=await _my_suggestion(submission_id, user_id, versions[-1].version_number) if suggester and versions else None,
         precheck=precheck,
         precheck_stale=bool(precheck) and still_valid(stored, row, file_text or "", current_rb) is None,
         precheck_at=stored.get("checked_at") if precheck else None,
     )
-
-
-async def _adopt_check(run, submission_id: UUID, check: Dict[str, Any]) -> None:
-    """While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
-    never see two different scores for the same wording. `run` is conn.execute or the pool's execute."""
-    await run(
-        "UPDATE content_submissions SET latest_check = coalesce(latest_check, '{}'::jsonb) || $2::jsonb WHERE id = $1",
-        submission_id, json.dumps({**check, "analysis_pending": False, "documents_pending": 0}),
-    )
-
-
-async def _add_version(conn, row: Dict[str, Any], body: str, source: str, user_id: UUID,
-                       check: Dict[str, Any], file_id: Optional[UUID] = None) -> int:
-    number = await conn.fetchval(
-        "SELECT coalesce(max(version_number), 0) + 1 FROM content_script_versions WHERE submission_id = $1", row["id"]
-    )
-    await conn.execute(
-        """
-        INSERT INTO content_script_versions (submission_id, version_number, body, source, file_id, check_result, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
-        """,
-        row["id"], number, body, source, file_id, json.dumps(check), user_id,
-    )
-    await _adopt_check(conn.execute, row["id"], check)
-    return number
-
-
-async def _lock_status(conn, submission_id: UUID, allowed: tuple) -> None:
-    """Lock the post and make sure the script is still where the caller saw it (two people can act at once)."""
-    current = await conn.fetchval("SELECT script_status FROM content_submissions WHERE id = $1 FOR UPDATE", submission_id)
-    if (current or "DRAFT") not in allowed:
-        raise HTTPException(status_code=409, detail="The script's status just changed; refresh to see it")
 
 
 async def _send_to_reviewers(row: Dict[str, Any], version: int, check: Dict[str, Any], user_id: UUID) -> List[UUID]:
@@ -322,7 +296,6 @@ async def _send_to_reviewers(row: Dict[str, Any], version: int, check: Dict[str,
         row["id"],
     )
     return reviewers
-
 
 # What a post needs filled in before its script can be sent (the video and caption come later).
 _DETAIL_LABELS = {
@@ -409,6 +382,8 @@ async def submit(submission_id: UUID, user_id: UUID, confirm_repost: bool = Fals
     row = await subs._get_owned_row(submission_id, user_id)
     subs._require_editable(row)
     _require_stage(row)
+    from services.compliance.evaluation.script_submission_documents import require_unlinked
+    await require_unlinked(submission_id)
     if _status(row) not in ("DRAFT", "CHANGES_REQUESTED"):
         raise HTTPException(status_code=409, detail="The script is already with a reviewer or approved")
     if _send_state(row)["status"] == "PROCESSING":
@@ -564,6 +539,9 @@ async def _send_checked(row: Dict[str, Any], body: str, source: str, user_id: UU
                         file_id: Optional[UUID] = None, note: Optional[str] = None, notify: bool = True) -> ScriptStage:
     """Send a checked script for review. notify=False leaves telling people to the caller (a batch tells the reviewers
     once for all its scripts, not once per script)."""
+    from services.compliance.evaluation import shared_script_service as shared, script_submission_documents as documents
+    if shared.enabled():
+        return await documents.send_checked(row, body, source, user_id, check, file_id, note, notify)
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -606,6 +584,8 @@ async def decide(submission_id: UUID, user_id: UUID, req: ScriptDecisionRequest)
     """The reviewer approves the script, sends it back with a note, or sends back their own edited version."""
     row = await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
     _require_stage(row)
+    from services.compliance.evaluation.script_submission_documents import require_unlinked
+    await require_unlinked(submission_id)
     if _status(row) != "IN_REVIEW":
         raise HTTPException(status_code=409, detail="This script isn't waiting for review")
     if not await _reviewer_may_act(row, user_id):
@@ -744,6 +724,8 @@ async def revise(submission_id: UUID, user_id: UUID, req: ScriptReviseRequest) -
     row = await subs._get_owned_row(submission_id, user_id)
     subs._require_editable(row)
     _require_stage(row)
+    from services.compliance.evaluation.script_submission_documents import require_unlinked
+    await require_unlinked(submission_id)
     if not await can_revise(row):
         raise HTTPException(status_code=409, detail="The script cannot be revised now; it is in review or a video is already attached")
     versions = await _versions(submission_id)
@@ -761,7 +743,6 @@ async def preview_check(submission_id: UUID, user_id: UUID, text: str) -> Dict[s
     row = await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
     _require_stage(row)
     return await check_text(row, _clean(text))
-
 
 # Which scripts each Content Screener tab lists, as SQL on content_submissions (s) and its latest script version (v):
 # waiting for a reviewer (oldest first); sent back to the creator; approved with the video still to come (the post
@@ -1030,7 +1011,6 @@ async def resolve_highlights(submission_id: UUID, user_id: UUID, version: int, r
         submission_id, version, json.dumps([h.model_dump() for h in merged]), user_id,
     )
     return merged
-
 
 # ---------------------------------------------------------------------------
 # Suggested fixes for flags

@@ -14,6 +14,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
 - `setup` (def) L12
 
+## postgresql_db/schemas/setup_ai_usage_schema.py (17 lines) - Usage records for AI rate limits; created after the submission tables exist.
+- `ensure_ai_usage_events` (def) L4
+
 ## postgresql_db/schemas/setup_compliance_schema.py (1226 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
 - `_base_rules_json` (def) L832
 - `_add_baseline_guidance` (def) L972
@@ -59,14 +62,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
 - `setup` (def) L13
 
-## postgresql_db/schemas/setup_submissions_schema.py (708 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
-- `setup` (def) L15
-- `_sync_script_checks` (def) L459
-- `_retire_product_brands` (def) L490 - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
-- `_account_key` (def) L597 - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
-- `_retire_demo_social_accounts` (def) L621 - Remove the earlier demo accounts.
-- `_seed_demo_social_accounts` (def) L654 - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
-- `_main` (def) L697
+## postgresql_db/schemas/setup_submissions_schema.py (699 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+- `setup` (def) L16
+- `_sync_script_checks` (def) L450
+- `_retire_product_brands` (def) L481 - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
+- `_account_key` (def) L588 - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
+- `_retire_demo_social_accounts` (def) L612 - Remove the earlier demo accounts.
+- `_seed_demo_social_accounts` (def) L645 - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
+- `_main` (def) L688
 
 ## postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - `setup` (def) L13

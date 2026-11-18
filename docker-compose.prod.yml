@@ -1,0 +1,68 @@
+services:
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: social_media_mqtt_prod
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./deployment/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: social-media-backend-api:latest
+    container_name: social_media_backend_api_prod
+
+    ports:
+      - "80:8009"
+      - "8009:8009"
+      - "7006:7006"
+
+    volumes:
+      - ./data:/app/data
+
+    # Compose applies these in order and the last one wins, so .env.production
+    # is listed second: the deploy pipeline regenerates it every release, while
+    # .env is untracked and survives `git reset --hard`, so a stale copy left on
+    # the host must not override the config we just shipped.
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.production
+        required: false
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    depends_on:
+      - mqtt
+
+    restart: unless-stopped
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8009/health/live')"
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:

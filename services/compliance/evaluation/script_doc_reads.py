@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from models.compliance.script_doc_model import DocEvent, DocHistory, DocSummary, DocVersion
 from postgresql_db.database import fetch_all
 from services.compliance.evaluation import script_doc_service as core
+from services.compliance.evaluation.script_hub_submissions import list_submission_scripts
 from services.compliance.evaluation import script_review_service as scripts
 from services.compliance.submissions import submission_service as subs
 
@@ -55,7 +56,8 @@ async def list_docs(user_id: UUID, scope: str = "mine") -> List[DocSummary]:
             creator_id=r["created_by"], creator_name=r["creator_name"], reviewer_names=list(r["reviewer_names"] or []),
             checked_in=r["checked"], required=r["required"], needs_you=bool(needs), updated_at=r["updated_at"], created_at=r["created_at"],
         ))
-    return out
+    uploaded = await list_submission_scripts(user_id, scope)
+    return sorted([*out, *uploaded], key=lambda item: (item.updated_at, item.created_at, str(item.id)), reverse=True)[:300]
 
 
 async def history(doc_id: UUID, user_id: UUID) -> DocHistory:

@@ -9,6 +9,11 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Let deployments finish, including SSH-rule cleanup.
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -150,244 +155,214 @@ jobs:
     needs: [lint-and-test, docker-build, verify-migrations-and-diffs]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-    env:
-      AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY || secrets.AWS_ACCESS_KEY_ID || secrets.ACCESS_KEY }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || secrets.SECRET_ACCESS_KEY }}
-      AWS_SECURITY_GROUP_ID: ${{ secrets.AWS_SECURITY_GROUP_ID || vars.AWS_SECURITY_GROUP_ID }}
-
     steps:
+      - name: Load ENV_FILE variables
+        shell: bash
+        env:
+          # Complete .env.production contents; application keys are passed through automatically.
+          ENV_FILE: ${{ secrets.ENV_FILE || vars.ENV_FILE }}
+          FALLBACK_AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY || secrets.AWS_ACCESS_KEY_ID || secrets.ACCESS_KEY }}
+          FALLBACK_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || secrets.SECRET_ACCESS_KEY }}
+          FALLBACK_AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION || 'ca-central-1' }}
+          FALLBACK_AWS_SECURITY_GROUP_ID: ${{ secrets.AWS_SECURITY_GROUP_ID || vars.AWS_SECURITY_GROUP_ID }}
+          FALLBACK_EC2_HOST: ${{ secrets.EC2_HOST }}
+          FALLBACK_EC2_USER: ${{ secrets.EC2_USER || vars.EC2_USER || 'ec2-user' }}
+          FALLBACK_EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${ENV_FILE:-}" ]; then
+            echo "::error::Set ENV_FILE in the Zenatech environment to the complete production .env contents."
+            exit 1
+          fi
+
+          install -m 600 /dev/null .env.raw
+          printf '%s\n' "$ENV_FILE" | tr -d '\r' > .env.raw
+
+          python3 - <<'PY'
+          import os, re, sys
+          from pathlib import Path
+
+          vals = {}
+          raw_lines = Path(".env.raw").read_text(encoding="utf-8-sig").splitlines()
+          i = 0
+          while i < len(raw_lines):
+              line = raw_lines[i].strip()
+              i += 1
+              if not line or line.startswith("#") or "=" not in line:
+                  continue
+              if line.startswith("export "):
+                  line = line[7:].strip()
+              k, v = line.split("=", 1)
+              k = k.strip()
+              v = v.strip()
+              if k == "EC2_SSH_KEY" and "-----BEGIN" in v and "-----END" not in v:
+                  key_lines = [v.lstrip("\"'")]
+                  while i < len(raw_lines):
+                      nxt = raw_lines[i]
+                      i += 1
+                      key_lines.append(nxt.rstrip("\"'"))
+                      if "-----END" in nxt:
+                          break
+                  v = "\n".join(key_lines)
+              elif len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
+                  v = v[1:-1]
+              if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", k):
+                  vals[k] = v
+
+          print("Loaded keys from ENV_FILE:", " ".join(vals.keys()), file=sys.stderr)
+
+          # ENV_FILE is one GitHub value: mask its individual values before later steps can log them.
+          for value in vals.values():
+              if value:
+                  masked = value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  print(f"::add-mask::{masked}")
+
+          ssh_key = vals.get("EC2_SSH_KEY") or os.environ.get("FALLBACK_EC2_SSH_KEY") or ""
+          if "\\n" in ssh_key and "\n" not in ssh_key:
+              ssh_key = ssh_key.replace("\\n", "\n")
+          if ssh_key.strip():
+              Path("ec2-key.pem").write_text(ssh_key.strip() + "\n", encoding="utf-8")
+              Path("ec2-key.pem").chmod(0o600)
+
+          deploy_only = {"EC2_HOST", "EC2_USER", "EC2_SSH_KEY", "AWS_SECURITY_GROUP_ID"}
+          # Include every application setting, including empty values and future additions.
+          # This covers DB pools, OAuth/cookies, AI routes, MongoDB, RabbitMQ, shared scripts and uploads.
+          prod_env = {k: v for k, v in vals.items() if k not in deploy_only}
+          prod_env.setdefault("APP_ENV", "production")
+
+          Path(".env.production").write_text("\n".join(f"{k}={v}" for k, v in prod_env.items()) + "\n", encoding="utf-8")
+          Path(".env.production").chmod(0o600)
+
+          mapped = {
+              "AWS_ACCESS_KEY_ID": vals.get("AWS_ACCESS_KEY_ID") or vals.get("AWS_ACCESS_KEY") or vals.get("ACCESS_KEY") or os.environ.get("FALLBACK_AWS_ACCESS_KEY") or "",
+              "AWS_SECRET_ACCESS_KEY": vals.get("AWS_SECRET_ACCESS_KEY") or vals.get("SECRET_ACCESS_KEY") or os.environ.get("FALLBACK_AWS_SECRET_ACCESS_KEY") or "",
+              "AWS_REGION": vals.get("AWS_REGION") or vals.get("REGION") or os.environ.get("FALLBACK_AWS_REGION") or "ca-central-1",
+              "AWS_SECURITY_GROUP_ID": vals.get("AWS_SECURITY_GROUP_ID") or os.environ.get("FALLBACK_AWS_SECURITY_GROUP_ID") or "",
+              "EC2_HOST": vals.get("EC2_HOST") or os.environ.get("FALLBACK_EC2_HOST") or "",
+              "EC2_USER": vals.get("EC2_USER") or os.environ.get("FALLBACK_EC2_USER") or "ec2-user",
+          }
+          if not mapped["EC2_HOST"].strip() or not ssh_key.strip():
+              sys.exit("EC2_HOST and EC2_SSH_KEY must be set in ENV_FILE (or Zenatech secrets).")
+
+          # GITHUB_ENV makes these available to subsequent steps without evaluating dotenv values as shell code.
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as github_env:
+              for k, v in mapped.items():
+                  value = v.strip()
+                  if "\n" in value or "\r" in value:
+                      sys.exit(f"{k} must be a single-line value.")
+                  github_env.write(f"{k}={value}\n")
+          PY
+
+          rm -f .env.raw
+
       - name: Get GitHub runner IP
         id: ip
-        run: echo "ipv4=$(curl -s https://api.ipify.org)" >> $GITHUB_OUTPUT
+        run: echo "ipv4=$(curl -fsS https://api.ipify.org)" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials
-        if: env.AWS_ACCESS_KEY != '' && env.AWS_SECRET_ACCESS_KEY != ''
+        if: env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != ''
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ env.AWS_ACCESS_KEY }}
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION || vars.AWS_REGION || 'ca-central-1' }}
+          aws-region: ${{ env.AWS_REGION || 'ca-central-1' }}
 
       - name: Authorize Security Group SSH
-        if: env.AWS_ACCESS_KEY != '' && env.AWS_SECURITY_GROUP_ID != ''
+        if: env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.AWS_SECURITY_GROUP_ID != ''
         run: |
           aws ec2 authorize-security-group-ingress \
-            --group-id ${{ env.AWS_SECURITY_GROUP_ID }} \
-            --protocol tcp --port 22 --cidr ${{ steps.ip.outputs.ipv4 }}/32 || true
+            --group-id "$AWS_SECURITY_GROUP_ID" \
+            --protocol tcp --port 22 --cidr "${{ steps.ip.outputs.ipv4 }}/32" || true
 
       - name: Deploy backend to EC2
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER || 'ec2-user' }}
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_SSL: ${{ secrets.DATABASE_SSL || 'require' }}
-          DB_POOL_MIN_SIZE: ${{ vars.DB_POOL_MIN_SIZE || '5' }}
-          DB_POOL_MAX_SIZE: ${{ vars.DB_POOL_MAX_SIZE || '20' }}
-          DB_POOL_MAX_QUERIES: ${{ vars.DB_POOL_MAX_QUERIES || '50000' }}
-          DB_POOL_MAX_INACTIVE_LIFETIME: ${{ vars.DB_POOL_MAX_INACTIVE_LIFETIME || '300.0' }}
-          DB_COMMAND_TIMEOUT: ${{ vars.DB_COMMAND_TIMEOUT || '120.0' }}
-          DB_POOL_ACQUIRE_TIMEOUT: ${{ vars.DB_POOL_ACQUIRE_TIMEOUT || '10.0' }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          MICROSOFT_CLIENT_ID: ${{ secrets.MICROSOFT_CLIENT_ID }}
-          MICROSOFT_CLIENT_SECRET: ${{ secrets.MICROSOFT_CLIENT_SECRET }}
-          MICROSOFT_TENANT_ID: ${{ secrets.MICROSOFT_TENANT_ID }}
-          MICROSOFT_AUTHORITY: ${{ secrets.MICROSOFT_AUTHORITY }}
-          MICROSOFT_REDIRECT_URI: ${{ secrets.MICROSOFT_REDIRECT_URI }}
-          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
-          CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS || secrets.FRONTEND_URL }}
-          AWS_S3_BUCKET_NAME: ${{ secrets.AWS_S3_BUCKET_NAME }}
-          AWS_S3_REGION: ${{ secrets.AWS_S3_REGION || 'ca-central-1' }}
-          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          CEO_DASHBOARD_API_URL: ${{ secrets.CEO_DASHBOARD_API_URL }}
-          M7A_PORT: ${{ secrets.M7A_PORT || vars.M7A_PORT || '8000' }}
-          M7A_BACKEND_URL: ${{ secrets.M7A_BACKEND_URL || vars.M7A_BACKEND_URL || 'http://host.docker.internal:8000' }}
-          M7A_INTEGRATION_TIMEOUT_SECONDS: ${{ secrets.M7A_INTEGRATION_TIMEOUT_SECONDS || '2.0' }}
-          MQTT_HOST: ${{ secrets.MQTT_HOST || 'mqtt' }}
-          MQTT_PORT: ${{ secrets.MQTT_PORT || '1883' }}
-          MQTT_USERNAME: ${{ secrets.MQTT_USERNAME }}
-          MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
-          MQTT_USE_TLS: ${{ secrets.MQTT_USE_TLS || 'false' }}
-          SERVICE_NAME: ${{ secrets.SERVICE_NAME || 'social-media' }}
-          SERVICE_INSTANCE_ID: ${{ secrets.SERVICE_INSTANCE_ID || 'social-media-01' }}
-          RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST || 'rabbitmq' }}
-          RABBITMQ_PORT: ${{ secrets.RABBITMQ_PORT || '5672' }}
-          RABBITMQ_DEFAULT_USER: ${{ secrets.RABBITMQ_DEFAULT_USER || secrets.RABBITMQ_USER }}
-          RABBITMQ_DEFAULT_PASS: ${{ secrets.RABBITMQ_DEFAULT_PASS || secrets.RABBITMQ_PASSWORD }}
-          RABBITMQ_URL: ${{ secrets.RABBITMQ_URL || 'amqp://guest:guest@host.docker.internal:5672/' }}
-          PLAYWRIGHT_BROWSERS_PATH: ${{ secrets.PLAYWRIGHT_BROWSERS_PATH || '/ms-playwright' }}
-          UPLOAD_S3_PREFIX: ${{ secrets.UPLOAD_S3_PREFIX || 'data' }}
-          GEMINI_AVAILABLE_MODELS: ${{ secrets.GEMINI_AVAILABLE_MODELS || 'Gemini 2.5 Flash,Gemini 3.6 Flash,Gemini 3.5 Flash' }}
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY || secrets.SENDGRIP_API_KEY }}
-          MAIL_FROM_ADDRESS: ${{ secrets.MAIL_FROM_ADDRESS || vars.MAIL_FROM_ADDRESS }}
-          MAIL_FROM_NAME: ${{ secrets.MAIL_FROM_NAME || vars.MAIL_FROM_NAME }}
-          SENDGRID_SANDBOX_MODE: ${{ secrets.SENDGRID_SANDBOX_MODE || vars.SENDGRID_SANDBOX_MODE }}
-          SHARE_DOCUMENT_URL: ${{ secrets.SHARE_DOCUMENT_URL || vars.SHARE_DOCUMENT_URL }}
-          SCRIPT_SERVICE_SECRET: ${{ secrets.SCRIPT_SERVICE_SECRET }}
-          SCRIPT_EDITOR: ${{ secrets.SCRIPT_EDITOR || vars.SCRIPT_EDITOR }}
+          DEPLOY_TOKEN: ${{ github.token }}
+          DEPLOY_REPOSITORY: ${{ github.repository }}
         run: |
-          install -m 600 /dev/null ec2-key.pem
-          printf '%s\n' "$EC2_SSH_KEY" > ec2-key.pem
+          set -euo pipefail
 
           ssh -o StrictHostKeyChecking=no -i ec2-key.pem "$EC2_USER@$EC2_HOST" "
-            if [ ! -d ~/internal_portal_social_media_compliance_dashboard_back/.git ]; then
-              git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git ~/internal_portal_social_media_compliance_dashboard_back
+            set -e
+            mkdir -p ~/internal_portal_social_media_compliance_dashboard_back
+            sudo chown -R \"$EC2_USER:$EC2_USER\" ~/internal_portal_social_media_compliance_dashboard_back 2>/dev/null || true
+            cd ~/internal_portal_social_media_compliance_dashboard_back
+            REPO_URL=https://x-access-token:$DEPLOY_TOKEN@github.com/$DEPLOY_REPOSITORY.git
+            if [ ! -d .git ]; then
+              git clone \"\$REPO_URL\" .
             else
-              sudo chown -R "$EC2_USER:$EC2_USER" ~/internal_portal_social_media_compliance_dashboard_back 2>/dev/null || true
-              cd ~/internal_portal_social_media_compliance_dashboard_back && \
-              git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git && \
-              git fetch origin main && \
+              git remote set-url origin \"\$REPO_URL\"
+              git fetch origin main
               git reset --hard origin/main
             fi
+            # Do not leave the temporary Actions token in the remote URL.
+            git remote set-url origin https://github.com/$DEPLOY_REPOSITORY.git
+            echo \"Deploying commit: \$(git rev-parse --short HEAD)\"
           "
-
-          {
-            echo "APP_ENV=production"
-            echo "LOG_LEVEL=INFO"
-            printf 'DATABASE_URL=%s\n' "$DATABASE_URL"
-            printf 'DATABASE_SSL=%s\n' "$DATABASE_SSL"
-            printf 'DB_POOL_MIN_SIZE=%s\n' "$DB_POOL_MIN_SIZE"
-            printf 'DB_POOL_MAX_SIZE=%s\n' "$DB_POOL_MAX_SIZE"
-            printf 'DB_POOL_MAX_QUERIES=%s\n' "$DB_POOL_MAX_QUERIES"
-            printf 'DB_POOL_MAX_INACTIVE_LIFETIME=%s\n' "$DB_POOL_MAX_INACTIVE_LIFETIME"
-            printf 'DB_COMMAND_TIMEOUT=%s\n' "$DB_COMMAND_TIMEOUT"
-            printf 'DB_POOL_ACQUIRE_TIMEOUT=%s\n' "$DB_POOL_ACQUIRE_TIMEOUT"
-            printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY"
-            printf 'SESSION_SECRET=%s\n' "$SESSION_SECRET"
-            printf 'MICROSOFT_CLIENT_ID=%s\n' "$MICROSOFT_CLIENT_ID"
-            printf 'MICROSOFT_CLIENT_SECRET=%s\n' "$MICROSOFT_CLIENT_SECRET"
-            printf 'MICROSOFT_TENANT_ID=%s\n' "$MICROSOFT_TENANT_ID"
-            if [ -n "$MICROSOFT_AUTHORITY" ]; then
-              printf 'MICROSOFT_AUTHORITY=%s\n' "$MICROSOFT_AUTHORITY"
-            elif [ -n "$MICROSOFT_TENANT_ID" ]; then
-              printf 'MICROSOFT_AUTHORITY=https://login.microsoftonline.com/%s\n' "$MICROSOFT_TENANT_ID"
-            fi
-            printf 'MICROSOFT_REDIRECT_URI=%s\n' "$MICROSOFT_REDIRECT_URI"
-            printf 'FRONTEND_URL=%s\n' "$FRONTEND_URL"
-            printf 'CORS_ALLOWED_ORIGINS=%s\n' "$CORS_ALLOWED_ORIGINS"
-            printf 'AWS_S3_BUCKET_NAME=%s\n' "$AWS_S3_BUCKET_NAME"
-            printf 'AWS_S3_REGION=%s\n' "$AWS_S3_REGION"
-            if [ -n "$AWS_ACCESS_KEY_ID" ]; then
-              printf 'AWS_ACCESS_KEY_ID=%s\n' "$AWS_ACCESS_KEY_ID"
-            fi
-            if [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
-              printf 'AWS_SECRET_ACCESS_KEY=%s\n' "$AWS_SECRET_ACCESS_KEY"
-            fi
-            if [ -n "$MONGODB_URI" ]; then
-              printf 'MONGODB_URI=%s\n' "$MONGODB_URI"
-            fi
-            if [ -n "$CEO_DASHBOARD_API_URL" ]; then
-              printf 'CEO_DASHBOARD_API_URL=%s\n' "$CEO_DASHBOARD_API_URL"
-            fi
-            printf 'M7A_PORT=%s\n' "$M7A_PORT"
-            printf 'M7A_BACKEND_URL=%s\n' "$M7A_BACKEND_URL"
-            printf 'M7A_INTEGRATION_TIMEOUT_SECONDS=%s\n' "$M7A_INTEGRATION_TIMEOUT_SECONDS"
-            printf 'MQTT_HOST=%s\n' "$MQTT_HOST"
-            printf 'MQTT_PORT=%s\n' "$MQTT_PORT"
-            printf 'MQTT_USERNAME=%s\n' "$MQTT_USERNAME"
-            printf 'MQTT_PASSWORD=%s\n' "$MQTT_PASSWORD"
-            printf 'MQTT_USE_TLS=%s\n' "$MQTT_USE_TLS"
-            printf 'SERVICE_NAME=%s\n' "$SERVICE_NAME"
-            printf 'SERVICE_INSTANCE_ID=%s\n' "$SERVICE_INSTANCE_ID"
-            if [ -n "$RABBITMQ_HOST" ]; then
-              printf 'RABBITMQ_HOST=%s\n' "$RABBITMQ_HOST"
-            fi
-            if [ -n "$RABBITMQ_PORT" ]; then
-              printf 'RABBITMQ_PORT=%s\n' "$RABBITMQ_PORT"
-            fi
-            if [ -n "$RABBITMQ_DEFAULT_USER" ]; then
-              printf 'RABBITMQ_DEFAULT_USER=%s\n' "$RABBITMQ_DEFAULT_USER"
-            fi
-            if [ -n "$RABBITMQ_DEFAULT_PASS" ]; then
-              printf 'RABBITMQ_DEFAULT_PASS=%s\n' "$RABBITMQ_DEFAULT_PASS"
-            fi
-            if [ -n "$RABBITMQ_URL" ]; then
-              printf 'RABBITMQ_URL=%s\n' "$RABBITMQ_URL"
-            fi
-            printf 'PLAYWRIGHT_BROWSERS_PATH=%s\n' "$PLAYWRIGHT_BROWSERS_PATH"
-            printf 'UPLOAD_S3_PREFIX=%s\n' "$UPLOAD_S3_PREFIX"
-            printf 'GEMINI_AVAILABLE_MODELS=%s\n' "$GEMINI_AVAILABLE_MODELS"
-            if [ -n "$SENDGRID_API_KEY" ]; then
-              printf 'SENDGRID_API_KEY=%s\n' "$SENDGRID_API_KEY"
-            fi
-            if [ -n "$MAIL_FROM_ADDRESS" ]; then
-              printf 'MAIL_FROM_ADDRESS=%s\n' "$MAIL_FROM_ADDRESS"
-            fi
-            if [ -n "$MAIL_FROM_NAME" ]; then
-              printf 'MAIL_FROM_NAME=%s\n' "$MAIL_FROM_NAME"
-            fi
-            if [ -n "$SENDGRID_SANDBOX_MODE" ]; then
-              printf 'SENDGRID_SANDBOX_MODE=%s\n' "$SENDGRID_SANDBOX_MODE"
-            fi
-            if [ -n "$SHARE_DOCUMENT_URL" ]; then
-              printf 'SHARE_DOCUMENT_URL=%s\n' "$SHARE_DOCUMENT_URL"
-            fi
-            if [ -n "$SCRIPT_SERVICE_SECRET" ]; then
-              printf 'SCRIPT_SERVICE_SECRET=%s\n' "$SCRIPT_SERVICE_SECRET"
-            fi
-            if [ -n "$SCRIPT_EDITOR" ]; then
-              printf 'SCRIPT_EDITOR=%s\n' "$SCRIPT_EDITOR"
-            fi
-            echo "DATA_PATH=/app/data"
-            echo "UPLOAD_FILES_DIR=/app/data/upload_files"
-            echo "AUTH_COOKIE_SECURE=true"
-            echo "SESSION_COOKIE_SECURE=true"
-          } > .env.production
 
           scp -o StrictHostKeyChecking=no -i ec2-key.pem .env.production "$EC2_USER@$EC2_HOST":~/internal_portal_social_media_compliance_dashboard_back/.env.production
 
-          ssh -o StrictHostKeyChecking=no -i ec2-key.pem "$EC2_USER@$EC2_HOST" "
+          ssh -o StrictHostKeyChecking=no -i ec2-key.pem "$EC2_USER@$EC2_HOST" '
+            set -e
             cd ~/internal_portal_social_media_compliance_dashboard_back
+            chmod 600 .env.production
             sudo mkdir -p data data/upload_files
             sudo chown -R 10001:10001 data 2>/dev/null || sudo chmod -R 777 data
 
             # Ensure EC2 IMDSv2 hop limit is 2 so Docker container can access IAM role
-            TOKEN=\$(curl -s -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' 2>/dev/null || true)
-            if [ -n \"\$TOKEN\" ]; then
-              INSTANCE_ID=\$(curl -s -H \"X-aws-ec2-metadata-token: \$TOKEN\" http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || true)
-              if [ -n \"\$INSTANCE_ID\" ]; then
-                aws ec2 modify-instance-metadata-options --instance-id \"\$INSTANCE_ID\" --http-put-response-hop-limit 2 --http-endpoint enabled 2>/dev/null || true
+            TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60" 2>/dev/null || true)
+            if [ -n "$TOKEN" ]; then
+              INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || true)
+              if [ -n "$INSTANCE_ID" ]; then
+                aws ec2 modify-instance-metadata-options --instance-id "$INSTANCE_ID" --http-put-response-hop-limit 2 --http-endpoint enabled 2>/dev/null || true
               fi
             fi
 
             # Each deploy leaves the previous image dangling plus build cache; prune
             # before building so the disk does not fill up and fail the image export.
-            echo 'Disk before cleanup:'; df -h /
+            echo "Disk before cleanup:"; df -h /
             sudo docker container prune -f || true
             sudo docker image prune -f || true
             sudo docker builder prune -f --filter until=24h || true
-            echo 'Disk after cleanup:'; df -h /
+            echo "Disk after cleanup:"; df -h /
 
             sudo docker build -t social-media-backend-api:latest .
-            echo '[*] Applying database migrations on EC2...'
+            echo "[*] Applying database migrations on EC2..."
             # Stop the deploy if migrations fail: starting new code against an un-migrated
             # database breaks the live site (e.g. missing columns), so keep the old container.
             if ! sudo docker run --rm --env-file .env.production social-media-backend-api:latest alembic upgrade head; then
-              echo '::error title=Migrations failed::alembic upgrade head failed. Deploy stopped; the previous container is still running.'
+              echo "::error title=Migrations failed::alembic upgrade head failed. Deploy stopped; the previous container is still running."
               exit 1
             fi
-            if docker compose version &>/dev/null; then
-              sudo docker compose -f docker-compose.prod.yml up -d --remove-orphans
-            elif command -v docker-compose &>/dev/null; then
-              sudo docker-compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            if sudo docker compose version >/dev/null 2>&1; then
+              COMPOSE="sudo docker compose"
+            elif sudo /usr/local/bin/docker-compose version >/dev/null 2>&1; then
+              COMPOSE="sudo /usr/local/bin/docker-compose"
             else
-              sudo curl -L \"https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)\" -o /usr/local/bin/docker-compose
-              sudo chmod +x /usr/local/bin/docker-compose
-              sudo /usr/local/bin/docker-compose -f docker-compose.prod.yml up -d --remove-orphans
+              echo "Installing the Docker Compose plugin for root..."
+              sudo mkdir -p /usr/local/lib/docker/cli-plugins
+              sudo curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/lib/docker/cli-plugins/docker-compose
+              sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+              COMPOSE="sudo docker compose"
             fi
+
+            $COMPOSE version
+            $COMPOSE -f docker-compose.prod.yml config --quiet
+            $COMPOSE -f docker-compose.prod.yml up -d --remove-orphans
 
             # Remove the image this deploy just replaced.
             sudo docker image prune -f || true
-            echo 'Disk after deploy:'; df -h /
-          "
-          rm -f ec2-key.pem .env.production
+            echo "Disk after deploy:"; df -h /
+          '
+
+      - name: Cleanup local secrets
+        if: always()
+        run: rm -f ec2-key.pem .env.production .env.raw
 
       - name: Revoke Security Group SSH
-        if: always() && env.AWS_ACCESS_KEY != '' && env.AWS_SECURITY_GROUP_ID != ''
+        if: always() && env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.AWS_SECURITY_GROUP_ID != '' && steps.ip.outputs.ipv4 != ''
         run: |
           aws ec2 revoke-security-group-ingress \
-            --group-id ${{ env.AWS_SECURITY_GROUP_ID }} \
-            --protocol tcp --port 22 --cidr ${{ steps.ip.outputs.ipv4 }}/32 || true
+            --group-id "$AWS_SECURITY_GROUP_ID" \
+            --protocol tcp --port 22 --cidr "${{ steps.ip.outputs.ipv4 }}/32" || true

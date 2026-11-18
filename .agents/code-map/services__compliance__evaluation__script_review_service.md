@@ -4,53 +4,50 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_review_service.py (1092 lines) - Script stage of a video post.
-- `_send_state` (def) L66 - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
-- `_same` (def) L83 - Whether two versions say the same thing (spacing and line endings aside).
-- `_clean` (def) L89
-- `_status` (def) L93
-- `check_text` (def) L97 - The rulebook check of a script: the title and the script, scoped like the post.
-- `check_key` (def) L108 - What a script's check depends on: its wording and the details it's judged by (title, brand, audience, region,
-- `precheck_record` (def) L123 - A check run before sending, as stored (JSON).
-- `still_valid` (def) L131 - The stored check, if it was made on this wording and these details against the current rulebook.
-- `_versions` (def) L141
-- `_script_file` (def) L165
-- `_require_stage` (def) L176
-- `may_review_own_script` (def) L181 - A super admin may review and approve their own scripts (as with posts); nobody else may.
-- `_reviewer_may_act` (def) L186
-- `only_sent_to_self` (def) L197 - The script would go only to the person who wrote it.
-- `batch_ref` (def) L204 - Where the script sits in the batch it was uploaded with, or None when it wasn't part of one.
-- `get_stage` (def) L237
-- `_adopt_check` (def) L278 - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
-- `_add_version` (def) L287
-- `_lock_status` (def) L303 - Lock the post and make sure the script is still where the caller saw it (two people can act at once).
-- `_send_to_reviewers` (def) L310 - Tell the reviewers it was sent to; returns who was told.
-- `_missing_details` (def) L341 - The required submission details still empty, by their names on the form.
-- `_require_not_duplicate` (def) L362 - The same script, already sent for review for the same place and publish date, can't be sent again; for another
-- `_precheck_confirmed` (def) L389 - The earlier script the creator already confirmed sending again for another date, at the compliance check.
-- `_repost_confirmed` (def) L394 - Whether the creator confirmed sending this script again for another date (kept with the send in progress).
-- `submit` (def) L405 - Accept the uploaded script for review and answer at once.
-- `_fail_send` (def) L439 - The background send couldn't finish: record which step failed and why, and tell the creator.
-- `resume_interrupted_sends` (def) L458 - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
-- `current_script_text` (def) L477 - The script as it stands for a duplicate check before it is sent: the uploaded file's text once it has been read,
-- `_read_uploaded` (def) L487 - The uploaded script file and its text, read now if it hasn't been yet.
-- `precheck` (def) L506 - The creator checks the uploaded script against the rulebook before sending it, to see the score and the flags
-- `_process_send` (def) L525 - Read the uploaded script, calculate its compliance score and send it to the reviewers.
-- `_send` (def) L557
-- `_send_checked` (def) L563 - Send a checked script for review.
-- `decide` (def) L605 - The reviewer approves the script, sends it back with a note, or sends back their own edited version.
-- `accept` (def) L705 - The creator accepts the reviewer's edited version: it's the approved script.
-- `revise` (def) L742 - The creator edits the script in the platform (after edits or a change request) and sends it back.
-- `preview_check` (def) L759 - Check wording being edited without saving it, so the score updates as the reviewer or creator works.
-- `_refresh_stale_scripts` (def) L772 - Re-check scripts that were checked against an older rulebook, one at a time, and save the result.
-- `_refresh_in_background` (def) L788
-- `queue` (def) L798 - Scripts for one Content Screener tab, on the brands the viewer works on.
-- `suggester_dashboard` (def) L856 - What is sent to a suggesting reviewer by name and still in review, and their latest comments and suggestions.
-- `_my_suggestion` (def) L909 - A suggesting reviewer's own suggestion on a script version (nobody else sees it yet).
-- `_suggestable` (def) L923 - The post and the script version a suggesting reviewer may suggest on: the one in review, sent to them.
-- `save_suggestion` (def) L937 - Save a suggesting reviewer's edited wording and notes for the script in review.
-- `discard_suggestion` (def) L963 - Take back a suggesting reviewer's own suggestion on the script in review.
-- `get_highlights` (def) L973 - The reviewer's highlights and notes on a script version, for anyone who can read the post.
-- `save_highlights` (def) L986 - Replace the highlights on a script version.
-- `resolve_highlights` (def) L1009 - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
-- `suggest_fix` (def) L1065 - A compliant rewrite of one flagged passage, for the creator to use or not.
+## services/compliance/evaluation/script_review_service.py (1072 lines) - Script stage of a video post.
+- `_send_state` (def) L68 - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
+- `_same` (def) L85 - Whether two versions say the same thing (spacing and line endings aside).
+- `_clean` (def) L91
+- `_status` (def) L95
+- `check_text` (def) L99 - The rulebook check of a script: the title and the script, scoped like the post.
+- `check_key` (def) L110 - What a script's check depends on: its wording and the details it's judged by (title, brand, audience, region,
+- `precheck_record` (def) L125 - A check run before sending, as stored (JSON).
+- `still_valid` (def) L133 - The stored check, if it was made on this wording and these details against the current rulebook.
+- `_versions` (def) L143
+- `_script_file` (def) L167
+- `_require_stage` (def) L178
+- `may_review_own_script` (def) L183 - A super admin may review and approve their own scripts (as with posts); nobody else may.
+- `_reviewer_may_act` (def) L188
+- `only_sent_to_self` (def) L198 - The script would go only to the person who wrote it.
+- `batch_ref` (def) L205 - Where the script sits in the batch it was uploaded with, or None when it wasn't part of one.
+- `get_stage` (def) L238
+- `_send_to_reviewers` (def) L284 - Tell the reviewers it was sent to; returns who was told.
+- `_missing_details` (def) L314 - The required submission details still empty, by their names on the form.
+- `_require_not_duplicate` (def) L335 - The same script, already sent for review for the same place and publish date, can't be sent again; for another
+- `_precheck_confirmed` (def) L362 - The earlier script the creator already confirmed sending again for another date, at the compliance check.
+- `_repost_confirmed` (def) L367 - Whether the creator confirmed sending this script again for another date (kept with the send in progress).
+- `submit` (def) L378 - Accept the uploaded script for review and answer at once.
+- `_fail_send` (def) L414 - The background send couldn't finish: record which step failed and why, and tell the creator.
+- `resume_interrupted_sends` (def) L433 - A send runs inside the server, so a restart cuts it off and leaves the post "processing".
+- `current_script_text` (def) L452 - The script as it stands for a duplicate check before it is sent: the uploaded file's text once it has been read,
+- `_read_uploaded` (def) L462 - The uploaded script file and its text, read now if it hasn't been yet.
+- `precheck` (def) L481 - The creator checks the uploaded script against the rulebook before sending it, to see the score and the flags
+- `_process_send` (def) L500 - Read the uploaded script, calculate its compliance score and send it to the reviewers.
+- `_send` (def) L532
+- `_send_checked` (def) L538 - Send a checked script for review.
+- `decide` (def) L583 - The reviewer approves the script, sends it back with a note, or sends back their own edited version.
+- `accept` (def) L685 - The creator accepts the reviewer's edited version: it's the approved script.
+- `revise` (def) L722 - The creator edits the script in the platform (after edits or a change request) and sends it back.
+- `preview_check` (def) L741 - Check wording being edited without saving it, so the score updates as the reviewer or creator works.
+- `_refresh_stale_scripts` (def) L753 - Re-check scripts that were checked against an older rulebook, one at a time, and save the result.
+- `_refresh_in_background` (def) L769
+- `queue` (def) L779 - Scripts for one Content Screener tab, on the brands the viewer works on.
+- `suggester_dashboard` (def) L837 - What is sent to a suggesting reviewer by name and still in review, and their latest comments and suggestions.
+- `_my_suggestion` (def) L890 - A suggesting reviewer's own suggestion on a script version (nobody else sees it yet).
+- `_suggestable` (def) L904 - The post and the script version a suggesting reviewer may suggest on: the one in review, sent to them.
+- `save_suggestion` (def) L918 - Save a suggesting reviewer's edited wording and notes for the script in review.
+- `discard_suggestion` (def) L944 - Take back a suggesting reviewer's own suggestion on the script in review.
+- `get_highlights` (def) L954 - The reviewer's highlights and notes on a script version, for anyone who can read the post.
+- `save_highlights` (def) L967 - Replace the highlights on a script version.
+- `resolve_highlights` (def) L990 - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
+- `suggest_fix` (def) L1045 - A compliant rewrite of one flagged passage, for the creator to use or not.

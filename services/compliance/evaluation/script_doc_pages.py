@@ -108,23 +108,25 @@ async def hydrate_doc_layout(submission_id: UUID, rows: List[Dict[str, Any]]) ->
 
 # --- The creator's document: its pages ---------------------------------------------------------------------------------
 
-async def _pages(set_id: UUID) -> List[DocPage]:
+async def _pages(set_id: UUID, reviewer_id: Optional[UUID] = None) -> List[DocPage]:
+    extra = " AND d.status != 'DRAFT' AND EXISTS (SELECT 1 FROM script_document_reviewers rr WHERE rr.document_id = d.id AND rr.user_id = $2)" if reviewer_id else ""
+    args: tuple = (set_id, reviewer_id) if reviewer_id else (set_id,)
     rows = await fetch_all(
-        """
+        f"""
         SELECT d.id, d.title, d.status, d.position, d.round,
                (SELECT count(*) FROM script_document_reviewers r WHERE r.document_id = d.id AND r.capacity = 'EDIT') AS required,
                (SELECT count(*) FROM script_document_checkins c JOIN script_document_reviewers r
                   ON r.document_id = c.document_id AND r.user_id = c.user_id AND r.capacity = 'EDIT'
                 WHERE c.document_id = d.id AND c.round = d.round) AS checked_in
-        FROM script_documents d WHERE d.set_id = $1 AND d.deleted_at IS NULL ORDER BY d.position, d.created_at
-        """, set_id)
+        FROM script_documents d WHERE d.set_id = $1 AND d.deleted_at IS NULL{extra} ORDER BY d.position, d.created_at
+        """, *args)
     return [DocPage(**r) for r in rows]
 
 
 async def _owned_set(doc_id: UUID, user_id: UUID) -> tuple:
-    """The script and the id of the document it belongs to (made on the spot for a script that has none), for the creator."""
+    """The script and the id of the document it belongs to (made on the spot for a script that has none), for the creator or super admin."""
     doc = await core._doc(doc_id)
-    if doc["created_by"] != user_id:
+    if doc["created_by"] != user_id and not await subs._is_super_admin(user_id):
         raise HTTPException(status_code=403, detail="Only the creator can change the pages of their document")
     set_id = doc.get("set_id")
     if not set_id:
@@ -203,9 +205,12 @@ async def submit_all(doc_id: UUID, user_id: UUID, req: BulkSubmit) -> BulkResult
     """Send every page that can be sent (or the ones listed) for review at once, each as its own script. A page that can't
     be sent (its details aren't filled in, it is empty) is reported; the others still go."""
     doc, set_id = await _owned_set(doc_id, user_id)
+    is_super = await subs._is_super_admin(user_id)
+    owner_filter = "" if is_super else " AND created_by = $2"
+    query_args: tuple = (set_id,) if is_super else (set_id, user_id)
     rows = await fetch_all(
-        "SELECT id, title FROM script_documents WHERE set_id = $1 AND created_by = $2 AND deleted_at IS NULL "
-        "AND status IN ('DRAFT', 'CHANGES_REQUESTED') ORDER BY position", set_id, user_id)
+        f"SELECT id, title FROM script_documents WHERE set_id = $1{owner_filter} AND deleted_at IS NULL "
+        "AND status IN ('DRAFT', 'CHANGES_REQUESTED') ORDER BY position", *query_args)
     if req.ids is not None:
         rows = [r for r in rows if r["id"] in set(req.ids)]
     if not rows:
@@ -248,12 +253,13 @@ async def delete_set(set_id: UUID, user_id: UUID) -> None:
     row = await fetch_one("SELECT created_by FROM script_sets WHERE id = $1 AND deleted_at IS NULL", set_id)
     if not row:
         raise HTTPException(status_code=404, detail="Script not found")
-    if row["created_by"] != user_id and not await subs._can_manage_team_content(user_id):
+    if row["created_by"] != user_id and not await subs._is_super_admin(user_id) and not await subs._can_manage_team_content(user_id):
         raise HTTPException(status_code=403, detail="You can't delete this script")
-    sent = await fetch_one(
-        "SELECT count(*) AS n FROM script_documents WHERE set_id = $1 AND deleted_at IS NULL AND status <> 'DRAFT'", set_id)
-    if sent["n"]:
-        raise HTTPException(status_code=409, detail="Only a script that hasn't been sent for review can be deleted")
+    if not await subs._is_super_admin(user_id):
+        sent = await fetch_one(
+            "SELECT count(*) AS n FROM script_documents WHERE set_id = $1 AND deleted_at IS NULL AND status <> 'DRAFT'", set_id)
+        if sent["n"]:
+            raise HTTPException(status_code=409, detail="Only a script that hasn't been sent for review can be deleted")
     await fetch_all("UPDATE script_documents SET deleted_at = NOW() WHERE set_id = $1 AND deleted_at IS NULL RETURNING id", set_id)
     await execute("UPDATE script_sets SET deleted_at = NOW() WHERE id = $1 RETURNING id", set_id)
     await shared.delete_shared_documents(set_id=set_id)  # every page's shared document goes in one call (best-effort)

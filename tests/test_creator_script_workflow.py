@@ -53,6 +53,7 @@ class CreatorRevisionTests(unittest.IsolatedAsyncioTestCase):
         row = {"id": submission_id, "created_by": creator, "status": "DRAFT", "content_type": "VIDEO",
                "script_required": True, "script_status": "APPROVED"}
         with patch.object(subs, "_get_owned_row", AsyncMock(return_value=row)), \
+             patch("services.compliance.evaluation.script_submission_documents.linked", AsyncMock(return_value=None)), \
              patch.object(subs, "fetch_one", AsyncMock(return_value=None)), \
              patch.object(review, "_versions", AsyncMock(return_value=[SimpleNamespace(body="Before")])), \
              patch.object(review, "_require_not_duplicate", AsyncMock()), \
@@ -63,6 +64,7 @@ class CreatorRevisionTests(unittest.IsolatedAsyncioTestCase):
     async def test_video_attached_prevents_revising_the_approved_script(self):
         row = {"id": uuid4(), "status": "DRAFT", "content_type": "VIDEO", "script_required": True, "script_status": "APPROVED"}
         with patch.object(subs, "_get_owned_row", AsyncMock(return_value=row)), \
+             patch("services.compliance.evaluation.script_submission_documents.linked", AsyncMock(return_value=None)), \
              patch.object(subs, "fetch_one", AsyncMock(return_value={"exists": 1})):
             with self.assertRaises(HTTPException) as error:
                 await review.revise(row["id"], uuid4(), ScriptReviseRequest(text="After"))

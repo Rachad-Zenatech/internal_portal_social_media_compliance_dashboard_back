@@ -7,6 +7,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 from models.compliance.source_link_model import SourceLinksMixin, SourceLinksUpdateMixin
+from models.compliance.duplicate_model import (
+    DuplicateDetail as DuplicateDetail,
+    DuplicateMatch as DuplicateMatch,
+    DuplicateReport as DuplicateReport,
+)
 
 # AD: paid social ads. Only the type and its rule set exist so far; ad-specific fields and rules (claims,
 # targeting, platform ad policies) are still to be defined.
@@ -628,40 +633,6 @@ class DashboardSummary(BaseModel):
     average_score: Optional[int] = None
     common_findings: List[DashboardFinding] = Field(default_factory=list)
     days: int = 30
-
-
-class DuplicateDetail(BaseModel):
-    """One Submission Details dropdown, compared with an earlier post that has the same content and caption."""
-    field: Literal["brands", "accounts", "audiences", "region", "platforms"]
-    label: str
-    # Values both posts have.
-    shared: List[str] = Field(default_factory=list)
-    # Values only this post has.
-    new: List[str] = Field(default_factory=list)
-
-
-class DuplicateMatch(BaseModel):
-    """A post already sent for approval with the same content and caption."""
-    submission_id: UUID
-    reference_code: str
-    title: str
-    status: str
-    submitted_at: Optional[datetime] = None
-    publish_at: Optional[datetime] = None
-    created_by_name: Optional[str] = None
-    details: List[DuplicateDetail] = Field(default_factory=list)
-    # Every dropdown shares a value: the same post would go out to the same place again.
-    all_overlap: bool = False
-    same_date: bool = False
-
-
-class DuplicateReport(BaseModel):
-    """Earlier posts with the same content and caption. blocked: one overlaps on every detail and the publish date,
-    so this can't be submitted. repost: one overlaps on every detail on another date, so the creator confirms."""
-    matches: List[DuplicateMatch] = Field(default_factory=list)
-    blocked: bool = False
-    blocking: Optional[DuplicateMatch] = None
-    repost: Optional[DuplicateMatch] = None
 
 
 class SubmitRequest(BaseModel):

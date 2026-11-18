@@ -128,24 +128,20 @@ async def _access(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], user_id:
     """What the user may do with the script, or None when they may not see it."""
     status = doc["status"]
     is_creator = doc["created_by"] == user_id
-    manager = await subs._can_manage_team_content(user_id)
+    sup = await subs._is_super_admin(user_id)
+    manager = sup or await subs._can_manage_team_content(user_id)
     mine = next((r for r in reviewers if r["user_id"] == user_id), None)
     if not (is_creator or manager or mine):
         return None
-    sup = await subs._is_super_admin(user_id)
-    can_review = await subs._can_review(user_id)
-    can_suggest = await subs._can_suggest(user_id)
+    can_review = sup or await subs._can_review(user_id)
+    can_suggest = sup or await subs._can_suggest(user_id)
     editor = bool(mine and mine["capacity"] == "EDIT" and can_suggest)
     # Nobody approves their own script but a super admin.
     own = is_creator and not sup
     approver = editor and can_review and not own and status == "IN_REVIEW"
     deciding = manager and not own and status in IN_REVIEW_STATES
-    can_edit = (
-        (is_creator and status in EDITING)
-        or (editor and status == "IN_REVIEW")
-        or (manager and not own and status in IN_REVIEW_STATES)
-    )
-    can_note = can_edit or bool(mine and status in IN_REVIEW_STATES) or (is_creator and status != "DRAFT") or (manager and status != "DRAFT")
+    can_edit = sup or (is_creator and status in EDITING) or (editor and status == "IN_REVIEW") or (manager and not own and status in IN_REVIEW_STATES)
+    can_note = sup or can_edit or bool(mine and status in IN_REVIEW_STATES) or (is_creator and status != "DRAFT") or (manager and status != "DRAFT")
     if is_creator:
         role = "CREATOR"
     elif manager:
@@ -158,11 +154,11 @@ async def _access(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], user_id:
         role = "VIEWER"
     return DocAccess(
         role=role, can_edit=can_edit, can_note=can_note,
-        can_submit=is_creator and status in EDITING,
-        can_check_in=editor and status == "IN_REVIEW" and not own,
+        can_submit=(is_creator or sup) and status in EDITING,
+        can_check_in=(editor or sup) and status == "IN_REVIEW" and not own,
         can_finalize=approver or (manager and not own and status == "IN_REVIEW"),
         can_decide=deciding,
-        can_delete=(is_creator or manager) and status == "DRAFT",
+        can_delete=sup or ((is_creator or manager) and status == "DRAFT"),
     )
 
 
@@ -219,6 +215,8 @@ def _detail(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], access: DocAcc
 
 async def get(doc_id: UUID, user_id: UUID) -> DocDetail:
     doc, reviewers, access = await get_access(doc_id, user_id)
+    if not doc.get("share_document_id") and shared.enabled():
+        doc = {**doc, "share_document_id": await shared.ensure_shared_document(doc_id) or doc.get("share_document_id")}
     for r in reviewers:
         r["can_approve"] = r["capacity"] == "EDIT" and await subs._can_review(r["user_id"])
     by = await _name(doc["decided_by"])
@@ -226,9 +224,11 @@ async def get(doc_id: UUID, user_id: UUID) -> DocDetail:
         "SELECT p.position, p.title, p.submission_id, s.reference_code FROM script_document_posts p "
         "LEFT JOIN content_submissions s ON s.id = p.submission_id WHERE p.document_id = $1 ORDER BY p.position", doc_id)
     pages, set_title = [], None
-    if doc.get("set_id") and access.role in ("CREATOR", "MANAGER"):
-        pages = await _pages_module()._pages(doc["set_id"])
-        set_title = (await fetch_one("SELECT title FROM script_sets WHERE id = $1", doc["set_id"]) or {}).get("title")
+    if doc.get("set_id"):
+        reviewer_filter = None if access.role in ("CREATOR", "MANAGER") else user_id
+        pages = await _pages_module()._pages(doc["set_id"], reviewer_id=reviewer_filter)
+        if pages:
+            set_title = (await fetch_one("SELECT title FROM script_sets WHERE id = $1", doc["set_id"]) or {}).get("title")
     return _detail(doc, reviewers, access, user_id, by, [DocPost(**r) for r in rows], pages, set_title)
 
 
@@ -257,7 +257,7 @@ async def update(doc_id: UUID, user_id: UUID, req: DocUpdate) -> DocDetail:
     if req.title is not None:
         await execute("UPDATE script_documents SET title = $2, updated_at = NOW() WHERE id = $1 RETURNING id", doc_id, req.title.strip())
     if req.details is not None:
-        details = json.dumps(req.details.model_dump(mode="json", exclude_none=True))
+        details = json.dumps({**{k: v for k, v in (subs._json(doc["details"]) or {}).items() if k == "source_submission_id"}, **req.details.model_dump(mode="json", exclude_none=True)})
         await execute("UPDATE script_documents SET details = $2::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id", doc_id, details)
         if doc.get("set_id"):
             # The details are the document's: every page that can still change gets them.
@@ -350,6 +350,8 @@ async def submit(doc_id: UUID, user_id: UUID, req: DocSubmit) -> DocDetail:
                 "INSERT INTO script_document_versions (document_id, round, label, body_html, body_text, created_by, created_by_name) "
                 "VALUES ($1, $2, $3, $4, $5, $6, (SELECT coalesce(nullif(full_name, ''), email) FROM users WHERE id = $6))",
                 doc_id, round_, f"Sent for review (round {round_})", html, text, user_id)
+    from services.compliance.evaluation.script_submission_sync import sync_document
+    await sync_document(doc_id)
     await _event(doc_id, round_, user_id, "SUBMITTED", {"reviewers": len(req.reviewers), "note": req.note})
     await log_audit_event("script_document", str(doc_id), "SUBMIT", user_id, {"round": round_})
     await _notify([p.user_id for p in req.reviewers], "Script to review", f"“{doc['title']}” was sent to you for review.", doc_id)
@@ -436,6 +438,8 @@ async def _close(doc: Dict[str, Any], status: str, user_id: UUID, note: Optional
     await execute(
         "UPDATE script_documents SET status = $2, decision_note = $3, decided_by = $4, decided_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING id",
         doc["id"], status, (note or "").strip() or None, user_id)
+    from services.compliance.evaluation.script_submission_sync import sync_document
+    await sync_document(doc["id"])
     await _stamp_version(doc["id"], doc["round"], label, user_id)
     await _event(doc["id"], doc["round"], user_id, kind, {"status": status, "note": note})
     await log_audit_event("script_document", str(doc["id"]), kind, user_id, {"status": status})

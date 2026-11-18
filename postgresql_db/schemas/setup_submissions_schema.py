@@ -9,6 +9,7 @@ import os
 from postgresql_db.database import get_pool, close_pool
 from postgresql_db.schemas.creator_flag_dismissal_requests_schema import ensure_creator_flag_dismissal_requests
 from postgresql_db.schemas.setup_source_links_schema import ensure_source_links_column
+from postgresql_db.schemas.setup_ai_usage_schema import ensure_ai_usage_events
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -421,18 +422,8 @@ async def setup():
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
             );
 
-            -- One row per Gemini call actually made, for usage limits (see services/ai/observability/ai_usage_service.py).
-            CREATE TABLE IF NOT EXISTS ai_usage_events (
-                id BIGSERIAL PRIMARY KEY,
-                feature VARCHAR(30) NOT NULL,
-                user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-                submission_id UUID REFERENCES content_submissions(id) ON DELETE SET NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_ai_usage_feature_time ON ai_usage_events(feature, created_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_ai_usage_user_time ON ai_usage_events(user_id, created_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_ai_usage_submission_time ON ai_usage_events(submission_id, created_at DESC);
         """)
+        await ensure_ai_usage_events(conn)
         await ensure_creator_flag_dismissal_requests(conn)
 
         # The five brands content is filed under. The software products (ZooOffice, DeskFlex, Othership,

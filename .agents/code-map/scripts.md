@@ -61,6 +61,53 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `out_of_time` (def) L487
 - `main` (def) L598
 
+## scripts/script_hub_eval.py (148 lines) - Script hub visibility and submitted-upload regression checks; no database or external services.
+- `load_service` (def) L15
+- `ScriptHubTests` (class) L23
+    - `setUp` (def) L24
+    - `row` (def) L39
+    - `test_assigned_reviewers_get_original_submission_and_only_assigned_sql` (def) L44
+    - `test_super_admin_all_is_not_restricted_by_assignment_or_brand` (def) L55
+    - `test_super_admin_sent_to_me_still_uses_assignment` (def) L64
+    - `test_other_managers_reuse_source_submission_visibility` (def) L69
+    - `test_unprivileged_users_do_not_read_submission_rows` (def) L76
+    - `test_creator_scope_only_queries_own_uploads` (def) L81
+    - `test_uploaded_edits_proposed_preserves_status_and_creator_turn` (def) L89
+    - `test_creator_cannot_review_own_script_except_super_admin` (def) L96
+    - `test_legacy_upload_without_creator_does_not_break_admin_listing` (def) L104
+    - `test_only_sent_active_scripts_are_queried_and_document_posts_are_deduplicated` (def) L111
+    - `test_hub_combines_existing_documents_and_uploads_sorted_by_update` (def) L119
+    - `test_all_scope_rejects_non_managers_before_querying` (def) L133
+
+## scripts/script_submission_content_eval.py (56 lines) - Imported script content must retain every line and table beat, including long uploads.
+- `ContentTests` (class) L28
+    - `test_first_spoken_line_is_never_dropped` (def) L29
+    - `test_title_is_not_duplicated_as_voiceover` (def) L33
+    - `test_table_and_surrounding_directions_are_preserved` (def) L37
+    - `test_extra_table_columns_are_not_discarded` (def) L43
+    - `test_more_than_eighty_beats_are_retained` (def) L48
+
+## scripts/script_submission_documents_eval.py (204 lines) - Shared-document adoption and original-post sync regressions, using isolated mocked services.
+- `load` (def) L15
+- `SubmissionDocumentTests` (class) L23
+    - `setUp` (def) L24
+    - `test_import_payload_preserves_owner_assigned_reviewers_and_stable_id` (def) L74
+    - `test_missing_creator_fails_before_remote_creation` (def) L89
+    - `test_self_only_reviewer_fails_before_creating_shared_document` (def) L94
+    - `test_shared_failure_leaves_source_version_and_status_uncommitted` (def) L99
+    - `test_adoption_authorizes_before_import` (def) L107
+    - `test_already_linked_upload_reuses_document` (def) L113
+    - `test_existing_upload_adopts_without_resubmitting_or_duplicating_source_version` (def) L118
+    - `test_concurrent_source_change_aborts_before_remote_import` (def) L129
+    - `test_new_send_creates_linked_native_review_and_notifies_assigned_reviewer` (def) L136
+    - `test_legacy_editor_mode_does_not_create_shared_documents` (def) L147
+    - `test_persist_links_existing_post_without_creating_another` (def) L152
+    - `test_repeat_persistence_does_not_reset_reviewers_or_add_versions` (def) L162
+    - `source_document` (def) L168
+    - `test_unchanged_approval_keeps_original_source_version_and_score` (def) L173
+    - `test_real_shared_edit_versions_approved_text_on_original_post` (def) L184
+    - `test_native_template_post_is_not_overwritten_by_adoption_sync` (def) L195
+
 ## scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - `_row` (def) L62 - A submission row shaped like sentiment_service._load_submission's, for a text-only post.
 - `_analyse` (def) L73

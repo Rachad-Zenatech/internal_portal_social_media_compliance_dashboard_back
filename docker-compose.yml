@@ -15,7 +15,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres -d social_media_compliance_dev"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 5
 
   backend:
     build: .
