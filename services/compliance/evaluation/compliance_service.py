@@ -41,7 +41,7 @@ from services.compliance.evaluation import claim_checks, synthetic_media_disclos
 from services.compliance.evaluation import context_evaluator
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
-from services.compliance.evaluation import source_check_service
+from services.compliance.evaluation import source_check_service, source_post_checks
 from services.compliance.evaluation.image_marks import without_image_marks
 from services.shared.core.audit_service import log_audit_event
 from services.shared.core.cache_service import AsyncInMemoryCache, emit_cache_invalidation, rules_cache
@@ -1307,10 +1307,10 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     if source_result.ai_failed:
         _ai_incomplete.set(True)
     violations.extend(source_check_service.findings(source_result.checks))
+    violations.extend(source_post_checks.unsourced_image_findings(req.text, source_result.checks))
 
     # A CONTEXT rule's match is only a candidate: a model reads it in its sentence and decides whether it's a violation,
     # something a person has to check, a claim that needs a source, or not a breach at all.
-    # Where each finding sits, kept on it so a reviewer's call can be saved as a labelled example.
     exceptions_of = {r.id: r.exception_terms for r in rules}
     for v in violations:
         v.passage, v.context = _passage(req.text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])

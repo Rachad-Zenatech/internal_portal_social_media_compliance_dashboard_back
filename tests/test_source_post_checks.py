@@ -1,7 +1,7 @@
 """Source reruns must cover image capability claims as well as supported caption claims."""
 import unittest
 from unittest.mock import AsyncMock, patch
-from models.compliance.compliance_model import ProvidedSource
+from models.compliance.compliance_model import ProvidedSource, SourceCheck
 from services.compliance.evaluation import source_check_service as sc, source_post_checks as coverage
 
 
@@ -11,6 +11,16 @@ class SourcePartChecks(unittest.IsolatedAsyncioTestCase):
              patch.object(sc.newsroom_facts, "material", AsyncMock(return_value=None)), \
              patch.object(sc.source_passages, "EMBED_ENABLED", False):
             return await sc.run(text, [ProvidedSource(name="Company product page", text="Drones support rescue operations.")])
+
+    def test_image_capability_list_needs_evidence_without_a_source(self):
+        post = "test\nText in image 1: ZENODRONE\nSupply Delivery\nCommunications Support"
+        findings = coverage.unsourced_image_findings(post, [])
+        self.assertEqual([(f.rule_number, f.status, f.flagged_terms) for f in findings], [
+            ("Rule 18", "EVIDENCE_REQUIRED", ["Supply Delivery"]),
+            ("Rule 18", "EVIDENCE_REQUIRED", ["Communications Support"]),
+        ])
+        source = SourceCheck(reference="Product page", kind="URL", where="source_links", status="READ")
+        self.assertEqual(coverage.unsourced_image_findings(post, [source]), [])
 
     async def test_supported_caption_does_not_hide_unsupported_image_capabilities(self):
         async def compare(post, *args):

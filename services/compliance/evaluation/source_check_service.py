@@ -52,7 +52,7 @@ from services.shared.core.cache_service import AsyncInMemoryCache
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v7-quantity-scope"
+PROMPT_VERSION = "source-v8-omission-is-not-contradiction"
 VERSION = f"sources-1|{citation_finder.VERSION}|{PROMPT_VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 MODELS = without_retired([m.strip() for m in os.getenv(
@@ -106,7 +106,7 @@ For each claim return:
     CONTRADICTED: the source says something different (another figure, date, stage or scope), OR the post says more than the
       source does: "available now" where the source says prototype, a result without the conditions the source attaches to
       it, "approved" where the source says submitted, a target stated as settled, a plan stated as done.
-    NOT_FOUND: the source covers the subject but does not say this.
+    NOT_FOUND: the source covers the subject but does not say this. A page about one product or example cannot disprove a broader claim merely by omitting other examples.
     UNCLEAR: multiple readings are plausible. Explain the distinction, such as revenue earned across eight projects
       versus a claim of more than eight projects. Use the surrounding image text to resolve fragments when available.
 - evidence: what the source says about it, in your own words or as a short quote (it need not be word for word). Leave it
@@ -372,7 +372,7 @@ async def run(
 
     await asyncio.gather(*(compare(check, material) for check, material in reading if material))
     # The newsroom only shows when it said something about the post's claims.
-    result.checks = [check for check, _ in reading if check.claims or not newsroom_facts.is_newsroom(check)]
+    result.checks = newsroom_facts.visible_checks([check for check, _ in reading])
     return result
 
 

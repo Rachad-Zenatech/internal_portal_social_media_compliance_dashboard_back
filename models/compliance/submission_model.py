@@ -317,7 +317,7 @@ class Submission(SourceLinksMixin, ImageProvenanceFields):
     # The rulebook score counting only flags nobody has dismissed, and the least it needs to be approved. None when
     # there's no score yet (not checked, or still being analysed).
     approval_score: Optional[int] = None
-    min_approval_score: int = 80
+    min_approval_score: int = 90
     # The saved check was made before the rulebook last changed (new, edited or removed rules).
     check_outdated: bool = False
     # For the person viewing it: it's approved and they're a reviewer who may reschedule it or reopen it.
@@ -551,7 +551,7 @@ class ReviewQueueItem(BaseModel):
     open_critical_flags: int = 0
     # The rulebook score counting only flags nobody has dismissed, and the least it needs to be approved.
     approval_score: Optional[int] = None
-    min_approval_score: int = 80
+    min_approval_score: int = 90
     publish_at: Optional[datetime] = None
     # For the screener's filters and header.
     brand_code: Optional[str] = None

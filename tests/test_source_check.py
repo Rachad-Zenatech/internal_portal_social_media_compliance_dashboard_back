@@ -95,6 +95,12 @@ class SafeguardTests(unittest.TestCase):
         finally:
             source_recheck.refresh.reset(token)
 
+    def test_narrow_product_coverage_does_not_contradict_a_broader_claim(self):
+        evidence = "The ZenaDrone 1000 is an unmanned aerial vehicle and octocopter drone."
+        claim = result("ground and maritime platforms", "CONTRADICTED", evidence=evidence,
+                       note="The source only describes aerial drones, not ground or maritime platforms.")
+        self.assertEqual(sc._to_claims([claim], evidence)[0].verdict, "NOT_FOUND")
+
     def test_image_project_count_does_not_require_capability_evidence(self):
         evidence = "The awards bring the company's transportation work to eight projects across three states."
         claim = result("Over Eight Projects", "SUPPORTED", evidence=evidence, where="image")
