@@ -76,6 +76,29 @@ class AuthorityTests(unittest.TestCase):
 
 
 class SafeguardTests(unittest.TestCase):
+    def test_rechecked_source_finding_moves_to_cleared_only_with_support(self):
+        from models.compliance.compliance_model import ComplianceCheckResponse
+        from services.compliance.evaluation import source_recheck
+
+        claim = SourceClaim(claim="Over Eight Projects", verdict="UNCLEAR")
+        check = SourceCheck(reference="Project announcement", kind="URL", status="READ", claims=[claim])
+        prior = [finding.model_dump(mode="json") for finding in sc.findings([check])]
+        token = source_recheck.refresh.set(True)
+        try:
+            result = ComplianceCheckResponse(is_compliant=True, source_checks=[check])
+            source_recheck.record_cleared(result, prior)
+            self.assertEqual(result.cleared_count, 0)
+            result.source_checks[0].claims[0].verdict = "SUPPORTED"
+            source_recheck.record_cleared(result, prior)
+            self.assertEqual(result.cleared_count, 1)
+            self.assertEqual((result.violations[0].status, result.violations[0].penalty), ("CLEARED", 0))
+        finally:
+            source_recheck.refresh.reset(token)
+
+    def test_image_project_count_does_not_require_capability_evidence(self):
+        evidence = "The awards bring the company's transportation work to eight projects across three states."
+        claim = result("Over Eight Projects", "SUPPORTED", evidence=evidence, where="image")
+        self.assertEqual(sc._to_claims([claim], evidence)[0].verdict, "SUPPORTED")
     def test_supported_with_evidence_and_the_figures_stays_supported(self):
         out = sc._to_claims([result("pilots expected to begin in 2027", "SUPPORTED")], PRESS_RELEASE)
         self.assertEqual(out[0].verdict, "SUPPORTED")
