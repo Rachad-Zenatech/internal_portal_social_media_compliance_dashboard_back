@@ -35,19 +35,19 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_social_media_presence` (def) L310
 - `publish_social_media_event` (def) L315 - Convenience helper to publish a social media event over MQTT if connected.
 
-## services/notifications/notification_service.py (186 lines) - notification service (notifications)
+## services/notifications/notification_service.py (181 lines) - notification service (notifications)
 - `NotificationBroadcaster` (class) L7
     - `__init__` (def) L8
     - `add_listener` (def) L11
     - `remove_listener` (def) L14
     - `broadcast` (def) L18
 - `create_notification` (def) L26
-- `get_recent_notifications` (def) L128
-- `get_unread_count` (def) L145
-- `mark_notification_as_read` (def) L151
-- `mark_all_notifications_as_read` (def) L162
-- `clear_read_notifications` (def) L173
-- `clear_all_notifications` (def) L181
+- `get_recent_notifications` (def) L123
+- `get_unread_count` (def) L140
+- `mark_notification_as_read` (def) L146
+- `mark_all_notifications_as_read` (def) L157
+- `clear_read_notifications` (def) L168
+- `clear_all_notifications` (def) L176
 
 ## services/notifications/rabbitmq_config.py (196 lines) - RabbitMQ / Message Hub configuration: env-driven connection settings, exchange names and the hub server registry.
 - `_sanitize_amqp_url` (def) L12 - Mask password from AMQP URLs to prevent logging credentials.

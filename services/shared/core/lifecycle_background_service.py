@@ -36,6 +36,7 @@ def start_background_services(
     from services.compliance.submissions.finding_precedent_service import remember_all_in_background as remember_verdicts
     from services.compliance.submissions.review_deadline_service import deadline_loop
     from services.compliance.submissions.review_memory_service import remember_all_in_background as remember_reviews
+    from services.notifications.review_email.scheduler import email_loop
     from services.microsoft_graph.graph_sync_job import graph_sync_loop
     from services.shared.core.cache_service import start_cache_invalidation_listener
 
@@ -47,6 +48,7 @@ def start_background_services(
     else:
         logger.info("Graph background sync disabled (set GRAPH_BACKGROUND_SYNC_ENABLED=true to enable)", extra={"event": "graph_sync_disabled"})
     spawn(tasks, deadline_loop(), "review-deadlines")
+    spawn(tasks, email_loop(), "review-emails")
     spawn(tasks, remember_reviews(), "review-memory-sync")
     spawn(tasks, remember_verdicts(), "finding-precedent-sync")
     spawn(tasks, newsroom_sync_loop(), "newsroom-sync")
