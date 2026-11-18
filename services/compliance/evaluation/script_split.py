@@ -21,8 +21,9 @@ _MARKER = re.compile(
     re.IGNORECASE,
 )
 _DIVIDER = re.compile(r"^\s*(?:-{3,}|={3,}|\*{3,}|_{3,})\s*$")
-_HEADING = re.compile(r"^\s*(#{1,2})\s+(\S.*?)\s*#*\s*$")
+_HEADING = re.compile(r"^\s*(#{1,3})\s+(\S.*?)\s*#*\s*$")
 _TITLE_LINE = re.compile(r"^\s*title\s*[:\-–—]\s*(\S.*)$", re.IGNORECASE)
+_NUMBERED = re.compile(r"^\s*(?:#{1,6}\s*)?(\d{1,2})\s*[.)]\s+([A-Za-z\"'“].*)$")
 
 
 def _clip(title: str) -> str:
@@ -87,6 +88,13 @@ def split_scripts(text: str) -> List[Tuple[str, str]]:
         titles = [(i, _clip(m.group(1))) for i, line in enumerate(lines) if (m := _TITLE_LINE.match(line))]
         if len(titles) >= 2:
             chunks = _by_starts(lines, titles)
+    if len(chunks) < 2:
+        numbered = [(i, _clip(m.group(2))) for i, line in enumerate(lines) if (m := _NUMBERED.match(line))]
+        if len(numbered) >= 2:
+            candidate = _by_starts(lines, numbered)
+            substantial = sum(1 for _, body_lines in candidate if len(" ".join(body_lines).split()) >= 15)
+            if substantial >= 2:
+                chunks = candidate
     if len(chunks) < 2:
         chunks = [(None, lines)]
 

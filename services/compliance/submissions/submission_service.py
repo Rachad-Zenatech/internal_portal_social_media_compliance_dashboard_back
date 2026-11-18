@@ -59,6 +59,7 @@ from services.shared.core.audit_service import log_audit_event
 from services.ai.observability import ai_observability, ai_usage_service
 from services.compliance.submissions import approval_path_service, source_link_service
 from services.compliance.submissions import delegation_service
+from services.compliance.submissions.submission_snapshot import build_snapshot
 from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
 from services.compliance.submissions import creator_dismissal_service, flag_review_service
@@ -1675,7 +1676,6 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
     accounts = await _connected_accounts(account_ids)
     if len(accounts) != len(account_ids):
         missing.append("account_id")
-    account = accounts[0] if accounts else None
     stray = [a for a in accounts if row["platforms"] and not _account_covers(a, list(row["platforms"]))]
     if stray:
         raise HTTPException(status_code=422, detail={
@@ -1736,34 +1736,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID,
     )
     script_text = await approved_script(row) or (script["doc_text"] if script else None)
     version = row["current_version"] + 1
-    snapshot = {
-        "title": row["title"],
-        "content_type": row["content_type"],
-        "brand_code": row["brand_code"],
-        "brand_codes": brands_of(row),
-        "audience": row["audience"],
-        "audiences": audiences_of(row),
-        "region": row["region"],
-        "platforms": list(row["platforms"] or []),
-        "account": account.model_dump(mode="json") if account else None,
-        "accounts": [a.model_dump(mode="json") for a in accounts],
-        "publish_at": row["publish_at"].isoformat() if row["publish_at"] else None,
-        "approval_needed_by": needed_by.isoformat() if needed_by else None,
-        "caption_html": row["caption_html"],
-        "caption_text": row["caption_text"],
-        "platform_captions": _platform_captions(row),
-        "script_text": script_text,
-        "rule_sets": list(row["rule_sets"] or []),
-        "reviewer_route": list(row["reviewer_route"] or []),
-        "reviewer_ids": [str(r) for r in reviewer_ids],
-        "files": [
-            {"id": str(f["id"]), "kind": f["kind"], "original_name": f["original_name"],
-             "mime_type": f["mime_type"], "size_bytes": f["size_bytes"],
-             **({"source": "CANVA", "canva_design_id": f["canva_design_id"], "canva_revision": f["canva_revision"]}
-                if f["source"] == "CANVA" else {})}
-            for f in files
-        ],
-    }
+    snapshot = build_snapshot(row, accounts, files, script_text)
 
     pool = get_pool()
     async with pool.acquire() as conn:

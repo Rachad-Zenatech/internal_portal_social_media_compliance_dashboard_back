@@ -16,17 +16,18 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/caption_model.py (39 lines) - Caption suggestions: Gemini drafts a few captions from the post itself, checked against the rulebook.
 - models/compliance/compliance_model.py (353 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
+- models/compliance/duplicate_model.py (41 lines) - Duplicate-post comparisons shown before a creator submits a post.
 - models/compliance/flag_review_model.py (78 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
 - models/compliance/public_mood_model.py (342 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - models/compliance/script_batch_model.py (132 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
-- models/compliance/script_doc_model.py (235 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
+- models/compliance/script_doc_model.py (239 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
-- models/compliance/script_review_model.py (234 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
+- models/compliance/script_review_model.py (236 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - models/compliance/sentiment_model.py (314 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - models/compliance/source_link_model.py (56 lines) - Models for submission source links and quick AI link checks.
 - models/compliance/source_trust_model.py (50 lines) - Models for people's calls on sources (does this claim match the page? is the page a good source?) and the standing a site earns from revi...
-- models/compliance/submission_model.py (658 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+- models/compliance/submission_model.py (629 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/compliance/submission_steps_model.py (22 lines) - Creator progress through submission and revision steps.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
 - models/shared/oauth_connection_model.py (127 lines) - Pydantic models for Organization, Company, and OAuth connections.
@@ -36,6 +37,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (19 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
+- postgresql_db/schemas/setup_ai_usage_schema.py (17 lines) - Usage records for AI rate limits; created after the submission tables exist.
 - postgresql_db/schemas/setup_compliance_schema.py (1226 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
 - postgresql_db/schemas/setup_context_schema.py (456 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
 - postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
@@ -48,16 +50,19 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
 - postgresql_db/schemas/setup_source_links_schema.py (14 lines) - Schema helper for submission source_links column.
 - postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
-- postgresql_db/schemas/setup_submissions_schema.py (708 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+- postgresql_db/schemas/setup_submissions_schema.py (699 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
 - scripts/scrape_x_links.py (123 lines) - Is what an item links to about the topic it was collected for? Every outside link of a collected item (see scrape_x_media.source_links) i...
 - scripts/scrape_x_media.py (97 lines) - Source links and image text for scraped X posts and news items.
 - scripts/scrape_x_playwright.py (617 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
+- scripts/script_hub_eval.py (148 lines) - Script hub visibility and submitted-upload regression checks; no database or external services.
+- scripts/script_submission_content_eval.py (56 lines) - Imported script content must retain every line and table beat, including long uploads.
+- scripts/script_submission_documents_eval.py (204 lines) - Shared-document adoption and original-post sync regressions, using isolated mocked services.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
-- server.py (619 lines) - server
+- server.py (606 lines) - server
 - services/ai/core/assistant_chat_service.py (258 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/gemini_service.py (154 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
@@ -103,20 +108,25 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - services/compliance/evaluation/script_batch_service.py (663 lines) - Script batches.
 - services/compliance/evaluation/script_creator_workflow.py (15 lines) - Creator script revisions and the handoff to filming.
-- services/compliance/evaluation/script_doc_pages.py (261 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
-- services/compliance/evaluation/script_doc_reads.py (86 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
+- services/compliance/evaluation/script_doc_pages.py (267 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
+- services/compliance/evaluation/script_doc_reads.py (88 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
 - services/compliance/evaluation/script_doc_realtime.py (256 lines) - Live editing of script documents.
-- services/compliance/evaluation/script_doc_service.py (494 lines) - Script documents.
+- services/compliance/evaluation/script_doc_service.py (498 lines) - Script documents.
 - services/compliance/evaluation/script_doc_split.py (37 lines) - Splitting a script document into the scripts it holds.
 - services/compliance/evaluation/script_doc_templates.py (133 lines) - Script templates: a table of beats, each with what is seen, what is said and the text on screen.
+- services/compliance/evaluation/script_hub_submissions.py (68 lines) - Submitted Create Post scripts projected into the script hub without a second review workflow.
 - services/compliance/evaluation/script_match.py (152 lines) - Script vs video.
 - services/compliance/evaluation/script_queue_service.py (32 lines) - Queue membership shared by script lists and their tab counts.
 - services/compliance/evaluation/script_review_details.py (18 lines) - Read-only details of a script already sent for review.
-- services/compliance/evaluation/script_review_service.py (1084 lines) - Script stage of a video post.
-- services/compliance/evaluation/script_split.py (113 lines) - Splitting one document into the scripts it holds.
-- services/compliance/evaluation/shared_script_review.py (91 lines) - A script page's review, handed to the Share Document server.
+- services/compliance/evaluation/script_review_persistence.py (42 lines) - Script-stage version persistence and locking, shared by uploaded-script send paths.
+- services/compliance/evaluation/script_review_service.py (1064 lines) - Script stage of a video post.
+- services/compliance/evaluation/script_split.py (121 lines) - Splitting one document into the scripts it holds.
+- services/compliance/evaluation/script_submission_content.py (29 lines) - Lossless line/table conversion for scripts submitted through Create Post.
+- services/compliance/evaluation/script_submission_documents.py (140 lines) - Create Post uploads entering the existing native/shared script-document review.
+- services/compliance/evaluation/script_submission_sync.py (53 lines) - Mirror canonical script-document review back to its original Create Post submission.
+- services/compliance/evaluation/shared_script_review.py (101 lines) - A script page's review, handed to the Share Document server.
 - services/compliance/evaluation/shared_script_service.py (171 lines) - Shared documents for script pages.
-- services/compliance/evaluation/shared_script_sync.py (129 lines) - Keeping this portal in step with the Share Document server's script reviews.
+- services/compliance/evaluation/shared_script_sync.py (131 lines) - Keeping this portal in step with the Share Document server's script reviews.
 - services/compliance/evaluation/source_browser_fetch.py (96 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
 - services/compliance/evaluation/source_check_service.py (499 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_claim_checks.py (116 lines) - Safeguards on the model's claim-by-claim answer for a source.
@@ -169,7 +179,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.
 - services/compliance/submissions/source_link_service.py (178 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
 - services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
-- services/compliance/submissions/submission_service.py (2977 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2950 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
 - services/notifications/ceo_event_publisher.py (50 lines) - Cross-application event publisher for CEO Dashboard integration.
@@ -191,7 +202,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/core/browser_stealth.py (40 lines) - Playwright stealth: hides the usual headless-browser giveaways (navigator.webdriver, missing plugins, the "HeadlessChrome" user agent, .....
 - services/shared/core/cache_service.py (221 lines) - cache service (shared core)
 - services/shared/core/logging_service.py (124 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
-- services/shared/core/startup_service.py (56 lines) - Server startup helpers for schema updates and tracked background tasks.
+- services/shared/core/startup_service.py (70 lines) - Server startup helpers for schema updates and tracked background tasks.
 - tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
 - tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - tools/compliance/analytics/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).
@@ -204,7 +215,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/review_queue_router.py (39 lines) - Review Queue endpoints, protected from duplicate browser requests.
 - tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - tools/compliance/submissions/script_directory_router.py (63 lines) - Script directory for the Share Document portal (app-to-app).
-- tools/compliance/submissions/script_doc_router.py (217 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
+- tools/compliance/submissions/script_doc_router.py (223 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
 - tools/compliance/submissions/script_review_router.py (145 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - tools/compliance/submissions/source_link_router.py (69 lines) - Router for quick AI checking of submission source links.
 - tools/compliance/submissions/source_trust_router.py (27 lines) - Router for people's calls on a post's sources (does a claim match the page? is the page a good source?) and the standing each source's si...

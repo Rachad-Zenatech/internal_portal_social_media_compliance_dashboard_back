@@ -55,6 +55,8 @@ class ScriptBatchRef(BaseModel):
 
 
 class ScriptStage(BaseModel):
+    script_document_id: Optional[UUID] = None
+    shared_review_available: bool = False
     submission_id: UUID
     reference_code: str
     title: str

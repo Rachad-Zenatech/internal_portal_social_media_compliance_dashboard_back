@@ -1,5 +1,5 @@
 import unittest
-from types import SimpleNamespace
+from models.compliance.compliance_model import ComplianceCheckResponse
 
 from services.compliance.evaluation import script_match
 
@@ -42,16 +42,17 @@ class ScriptMatchTests(unittest.TestCase):
 
 class FlagMismatchTests(unittest.TestCase):
     def result(self, light="GREEN"):
-        return SimpleNamespace(violations=[], review_count=0, is_compliant=True, traffic_light=light, recommendations=[])
+        return ComplianceCheckResponse(score=100, raw_score=100, violations=[], review_count=0, is_compliant=True, traffic_light=light, recommendations=[])
 
-    def test_a_mismatch_becomes_a_needs_review_flag_without_points(self):
+    def test_a_mismatch_becomes_a_needs_review_flag_with_score_deduction(self):
         match = script_match.compare(SCRIPT, "Welcome back to the channel today we are unboxing the newest phone and testing the camera in low light.")
         r = self.result()
         script_match.flag_mismatch(r, match)
         self.assertEqual(len(r.violations), 1)
         v = r.violations[0]
-        self.assertEqual((v.status, v.penalty, v.rule_id), ("NEEDS_REVIEW", 0, script_match.SCRIPT_MISMATCH_ID))
+        self.assertEqual((v.status, v.penalty, v.rule_id), ("NEEDS_REVIEW", 10, script_match.SCRIPT_MISMATCH_ID))
         self.assertEqual((r.review_count, r.is_compliant, r.traffic_light), (1, False, "YELLOW"))
+        self.assertEqual((r.raw_score, r.score), (90, 90))
         self.assertTrue(r.recommendations)
 
     def test_a_red_check_stays_red(self):

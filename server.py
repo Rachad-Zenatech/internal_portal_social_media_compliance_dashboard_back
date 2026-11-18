@@ -27,7 +27,7 @@ from services.shared.core.logging_service import (
     request_id_ctx,
 )
 from services.shared.core.cache_service import start_cache_invalidation_listener
-from services.shared.core.startup_service import run_schema_setups, spawn_background
+from services.shared.core.startup_service import resume_reads, run_schema_setups, spawn_background
 from services.shared.auth.auth_service import (
     current_user_id_ctx,
     get_current_user_id_dependency,
@@ -143,19 +143,6 @@ async def lifespan(app: FastAPI):
     spawn_background(background_tasks, policy_watch_loop(), "policy-watch")
 
     # 3e1b. Image and document reads that a restart cut off are started again
-    async def resume_reads() -> None:
-        from services.compliance.media import document_text_service
-        from services.compliance.media import image_text_service
-
-        images = await image_text_service.resume_interrupted()
-        documents = await document_text_service.resume_interrupted()
-        if images or documents:
-            logger.info("Resumed %d image and %d document read(s) interrupted by a restart", images, documents)
-        from services.compliance.evaluation import brand_voice_service
-        manuals = await brand_voice_service.resume_interrupted()
-        if manuals:
-            logger.info("Resumed reading %d brand manual(s) interrupted by a restart", manuals)
-
     spawn_background(background_tasks, resume_reads(), "resume-interrupted-reads")
 
     # 3e2. A script being sent when the server last stopped is picked up again, not left "processing"

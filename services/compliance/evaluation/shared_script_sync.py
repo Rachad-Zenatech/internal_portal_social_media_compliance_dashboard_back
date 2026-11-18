@@ -76,6 +76,8 @@ async def _mirror_status(page: Dict[str, Any], payload: Dict[str, Any]) -> None:
                decided_at = CASE WHEN $2 = 'IN_REVIEW' THEN NULL ELSE NOW() END, updated_at = NOW()
            WHERE id = $1 AND status IS DISTINCT FROM $2 RETURNING id""",
         page["id"], status, int(payload.get("round") or 0), (payload.get("note") or "").strip() or None)
+    from services.compliance.evaluation.script_submission_sync import sync_document
+    await sync_document(page["id"])
     if not changed:
         return  # already there: an event delivered twice
     doc = await core._doc(page["id"])

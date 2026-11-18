@@ -68,6 +68,12 @@ async def create_doc(req: DocCreate, user_id: CurrentUser):
     return await svc.create(user_id, req)
 
 
+@router.post("/from-submission/{submission_id}")
+async def adopt_submission(submission_id: UUID, user_id: CurrentUser):
+    from services.compliance.evaluation.script_submission_documents import adopt
+    return await adopt(submission_id, user_id)
+
+
 @router.get("/{doc_id}/shared-editor")
 async def get_shared_editor(doc_id: UUID, user_id: CurrentUser):
     """Where the Share Document server's editor for this script is, and a 15-minute sign-in for it (for the iframe)."""

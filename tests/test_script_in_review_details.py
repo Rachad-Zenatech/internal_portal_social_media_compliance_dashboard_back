@@ -18,6 +18,7 @@ class SentScriptDetails(unittest.IsolatedAsyncioTestCase):
         row = dict(id=submission_id, created_by=viewer, content_type="VIDEO", script_required=True,
                    script_status="IN_REVIEW", status="DRAFT", reference_code="SUB-1", title="Script")
         with patch.object(service.subs, "_get_owned_row", AsyncMock(return_value=row)), \
+             patch("services.compliance.evaluation.script_submission_documents.linked", AsyncMock(return_value=None)), \
              patch.object(service.subs, "_is_suggester", AsyncMock(return_value=False)), \
              patch.object(service, "_send_state", return_value={"status": None, "error": None}), \
              patch.object(service, "_script_file", AsyncMock(return_value=None)), \

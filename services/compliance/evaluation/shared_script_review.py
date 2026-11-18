@@ -14,7 +14,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 
-from postgresql_db.database import fetch_all, fetch_one
+from postgresql_db.database import execute, fetch_all, fetch_one
 from services.compliance.evaluation import shared_script_service as shared
 from services.compliance.evaluation.script_doc_templates import shared_script_html
 
@@ -85,6 +85,16 @@ async def editor_session(doc: Dict[str, Any], user_id: UUID) -> Dict[str, Any]:
     sid = shared_id(doc) or await shared.ensure_shared_document(doc["id"])
     if not sid:
         raise HTTPException(status_code=503, detail="The shared editor isn't available for this script right now")
-    token = await _call("POST", f"/{sid}/embed-token", ["script_documents:write"], params={"email": await _email(user_id)})
+    email = await _email(user_id)
+    try:
+        token = await _call("POST", f"/{sid}/embed-token", ["script_documents:write"], params={"email": email})
+    except HTTPException as e:
+        if e.status_code != 404:
+            raise
+        await execute("UPDATE script_documents SET share_document_id = NULL WHERE id = $1 RETURNING id", doc["id"])
+        sid = await shared.ensure_shared_document(doc["id"])
+        if not sid:
+            raise HTTPException(status_code=503, detail="The shared editor isn't available for this script right now")
+        token = await _call("POST", f"/{sid}/embed-token", ["script_documents:write"], params={"email": email})
     front = os.getenv("SHARE_DOCUMENT_FRONT_URL", "http://localhost:5176").rstrip("/")
     return {"share_document_id": sid, "url": f"{front}/embed/script/{sid}", "origin": front, **token}

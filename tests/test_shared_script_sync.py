@@ -50,12 +50,15 @@ class Handle(unittest.IsolatedAsyncioTestCase):
         with patch.object(sync, "_page", new=AsyncMock(side_effect=RuntimeError("db"))):
             await sync.handle({"event": "merge.completed", "documentId": "x"})
 
-    async def test_a_repeated_status_does_nothing_twice(self):
+    async def test_repeated_status_syncs_submission_without_reapproving_script(self):
         pages = AsyncMock()
+        current = page()
         with patch.object(sync, "fetch_one", new=AsyncMock(return_value=None)), \
-                patch("services.compliance.evaluation.script_doc_pages._approved", new=pages):
-            await sync._mirror_status(page(), {"status": "APPROVED", "round": 1})
+                patch("services.compliance.evaluation.script_doc_pages._approved", new=pages), \
+                patch("services.compliance.evaluation.script_submission_sync.sync_document", new=AsyncMock()) as linked:
+            await sync._mirror_status(current, {"status": "APPROVED", "round": 1})
         pages.assert_not_awaited()
+        linked.assert_awaited_once_with(current["id"])
 
 
 if __name__ == "__main__":

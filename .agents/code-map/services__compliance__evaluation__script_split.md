@@ -4,9 +4,9 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_split.py (113 lines) - Splitting one document into the scripts it holds.
-- `_clip` (def) L28
-- `_first_line` (def) L33 - The first filled line as a title candidate, and the lines after it.
-- `_by_starts` (def) L41 - Chunks that begin at each start line (its own title, if the marker line carried one).
-- `_by_dividers` (def) L54
-- `split_scripts` (def) L67 - (title, body) for each script in the document, in order.
+## services/compliance/evaluation/script_split.py (121 lines) - Splitting one document into the scripts it holds.
+- `_clip` (def) L29
+- `_first_line` (def) L34 - The first filled line as a title candidate, and the lines after it.
+- `_by_starts` (def) L42 - Chunks that begin at each start line (its own title, if the marker line carried one).
+- `_by_dividers` (def) L55
+- `split_scripts` (def) L68 - (title, body) for each script in the document, in order.
