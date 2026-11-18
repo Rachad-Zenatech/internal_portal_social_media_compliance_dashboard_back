@@ -59,6 +59,9 @@ from services.shared.core.audit_service import log_audit_event
 from services.ai.observability import ai_observability, ai_usage_service
 from services.compliance.submissions import approval_path_service, source_link_service
 from services.compliance.submissions import delegation_service
+from services.compliance.submissions.review_hierarchy_service import (
+    manager_access_sql, reviewer_sees as _reviewer_sees, sent_to as _sent_to,
+)
 from services.compliance.submissions.submission_snapshot import build_snapshot
 from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
@@ -313,25 +316,12 @@ async def _brand_scope(user_id: UUID) -> Optional[List[str]]:
     return list(brands) if brands is not None else None
 
 
-def _reviewer_sees(user_param: str, scope_param: str) -> str:
-    """SQL: a reviewer sees content on their brands that was sent to them (or to no one in particular), and
-    anything sent or delegated to them by name, whatever its brand (delegation can go to any reviewer)."""
-    return (f"((({scope_param}::text[] IS NULL OR s.brand_codes && {scope_param}::text[]) AND {_sent_to(user_param)})"
-            f" OR {user_param} = ANY(s.reviewer_ids))")
-
-
-def _sent_to(user_param: str = "$1") -> str:
-    """SQL: the content was sent to this user (picked, or delegated to them), or to no one in particular (every
-    reviewer on its brand)."""
-    return f"(cardinality(s.reviewer_ids) = 0 OR {user_param} = ANY(s.reviewer_ids))"
-
-
 async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: bool = False) -> Dict[str, Any]:
     """Load a submission the user may access (creator or super admin; managers and reviewers too when
     manager_can_read, for the brands they work on), with its account joined. Deleted submissions are never returned."""
     row = await fetch_one(
         """
-        SELECT s.*, """ + media_freshness.REVISION_SQL + """ AS media_edited_at,
+        SELECT s.*, """ + manager_access_sql("$2") + """ AS manager_review_access, """ + media_freshness.REVISION_SQL + """ AS media_edited_at,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
                c.connection_metadata AS acc_connection_metadata,"""
         + _ACCOUNTS_COLUMN
@@ -340,7 +330,7 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
         LEFT JOIN oauth_connections c ON c.id = s.account_id
         WHERE s.id = $1 AND s.deleted_at IS NULL
         """,
-        submission_id,
+        submission_id, user_id,
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
@@ -348,12 +338,11 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
         if not (manager_can_read and await _can_see_team_content(user_id)):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
         scope = await _brand_scope(user_id)
-        named = user_id in (row.get("reviewer_ids") or [])
+        named = user_id in (row.get("reviewer_ids") or []) or row.get("manager_review_access", False)
         if scope is not None and not set(brands_of(row)) & set(scope) and not named:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
-        # Sent to particular reviewers: only they and anyone they delegated it to (besides its creator and super
-        # admins) may open it.
-        if row.get("reviewer_ids") and user_id not in row["reviewer_ids"]:
+        # Named reviewers, their managers and delegates can open assigned content.
+        if row.get("reviewer_ids") and not named:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     return row
 
@@ -375,7 +364,7 @@ def _approval_fields(rules, r: Dict[str, Any], user_id: UUID, is_reviewer: bool,
     # A named final approver who delegated the post passes their approval to the delegate.
     ids = delegation_service.extend(ids, edges or [])
     can_review = r["status"] == "IN_REVIEW" and is_reviewer and (r["created_by"] != user_id or is_super)
-    return {"approver_names": names, "can_approve": can_review and _may_approve(user_id, is_super, ids),
+    return {"approver_names": names, "can_approve": can_review and (r.get("manager_review_access", False) or _may_approve(user_id, is_super, ids)),
             "can_delegate": can_review}
 
 
@@ -576,7 +565,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only see your own content")
     rows = await fetch_all(
         """
-        SELECT s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.brand_codes, s.platforms, s.status,
+        SELECT """ + manager_access_sql("$1") + """ AS manager_review_access, s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.brand_codes, s.platforms, s.status,
                s.current_version, s.publish_at, s.publish_after_changes, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
                s.due_at, s.due_kind, s.rule_sets, s.region, s.script_required, s.platform_captions,
                (EXISTS (SELECT 1 FROM content_submission_files sf WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL) OR EXISTS (SELECT 1 FROM content_script_versions sv WHERE sv.submission_id = s.id)) AS has_script,
@@ -719,7 +708,7 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
         sub.can_delegate = sub.can_review and not await delegation_service.has_delegated(
             row["id"], row["current_version"], user_id)
         approver_ids = await delegation_service.with_delegates(row["id"], approver_ids)
-        sub.can_approve = sub.can_review and _may_approve(user_id, is_super, approver_ids)
+        sub.can_approve = sub.can_review and (row.get("manager_review_access", False) or _may_approve(user_id, is_super, approver_ids))
         sub.can_manage_approval = row["status"] == "APPROVED" and may_decide
     standing = (await flag_review_service.approval_standing([row])).get(row["id"])
     if standing:
@@ -1991,7 +1980,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
     term = (search or "").strip()
     rows = await fetch_all(
         f"""
-        SELECT s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
+        SELECT {manager_access_sql("$1")} AS manager_review_access, s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
                s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
                s.brand_code, s.brand_codes, s.audience, s.audiences, s.rule_sets, s.approval_needed_by, s.script_required, s.script_status,
                s.reviewer_ids, s.platform_captions,

@@ -23,10 +23,12 @@ services:
     env_file:
       - .env
     environment:
+      APP_ENV: "development"
+      DEV_TEST_LOGIN: "true"
       DATABASE_URL: "postgresql://postgres:postgres@db:5432/social_media_compliance_restored"
       AUTO_MIGRATE_SCHEMA: "true"
       WATCHFILES_FORCE_POLLING: "true"
-    command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8009", "--reload"]
+    command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8009", "--reload", "--timeout-graceful-shutdown", "5"]
     volumes:
       - .:/app
       - social_media_backend_data:/app/.data

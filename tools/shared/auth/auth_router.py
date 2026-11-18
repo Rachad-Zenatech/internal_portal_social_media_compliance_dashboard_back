@@ -26,6 +26,8 @@ from services.shared.auth.rbac_service import log_login_activity
 from postgresql_db.database import get_pool
 from uuid import UUID
 from pydantic import BaseModel, Field
+from models.shared.test_login_model import TestLoginRequest
+from services.shared.auth.test_login_service import sign_in_test_user, test_login_allowed as _test_login_allowed
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -212,34 +214,6 @@ async def exchange_login_code(data: LoginCodeExchange):
     return {"token": create_access_token(row["id"], bool(row["is_super_admin"]))}
 
 
-# Local testing only: sign in as a test creator, reviewer or manager without Microsoft, so every side of a review
-# (including delegation between reviewers) can be tried on one machine. Off unless DEV_TEST_LOGIN is set, never in production, and only when the API is called at
-# localhost (inside Docker the caller's address is the bridge gateway, so the host the browser asked for is checked).
-TEST_USERS = {
-    "creator": ("test.creator@example.com", "Test Creator", "USER"),
-    "reviewer": ("test.reviewer@example.com", "Test Reviewer", "REVIEWER"),
-    "manager": ("test.manager@example.com", "Test Manager", "MANAGER"),
-    # More reviewers, to try brand-based routing (give each a brand in Role Assignments).
-    "reviewer2": ("test.reviewer2@example.com", "Test Reviewer 2", "REVIEWER"),
-    "reviewer3": ("test.reviewer3@example.com", "Test Reviewer 3", "REVIEWER"),
-    # Comments and suggests script edits on what is sent to them by name; can't approve or schedule.
-    "suggester": ("test.suggester@example.com", "Test Suggester", "SUGGESTING_REVIEWER"),
-}
-_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]"}
-
-
-def _test_login_allowed(request: Request) -> bool:
-    return (
-        os.getenv("DEV_TEST_LOGIN", "false").strip().lower() in ("1", "true", "yes")
-        and os.getenv("APP_ENV", "development").strip().lower() != "production"
-        and (request.url.hostname or "").lower() in _LOCAL_HOSTS
-    )
-
-
-class TestLoginRequest(BaseModel):
-    as_: str = Field(alias="as", pattern="^(creator|reviewer|manager|reviewer2|reviewer3|suggester)$")
-
-
 @router.get("/auth/test-login")
 async def test_login_status(request: Request):
     """Whether the login page offers the test sign-in buttons."""
@@ -248,35 +222,11 @@ async def test_login_status(request: Request):
 
 @router.post("/auth/test-login")
 async def test_login(data: TestLoginRequest, request: Request):
-    """Sign in as the test creator (Standard User), a test reviewer (Content Reviewer) or the test manager
-    (Content Manager), creating them if needed.
-    Their @example.com addresses can never receive email."""
+    """Sign in locally as an existing, allowlisted dummy reviewer."""
     if not _test_login_allowed(request):
         raise HTTPException(status_code=404, detail="Not found")
-    email, name, role = TEST_USERS[data.as_]
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            user = await conn.fetchrow(
-                """
-                INSERT INTO users (email, full_name, is_active, is_super_admin, auth_provider, sso_enabled, created_at,
-                                   last_login_at, last_activity_at)
-                VALUES ($1, $2, true, false, 'microsoft', true, now(), now(), now())
-                -- Signing in counts as activity, as with Microsoft, or the idle timeout rejects the new token.
-                ON CONFLICT (email) DO UPDATE SET is_active = true, deleted_at = NULL, deleted_by = NULL,
-                                                  last_login_at = now(), last_activity_at = now()
-                RETURNING id, is_super_admin
-                """,
-                email, name,
-            )
-            await conn.execute(
-                """
-                INSERT INTO user_roles (user_id, role_id, assigned_at, is_active)
-                SELECT $1, id, now(), true FROM roles WHERE code = $2
-                ON CONFLICT (user_id, role_id) DO UPDATE SET is_active = true
-                """,
-                user["id"], role,
-            )
+    user = await sign_in_test_user(data.as_)
+    email = user["email"]
     invalidate_user_auth_cache(user["id"])
     logger.warning("Test sign-in as %s (%s)", data.as_, email, extra={"event": "test_login"})
     await log_login_activity(email, user["id"], True, None, request.client.host if request.client else None,

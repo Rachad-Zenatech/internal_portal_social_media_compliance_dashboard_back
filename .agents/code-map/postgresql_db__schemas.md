@@ -40,9 +40,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_login_codes_schema.py (28 lines) - One-time sign-in codes: after Microsoft sign-in the browser gets a short-lived code in the redirect (never the session token), and swaps ...
 - `setup` (def) L12
 
-## postgresql_db/schemas/setup_pbac_schema.py (457 lines) - setup pbac schema (schemas)
-- `setup` (def) L8
-- `_main` (def) L447
+## postgresql_db/schemas/setup_pbac_schema.py (444 lines) - setup pbac schema (schemas)
+- `setup` (def) L9
+- `_main` (def) L434
 
 ## postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
 - `setup` (def) L11

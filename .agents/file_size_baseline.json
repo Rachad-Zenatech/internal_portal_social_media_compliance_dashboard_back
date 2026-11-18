@@ -54,7 +54,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
-      "max_lines": 2967,
+      "max_lines": 2934,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/notifications/rabbitmq_service.py": {
@@ -88,7 +88,7 @@
       "kind": "py_function"
     },
     "postgresql_db/schemas/setup_pbac_schema.py#setup": {
-      "max_lines": 437,
+      "max_lines": 423,
       "kind": "py_function"
     },
     "postgresql_db/schemas/setup_submissions_schema.py#setup": {

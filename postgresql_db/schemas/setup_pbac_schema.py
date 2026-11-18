@@ -1,6 +1,7 @@
 import asyncio
 import os
 from dotenv import load_dotenv
+from postgresql_db.schemas.roles_schema import setup_roles
 from postgresql_db.database import create_pool, close_pool, get_pool
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.env'))
@@ -56,23 +57,9 @@ async def setup():
             ALTER TABLE users ADD COLUMN IF NOT EXISTS force_password_change BOOLEAN DEFAULT false;
             CREATE INDEX IF NOT EXISTS idx_users_microsoft_tenant_object ON users(microsoft_tenant_id, microsoft_object_id);
 
-            -- Roles
-            CREATE TABLE IF NOT EXISTS roles (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                code VARCHAR(100) UNIQUE NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                description TEXT,
-                is_system_role BOOLEAN DEFAULT FALSE,
-                is_active BOOLEAN DEFAULT TRUE,
-                parent_role_id UUID REFERENCES roles(id) ON DELETE SET NULL,
-                display_order INT DEFAULT 0,
-                department VARCHAR(255),
-                deleted_at TIMESTAMP WITH TIME ZONE,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_roles_code ON roles(code);
-
+        """)
+        await setup_roles(conn)
+        await conn.execute("""
             -- User Roles
             CREATE TABLE IF NOT EXISTS user_roles (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

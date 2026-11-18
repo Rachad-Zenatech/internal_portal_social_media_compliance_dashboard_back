@@ -31,4 +31,4 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `execute` (def) L243
 - `execute_many` (def) L253
 
-## postgresql_db/schema_metadata.py (328 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
+## postgresql_db/schema_metadata.py (331 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
