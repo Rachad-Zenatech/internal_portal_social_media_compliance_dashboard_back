@@ -31,6 +31,9 @@ def timestamp(value):
 
 
 def content_is_current(row, check):
+    if "media_edited_at" in row:
+        from services.compliance.submissions.media_freshness import is_current
+        return is_current(row, check)
     if "checked_content_edited_at" in check:
         return timestamp(check["checked_content_edited_at"]) == timestamp(row.get("content_edited_at"))
     checked, edited = timestamp(check.get("checked_at")), timestamp(row.get("content_edited_at"))

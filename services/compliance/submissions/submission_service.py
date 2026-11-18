@@ -65,7 +65,7 @@ from services.compliance.submissions import creator_dismissal_service, flag_revi
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
-from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps
+from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness
 from services.compliance.media import document_layout
 from services.compliance.media import document_text_service
 from services.compliance.media import image_text_service, video_finding_service
@@ -329,7 +329,7 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
     manager_can_read, for the brands they work on), with its account joined. Deleted submissions are never returned."""
     row = await fetch_one(
         """
-        SELECT s.*,
+        SELECT s.*, """ + media_freshness.REVISION_SQL + """ AS media_edited_at,
                c.id AS acc_id, c.provider AS acc_provider, c.account_name AS acc_account_name,
                c.connection_metadata AS acc_connection_metadata,"""
         + _ACCOUNTS_COLUMN
@@ -486,7 +486,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         script_status=(row.get("script_status") or "DRAFT") if script_stage_on(row) else None,
         submitted_at=row["submitted_at"],
         created_at=row["created_at"],
-        updated_at=row["updated_at"], content_edited_at=row.get("content_edited_at"),
+        updated_at=row["updated_at"], content_edited_at=row.get("content_edited_at"), media_edited_at=row.get("media_edited_at"),
     )
 
 
@@ -580,9 +580,9 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
                s.current_version, s.publish_at, s.publish_after_changes, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
                s.due_at, s.due_kind, s.rule_sets, s.region, s.script_required, s.platform_captions,
                (EXISTS (SELECT 1 FROM content_submission_files sf WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL) OR EXISTS (SELECT 1 FROM content_script_versions sv WHERE sv.submission_id = s.id)) AS has_script,
-               s.content_edited_at,
+               s.content_edited_at, """ + media_freshness.REVISION_SQL + """ AS media_edited_at,
                (s.latest_check->>'checked_at')::timestamptz AS check_at,
-               (SELECT max(a.completed_at) FROM content_sentiment_analyses a
+               (SELECT max(a.created_at) FROM content_sentiment_analyses a
                  WHERE a.submission_id = s.id AND a.status = 'COMPLETED') AS sentiment_at,
                EXISTS (SELECT 1 FROM content_sentiment_analyses a WHERE a.submission_id = s.id
                         AND a.status IN ('WAITING_TRANSCRIPT', 'PENDING', 'PROCESSING')) AS sentiment_running,
@@ -1313,13 +1313,15 @@ def _check_text(row: Dict[str, Any]) -> str:
 
 
 def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: bool,
-                  sources: Sequence[ProvidedSource] = (), disclaimer_text: Optional[str] = None) -> ComplianceCheckRequest:
+                  sources: Sequence[ProvidedSource] = (), disclaimer_text: Optional[str] = None,
+                  source_script: Optional[str] = None) -> ComplianceCheckRequest:
     """The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
     documents attached as evidence for the source check."""
     return ComplianceCheckRequest(
         text=text,
         disclaimer_text=disclaimer_text,
         sources=list(sources),
+        source_script=source_script,
         video_title=row["title"],
         content_type=f"{row['content_type']}_{(row['platforms'] or ['GENERAL'])[0]}",
         rule_sets=list(row["rule_sets"] or []),
@@ -1357,8 +1359,7 @@ async def approved_script(row: Dict[str, Any]) -> Optional[str]:
 async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     """The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
     transcript and the text shown in the post's images (each once it's been read), against the rules scoped to this
-    submission. Includes per-segment
-    flags for the reviewer's timeline, and says what was read and which rules need a person."""
+    submission. Includes timeline flags and check coverage."""
     video = await fetch_one(
         """
         SELECT id, original_name, storage_path, mime_type, transcript, transcript_status, transcript_error FROM content_submission_files
@@ -1372,7 +1373,6 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     spoken = " ".join(str(s.get("text", "")) for s in segments).strip()
     visual_segments = await video_finding_service.visual_text_segments(video) if video and video["transcript_status"] == "FAILED" else []
     visual_text = " ".join(str(s["text"]) for s in visual_segments).strip()
-    # The post's images, in the order it shows them; any never read are read now and re-checked when done.
     images = await fetch_all(
         """
         SELECT id, original_name, storage_path, mime_type, image_text, image_text_status, image_text_error FROM content_submission_files
@@ -1387,7 +1387,6 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         for n, i in enumerate(images, start=1)
         if i["image_text_status"] == "COMPLETED" and (i["image_text"] or "").strip()
     ]
-    # The script, and a blog's article file: read in the background like image text, re-checked when done.
     documents = await fetch_all(
         """
         SELECT id, kind, original_name, doc_text, doc_text_status, doc_text_error FROM content_submission_files
@@ -1398,16 +1397,18 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         row["id"],
     )
     await document_text_service.schedule_missing([d["id"] for d in documents if d["doc_text_status"] in (None, "PROCESSING")])
-    # Once the script is approved, the approved wording (which may include the reviewer's edits) is what's checked.
     script = await approved_script(row)
-    # Once the video's speech is read, the video is scored on what it says: the script was already checked and
-    # approved on its own, and how far the video follows it is reported separately (script_match).
-    video_scored = bool(script and spoken)
+    # Score the completed video transcript and use the script for citations and script comparison.
+    video_scored = bool(video and video["transcript_status"] == "COMPLETED")
+    source_script = script or "\n\n".join(
+        d["doc_text"] for d in documents
+        if d["kind"] == "SCRIPT" and d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
+    )
     document_texts = [
         f"{'Script' if d['kind'] == 'SCRIPT' else 'Article'}:\n{d['doc_text']}"
         for d in documents
         if d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
-        and not (script and d["kind"] == "SCRIPT")
+        and not (d["kind"] == "SCRIPT" and (script or video_scored))
     ]
     if script and not video_scored:
         document_texts.insert(0, f"Script:\n{script}")
@@ -1429,8 +1430,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         ProvidedSource(name=d["original_name"], text=d["doc_text"])
         for d in evidence if d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
     ]
-    # A required disclaimer has to be in what gets published: the captions, what the video says, the text in the images
-    # and a blog's article. Not the title, and not a script (the video is what's published, and it's read once it's in).
+    # Only published material can satisfy a required disclaimer.
     published = document_layout.plain_text("\n\n".join(p for p in [
         *([row["caption_text"]] if row["caption_text"] else []), *_platform_captions(row).values(),
         spoken, visual_text, *image_texts,
@@ -1439,15 +1439,17 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     ] if p and str(p).strip()))
     result = await check_compliance(
         check_request(row, text, has_video=bool(video), has_images=bool(images), sources=sources,
-                      disclaimer_text=published)
+                      disclaimer_text=published,
+                      source_script=document_layout.plain_text(source_script) if video and source_script else None)
     )
     all_video_segments = [*segments, *visual_segments]
     await video_finding_service.locate_media_findings(images, video, all_video_segments, result.violations)
-    match = script_match.compare(script, spoken) if script and segments else None
+    match = script_match.assess_video(script, " ".join(str(s.get("text", "")) for s in segments if s.get("source") != "on_screen"), video, on_screen=" ".join(str(s.get("text", "")) for s in segments if s.get("source") == "on_screen"))
     script_match.flag_mismatch(result, match)
     check = {
         **result.model_dump(mode="json"),
         "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checked_media_edited_at": str(row["media_edited_at"]) if row.get("media_edited_at") else None,
         "includes_transcript": bool(segments),
         "includes_visual_text": bool(visual_segments),
         # A video whose transcript isn't ready yet is re-checked automatically when it is.
@@ -2721,27 +2723,7 @@ RULEBOOK_RECHECK_DELAY_SEC = 3
 
 
 async def _check_still_current(conn, row: Dict[str, Any], started: datetime) -> bool:
-    """Whether a check that began at `started` on `row` may still be saved. A re-check reads the post, then runs for
-    tens of seconds; if the post moved on meanwhile (edited, sent back, approved, a newer version, or a newer check
-    saved), saving it would put an older result over a newer one. Locks the row, so nothing moves between this
-    answer and the save that follows in the same transaction."""
-    cur = await conn.fetchrow(
-        "SELECT status, current_version, content_edited_at, latest_check FROM content_submissions "
-        "WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
-        row["id"],
-    )
-    if not cur:
-        return False
-    if (cur["status"], cur["current_version"], cur["content_edited_at"]) != (
-        row["status"], row["current_version"], row.get("content_edited_at")
-    ):
-        return False
-    saved_at = (_json(cur["latest_check"]) or {}).get("checked_at")
-    try:
-        newer = bool(saved_at) and datetime.fromisoformat(saved_at) > started
-    except (TypeError, ValueError):
-        newer = False
-    return not newer
+    return await media_freshness.check_still_current(conn, row, started)
 
 
 async def _recheck_one(row: Dict[str, Any], describe) -> Tuple[Any, Dict[str, Any], bool]:
@@ -2778,7 +2760,7 @@ async def recheck_open_submissions(reason: str) -> int:
     Approved and draft content keep their check (drafts are checked again when they're sent). Only real changes
     are logged on the item."""
     rows = await fetch_all(
-        "SELECT * FROM content_submissions WHERE status IN ('IN_REVIEW', 'CHANGES_REQUESTED') AND deleted_at IS NULL"
+        "SELECT s.*, " + media_freshness.REVISION_SQL + " AS media_edited_at FROM content_submissions s WHERE status IN ('IN_REVIEW', 'CHANGES_REQUESTED') AND deleted_at IS NULL"
     )
 
     def describe(before: Dict[str, Any], result: Any, check: Dict[str, Any]):
@@ -2812,10 +2794,10 @@ async def recheck_ai_unavailable() -> int:
     Stops at the first one that still can't be read, since the AI is then still down. Returns how many were read."""
     rows = await fetch_all(
         f"""
-        SELECT * FROM content_submissions s
+        SELECT s.*, """ + media_freshness.REVISION_SQL + f""" AS media_edited_at FROM content_submissions s
         WHERE s.deleted_at IS NULL AND {_unavailable_sql("s.latest_check")}
           AND (s.status IN ('IN_REVIEW', 'CHANGES_REQUESTED')
-               OR (s.status = 'DRAFT' AND s.script_status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'EDITS_PROPOSED')))
+               OR (s.status = 'DRAFT' AND s.script_status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'EDITS_PROPOSED', 'APPROVED')))
         ORDER BY s.updated_at
         LIMIT {AI_RECHECK_BATCH}
         """
@@ -2842,7 +2824,7 @@ async def recheck_ai_unavailable() -> int:
 # A read that failed for one of these reasons (a quota, a busy or down service) is worth another try; a corrupt file is not.
 _TRANSIENT_READ_ERROR = (
     "quota|rate.?limit|429|503|502|504|unavailable|overloaded|timed? ?out|timeout|deadline|resource.?exhausted|"
-    "try again|temporar|connection|network|not found for api version|404"
+    "try again|temporar|connection|network|disconnected|not found for api version|404"
 )
 READ_RETRY_AFTER_MINUTES = 10
 
@@ -2862,7 +2844,7 @@ async def retry_failed_reads() -> int:
             FROM content_submissions s
             WHERE s.id = f.submission_id AND s.deleted_at IS NULL AND f.deleted_at IS NULL
               AND (s.status IN ('IN_REVIEW', 'CHANGES_REQUESTED')
-                   OR (s.status = 'DRAFT' AND s.script_status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'EDITS_PROPOSED')))
+                   OR (s.status = 'DRAFT' AND s.script_status IN ('IN_REVIEW', 'CHANGES_REQUESTED', 'EDITS_PROPOSED', 'APPROVED')))
               AND f.{status} = 'FAILED' AND f.{error} ~* $1
               AND f.{updated} < NOW() - INTERVAL '{READ_RETRY_AFTER_MINUTES} minutes'
             RETURNING f.id
@@ -2938,7 +2920,7 @@ async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
     try:
         sub = await fetch_one(
             """
-            SELECT s.* FROM content_submissions s
+            SELECT s.*, """ + media_freshness.REVISION_SQL + """ AS media_edited_at FROM content_submissions s
             JOIN content_submission_files f ON f.submission_id = s.id
             WHERE f.id = $1 AND f.kind = ANY($2::text[]) AND f.deleted_at IS NULL
               AND s.status IN ('DRAFT', 'IN_REVIEW', 'CHANGES_REQUESTED') AND s.deleted_at IS NULL

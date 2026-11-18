@@ -463,7 +463,7 @@ async def _with_comparison(model: SentimentAnalysis) -> SentimentAnalysis:
 
 
 async def get_latest(submission_id: UUID, viewer: Optional[UUID] = None) -> Optional[SentimentAnalysis]:
-    """The most recent analysis, flagged stale if the content, scope or rules changed since it ran."""
+    """The latest analysis remains current across detail edits, until its media changes."""
     row = await fetch_one(
         "SELECT * FROM content_sentiment_analyses WHERE submission_id = $1 ORDER BY created_at DESC LIMIT 1",
         submission_id,
@@ -473,12 +473,12 @@ async def get_latest(submission_id: UUID, viewer: Optional[UUID] = None) -> Opti
     if row.get("trigger") == "MANUAL" and row["status"] in ("WAITING_TRANSCRIPT", "PENDING", "PROCESSING") and row["id"] not in _running:
         await resume_unfinished(submission_id)
         row = await fetch_one("SELECT * FROM content_sentiment_analyses WHERE id = $1", row["id"]) or row
-    current_hash = None
-    if row["status"] == "COMPLETED":
-        sub = await _load_submission(submission_id)
-        if sub and not _transcript_pending(sub):
-            current_hash = _hash(await _build_input(sub))
-    return await _with_comparison(await _with_feedback(_to_model(row, current_hash), viewer))
+    from services.compliance.submissions import media_freshness
+    media = await fetch_one("SELECT " + media_freshness.REVISION_SQL + " AS media_edited_at FROM content_submissions s WHERE s.id = $1", submission_id)
+    model = _to_model(row, None)
+    if row["status"] == "COMPLETED" and media:
+        model.is_current = media_freshness.is_current(media, {"checked_at": row["created_at"]})
+    return await _with_comparison(await _with_feedback(model, viewer))
 
 
 async def _analysis_row(submission_id: UUID, analysis_id: UUID) -> Dict[str, Any]:

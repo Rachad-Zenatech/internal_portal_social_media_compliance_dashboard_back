@@ -1,4 +1,4 @@
-"""Progress for a new revision round; previous submission checks do not count."""
+"""Revision progress; previous checks remain valid until the media changes."""
 from models.compliance.submission_model import SubmissionSteps
 from postgresql_db.database import fetch_all
 
@@ -24,6 +24,8 @@ def compute(row, missing):
     changed = bool(returned and edited and edited > returned)
     cutoff = max(returned, edited) if returned and edited else returned
     def checked(at, running=False):
+        if "media_edited_at" in row:
+            return _tool(_aware(at), _aware(row.get("media_edited_at")), running)
         if not returned:
             return "todo"
         stamp = _aware(at)

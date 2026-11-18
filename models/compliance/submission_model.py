@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
+from models.compliance.submission_steps_model import StepState, SubmissionSteps
 from models.compliance.source_link_model import SourceLinksMixin, SourceLinksUpdateMixin
 
 # AD: paid social ads. Only the type and its rule set exist so far; ad-specific fields and rules (claims,
@@ -181,25 +182,6 @@ class AnalysisProgress(BaseModel):
     from_history: bool = False
 
 
-StepState = Literal["done", "stale", "running", "todo"]
-
-
-class SubmissionSteps(BaseModel):
-    """How far a post has got through the five steps a creator works through (see post_steps_service)."""
-    details: StepState
-    compliance: StepState
-    sentiment: StepState
-    mood: StepState
-    send: StepState
-    revision: bool = False
-    suggestions: StepState = "todo"
-    next: Optional[Literal["suggestions", "details", "compliance", "sentiment", "mood", "send"]] = None
-    ready_to_send: bool = False
-    # Sent (in review, approved or published): nothing can be edited or re-run.
-    locked: bool = False
-    missing: List[str] = Field(default_factory=list)
-
-
 class SubmissionSummary(BaseModel):
     id: UUID
     reference_code: str
@@ -337,6 +319,7 @@ class Submission(SourceLinksMixin):
     created_at: datetime
     updated_at: datetime
     content_edited_at: Optional[datetime] = None
+    media_edited_at: Optional[datetime] = None
 
 
 class SubmissionVersion(BaseModel):

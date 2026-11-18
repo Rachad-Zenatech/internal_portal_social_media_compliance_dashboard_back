@@ -23,6 +23,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `require_permission` (def) L406 - New API Permission Guard based on PBAC proposal.
     - `dependency` (def) L411
 
+## services/shared/auth/microsoft_auth_service.py (198 lines) - Microsoft Entra user provisioning and claim mapping.
+- `getCurrentUserFromMicrosoftClaims` (def) L10 - Extract normalized Microsoft identity claims from an ID token payload.
+- `_ensure_microsoft_user_roles` (def) L36 - Ensure the Standard User role exists and assign initial/default roles for a Microsoft user.
+- `upsertMicrosoftUser` (def) L94 - Create or update the local user record for an authenticated Microsoft
+
 ## services/shared/auth/oauth_connection_service.py (608 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
 - `list_organizations` (def) L34
 - `get_organization` (def) L45
