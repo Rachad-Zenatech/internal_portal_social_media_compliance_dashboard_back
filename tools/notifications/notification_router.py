@@ -69,11 +69,11 @@ async def api_notification_stream(request: Request, user_id: str = Depends(get_c
             ends_at = asyncio.get_running_loop().time() + STREAM_MAX_SECONDS
             while asyncio.get_running_loop().time() < ends_at:
                 try:
-                    msg = await asyncio.wait_for(q.get(), timeout=30.0)
+                    msg = await asyncio.wait_for(q.get(), timeout=15.0)
                     if msg.user_id == "*" or str(msg.user_id).lower() == str(user_id).lower():
                         yield f"data: {msg.model_dump_json()}\n\n"
                 except asyncio.TimeoutError:
-                    # Lightweight keep-alive comment/ping to prevent CloudFront/proxy timeouts without querying the database
+                    # Lightweight keep-alive comment/ping every 15s (under CloudFront's 30s origin timeout)
                     yield ": ping\n\n"
         except (asyncio.CancelledError, GeneratorExit):
             pass
