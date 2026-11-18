@@ -113,6 +113,7 @@ class ScriptApprovalGateTests(unittest.IsolatedAsyncioTestCase):
         sent = srs.ScriptVersion(version_number=1, body="Hello.", source="UPLOAD", created_at="2026-11-04T10:00:00Z", check={"ai_unavailable": True})
         row = {"id": SUB, "script_status": "IN_REVIEW", "script_required": True, "content_type": "VIDEO", "created_by": uuid4()}
         with patch.object(srs.subs, "_get_owned_row", new=AsyncMock(return_value=row)), \
+             patch("services.compliance.evaluation.script_submission_documents.linked", new=AsyncMock(return_value=None)), \
              patch.object(srs, "_reviewer_may_act", new=AsyncMock(return_value=True)), \
              patch.object(srs, "_versions", new=AsyncMock(return_value=[sent])):
             with self.assertRaises(HTTPException) as err:
@@ -125,7 +126,10 @@ class ScriptApprovalGateTests(unittest.IsolatedAsyncioTestCase):
 
         sent = srs.ScriptVersion(version_number=1, body="Hello.", source="UPLOAD", created_at="2026-11-04T10:00:00Z", check=check)
         row = {"id": SUB, "script_status": "IN_REVIEW", "script_required": True, "content_type": "VIDEO", "created_by": uuid4()}
-        with patch.object(srs.subs, "_get_owned_row", new=AsyncMock(return_value=row)),              patch.object(srs, "_reviewer_may_act", new=AsyncMock(return_value=True)),              patch.object(srs, "_versions", new=AsyncMock(return_value=[sent])):
+        with patch.object(srs.subs, "_get_owned_row", new=AsyncMock(return_value=row)), \
+             patch("services.compliance.evaluation.script_submission_documents.linked", new=AsyncMock(return_value=None)), \
+             patch.object(srs, "_reviewer_may_act", new=AsyncMock(return_value=True)), \
+             patch.object(srs, "_versions", new=AsyncMock(return_value=[sent])):
             with self.assertRaises(HTTPException) as err:
                 await srs.decide(SUB, USER, ScriptDecisionRequest(decision="APPROVE"))
         return err.exception

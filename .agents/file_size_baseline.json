@@ -10,7 +10,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "postgresql_db/schemas/setup_compliance_schema.py": {
-      "max_lines": 1225,
+      "max_lines": 1159,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "postgresql_db/schemas/setup_submissions_schema.py": {

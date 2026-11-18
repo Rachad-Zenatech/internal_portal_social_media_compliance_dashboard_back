@@ -52,10 +52,14 @@ class Handle(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_repeated_status_does_nothing_twice(self):
         pages = AsyncMock()
+        document_sync = AsyncMock()
+        current = page()
         with patch.object(sync, "fetch_one", new=AsyncMock(return_value=None)), \
+                patch("services.compliance.evaluation.script_submission_sync.sync_document", new=document_sync), \
                 patch("services.compliance.evaluation.script_doc_pages._approved", new=pages):
-            await sync._mirror_status(page(), {"status": "APPROVED", "round": 1})
+            await sync._mirror_status(current, {"status": "APPROVED", "round": 1})
         pages.assert_not_awaited()
+        document_sync.assert_awaited_once_with(current["id"])
 
 
 if __name__ == "__main__":

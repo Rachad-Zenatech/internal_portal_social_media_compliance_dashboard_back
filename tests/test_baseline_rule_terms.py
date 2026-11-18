@@ -4,13 +4,17 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from models.compliance.compliance_model import ComplianceRule
-from postgresql_db.schemas.setup_compliance_schema import BASE_RULES
+from postgresql_db.schemas.setup_compliance_schema import BASE_RULES, _CONTEXTUAL_BASELINE
 from services.compliance.evaluation.compliance_service import _evaluate_rule, _normalize
 
 
 def rule_from_seed(seed):
     now = datetime.now(timezone.utc)
-    return ComplianceRule(id=uuid4(), created_at=now, updated_at=now, **seed)
+    configured = dict(seed)
+    guidance = _CONTEXTUAL_BASELINE.get(seed["rule_number"])
+    if guidance:
+        configured.update(evaluation_mode="CONTEXT", evaluation_guidance=guidance)
+    return ComplianceRule(id=uuid4(), created_at=now, updated_at=now, **configured)
 
 
 class BaselineRuleTermTests(unittest.TestCase):

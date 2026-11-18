@@ -56,7 +56,9 @@ class RequiredDetailsTests(unittest.IsolatedAsyncioTestCase):
         from fastapi import HTTPException
 
         row = {**self.FULL, "brand_code": None, "script_status": "DRAFT", "script_send": None, "script_required": True, "content_type": "VIDEO"}
-        with patch.object(srs.subs, "_get_owned_row", new=AsyncMock(return_value=row)),              patch.object(srs.subs, "_require_editable"), patch.object(srs.subs, "_account_ids", return_value=[uuid4()]):
+        with patch.object(srs.subs, "_get_owned_row", new=AsyncMock(return_value=row)), \
+             patch("services.compliance.evaluation.script_submission_documents.linked", new=AsyncMock(return_value=None)), \
+             patch.object(srs.subs, "_require_editable"), patch.object(srs.subs, "_account_ids", return_value=[uuid4()]):
             with self.assertRaises(HTTPException) as err:
                 await srs.submit(SUB, USER)
         self.assertEqual(err.exception.status_code, 422)
@@ -135,6 +137,7 @@ class ScriptSentNoticeTests(unittest.IsolatedAsyncioTestCase):
         pool.acquire.return_value = MagicMock(__aenter__=AsyncMock(return_value=conn), __aexit__=AsyncMock(return_value=False))
         row = {"id": SUB, "reference_code": "SUB-1040", "title": "Launch video", "created_by": USER}
         with (
+            patch("services.compliance.evaluation.shared_script_service.enabled", return_value=False),
             patch.object(srs, "get_pool", return_value=pool),
             patch.object(srs, "_lock_status", new=AsyncMock()),
             patch.object(srs, "_add_version", new=AsyncMock(return_value=2)),
