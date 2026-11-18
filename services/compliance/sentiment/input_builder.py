@@ -74,14 +74,16 @@ async def _load_images(submission_id: UUID) -> List[Dict[str, Any]]:
     """The post's images in order: the main ones (e.g. carousel slides) first, then extra images such as a cover."""
     rows = await fetch_all(
         """
-        SELECT id, original_name FROM content_submission_files
+        SELECT id, original_name, image_text, image_text_status FROM content_submission_files
         WHERE submission_id = $1 AND deleted_at IS NULL AND kind IN ('MAIN', 'IMAGE') AND mime_type LIKE 'image/%'
         ORDER BY (kind <> 'MAIN'), created_at
         LIMIT $2
         """,
         submission_id, MAX_IMAGES + 20,
     )
-    return [{"file_id": str(r["id"]), "name": r["original_name"]} for r in rows]
+    return [{"file_id": str(r["id"]), "name": r["original_name"],
+             "ocr_text": (r.get("image_text") or "")[:MAX_TEXT_CHARS] if r.get("image_text_status") == "COMPLETED" else ""}
+            for r in rows]
 
 
 def _json(value: Any) -> Any:
@@ -118,6 +120,7 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
     high_stakes = (is_ceo or CEO_BRAND in brands or CEO_RULE_SET in rule_sets
                    or "INVESTORS" in audiences or "INVESTORS" in implied)
     images = await _load_images(row["id"]) if row.get("id") else []
+    reference_text = "\n".join([post_text, *(image.get("ocr_text") or "" for image in images)])
     rules = await applicable_rules(ComplianceCheckRequest(
         text=post_text or "-",
         rule_sets=rule_sets,
@@ -146,7 +149,7 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
         # A thought leadership post (Shaun's channel, or the CEO rule set) gets that brand guide whatever brand it's under.
         "context": await context_service.for_content(
             context_service.with_thought_leadership(brands, is_ceo or CEO_RULE_SET in rule_sets),
-            audiences, platforms, text=post_text, picks=_json(row.get("context_picks")) or None,
+            audiences, platforms, text=reference_text, picks=_json(row.get("context_picks")) or None,
         ),
         "transcript": transcript,
         # The video itself is attached when the analysis runs; a replaced video makes earlier results stale.
@@ -323,9 +326,11 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
         )
     elif inp.get("images"):
         context.append("Images: the post has images, but they couldn't be attached; note that its visuals could not be assessed.")
+    image_text = [{"image": index, "text": image["ocr_text"]} for index, image in enumerate(inp.get("images") or [], 1) if image.get("ocr_text")]
     content = json.dumps({"title": inp["title"], "caption": inp["caption"] or "(no caption)",
                           **({"platform_captions": inp["platform_captions"]} if inp.get("platform_captions") else {}),
-                          **({"script": inp["script"]} if inp.get("script") else {})}, ensure_ascii=False)
+                          **({"script": inp["script"]} if inp.get("script") else {}),
+                          **({"image_text": image_text} if image_text else {})}, ensure_ascii=False)
     return (
         f"{INSTRUCTIONS}\n\nCONTEXT\n" + "\n".join(context)
         + f"\n\n{_reference_context(inp.get('context') or [])}"
