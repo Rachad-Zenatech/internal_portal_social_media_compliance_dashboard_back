@@ -36,6 +36,7 @@ to find the right file.
 | .agents/code-map/services__compliance__analytics__mood_records.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__analytics__mood_reviews.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__analytics__mood_training.md | 1 | 2 KB |
+| .agents/code-map/services__compliance__analytics__mood_training_examples.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__analytics__nav_public_mood_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__analytics__performance_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__analytics__post_metrics_providers.md | 1 | 1 KB |

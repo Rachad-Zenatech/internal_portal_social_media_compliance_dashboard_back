@@ -92,6 +92,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/analytics/mood_records.py (113 lines) - Saving an assessment for learning: when the system evaluates a draft it writes one record to `mood_assessments`.
 - services/compliance/analytics/mood_reviews.py (138 lines) - What reviewers say about an assessment, kept for learning (the screen's own state lives in Postgres, see conversation_feedback; these wri...
 - services/compliance/analytics/mood_training.py (375 lines) - Training and judging the decision model.
+- services/compliance/analytics/mood_training_examples.py (36 lines) - What the decision model was trained on: the examples of the dataset behind the current model, for the Training Data page.
 - services/compliance/analytics/nav_public_mood_service.py (247 lines) - Nav Public Mood overview: combines the two public scrapings shown in the navigation page: 1.
 - services/compliance/analytics/performance_service.py (323 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
 - services/compliance/analytics/post_metrics_providers.py (303 lines) - Where published posts' numbers come from, and what each platform's API can actually give us.
@@ -217,7 +218,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/ai/chat_router.py (64 lines) - Streaming AI chat endpoint.
 - tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - tools/compliance/analytics/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).
-- tools/compliance/analytics/listening_router.py (275 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
+- tools/compliance/analytics/listening_router.py (281 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
 - tools/compliance/analytics/performance_router.py (45 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - tools/compliance/analytics/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
 - tools/compliance/submissions/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.

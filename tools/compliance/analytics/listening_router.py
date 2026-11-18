@@ -23,7 +23,7 @@ from models.compliance.public_mood_model import (
     XTrendOpportunity,
 )
 from postgresql_db.database import get_pool
-from services.compliance.analytics import conversation_feedback, daily_scrape_schedule, mood_model, nav_public_mood_service, post_queries, public_mood_service as svc
+from services.compliance.analytics import conversation_feedback, daily_scrape_schedule, mood_model, mood_training_examples, nav_public_mood_service, post_queries, public_mood_service as svc
 from services.compliance.analytics.listening_providers import feed_in_database, load_feed, reset_provider_cache
 from services.shared.auth.auth_service import get_current_user_id_dependency, require_permission
 
@@ -68,6 +68,12 @@ async def mood_model_status(user_id: ManageUser):
     """The decision model: whether xgboost is installed, which model is registered and loaded, what it was trained on,
     which measurements matter most, how it did in training, and the limits that keep it in check."""
     return await mood_model.model_status()
+
+
+@router.get("/model/training-data")
+async def mood_model_training_data(user_id: ManageUser, version: Optional[str] = Query(None, max_length=80)):
+    """The reviewed assessments the decision model was trained on (features, reviewer label, split, source draft)."""
+    return await mood_training_examples.training_examples(version)
 
 
 @router.get("/trends", response_model=List[XTrendOpportunity])
