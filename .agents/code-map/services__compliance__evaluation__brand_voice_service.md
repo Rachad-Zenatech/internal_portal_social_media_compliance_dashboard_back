@@ -4,37 +4,37 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/brand_voice_service.py (711 lines) - Brand voice per brand, read from its brand manual.
-- `_may_edit` (def) L53 - Super admins, rulebook editors, and reviewers for the brands they work on.
-- `_require_edit` (def) L66
-- `_json_list` (def) L88
-- `_out` (def) L97
-- `list_voices` (def) L120 - Every active brand with its voice (an empty one when no manual or voice was added yet).
-- `get_voice` (def) L126
-- `file_path` (def) L133 - The stored manual or logo for download: (path, media type, file name).
-- `upload_manual` (def) L151
-- `reread` (def) L187
-- `update_voice` (def) L200
-- `_clean` (def) L223
-    - `items` (def) L224
-- `PdfFacts` (class) L252
-- `_swatch_rows` (def) L269 - Rows of three or more touching, same-height filled blocks (a palette strip), with the label above each.
-- `_sections` (def) L312 - Each page rendered as images about as tall as an A4 page, overlapping a little so nothing is cut in half.
-- `crop_logo` (def) L337 - Cut the logo out of the page at high resolution, from a box [ymin, xmin, ymax, xmax] (0-1000) in a section.
-- `read_pdf` (def) L362 - What the PDF gives without AI: its text, the colour codes it prints, its fonts and its images.
-- `_AiColor` (class) L409
-- `_AiTypeface` (class) L415
-- `_AiResult` (class) L421
-- `_get_client` (def) L458
-- `_ask_ai` (def) L468
-- `_hex` (def) L487
-- `_logo_guess` (def) L492 - Without AI: the biggest image on the earliest page that has one (manuals open with the logo).
-- `_rgb` (def) L501
-- `build_palette` (def) L505 - Each swatch row under its main colour: the one it starts with, else the closest main colour, else its own
-- `extract` (def) L522 - Read the stored manual and save what it says (runs in the background).
-- `_save_failure` (def) L614
-- `schedule` (def) L621
-    - `run` (def) L622
-- `context_body` (def) L638 - The brand voice as one Messaging Context entry body (what the analysis is given).
-- `_sync_context_entry` (def) L662 - Keep the brand's Brand Voice entry in the Messaging Context in step with its profile.
-- `resume_interrupted` (def) L705 - Manuals that were being read when the server stopped are read again.
+## services/compliance/evaluation/brand_voice_service.py (708 lines) - Brand voice per brand, read from its brand manual.
+- `_may_edit` (def) L54 - Super admins, rulebook editors, and reviewers for the brands they work on.
+- `_require_edit` (def) L67
+- `_json_list` (def) L89
+- `_out` (def) L98
+- `list_voices` (def) L121 - Every active brand with its voice (an empty one when no manual or voice was added yet).
+- `get_voice` (def) L127
+- `file_path` (def) L134 - The stored manual or logo for download: (path, media type, file name).
+- `upload_manual` (def) L152
+- `reread` (def) L184
+- `update_voice` (def) L197
+- `_clean` (def) L220
+    - `items` (def) L221
+- `PdfFacts` (class) L249
+- `_swatch_rows` (def) L266 - Rows of three or more touching, same-height filled blocks (a palette strip), with the label above each.
+- `_sections` (def) L309 - Each page rendered as images about as tall as an A4 page, overlapping a little so nothing is cut in half.
+- `crop_logo` (def) L334 - Cut the logo out of the page at high resolution, from a box [ymin, xmin, ymax, xmax] (0-1000) in a section.
+- `read_pdf` (def) L359 - What the PDF gives without AI: its text, the colour codes it prints, its fonts and its images.
+- `_AiColor` (class) L406
+- `_AiTypeface` (class) L412
+- `_AiResult` (class) L418
+- `_get_client` (def) L455
+- `_ask_ai` (def) L465
+- `_hex` (def) L484
+- `_logo_guess` (def) L489 - Without AI: the biggest image on the earliest page that has one (manuals open with the logo).
+- `_rgb` (def) L498
+- `build_palette` (def) L502 - Each swatch row under its main colour: the one it starts with, else the closest main colour, else its own
+- `extract` (def) L519 - Read the stored manual and save what it says (runs in the background).
+- `_save_failure` (def) L611
+- `schedule` (def) L618
+    - `run` (def) L619
+- `context_body` (def) L635 - The brand voice as one Messaging Context entry body (what the analysis is given).
+- `_sync_context_entry` (def) L659 - Keep the brand's Brand Voice entry in the Messaging Context in step with its profile.
+- `resume_interrupted` (def) L702 - Manuals that were being read when the server stopped are read again.

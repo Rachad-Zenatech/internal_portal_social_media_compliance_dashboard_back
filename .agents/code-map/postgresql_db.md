@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## postgresql_db/database.py (258 lines) - Optional dotenv import for loading .env and local overrides during development
+## postgresql_db/database.py (260 lines) - Optional dotenv import for loading .env and local overrides during development
 - `acquire_timeout` (def) L17 - Seconds to wait for a free pooled connection before failing, as in the administration backend.
 - `_conn_key` (def) L27
 - `_init_conn` (def) L31
@@ -22,13 +22,13 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `__aexit__` (def) L109
     - `__getattr__` (def) L112
 - `create_pool` (def) L120 - Creates the connection pool if it doesn't exist yet, then returns it.
-- `close_pool` (def) L179
-- `reset_pool` (def) L191 - Drop the current pool and create a fresh one after connection failures.
-- `get_pool` (def) L204
-- `get_conn` (def) L211
-- `fetch_one` (def) L221
-- `fetch_all` (def) L231
-- `execute` (def) L241
-- `execute_many` (def) L251
+- `close_pool` (def) L181
+- `reset_pool` (def) L193 - Drop the current pool and create a fresh one after connection failures.
+- `get_pool` (def) L206
+- `get_conn` (def) L213
+- `fetch_one` (def) L223
+- `fetch_all` (def) L233
+- `execute` (def) L243
+- `execute_many` (def) L253
 
 ## postgresql_db/schema_metadata.py (328 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.

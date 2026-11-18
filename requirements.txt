@@ -25,6 +25,9 @@ aiofiles>=24.1.0
 python-multipart>=0.0.20
 python-dotenv>=1.0.0
 
+# Cloud Storage (AWS S3)
+boto3>=1.35.0
+
 # AI & MCP Integration
 google-genai>=2.8.0
 pymupdf>=1.24.0

@@ -29,6 +29,7 @@ from models.compliance.brand_voice_model import BrandColor, BrandTypeface, Brand
 from postgresql_db.database import fetch_all, fetch_one
 from services.compliance.media.file_mime_policy import safe_file_mime
 from services.shared.core.audit_service import log_audit_event
+from services.shared.storage.s3_storage_service import s3_enabled, s3_key_for, upload_file_to_s3
 logger = logging.getLogger(__name__)
 
 STORAGE_ROOT = Path(os.getenv("BRAND_VOICE_STORAGE_DIR", ".data/brand_voice")).resolve()
@@ -152,18 +153,14 @@ async def upload_manual(brand_code: str, upload: UploadFile, user_id: UUID) -> B
     await _require_edit(user_id, brand_code)
     name = Path(upload.filename or "brand-manual.pdf").name
     data = await upload.read()
-    if not data:
-        raise HTTPException(status_code=422, detail="The file is empty")
-    if len(data) > MAX_MANUAL_BYTES:
-        raise HTTPException(status_code=413, detail=f"The manual is over {MAX_MANUAL_BYTES // (1024 * 1024)} MB")
-    if not data.startswith(b"%PDF"):
-        raise HTTPException(status_code=422, detail="Upload the brand manual as a PDF")
+    if not data: raise HTTPException(status_code=422, detail="The file is empty")
+    if len(data) > MAX_MANUAL_BYTES: raise HTTPException(status_code=413, detail=f"The manual is over {MAX_MANUAL_BYTES // (1024 * 1024)} MB")
+    if not data.startswith(b"%PDF"): raise HTTPException(status_code=422, detail="Upload the brand manual as a PDF")
     folder = STORAGE_ROOT / brand_code
     folder.mkdir(parents=True, exist_ok=True)
-    for old in folder.glob("*"):
-        old.unlink(missing_ok=True)
-    path = folder / "manual.pdf"
-    path.write_bytes(data)
+    for old in folder.glob("*"): old.unlink(missing_ok=True)
+    path = folder / "manual.pdf"; path.write_bytes(data)
+    if s3_enabled(): await asyncio.to_thread(upload_file_to_s3, data, s3_key_for("brand_voice", str(path.relative_to(STORAGE_ROOT))), "application/pdf")
     await fetch_one(
         """
         INSERT INTO brand_voice_profiles (brand_code, manual_name, manual_path, manual_size, manual_uploaded_at,

@@ -131,13 +131,15 @@ async def create_pool():
                 max_inactive_lifetime = float(os.getenv("DB_POOL_MAX_INACTIVE_LIFETIME", "60.0"))
                 cmd_timeout = float(os.getenv("DB_COMMAND_TIMEOUT", "30.0"))
 
+                dsn = os.getenv("DATABASE_URL", "")
                 ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
-                if ssl_env in ("false", "0", "no", "disable", "off"):
+                if "rds.amazonaws.com" in dsn:
+                    ssl_mode = "require"
+                elif ssl_env in ("false", "0", "no", "disable", "off"):
                     ssl_mode = False
                 elif ssl_env in ("true", "1", "yes", "require"):
                     ssl_mode = "require"
                 else:
-                    dsn = os.getenv("DATABASE_URL", "")
                     ssl_mode = False if any(h in dsn for h in ("localhost", "127.0.0.1", "host.docker.internal")) else "require"
 
                 server_settings = {
