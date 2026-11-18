@@ -138,9 +138,11 @@ jobs:
           from services.shared.core.startup_service import run_schema_setups
 
           async def main():
-              await create_pool()
-              await run_schema_setups()
-              await close_pool()
+              pool = await create_pool()
+              try:
+                  await run_schema_setups(pool)
+              finally:
+                  await close_pool()
 
           asyncio.run(main())
           "
