@@ -46,7 +46,27 @@ async def sync_post_decision_to_mood(submission_id: UUID, version: int) -> None:
         submission_id, version,
     )
     if not job:
-        return
+        comment_row = await fetch_one(
+            """
+            SELECT c.author_id AS decided_by, string_agg(c.body, ' | ' ORDER BY c.created_at) AS reviewer_comments,
+                   s.status
+            FROM content_review_comments c
+            JOIN content_submissions s ON s.id = c.submission_id
+            WHERE c.submission_id = $1 AND c.deleted_at IS NULL AND c.from_reviewer IS NOT FALSE
+            GROUP BY c.author_id, s.status
+            ORDER BY max(c.created_at) DESC
+            LIMIT 1
+            """,
+            submission_id,
+        )
+        if not comment_row:
+            return
+        job = {
+            "decision": "APPROVE" if comment_row["status"] == "APPROVED" else "REQUEST_CHANGES",
+            "decision_notes": None,
+            "decided_by": comment_row["decided_by"],
+            "reviewer_comments": comment_row["reviewer_comments"],
+        }
     assessment = await fetch_one(
         """
         SELECT id, result->>'recommendation' AS rec
@@ -97,8 +117,11 @@ async def _backfill_from_postgres() -> None:
         """
         SELECT DISTINCT ON (s.id) s.id AS submission_id, s.current_version
         FROM content_submissions s
-        JOIN content_review_jobs j ON j.submission_id = s.id
-        WHERE j.decision IS NOT NULL AND s.deleted_at IS NULL
+        LEFT JOIN content_review_jobs j ON j.submission_id = s.id
+        WHERE (j.decision IS NOT NULL OR EXISTS (
+            SELECT 1 FROM content_review_comments rc
+            WHERE rc.submission_id = s.id AND rc.deleted_at IS NULL AND rc.from_reviewer IS NOT FALSE
+        )) AND s.deleted_at IS NULL
         ORDER BY s.id, j.decided_at DESC NULLS LAST
         LIMIT 50
         """
@@ -134,6 +157,8 @@ async def _enrich_submissions(rows: List[Dict[str, Any]], assessments_by_id: Dic
         db_rows = await fetch_all(
             """
             SELECT s.id::text AS id, s.reference_code, s.title, s.content_type, s.brand_code, s.status,
+                   (SELECT v.snapshot->>'script_text' FROM content_submission_versions v
+                    WHERE v.submission_id = s.id ORDER BY v.version_number DESC LIMIT 1) AS script_text,
                    COALESCE((
                        SELECT json_agg(c.body ORDER BY c.created_at)
                        FROM content_review_comments c
@@ -157,6 +182,7 @@ async def _enrich_submissions(rows: List[Dict[str, Any]], assessments_by_id: Dic
                 "content_type": d["content_type"],
                 "brand_code": d["brand_code"],
                 "status": d["status"],
+                "script_text": d["script_text"],
                 "reviewer_comments": [c for c in comments if c][:6],
                 "decision_notes": d["decision_notes"],
                 "file_count": int(d["file_count"] or 0),
@@ -170,6 +196,7 @@ async def _enrich_submissions(rows: List[Dict[str, Any]], assessments_by_id: Dic
         r["content_type"] = sub.get("content_type") or "SOCIAL_POST"
         r["brand_code"] = sub.get("brand_code") or dc.get("brand_code")
         r["post_status"] = sub.get("status")
+        r["script_text"] = sub.get("script_text") or dc.get("script_text")
         r["file_count"] = sub.get("file_count", 0)
         r["reviewer_comments"] = sub.get("reviewer_comments") or []
         r["decision_notes"] = sub.get("decision_notes")
@@ -284,6 +311,7 @@ async def training_examples(version: Optional[str] = None) -> Dict[str, Any]:
             assessments_by_id[str(a["_id"])] = a
 
     await _enrich_submissions(rows, assessments_by_id)
+    precedents = await review_memory_records()
     return {
         "dataset_version": None if is_live_preview else version,
         "is_live_preview": is_live_preview,
@@ -291,4 +319,67 @@ async def training_examples(version: Optional[str] = None) -> Dict[str, Any]:
         "splits": splits,
         "examples": rows,
         "readiness": readiness,
+        "review_precedents": precedents,
     }
+
+
+async def review_memory_records(limit: int = 100) -> List[Dict[str, Any]]:
+    """All decided post reviews, reviewer comments, script text, dismissed flags, and sentiment ratings
+    that train the Reviewer Precedent Memory & feed XGBoost."""
+    rows = await fetch_all(
+        """
+        SELECT DISTINCT ON (j.submission_id, j.version_number)
+               j.submission_id::text AS submission_id, j.version_number, j.decision, j.decision_notes, j.decided_at,
+               s.reference_code, s.title, s.content_type, s.brand_code, s.status,
+               v.snapshot->>'script_text' AS script_text,
+               v.snapshot->>'caption_text' AS caption_text,
+               u.full_name AS decided_by_name,
+               COALESCE((
+                   SELECT json_agg(c.body ORDER BY c.created_at)
+                   FROM content_review_comments c
+                   WHERE c.submission_id = j.submission_id AND c.deleted_at IS NULL AND c.from_reviewer IS NOT FALSE
+               ), '[]'::json) AS reviewer_comments,
+               COALESCE((
+                   SELECT json_agg(json_build_object('rule_number', fr.rule_number, 'reason', fr.reason, 'note', fr.note))
+                   FROM flag_reviews fr WHERE fr.submission_id = j.submission_id AND fr.version_number = j.version_number
+               ), '[]'::json) AS dismissed_flags
+        FROM content_review_jobs j
+        JOIN content_submissions s ON s.id = j.submission_id
+        LEFT JOIN content_submission_versions v ON v.submission_id = j.submission_id AND v.version_number = j.version_number
+        LEFT JOIN users u ON u.id = j.decided_by
+        WHERE (j.decision IS NOT NULL OR EXISTS (
+            SELECT 1 FROM content_review_comments rc WHERE rc.submission_id = s.id AND rc.deleted_at IS NULL
+        )) AND s.deleted_at IS NULL
+        ORDER BY j.submission_id, j.version_number, j.decided_at DESC NULLS LAST
+        LIMIT $1
+        """,
+        limit,
+    )
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        comments = json.loads(r["reviewer_comments"]) if isinstance(r["reviewer_comments"], str) else (r["reviewer_comments"] or [])
+        flags = json.loads(r["dismissed_flags"]) if isinstance(r["dismissed_flags"], str) else (r["dismissed_flags"] or [])
+        decision = r["decision"] or "COMMENTED"
+        mood_label = _post_decision_to_mood(r["decision"], None) or "WAIT"
+        out.append({
+            "id": f"{r['submission_id']}:v{r['version_number']}",
+            "submission_id": r["submission_id"],
+            "version_number": r["version_number"],
+            "reference_code": r["reference_code"],
+            "post_title": r["title"],
+            "content_type": r["content_type"] or "SOCIAL_POST",
+            "brand_code": r["brand_code"],
+            "post_status": r["status"],
+            "decision": decision,
+            "reviewer_label": mood_label,
+            "decided_by_name": r["decided_by_name"],
+            "decided_at": r["decided_at"].astimezone(timezone.utc).isoformat() if r["decided_at"] else None,
+            "decision_notes": r["decision_notes"],
+            "script_text": r["script_text"],
+            "caption_text": r["caption_text"],
+            "reviewer_comments": [c for c in comments if c][:10],
+            "dismissed_flags": flags[:6],
+        })
+    out.sort(key=lambda x: x.get("decided_at") or "", reverse=True)
+    return out
+
