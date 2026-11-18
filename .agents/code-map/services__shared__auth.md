@@ -4,25 +4,24 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/shared/auth/auth_service.py (604 lines) - Who a token is for: this app only.
-- `_update_last_activity_async` (def) L34
-- `create_access_token` (def) L44
-- `create_link_token` (def) L70
-- `verify_token` (def) L78 - The payload of a sign-in or link token this app issued, or None.
-- `get_my_permissions` (def) L93
-- `user_can_access_page` (def) L194
-- `user_can_use_mcp_tool` (def) L209
-- `_is_cookie_secure` (def) L223
-- `set_access_token_cookie` (def) L229
-- `clear_access_token_cookie` (def) L242
-- `getCurrentUserFromMicrosoftClaims` (def) L260
-- `upsertMicrosoftUser` (def) L284 - Create or update the local user record for an authenticated Microsoft
-- `getUserRoles` (def) L439
-- `getUserNavigationPermissions` (def) L450
-- `getUserToolPermissions` (def) L466
-- `get_current_user_id_dependency` (def) L480
-- `require_permission` (def) L564 - New API Permission Guard based on PBAC proposal.
-    - `dependency` (def) L569
+## services/shared/auth/auth_service.py (446 lines) - Who a token is for: this app only.
+- `invalidate_user_auth_cache` (def) L35 - Drop cached auth/activity state for a user after login, logout, or activity writes.
+- `_update_last_activity_async` (def) L41
+- `create_access_token` (def) L52
+- `create_link_token` (def) L78
+- `verify_token` (def) L86 - The payload of a sign-in or link token this app issued, or None.
+- `get_my_permissions` (def) L101
+- `user_can_access_page` (def) L202
+- `user_can_use_mcp_tool` (def) L217
+- `_is_cookie_secure` (def) L231
+- `set_access_token_cookie` (def) L237
+- `clear_access_token_cookie` (def) L250
+- `getUserRoles` (def) L273
+- `getUserNavigationPermissions` (def) L284
+- `getUserToolPermissions` (def) L300
+- `get_current_user_id_dependency` (def) L314
+- `require_permission` (def) L406 - New API Permission Guard based on PBAC proposal.
+    - `dependency` (def) L411
 
 ## services/shared/auth/oauth_connection_service.py (608 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
 - `list_organizations` (def) L34
