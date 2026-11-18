@@ -61,6 +61,21 @@ def region_from_box(file_id, box, start_sec=None, end_sec=None):
                               start_sec=start_sec, end_sec=end_sec)
 
 
+def _tesseract_binary():
+    """Resolve the local OCR binary that can read the current runtime's temporary files."""
+    configured = os.getenv("TESSERACT_CMD")
+    # A Windows executable cannot consume pytesseract's /tmp input files from WSL.
+    if configured and sys.platform != "win32" and len(configured) > 3 and configured[1:3] == ":/":
+        configured = None
+    if configured and os.path.isfile(configured):
+        return configured
+    discovered = shutil.which("tesseract")
+    if discovered:
+        return discovered
+    fallback = "/usr/bin/tesseract" if sys.platform != "win32" else None
+    return fallback if fallback and os.path.isfile(fallback) else None
+
+
 def _ocr_word_boxes(data):
     """Return Tesseract word boxes in Gemini's 0--1000 coordinate system when available."""
     try:
@@ -68,9 +83,8 @@ def _ocr_word_boxes(data):
         from PIL import Image
     except ImportError:
         return []
-    tess_cmd = (os.getenv("TESSERACT_CMD") or shutil.which("tesseract")
-                or ("/usr/bin/tesseract" if sys.platform != "win32" else None))
-    if not tess_cmd or not os.path.isfile(tess_cmd):
+    tess_cmd = _tesseract_binary()
+    if not tess_cmd:
         return []
     pytesseract.pytesseract.tesseract_cmd = tess_cmd
     try:

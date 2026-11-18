@@ -1,4 +1,5 @@
 """Script-only drafts can run analyses before a video, caption or script approval exists."""
+import os
 import unittest
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -91,6 +92,23 @@ class SentimentRequestReadiness(unittest.IsolatedAsyncioTestCase):
 
 
 class ScriptComplianceRequest(unittest.IsolatedAsyncioTestCase):
+    async def test_development_fixture_video_can_check_without_script(self):
+        from services.compliance.submissions import manual_check_service as manual
+        row = dict(id=uuid4(), content_type="VIDEO", script_required=True, script_status="DRAFT")
+        with patch.dict(os.environ, {"APP_ENV": "development", "DEV_ALLOW_SCRIPTLESS_VIDEO_COMPLIANCE": "true"}), \
+             patch.object(subs, "_missing_for_submit", AsyncMock(return_value=["main_file", "caption", "script_approval"])), \
+             patch.object(subs, "fetch_one", AsyncMock(return_value={"video": 1})):
+            await manual.require_compliance_ready(row)
+
+    async def test_production_keeps_script_requirement_for_video(self):
+        from services.compliance.submissions import manual_check_service as manual
+        row = dict(id=uuid4(), content_type="VIDEO", script_required=True, script_status="DRAFT")
+        with patch.dict(os.environ, {"APP_ENV": "production", "DEV_ALLOW_SCRIPTLESS_VIDEO_COMPLIANCE": "true"}), \
+             patch.object(subs, "fetch_one", AsyncMock(return_value={"video": 1})), \
+             patch.object(subs, "require_details_complete", AsyncMock()) as ready:
+            await manual.require_compliance_ready(row)
+        ready.assert_awaited_once_with(row, "running the compliance check")
+
     async def test_manual_check_reaches_runner_for_script_only_draft(self):
         from types import SimpleNamespace
         for script_status in ("DRAFT", "APPROVED"):
@@ -119,7 +137,8 @@ class ScriptComplianceRequest(unittest.IsolatedAsyncioTestCase):
     async def test_actual_video_uses_finished_post_requirements(self):
         from services.compliance.submissions import manual_check_service as manual
         row = dict(id=uuid4(), content_type="VIDEO")
-        with patch.object(subs, "fetch_one", AsyncMock(return_value={"video": 1})), \
+        with patch.dict(os.environ, {"DEV_ALLOW_SCRIPTLESS_VIDEO_COMPLIANCE": "false"}), \
+             patch.object(subs, "fetch_one", AsyncMock(return_value={"video": 1})), \
              patch.object(subs, "require_details_complete", AsyncMock()) as ready:
             await manual.require_compliance_ready(row)
         ready.assert_awaited_once_with(row, "running the compliance check")

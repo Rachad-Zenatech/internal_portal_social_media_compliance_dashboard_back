@@ -22,7 +22,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "server.py": {
-      "max_lines": 618,
+      "max_lines": 605,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/analytics/conversation_evidence.py": {
@@ -63,10 +63,6 @@
     },
     "services/notifications/rabbitmq_service.py": {
       "max_lines": 520,
-      "reason": "Over the limit when the check was introduced; split it when you next work on it."
-    },
-    "services/shared/auth/auth_service.py": {
-      "max_lines": 603,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/shared/auth/oauth_connection_service.py": {
@@ -111,10 +107,6 @@
       "max_lines": 127,
       "kind": "py_function"
     },
-    "server.py#lifespan": {
-      "max_lines": 130,
-      "kind": "py_function"
-    },
     "services/compliance/evaluation/compliance_service.py#check_compliance": {
       "max_lines": 200,
       "kind": "py_function"
@@ -137,10 +129,6 @@
     },
     "services/notifications/rabbitmq_hub_status.py#HubStatusMixin._build_hub_live_status": {
       "max_lines": 222,
-      "kind": "py_function"
-    },
-    "services/shared/auth/auth_service.py#upsertMicrosoftUser": {
-      "max_lines": 154,
       "kind": "py_function"
     },
     "tools/shared/core/search.py#global_search": {

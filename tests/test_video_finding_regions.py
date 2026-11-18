@@ -1,6 +1,7 @@
 """Video-frame regions are time-bound and only mark exact visible wording."""
 import tempfile
 import unittest
+import os
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
@@ -27,6 +28,19 @@ class VideoRegionModel(unittest.TestCase):
 
 
 class VideoLocalization(unittest.IsolatedAsyncioTestCase):
+    def test_uses_a_windows_configured_ffmpeg_from_wsl(self):
+        with patch.dict(os.environ, {"FFMPEG_BINARY": "C:/Tools/ffmpeg.exe"}), \
+             patch.object(regions.sys, "platform", "linux"), \
+             patch.object(regions.os.path, "isfile", return_value=True):
+            self.assertEqual(regions._ffmpeg_binary(), "/mnt/c/Tools/ffmpeg.exe")
+
+    def test_converts_a_wsl_media_path_for_windows_ffmpeg(self):
+        with patch.object(regions.sys, "platform", "linux"):
+            self.assertEqual(
+                regions._ffmpeg_input_path("/mnt/c/work/fixture.mp4", "/mnt/c/Tools/ffmpeg.exe"),
+                "C:/work/fixture.mp4",
+            )
+
     async def test_saves_a_tight_box_only_for_the_matching_moment(self):
         with tempfile.TemporaryDirectory() as directory:
             storage = Path(directory).resolve()
@@ -56,3 +70,17 @@ class VideoLocalization(unittest.IsolatedAsyncioTestCase):
             with patch.object(regions, "STORAGE_ROOT", storage), patch.object(regions, "_frame_bytes") as frame:
                 await regions.locate_video_findings(video, [{"start_sec": 0, "end_sec": 1, "text": "A careful claim"}], [finding()])
             frame.assert_not_called()
+
+    async def test_reads_visible_words_when_video_audio_transcription_failed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            storage = Path(directory).resolve()
+            (storage / "fixture.mp4").write_bytes(b"video")
+            video = {"id": uuid4(), "storage_path": "fixture.mp4"}
+            words = [{"text": "risk", "line": (1, 1, 1), "box": [1, 1, 2, 2]}]
+            with patch.object(regions, "STORAGE_ROOT", storage), \
+                 patch.object(regions, "_frame_bytes", return_value=b"frame"), \
+                 patch.object(regions, "_ocr_word_boxes", return_value=words):
+                segments = await regions.visual_text_segments(video)
+            self.assertEqual(len(segments), len(regions.VISUAL_SCAN_SECONDS))
+            self.assertEqual(segments[0]["text"], "risk")
+            self.assertEqual(segments[0]["source"], "ON_SCREEN_TEXT")

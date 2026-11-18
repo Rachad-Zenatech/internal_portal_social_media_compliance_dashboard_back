@@ -17,6 +17,7 @@ from services.shared.auth.auth_service import (
     getUserToolPermissions,
     clear_access_token_cookie,
     get_current_user_id_dependency,
+    invalidate_user_auth_cache,
     set_access_token_cookie,
     AUTH_COOKIE_NAME,
 )
@@ -207,6 +208,7 @@ async def exchange_login_code(data: LoginCodeExchange):
     if not row:
         # 400, not 401: this isn't an expired session, just a sign-in link that can't be used.
         raise HTTPException(status_code=400, detail="This sign-in link has expired or was already used. Sign in again.")
+    invalidate_user_auth_cache(row["id"])
     return {"token": create_access_token(row["id"], bool(row["is_super_admin"]))}
 
 
@@ -275,10 +277,14 @@ async def test_login(data: TestLoginRequest, request: Request):
                 """,
                 user["id"], role,
             )
+    invalidate_user_auth_cache(user["id"])
     logger.warning("Test sign-in as %s (%s)", data.as_, email, extra={"event": "test_login"})
     await log_login_activity(email, user["id"], True, None, request.client.host if request.client else None,
                              request.headers.get("user-agent"))
-    return {"token": create_access_token(user["id"], bool(user["is_super_admin"]))}
+    token = create_access_token(user["id"], bool(user["is_super_admin"]))
+    response = JSONResponse({"token": token})
+    set_access_token_cookie(response, token)
+    return response
 
 @router.get("/auth/bootstrap")
 async def get_auth_bootstrap(user_id: UUID = Depends(get_current_user_id_dependency)):
@@ -348,6 +354,7 @@ async def heartbeat(
             )
     if not user:
         raise HTTPException(status_code=401, detail="User is inactive or no longer exists")
+    invalidate_user_auth_cache(user_id)
     refreshed_token = create_access_token(user_id, bool(user["is_super_admin"]))
     set_access_token_cookie(response, refreshed_token)
     return {"status": "ok"}
@@ -407,8 +414,7 @@ async def logout(request: Request):
                     if user:
                         # Every token issued before now stops working (see get_current_user_id_dependency).
                         await conn.execute("UPDATE users SET last_logout_at = now() WHERE id = $1", user_id)
-                        from services.shared.auth.auth_service import _user_auth_cache
-                        _user_auth_cache.pop(user_id, None)
+                        invalidate_user_auth_cache(user_id)
                         # Update the corresponding login activity log to set logout_at
                         await conn.execute("""
                             UPDATE login_activity_logs

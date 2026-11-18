@@ -188,6 +188,24 @@ class ServiceAndForeignTokenTests(unittest.IsolatedAsyncioTestCase):
                     request=request("GET", "/api/me/permissions"),
                 )
         self.assertEqual(e.exception.detail, "Logged out due to inactivity")
+        self.assertNotIn(member["id"], auth_service._user_auth_cache)
+
+    async def test_auth_cache_ttl_does_not_slide_on_cache_hits(self):
+        member_id = uuid4()
+        fresh = {"id": member_id, "last_logout_at": None, "is_super_admin": False,
+                 "last_activity_at": datetime.datetime.now(datetime.timezone.utc)}
+        token = self.forge(sub=str(member_id), is_super_admin=False)
+        lookup = AsyncMock(return_value=fresh)
+        with (
+            patch("services.shared.auth.auth_service.fetch_one", new=lookup),
+            patch("time.time", side_effect=[100.0, 120.0, 131.0]),
+        ):
+            for _ in range(3):
+                await auth_service.get_current_user_id_dependency(
+                    authorization=f"Bearer {token}", access_token=None, zenatech_token=None, query_token=None,
+                    request=request("GET", "/api/me/permissions"),
+                )
+        self.assertEqual(lookup.await_count, 2)
 
 
 class MimeAndAuthorizationHardeningTests(unittest.IsolatedAsyncioTestCase):

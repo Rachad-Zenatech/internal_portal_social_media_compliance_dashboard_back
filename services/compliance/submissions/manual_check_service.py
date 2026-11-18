@@ -1,5 +1,6 @@
 """Manual compliance checks: reuse current results and only finish explicitly requested runs."""
 import json
+import os
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
@@ -9,6 +10,14 @@ from models.compliance.compliance_model import ComplianceCheckResponse
 def saved_check(row):
     value = row.get("latest_check")
     return json.loads(value) if isinstance(value, str) else (value or {})
+
+
+def allow_scriptless_video_compliance():
+    """Permit local video fixtures to check their uploaded media without a script."""
+    return (
+        os.getenv("APP_ENV", "development").strip().lower() != "production"
+        and os.getenv("DEV_ALLOW_SCRIPTLESS_VIDEO_COMPLIANCE", "").strip().lower() in {"1", "true", "yes"}
+    )
 
 
 def timestamp(value):
@@ -92,6 +101,13 @@ async def require_compliance_ready(row):
             "SELECT 1 FROM content_submission_files WHERE submission_id = $1 AND kind = 'MAIN' "
             "AND deleted_at IS NULL AND mime_type LIKE 'video/%' LIMIT 1", row["id"],
         )
+        if video and allow_scriptless_video_compliance():
+            missing = [key for key in await subs._missing_for_submit(row)
+                       if key not in subs._SEND_ONLY_FIELDS | {"main_file", "caption", "script_approval"}]
+            if missing:
+                raise HTTPException(422, "Fill in the post details before running the compliance check. Still needed: "
+                                    + subs.post_steps_service.missing_words(missing) + ".")
+            return
         if not video:
             if not await readable_script(row["id"]):
                 raise HTTPException(422, "Attach a script and wait for its text to finish reading before running script compliance.")
