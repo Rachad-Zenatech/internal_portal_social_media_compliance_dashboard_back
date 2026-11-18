@@ -90,7 +90,7 @@ class CheckTextFlagTests(unittest.IsolatedAsyncioTestCase):
             violations=[SimpleNamespace(evaluation=evaluation)], ai_unavailable=source == "UNAVAILABLE",
             model_dump=lambda mode="json": {"score": 100},
         )
-        with patch.object(srs, "check_compliance", new=AsyncMock(return_value=result)), \
+        with patch("services.compliance.evaluation.script_compliance_check.check_compliance", new=AsyncMock(return_value=result)), \
              patch.object(srs.subs, "check_request", return_value=None):
             return await srs.check_text({"title": "T"}, "Hello.")
 

@@ -33,7 +33,7 @@ from models.compliance.submission_model import (
     SubmitRequest,
 )
 from services.ai.observability import ai_observability, ai_usage_service
-from services.compliance.submissions import duplicate_service
+from services.compliance.submissions import delegation_service, duplicate_service
 from services.compliance.media.file_mime_policy import safe_disposition_type
 from services.compliance.media import caption_service
 from services.compliance.analytics import conversation_evidence, conversation_feedback, public_mood_service
@@ -107,13 +107,11 @@ async def get_hashtag_library(
 
 @router.get("/delegations", response_model=List[Delegation])
 async def list_delegations(user_id: CurrentUser, direction: DelegationDirection = Query("all")):
-    """Review hand-offs the user made (by_me) or received (to_me), with each post's current status."""
     return await delegation_service.list_delegations(user_id, direction)
 
 
 @router.get("/delegations/count")
 async def delegation_count(user_id: CurrentUser):
-    """Posts delegated to the user that are still waiting for a decision."""
     return {"pending": await delegation_service.delegation_count(user_id)}
 
 
