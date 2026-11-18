@@ -142,6 +142,8 @@ class ComplianceCheckRequest(BaseModel):
     # Documents attached as evidence, read as text: what the post's claims are checked against, together with the links
     # the post itself cites (see source_check_service).
     sources: List[ProvidedSource] = Field(default_factory=list)
+    # An unpublished video's script supplies citations for the claims in the published content.
+    source_script: Optional[str] = None
     # The parts of the content that get published: where a required disclaimer has to be. Empty or unset: a disclaimer
     # anywhere in `text` counts. Set, so a disclaimer in the title or an unpublished script doesn't stand in for one
     # the post itself doesn't carry.
@@ -291,7 +293,7 @@ class SourceCheck(BaseModel):
     reference: str
     kind: Literal["URL", "NAMED", "DOCUMENT"]
     # source_links: a link from the post's Source links field. newsroom: the ZenaTech newsroom facts.
-    where: Literal["caption", "image", "attached", "source_links", "newsroom"] = "caption"
+    where: Literal["caption", "image", "attached", "source_links", "newsroom", "script"] = "caption"
     cue: Optional[str] = None
     # READ: opened and checked. UNREADABLE: couldn't be opened or read (see message). NOT_PROVIDED: cited by name only.
     status: Literal["READ", "UNREADABLE", "NOT_PROVIDED"]

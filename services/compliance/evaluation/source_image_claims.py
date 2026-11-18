@@ -2,6 +2,7 @@
 import re
 
 from .image_marks import IMAGE_MARK
+from services.compliance.analytics.post_signals import URL_PATTERN
 
 # Connectors separate fragments of body copy from the short nominal labels used in feature lists.
 FRAGMENT_WORDS = frozenset("a an the can could may might must will would should is are was were be been being it its this these those how why who which that while when where in into on at of to for from with without by or".split())
@@ -12,10 +13,21 @@ def words(text):
     return re.findall(r"[a-z]+", text.casefold())
 
 
+def is_identifier(text):
+    """A standalone website, handle, or brand mark makes no factual assertion."""
+    text = (text or "").strip().strip(".,!?;:\u0022\u0027\u201c\u201d\u2018\u2019")
+    brand = re.sub(r"[^a-z0-9]", "", text.casefold())
+    return (
+        brand in {"zenatech", "zenadrone", "zena", "zooffice", "zenastudios"}
+        or URL_PATTERN.fullmatch(text) is not None
+        or re.fullmatch(r"@[\w.]+", text) is not None
+    )
+
+
 def label(text):
     text = re.sub(r"^\s*(?:[-*?]+|\d+[.)])\s*", "", text).strip()
     tokens = words(text)
-    if (not 2 <= len(tokens) <= 6 or len(text) > 70 or re.search(r"[.,!?;:=/\d]", text)
+    if (is_identifier(text) or not 2 <= len(tokens) <= 6 or len(text) > 70 or re.search(r"[.,!?;:=/\d]", text)
             or set(tokens) & FRAGMENT_WORDS):
         return None
     return text
