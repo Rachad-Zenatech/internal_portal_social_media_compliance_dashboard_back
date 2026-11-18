@@ -144,6 +144,7 @@ class ComplianceCheckRequest(BaseModel):
     sources: List[ProvidedSource] = Field(default_factory=list)
     # An unpublished video's script supplies citations for the claims in the published content.
     source_script: Optional[str] = None
+    ai_generated_images: bool = False
     # The parts of the content that get published: where a required disclaimer has to be. Empty or unset: a disclaimer
     # anywhere in `text` counts. Set, so a disclaimer in the title or an unpublished script doesn't stand in for one
     # the post itself doesn't carry.

@@ -2,7 +2,7 @@
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
-StepState = Literal["done", "stale", "running", "todo"]
+StepState = Literal["done", "stale", "running", "unavailable", "todo"]
 
 
 class SubmissionSteps(BaseModel):

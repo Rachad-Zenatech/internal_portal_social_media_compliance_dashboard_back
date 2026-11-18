@@ -212,7 +212,7 @@ async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser, bo
     async def work() -> None:
         ai_observability.attempt_listener.set(listen)
         try:
-            sub = await svc.run_initial_check(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost))
+            sub = await svc.run_initial_check(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost), refresh_sources=bool(body and body.refresh_sources))
             queue.put_nowait({"event": "done", "submission": sub.model_dump(mode="json")})
         except HTTPException as e:
             queue.put_nowait({"event": "failed", "status": e.status_code, "detail": e.detail})

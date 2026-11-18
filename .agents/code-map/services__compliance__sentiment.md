@@ -6,14 +6,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 
 ## services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 
-## services/compliance/sentiment/config.py (462 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
-- `_get_client` (def) L258
-- `_enum` (def) L268
-- `next_quota_reset` (def) L438 - The next midnight Pacific time, when Gemini's daily quotas reset (in UTC).
-- `QuotaExhausted` (class) L445 - Gemini's daily limit for a model is used up; it resets at reset_at (midnight Pacific).
-    - `__init__` (def) L448
-- `ModelUnavailable` (class) L454 - The model can't be used right now: it doesn't exist for this key (e.g.
-    - `__init__` (def) L458
+## services/compliance/sentiment/config.py (464 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
+- `_get_client` (def) L260
+- `_enum` (def) L270
+- `next_quota_reset` (def) L440 - The next midnight Pacific time, when Gemini's daily quotas reset (in UTC).
+- `QuotaExhausted` (class) L447 - Gemini's daily limit for a model is used up; it resets at reset_at (midnight Pacific).
+    - `__init__` (def) L450
+- `ModelUnavailable` (class) L456 - The model can't be used right now: it doesn't exist for this key (e.g.
+    - `__init__` (def) L460
 
 ## services/compliance/sentiment/engine.py (313 lines) - Gemini execution and model failover chain for sentiment analysis.
 - `_upload_video` (def) L50 - Upload the submission's video to Gemini so the analysis can watch it.
@@ -29,16 +29,17 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_generate` (def) L215 - Analyse with the first model in the chain that has allowance left and still exists.
 - `_generate_with` (def) L244 - One model: retries brief rate limits and outages, and once on malformed output.
 
-## services/compliance/sentiment/evidence.py (239 lines) - Verification of quotes and rule references in sentiment findings.
+## services/compliance/sentiment/evidence.py (254 lines) - Verification of quotes and rule references in sentiment findings.
 - `_norm` (def) L17
 - `_locate` (def) L22 - Where a quote appears: (source, start_sec, end_sec), or None if it isn't in the content.
-- `_match_rule` (def) L53 - Map the model's citation ("Rule 1", "1", "Rule 1 (Challenge...)") to an applicable rule number.
-- `finding_id` (def) L67 - Stable id for a finding within its analysis, so reviewer feedback can point at it.
-- `_verify` (def) L75
-- `_entry` (def) L158 - The entry a [C1], [C2]...
-- `_cite` (def) L169 - Name the entry a judgement came from; False when it names one the analysis wasn't given.
-- `_check_report` (def) L180 - Every quote has to be the post's own words, and every judgement names an entry the analysis was given.
-- `_settle_verdicts` (def) L213 - The headline verdicts follow the details under them, so a tile never contradicts its card.
+- `_context_quote` (def) L53 - Ground context claims in captions, transcripts and completed image text.
+- `_match_rule` (def) L65 - Map the model's citation ("Rule 1", "1", "Rule 1 (Challenge...)") to an applicable rule number.
+- `finding_id` (def) L79 - Stable id for a finding within its analysis, so reviewer feedback can point at it.
+- `_verify` (def) L87
+- `_entry` (def) L170 - The entry a [C1], [C2]...
+- `_cite` (def) L181 - Name the entry a judgement came from; False when it names one the analysis wasn't given.
+- `_check_report` (def) L192 - Every quote has to be the post's own words, and every judgement names an entry the analysis was given.
+- `_settle_verdicts` (def) L228 - The headline verdicts follow the details under them, so a tile never contradicts its card.
 
 ## services/compliance/sentiment/feedback.py (146 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
 - `_feedback_map` (def) L18
@@ -50,20 +51,20 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `list_eval_cases` (def) L138
 - `delete_eval_case` (def) L142
 
-## services/compliance/sentiment/input_builder.py (389 lines) - Input building and prompt construction for sentiment analysis.
+## services/compliance/sentiment/input_builder.py (394 lines) - Input building and prompt construction for sentiment analysis.
 - `_load_submission` (def) L39
 - `_load_images` (def) L73 - The post's images in order: the main ones (e.g.
-- `_json` (def) L87
-- `_transcript_pending` (def) L91
-- `_build_input` (def) L95 - Everything the analysis depends on.
-- `_hash` (def) L199
-- `_model_for` (def) L204 - The model an input is analysed with (older inputs, saved before per-content models, used the default).
-- `_precedent_label` (def) L209
-- `_past_reviews` (def) L214 - The PAST REVIEW DECISIONS section: similar posts this team already reviewed, and what they decided.
-- `_held_to_full_standard` (def) L246 - Defense, investor and CEO content is assessed strictly; everyday general and commercial posts are not.
-- `_prompt` (def) L257
-- `_reference_context` (def) L346 - The Messaging Context section of the prompt, grouped by kind, saying plainly what's missing.
-- `suggested_context` (def) L369 - The Messaging Context the analysis would pick on its own for this post, by kind (what the picker suggests).
+- `_json` (def) L89
+- `_transcript_pending` (def) L93
+- `_build_input` (def) L97 - Everything the analysis depends on.
+- `_hash` (def) L202
+- `_model_for` (def) L207 - The model an input is analysed with (older inputs, saved before per-content models, used the default).
+- `_precedent_label` (def) L212
+- `_past_reviews` (def) L217 - The PAST REVIEW DECISIONS section: similar posts this team already reviewed, and what they decided.
+- `_held_to_full_standard` (def) L249 - Defense, investor and CEO content is assessed strictly; everyday general and commercial posts are not.
+- `_prompt` (def) L260
+- `_reference_context` (def) L351 - The Messaging Context section of the prompt, grouped by kind, saying plainly what's missing.
+- `suggested_context` (def) L374 - The Messaging Context the analysis would pick on its own for this post, by kind (what the picker suggests).
 
 ## services/compliance/sentiment/jobs.py (540 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - `_claim` (def) L51 - Atomically move an analysis to PROCESSING unless another worker already has it.

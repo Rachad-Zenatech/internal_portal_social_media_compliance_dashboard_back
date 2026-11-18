@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/analytics/conversation_review_actions.py (69 lines) - Reviewer feedback on retrieved conversations (unrelated, wrong sentiment, recommendation corrections).
+## services/compliance/analytics/conversation_review_actions.py (68 lines) - Reviewer feedback on retrieved conversations (unrelated, wrong sentiment, recommendation corrections).
 - `get_public_mood` (def) L11
 - `mark_conversation_unrelated` (def) L18 - A reviewer says a retrieved item is not about this post: it is left out of this draft's assessments.
 - `restore_conversation_item` (def) L25

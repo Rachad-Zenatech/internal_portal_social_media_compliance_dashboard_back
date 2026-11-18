@@ -70,6 +70,17 @@ class DisclosureTests(unittest.TestCase):
         self.assertEqual(self.findings(parts=["caption"]), [])
         self.assertEqual(self.findings("Drones simplify construction inspections."), [])
 
+    def test_creator_declaration_requires_label_for_nonmilitary_images(self):
+        req = ComplianceCheckRequest(text="Construction site illustration", content_parts=["imagery"],
+                                     ai_generated_images=True)
+        rule = synthetic_rule()
+        findings = []
+        disclosure.ensure_review(req, [rule], findings)
+        self.assertEqual([(f.rule_number, f.kind) for f in findings], [("Rule 9", "MISSING_DISCLAIMER")])
+        findings = []
+        disclosure.ensure_review(req.model_copy(update={"disclaimer_text": LABEL}), [rule], findings)
+        self.assertEqual(findings, [])
+
     def test_existing_breach_is_not_downgraded_or_duplicated(self):
         r = synthetic_rule()
         req = ComplianceCheckRequest(text=AI_POST, content_parts=["imagery"])

@@ -65,4 +65,3 @@ async def clear_conversation_sentiment(submission_id: UUID, assessment_id: UUID,
 async def clear_conversation_correction(submission_id: UUID, assessment_id: UUID, user_id: UUID) -> PublicMood:
     await conversation_feedback.clear_correction(submission_id, assessment_id, user_id)
     return await get_public_mood(submission_id, user_id)
-

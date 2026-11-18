@@ -61,7 +61,7 @@ from services.ai.core.gemini_service import is_rotatable_model_error, without_re
 logger = logging.getLogger(__name__)
 
 # v10: brand alignment also checks images and video against the visual identity in the brand voice entries.
-PROMPT_VERSION = "sentiment-v14"
+PROMPT_VERSION = "sentiment-v16"
 # Gemini processes an uploaded video before it can be used in a prompt.
 VIDEO_READY_TIMEOUT_SEC = 300
 # Models to analyse with, in order of preference. Gemini's free tier gives each model its own small daily allowance
@@ -151,6 +151,8 @@ Voice: authoritative, plain-spoken and specific, never breathless; confident abo
 about the company's present maturity; nonpartisan; serious about conflict, never celebratory about destruction.
 Be bold about the problem and vision; be precise about capability and development status; be ultra-precise
 about any military relationship."""
+
+from services.compliance.sentiment.creator_context_guidance import CREATOR_CONTEXT_GUIDANCE
 
 INSTRUCTIONS = """You are an editorial reviewer for ZenaTech, a Nasdaq-listed company (brands: ZenaTech, ZenaDrone,
 Drone as a Service, its software brands such as ZooOffice, and Shaun's CEO thought leadership). Assess how the draft
@@ -252,7 +254,7 @@ Rules for your assessment:
   specific gap or difference (e.g. "The image shows a quadcopter, the caption names the fixed-wing ZenaDrone 2000"
   or "The image doesn't show a drone or a roof, which the caption is about"). Leave it null when nothing visual is
   attached.
-- Keep the summary to two sentences. Return an empty findings list when there is nothing to flag."""
+- Keep the summary to two sentences. Return an empty findings list when there is nothing to flag.""" + "\n\n" + CREATOR_CONTEXT_GUIDANCE
 
 
 def _get_client() -> genai.Client:

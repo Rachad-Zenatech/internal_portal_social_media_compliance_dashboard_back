@@ -94,7 +94,23 @@ def in_post(claims: Sequence[SourceClaim], post_text: str) -> List[SourceClaim]:
 
 
 def is_newsroom(check: SourceCheck) -> bool:
-    return check.reference == REFERENCE
+    return check.where == "newsroom"
+
+
+def visible_checks(checks: Sequence[SourceCheck]) -> List[SourceCheck]:
+    """Keep automatic newsroom corroboration and conflicts; absence from a summary is not a review task.
+
+    Explicitly cited newsroom articles are ordinary supplied sources and keep all their results.
+    """
+    visible = []
+    for check in checks:
+        if not is_newsroom(check):
+            visible.append(check)
+            continue
+        claims = [claim for claim in check.claims if claim.verdict in ("SUPPORTED", "CONTRADICTED")]
+        if check.status == "READ" and claims:
+            visible.append(check.model_copy(update={"claims": claims}))
+    return visible
 
 
 def _same(a: str, b: str) -> bool:

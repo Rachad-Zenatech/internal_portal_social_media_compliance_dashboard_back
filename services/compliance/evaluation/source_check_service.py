@@ -41,7 +41,7 @@ from services.ai.observability import ai_observability
 from services.ai.observability.ai_guardrails import screen_input
 from services.ai.core.gemini_service import is_rotatable_model_error, without_retired
 from services.compliance.evaluation import (
-    citation_finder, context_evaluator, newsroom_facts, source_fetch_service, source_passages, source_settings, source_post_checks,
+    citation_finder, context_evaluator, newsroom_facts, source_fetch_service, source_passages, source_settings, source_post_checks, source_recheck,
 )
 # The safeguards on the model's answers live in their own module; these names stay importable from here.
 from services.compliance.evaluation.source_claim_checks import (  # noqa: F401
@@ -52,7 +52,7 @@ from services.shared.core.cache_service import AsyncInMemoryCache
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v6-factual-claims-only"
+PROMPT_VERSION = "source-v8-omission-is-not-contradiction"
 VERSION = f"sources-1|{citation_finder.VERSION}|{PROMPT_VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 MODELS = without_retired([m.strip() for m in os.getenv(
@@ -106,8 +106,9 @@ For each claim return:
     CONTRADICTED: the source says something different (another figure, date, stage or scope), OR the post says more than the
       source does: "available now" where the source says prototype, a result without the conditions the source attaches to
       it, "approved" where the source says submitted, a target stated as settled, a plan stated as done.
-    NOT_FOUND: the source covers the subject but does not say this.
-    UNCLEAR: it could be read either way. Say why in the note.
+    NOT_FOUND: the source covers the subject but does not say this. A page about one product or example cannot disprove a broader claim merely by omitting other examples.
+    UNCLEAR: multiple readings are plausible. Explain the distinction, such as revenue earned across eight projects
+      versus a claim of more than eight projects. Use the surrounding image text to resolve fragments when available.
 - evidence: what the source says about it, in your own words or as a short quote (it need not be word for word). Leave it
   empty only for NOT_FOUND.
 - source_location: where in the article or source this appears (for example, the section heading, paragraph/page/slide,
@@ -228,7 +229,7 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
     key = hashlib.sha256("|".join([
         PROMPT_VERSION, _post_key(post_text)[:MAX_POST_CHARS], hashlib.sha256(source_text.encode("utf-8")).hexdigest(),
     ]).encode("utf-8")).hexdigest()
-    hit = await _cache.get(key)
+    hit = None if source_recheck.refresh.get() else await _cache.get(key)
     if hit:
         return hit
     head = [f"Source: {label}"]
@@ -371,7 +372,7 @@ async def run(
 
     await asyncio.gather(*(compare(check, material) for check, material in reading if material))
     # The newsroom only shows when it said something about the post's claims.
-    result.checks = [check for check, _ in reading if check.claims or not newsroom_facts.is_newsroom(check)]
+    result.checks = newsroom_facts.visible_checks([check for check, _ in reading])
     return result
 
 

@@ -7,6 +7,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 from models.compliance.submission_steps_model import StepState, SubmissionSteps
+from models.compliance.image_provenance_model import ImageProvenanceFields
+from models.compliance.review_score_model import ReviewScoreFields
 from models.compliance.source_link_model import SourceLinksMixin, SourceLinksUpdateMixin
 from models.compliance.duplicate_model import (
     DuplicateDetail as DuplicateDetail,
@@ -117,6 +119,7 @@ class SubmissionUpdate(SourceLinksUpdateMixin):
     # Messaging Context the creator chose for the analysis, by kind (BRAND_VOICE, FACT, PLATFORM_NORM,
     # AUDIENCE_PROFILE). A kind left out is automatic; an empty list means none of that kind.
     context_picks: Optional[Dict[str, List[UUID]]] = None
+    ai_generated_images: Optional[bool] = None
     # A different caption for some platforms, as plain text by platform; the others use caption_text. {} clears them.
     platform_captions: Optional[Dict[str, str]] = Field(None, max_length=len(PLATFORMS))
     rule_sets: Optional[List[str]] = Field(None, max_length=len(RULE_SETS))
@@ -254,7 +257,7 @@ class SubmissionSummary(BaseModel):
     steps: Optional[SubmissionSteps] = None
 
 
-class Submission(SourceLinksMixin):
+class Submission(SourceLinksMixin, ImageProvenanceFields, ReviewScoreFields):
     id: UUID
     reference_code: str
     title: str
@@ -312,10 +315,6 @@ class Submission(SourceLinksMixin):
     can_delegate: bool = False
     # Critical (red) flags on the current version that a reviewer hasn't dismissed; approval waits on these.
     open_critical_flags: int = 0
-    # The rulebook score counting only flags nobody has dismissed, and the least it needs to be approved. None when
-    # there's no score yet (not checked, or still being analysed).
-    approval_score: Optional[int] = None
-    min_approval_score: int = 70
     # The saved check was made before the rulebook last changed (new, edited or removed rules).
     check_outdated: bool = False
     # For the person viewing it: it's approved and they're a reviewer who may reschedule it or reopen it.
@@ -516,7 +515,7 @@ class SubmissionHistory(BaseModel):
     events: List[SubmissionEvent]
 
 
-class ReviewQueueItem(BaseModel):
+class ReviewQueueItem(ReviewScoreFields):
     """A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it."""
     id: UUID
     reference_code: str
@@ -547,9 +546,6 @@ class ReviewQueueItem(BaseModel):
     can_delegate: bool = False
     # Critical (red) flags on the current version that a reviewer hasn't dismissed; approval waits on these.
     open_critical_flags: int = 0
-    # The rulebook score counting only flags nobody has dismissed, and the least it needs to be approved.
-    approval_score: Optional[int] = None
-    min_approval_score: int = 70
     publish_at: Optional[datetime] = None
     # For the screener's filters and header.
     brand_code: Optional[str] = None
@@ -619,6 +615,7 @@ class DashboardSummary(BaseModel):
 
 
 class SubmitRequest(BaseModel):
+    refresh_sources: bool = False
     # The creator confirmed sending the same post again for another publish date (see DuplicateReport.repost).
     confirm_repost: bool = False
 

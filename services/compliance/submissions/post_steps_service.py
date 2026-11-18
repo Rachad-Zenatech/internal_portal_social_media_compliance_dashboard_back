@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, List, Mapping, Optional
 
 from models.compliance.submission_model import SubmissionSteps
-from services.compliance.submissions import revision_steps
+from services.compliance.submissions import revision_steps, image_provenance_service
 
 # Statuses the creator can still change; anything else is locked.
 EDITABLE_STATUSES = ("DRAFT", "CHANGES_REQUESTED")
@@ -27,7 +27,7 @@ EDITABLE_STATUSES = ("DRAFT", "CHANGES_REQUESTED")
 FIELD_WORDS = {
     "title": "title", "brand_code": "brand", "audience": "audience", "region": "region", "platforms": "platform",
     "account_id": "account to post on", "rule_sets": "rule set", "caption": "caption", "main_file": "image or video",
-    "script_approval": "approved script", "script": "script",
+    "script_approval": "approved script", "script": "script", "ai_generated_images": "answer to the AI image question",
 }
 
 
@@ -72,6 +72,8 @@ def details_missing(r: Mapping[str, Any]) -> List[str]:
             missing.append("main_file")
         if r.get("script_stage") and r.get("script_status") != "APPROVED":
             missing.append("script_approval")
+    if image_provenance_service.missing(r):
+        missing.append("ai_generated_images")
     return missing
 
 
@@ -109,7 +111,9 @@ def compute_steps(r: Mapping[str, Any]) -> SubmissionSteps:
     # (no checked_at) counts as current, because there is nothing to compare it with.
     if r.get("analysis_pending"):
         compliance = "running"
-    elif r.get("ai_unavailable") or (r.get("latest_score") is None and not r.get("check_at")):
+    elif r.get("ai_unavailable"):
+        compliance = "unavailable"
+    elif r.get("latest_score") is None and not r.get("check_at"):
         compliance = "todo"
     elif r.get("check_at") is None:
         compliance = "done"

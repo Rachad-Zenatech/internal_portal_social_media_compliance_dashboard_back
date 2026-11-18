@@ -10,16 +10,17 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `message_hub_stream` (def) L26 [GET /stream] - SSE: an initial snapshot, then a new snapshot whenever any server's status changes.
     - `_event_generator` (def) L32
 
-## tools/notifications/notification_router.py (87 lines) - notification router (notifications)
-- `get_current_user_id` (def) L14
-- `api_get_notifications` (def) L18 [GET /notifications]
-- `api_get_unread_count` (def) L22 [GET /notifications/unread-count]
-- `api_mark_read` (def) L27 [PATCH /notifications/{notification_id}/read]
-- `api_mark_all_read` (def) L33 [PATCH /notifications/read-all]
-- `api_clear_read` (def) L38 [DELETE /notifications/read]
-- `api_clear_all` (def) L44 [DELETE /notifications/all]
-- `api_notification_stream` (def) L55 [GET /notifications/stream]
-    - `event_generator` (def) L57
+## tools/notifications/notification_router.py (94 lines) - notification router (notifications)
+- `get_current_user_id` (def) L16
+- `api_save_email_timezone` (def) L20 [PUT /notifications/email-timezone]
+- `api_get_notifications` (def) L25 [GET /notifications]
+- `api_get_unread_count` (def) L29 [GET /notifications/unread-count]
+- `api_mark_read` (def) L34 [PATCH /notifications/{notification_id}/read]
+- `api_mark_all_read` (def) L40 [PATCH /notifications/read-all]
+- `api_clear_read` (def) L45 [DELETE /notifications/read]
+- `api_clear_all` (def) L51 [DELETE /notifications/all]
+- `api_notification_stream` (def) L62 [GET /notifications/stream]
+    - `event_generator` (def) L64
 
 ## tools/notifications/teams_router.py (55 lines) - Microsoft Teams: the endpoint the bot's messages arrive on, and a person's own on/off switch for them.
 - `receive` (def) L22 [POST /teams/messages]
