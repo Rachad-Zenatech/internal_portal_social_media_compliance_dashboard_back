@@ -85,7 +85,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_for_version` (def) L406 - The most recent analysis of one version, as it was (looking back, so never flagged stale).
 - `_same_finding` (def) L421 - Whether two runs flagged the same thing: the same id, or (wording rewritten slightly, or a visual described
 - `_with_comparison` (def) L435 - Attach how this analysis differs from the previous completed one of the same submission.
-- `get_latest` (def) L465 - The most recent analysis, flagged stale if the content, scope or rules changed since it ran.
+- `get_latest` (def) L465 - The latest analysis remains current across detail edits, until its media changes.
 - `_analysis_row` (def) L484
 - `schedule_after_reset` (def) L497 - An analysis that failed on Gemini's daily limit runs again once the limit resets.
 - `promote_due` (def) L512 - Start scheduled analyses whose quota reset time has passed (all of them, or one submission's).

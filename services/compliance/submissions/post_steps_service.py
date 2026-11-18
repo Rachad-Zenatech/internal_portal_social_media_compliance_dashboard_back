@@ -6,8 +6,8 @@
     4. mood        the public mood has been read for the post as it is now
     5. send        it has been sent for review
 
-A tool counts as done only while it is up to date: if the post's content changed after the tool ran (see
-content_edited_at), it is "stale" and has to be run again. A post can be sent for review only when steps 1 to 4 are all
+A tool counts as done only while it is up to date: if the post's media changed after the tool ran (see
+media_edited_at), it is "stale" and has to be run again. A post can be sent for review only when steps 1 to 4 are all
 done, and once it is sent (in review, approved or published) it is locked: every step shows as done and nothing can be
 edited or re-run, until a reviewer asks for changes.
 
@@ -102,7 +102,7 @@ def compute_steps(r: Mapping[str, Any]) -> SubmissionSteps:
         return SubmissionSteps(details="done", compliance="done", sentiment="todo", mood="todo", send="done",
                                next=None, ready_to_send=False, locked=False, missing=[])
 
-    edited_at = r.get("content_edited_at") or r.get("created_at")
+    edited_at = r.get("media_edited_at") if "media_edited_at" in r else r.get("content_edited_at") or r.get("created_at")
     details = "todo" if missing else "done"
 
     # The rulebook check: scored and not older than the last edit. A check made before checks recorded their time

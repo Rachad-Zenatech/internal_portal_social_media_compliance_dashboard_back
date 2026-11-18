@@ -115,14 +115,14 @@ class MatchingTests(unittest.TestCase):
 
 
 class RunTests(unittest.TestCase):
-    def go(self, text, provided=(), fetched=None, claims=None):
+    def go(self, text, provided=(), fetched=None, claims=None, source_script=None):
         fetch = AsyncMock(return_value=fetched or sf.FetchedSource(
             url="u", ok=True, status="OK", title="ZenaTech Unveils Stacklens", text=PRESS_RELEASE, content_hash="h"))
         compare = AsyncMock(return_value=claims if claims is not None else answer())
         with patch.object(sc, "ENABLED", True), \
                 patch.object(sc.source_fetch_service, "fetch", new=fetch), \
                 patch.object(sc, "_compare", new=compare):
-            return run(sc.run(text, provided)), fetch, compare
+            return run(sc.run(text, provided, source_script=source_script)), fetch, compare
 
     def test_nothing_cited_costs_nothing(self):
         out, fetch, compare = self.go("Happy Thanksgiving from the ZenaTech family!")
@@ -143,6 +143,18 @@ class RunTests(unittest.TestCase):
         self.assertFalse(out.ai_failed)
         self.assertEqual(sc.findings(out.checks), [])
 
+    def test_script_citations_are_used_to_compare_only_the_video_claim(self):
+        video_claim = "Customer pilots are underway."
+        url = "https://www.zenatech.com/zenatech-unveils-stacklens-ai/"
+        script = f"Customer pilots are expected to begin in 2027.\nSource: {url}"
+        out, fetch, compare = self.go(video_claim, source_script=script, claims=answer(
+            result("Customer pilots are underway", "CONTRADICTED", evidence="pilots are expected to begin in 2027"),
+        ))
+        fetch.assert_awaited_once_with(url)
+        self.assertEqual(out.checks[0].where, "script")
+        self.assertEqual(compare.await_args.args[0], video_claim)
+        self.assertEqual(sc.findings(out.checks)[0].status, "VIOLATION")
+
     def test_a_claim_that_overstates_its_source_is_a_finding_that_costs_points(self):
         out, _, _ = self.go(CAPTION.replace("expected to begin in 2027", "are underway"), claims=answer(
             result("customer pilots are underway", "CONTRADICTED", evidence="pilots are expected to begin in 2027",
@@ -153,6 +165,16 @@ class RunTests(unittest.TestCase):
         self.assertEqual((found[0].status, found[0].penalty, found[0].rule_number), ("VIOLATION", 20, "Rule 18"))
         self.assertEqual(found[0].rule_id, sc.claim_id(sc.CONTRADICTED_ID, found[0].flagged_terms[0]))
         self.assertIn("pilots are underway", found[0].explanation)
+
+    def test_logos_and_website_are_not_claims_but_capabilities_are(self):
+        out, _, _ = self.go(CAPTION, claims=answer(
+            result("ZENATECH", "NOT_FOUND", where="image"),
+            result("Zena Drone", "UNCLEAR", where="image"),
+            result("zenatech.com", "NOT_FOUND", where="image"),
+            result("supports underwater inspections", "NOT_FOUND", where="image"),
+        ))
+        self.assertEqual([claim.claim for claim in out.checks[0].claims], ["supports underwater inspections"])
+        self.assertEqual(len(sc.findings(out.checks)), 1)
 
     def test_a_claim_the_source_doesnt_settle_is_for_a_person_at_no_cost(self):
         out, _, _ = self.go(CAPTION, claims=answer(result("used by 500 technicians", "NOT_FOUND", evidence=None,

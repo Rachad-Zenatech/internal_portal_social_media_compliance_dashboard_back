@@ -50,7 +50,7 @@ class Handle(unittest.IsolatedAsyncioTestCase):
         with patch.object(sync, "_page", new=AsyncMock(side_effect=RuntimeError("db"))):
             await sync.handle({"event": "merge.completed", "documentId": "x"})
 
-    async def test_a_repeated_status_does_nothing_twice(self):
+    async def test_repeated_status_syncs_submission_without_reapproving_script(self):
         pages = AsyncMock()
         document_sync = AsyncMock()
         current = page()

@@ -35,10 +35,10 @@ _client: Optional[genai.Client] = None
 
 PROMPT = """This video is screened for compliance, so we need every word it says and every word it shows.
 1. Transcribe every word spoken (voiceover, narration and dialogue) with source "speech".
-2. Transcribe every piece of readable on-screen text (titles, captions, overlays, lower thirds, slides, signs
-   and labels that are part of the message) with source "on_screen". Give each distinct on-screen text once,
-   timed from when it appears until it disappears. Skip tiny background text that can't be read, watermarks
-   and the platform's own interface.
+2. Transcribe only text intentionally added to the video, such as captions, titles, lower thirds or graphics,
+   with source "on_screen". Give each distinct overlay once, timed from when it appears until it disappears.
+   Omit text captured by the camera, including readable signs, banners, badges, logos, posters and screens
+   in the scene. Omit watermarks and platform interface text.
 Split into segments of one sentence or phrase, each no longer than about 10 seconds. For each segment give
 start_sec and end_sec as the number of seconds from the start of the video (decimals allowed), the exact text
 and its source. Keep segments in chronological order by start_sec.

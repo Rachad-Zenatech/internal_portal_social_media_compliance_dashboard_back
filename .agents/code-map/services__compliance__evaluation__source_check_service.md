@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_check_service.py (493 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+## services/compliance/evaluation/source_check_service.py (499 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - `claim_id` (def) L85 - The id of one claim's finding: its kind's id and the claim's own wording.
 - `_Result` (class) L131
 - `_Response` (class) L141
@@ -17,12 +17,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_distinct_words` (def) L270
 - `_matches` (def) L274 - Whether an attached document looks like the one a "Source:" line names: most of the line's distinctive words appear
 - `_read_link` (def) L284 - The check for a cited link, and (label, text) for the model when it could be read.
-- `run` (def) L306 - Find the sources a post cites, read them, and compare the post's claims with each.
-    - `compare` (def) L349
-- `_finding` (def) L374
-- `_label` (def) L388
-- `findings` (def) L392 - The findings the sources produce: claims that contradict their source cost points; claims the source doesn't
-- `charge_not_found` (def) L434 - A claim its source doesn't mention is unproven, like one that needs a source: each costs `points`, up to `room` in
-- `_tokens` (def) L447
-- `_same_claim` (def) L451 - Whether a supported claim is the one a "needs a source" finding is about.
-- `clear_supported` (def) L465 - A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place).
+- `run` (def) L303 - Find the sources a post cites, read them, and compare the post's claims with each.
+    - `compare` (def) L355
+- `_finding` (def) L380
+- `_label` (def) L394
+- `findings` (def) L398 - The findings the sources produce: claims that contradict their source cost points; claims the source doesn't
+- `charge_not_found` (def) L440 - A claim its source doesn't mention is unproven, like one that needs a source: each costs `points`, up to `room` in
+- `_tokens` (def) L453
+- `_same_claim` (def) L457 - Whether a supported claim is the one a "needs a source" finding is about.
+- `clear_supported` (def) L471 - A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place).

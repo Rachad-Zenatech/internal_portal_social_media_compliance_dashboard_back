@@ -64,7 +64,7 @@ class Citation:
     # The link (URL) or the cited text as written (NAMED).
     reference: str
     # source_links: a link under a "Sources:" heading, which is where the post's Source links field is put.
-    where: Literal["caption", "image", "source_links"]
+    where: Literal["caption", "image", "source_links", "script"]
     # The words that marked it as a citation ("Source:", "Read the full article", "link in the post").
     cue: str
     # The link ends in "..." so it can't be opened as written.

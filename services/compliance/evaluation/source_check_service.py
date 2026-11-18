@@ -52,7 +52,7 @@ from services.shared.core.cache_service import AsyncInMemoryCache
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v5-explicit-image-coverage"
+PROMPT_VERSION = "source-v6-factual-claims-only"
 VERSION = f"sources-1|{citation_finder.VERSION}|{PROMPT_VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 MODELS = without_retired([m.strip() for m in os.getenv(
@@ -92,9 +92,9 @@ plus any text read from its images, marked "Text in image") and ONE source the p
 
 List each checkable factual claim about the source's subject, including claims it does NOT mention: figures, dates and deadlines, named organisations
 or people and what they did or said, a product's or project's status or stage, results, capabilities, who approved or
-certified what. Skip opinions, slogans, calls to action, hashtags, greetings and anything that cannot be checked. At most 12
-claims, the ones that matter most first. Image capability lists and short functional labels are claims too; check each
-capability even when it has no number or full sentence. Return a verdict for every list item; use UNCLEAR if you cannot judge it.
+certified what. Skip standalone names, logos, URLs, branding, and incidental booth or background signage. A product name
+or label that merely identifies an object is not a claim. Check actual capability lists and measurable statements, even
+without a full sentence. Skip opinions and calls to action. Return up to 12 factual claims, using UNCLEAR if needed.
 
 For each claim return:
 - claim: the claim as the post states it, short, in the post's own words where you can.
@@ -300,10 +300,9 @@ async def _read_link(citation: citation_finder.Citation, post_text: str) -> Tupl
     check = SourceCheck(status="READ", title=fetched.title, published=fetched.published, **base)
     return check, (f"link {citation.reference}", fetched.text)
 
-
-# --- The check -------------------------------------------------------------------------------------------------------
-
-async def run(text: str, provided: Sequence[ProvidedSource] = ()) -> SourceCheckResult:
+async def run(
+    text: str, provided: Sequence[ProvidedSource] = (), *, source_script: Optional[str] = None,
+) -> SourceCheckResult:
     """Find the sources a post cites, read them, and compare the post's claims with each."""
     result = SourceCheckResult()
     if not ENABLED or not (text or "").strip():
@@ -311,14 +310,21 @@ async def run(text: str, provided: Sequence[ProvidedSource] = ()) -> SourceCheck
     citations = citation_finder.find(text)
     docs = [d for d in provided if (d.text or "").strip()]
     newsroom = await newsroom_facts.material(text)  # the company's own published facts, as one more source
-    if not citations and not docs and not newsroom:
-        return result
 
     # Named sources an attached document or a read source link stands in for are covered by that source.
     reading: List[Tuple[SourceCheck, Optional[Tuple[str, str]]]] = []
-    # Only the links the author put in the Source links field are read, not links written into the caption or the image
-    # (often the same page, cut short): the claims are matched against the sources that were added.
+    # Fetch explicit source links and script citations.
     links = [c for c in citations if c.kind == "URL" and c.where == "source_links"]
+    seen_links = {c.reference for c in links}
+    seen_names = {c.reference.casefold() for c in citations if c.kind == "NAMED"}
+    for c in citation_finder.find(source_script or ""):
+        script_citation = citation_finder.Citation(c.kind, c.reference, "script", c.cue, c.truncated)
+        if c.kind == "URL" and c.reference not in seen_links:
+            links.append(script_citation)
+            seen_links.add(c.reference)
+        elif c.kind == "NAMED" and c.reference.casefold() not in seen_names:
+            citations.append(script_citation)
+            seen_names.add(c.reference)
     for read in await asyncio.gather(*(_read_link(c, text) for c in links)):
         reading.append(read)
     read_sources = [

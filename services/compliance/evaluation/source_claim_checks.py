@@ -12,7 +12,7 @@ import re
 from typing import Any, List, Sequence
 
 from models.compliance.compliance_model import SourceClaim
-from .source_image_claims import evidence_covers
+from .source_image_claims import evidence_covers, is_identifier
 
 SUPPORT_MIN_CONFIDENCE = float(os.getenv("SOURCE_CHECK_MIN_CONFIDENCE", "0.7"))
 # Share of the evidence's distinctive words the source's text must contain.
@@ -86,6 +86,8 @@ def _to_claims(results: Sequence[Any], source_text: str) -> List[SourceClaim]:
     """The model's answers, through the safeguards."""
     out: List[SourceClaim] = []
     for r in results:
+        if is_identifier(r.claim):
+            continue
         verdict = r.verdict if r.verdict in ("SUPPORTED", "CONTRADICTED", "NOT_FOUND", "UNCLEAR") else "UNCLEAR"
         note = (r.note or "").strip() or None
         evidence = (r.evidence or "").strip() or None
