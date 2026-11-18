@@ -82,7 +82,7 @@ from services.compliance.media.html_sanitizer import sanitize_caption_html
 logger = logging.getLogger(__name__)
 
 EDITABLE_STATUSES = ("DRAFT", "CHANGES_REQUESTED")
-STORAGE_ROOT = Path(os.getenv("SUBMISSION_STORAGE_DIR", ".data/submission_files")).resolve()
+STORAGE_ROOT = Path(os.getenv("SUBMISSION_STORAGE_DIR", "data/uploads")).resolve()
 
 _MB = 1024 * 1024
 MAX_BYTES = {
