@@ -18,6 +18,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_main` (def) L59
 - `main` (def) L113
 
+## scripts/push_local_to_rds.py (159 lines) - Migrate the local Docker PostgreSQL database (or a .dump file) to AWS RDS.
+- `mask_url` (def) L36
+- `with_sslmode` (def) L44
+- `dump_local_database` (def) L51 - Create a custom-format pg_dump from local PostgreSQL (host pg_dump or Docker container).
+- `restore_to_rds` (def) L79 - Restore a custom-format dump file to AWS RDS with SSL required.
+- `run_alembic_upgrade` (def) L102
+- `verify_rds` (def) L113
+- `main` (def) L124
+
 ## scripts/scrape_x_links.py (123 lines) - Is what an item links to about the topic it was collected for? Every outside link of a collected item (see scrape_x_media.source_links) i...
 - `_entry` (def) L40
 - `_ask_ai` (def) L44 - Gemini's call on a link the keywords couldn't settle, or None when no model could answer.
