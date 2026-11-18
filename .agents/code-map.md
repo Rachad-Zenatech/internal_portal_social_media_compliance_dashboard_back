@@ -9,7 +9,7 @@ to find the right file.
 
 | Folder map | Files | Size |
 | --- | --- | --- |
-| .agents/code-map/_root.md | 3 | 2 KB |
+| .agents/code-map/_root.md | 1 | 1 KB |
 | .agents/code-map/mcp_tools.md | 3 | 1 KB |
 | .agents/code-map/mcp_tools__compliance.md | 1 | 1 KB |
 | .agents/code-map/mcp_tools__shared.md | 1 | 1 KB |
@@ -18,10 +18,35 @@ to find the right file.
 | .agents/code-map/models__shared.md | 2 | 1 KB |
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |
 | .agents/code-map/postgresql_db__schemas.md | 19 | 5 KB |
-| .agents/code-map/scripts.md | 10 | 8 KB |
+| .agents/code-map/scripts.md | 10 | 9 KB |
 | .agents/code-map/services__ai__core.md | 7 | 6 KB |
 | .agents/code-map/services__ai__observability.md | 5 | 4 KB |
-| .agents/code-map/services__compliance__analytics.md | 20 | 26 KB |
+| .agents/code-map/services__compliance__analytics__conversation_evidence.md | 1 | 3 KB |
+| .agents/code-map/services__compliance__analytics__conversation_feedback.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__conversation_review_actions.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__conversation_text.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__daily_scrape_schedule.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__item_sentiment.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__listening_providers.md | 1 | 3 KB |
+| .agents/code-map/services__compliance__analytics__listening_sources.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__mood_auto_train.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__mood_dataset.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__mood_features.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__mood_model.md | 1 | 2 KB |
+| .agents/code-map/services__compliance__analytics__mood_records.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__mood_reviews.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__mood_training.md | 1 | 2 KB |
+| .agents/code-map/services__compliance__analytics__nav_public_mood_service.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__performance_service.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__post_metrics_providers.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__post_queries.md | 1 | 3 KB |
+| .agents/code-map/services__compliance__analytics__post_query_plan.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__post_signals.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__public_mood_process.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__public_mood_prompt.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__public_mood_service.md | 1 | 4 KB |
+| .agents/code-map/services__compliance__analytics__sentiment_service.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__analytics__zenatech_financial_scrape.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__brand_voice_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__citation_finder.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__claim_checks.md | 1 | 1 KB |

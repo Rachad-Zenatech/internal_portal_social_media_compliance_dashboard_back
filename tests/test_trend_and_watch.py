@@ -208,8 +208,16 @@ class OneHomePerStoryTests(unittest.TestCase):
         self.assertEqual(sum(len(v) for v in sx.assign_unique(pool, ["a", "b"]).values()), 1)
 
     def test_topic_score_prefers_the_topic_whose_phrases_the_text_uses(self):
-        ag = next(t for t in sx.TRENDING_MARKET_TOPICS if "ag-drones" in t["external_id"])
-        delivery = next(t for t in sx.TRENDING_MARKET_TOPICS if "delivery" in t["external_id"])
+        ag = {
+            "external_id": "trend-ag-drones-farming",
+            "name": "Agricultural Drones & Smart Farming",
+            "keywords": ["agricultural drone", "agricultural drones", "crop spraying", "precision agriculture", "smart farming", "farm drone", "crop", "crops", "farmers"],
+        }
+        delivery = {
+            "external_id": "trend-drone-delivery-logistics",
+            "name": "Drone Delivery & Last-Mile Logistics",
+            "keywords": ["drone delivery", "delivery drone", "delivery drones", "last mile", "medical drone delivery", "air taxi", "evtol"],
+        }
         text = "Precision agriculture crop spraying drones help farmers"
         self.assertGreater(sx.topic_score(text, ag), sx.topic_score(text, delivery))
 

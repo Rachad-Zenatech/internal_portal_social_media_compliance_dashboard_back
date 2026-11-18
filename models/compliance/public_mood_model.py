@@ -18,6 +18,7 @@ class ListeningPost(BaseModel):
     confidence: Optional[float] = None
     engagements: int = 0
     posted_on: Optional[str] = None
+    url: Optional[str] = None
 
 
 class TopicSnapshot(BaseModel):
@@ -317,6 +318,44 @@ class XTrendOpportunity(BaseModel):
     can_jump_on_trend: bool = False
     trend_angle: str
     top_posts: List[ListeningPost] = Field(default_factory=list)
+    scrape_track: Optional[str] = None
+    post_id: Optional[str] = None
+    post_title: Optional[str] = None
+    today_reason: Optional[str] = None
+    publish_at: Optional[datetime] = None
+    # How this was found: the words and search queries the scraper used (shown in a dropdown).
+    search_method: Optional[str] = None
+    search_keywords: List[str] = Field(default_factory=list)
+    search_queries: List[str] = Field(default_factory=list)
+
+
+class TodayPostSummary(BaseModel):
+    id: UUID
+    title: str
+    status: str
+    publish_at: Optional[datetime] = None
+    today_reason: str
+    has_searches: bool = True
+
+
+class NavScrapeTrack(BaseModel):
+    key: Literal["financial_zenatech", "today_posts"]
+    title: str
+    subtitle: str
+    status: str
+    collected_at: Optional[datetime] = None
+    empty_reason: Optional[str] = None
+    posts: List[TodayPostSummary] = Field(default_factory=list)
+    trends: List[XTrendOpportunity] = Field(default_factory=list)
+
+
+class NavPublicMoodResponse(BaseModel):
+    financial_zenatech: NavScrapeTrack
+    today_posts: NavScrapeTrack
+    scrape_state: str = "idle"
+    schedule_enabled: bool = True
+    schedule_label: Optional[str] = None
+    next_scrape_at: Optional[datetime] = None
 
 
 class XCommentInput(BaseModel):

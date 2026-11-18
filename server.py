@@ -39,7 +39,7 @@ from tools.notifications.message_hub_router import message_hub_router
 from tools.shared.auth.rbac_router import router as rbac_router
 from tools.compliance.submissions.approval_path_router import router as approval_path_router
 from tools.compliance.submissions.context_router import router as context_router
-from tools.compliance.analytics.listening_router import router as listening_router
+from tools.compliance.analytics.listening_router import daily_public_scrape_loop, router as listening_router
 from tools.compliance.analytics.performance_router import router as performance_router
 from tools.shared.auth.auth_router import router as auth_router
 from tools.notifications.notification_router import notification_router
@@ -106,6 +106,7 @@ async def lifespan(app: FastAPI):
         logger,
         _graph_background_sync_enabled(),
     )
+    spawn_background(background_tasks, daily_public_scrape_loop(), "daily-public-mood-scrape")
 
     # 4. Initialize Event-Driven MQTT Service Presence & Bus
     from services.notifications import mqtt_presence as mqtt_module

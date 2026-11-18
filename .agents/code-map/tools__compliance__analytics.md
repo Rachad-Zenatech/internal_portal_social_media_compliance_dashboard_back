@@ -12,21 +12,27 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `design_thumbnail` (def) L40 [GET /designs/{design_id}/thumbnail] - A small PNG preview of the design for the picker.
 - `simulate_edit` (def) L47 [POST /designs/{design_id}/simulate-edit] - Mock Canva only: pretend the design was edited, so its next export is a new revision.
 
-## tools/compliance/analytics/listening_router.py (187 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
-- `list_topics` (def) L35 [GET /topics] - Every topic with its current mood, the team's keyword tuning and how often it was matched wrongly.
-- `sync_topics` (def) L41 [POST /topics/sync] - Pull the topic list from the listening source now instead of waiting for the daily sync.
-- `update_topic` (def) L47 [PUT /topics/{topic_id}]
-- `match_test` (def) L52 [POST /match-test] - Which topics this text would match and why, including the near misses.
-- `feedback_reasons` (def) L58 [GET /feedback-reasons] - The reasons a reviewer can give when marking a match unrelated or correcting a recommendation (code -> label).
-- `mood_model_status` (def) L64 [GET /model/status] - The decision model: whether xgboost is installed, which model is registered and loaded, what it was trained on,
-- `get_trends` (def) L71 [GET /trends] - What is trending right now, whether sentiment is positive or negative, and whether the team can jump on
-- `ingest_x_comments` (def) L78 [POST /x-ingest] - Ingest scraped or collected X (Twitter) topics and comments, classify each comment as POSITIVE/NEGATIVE/NEUTRAL
-- `_now` (def) L95
-- `_run_scraper_process` (def) L99 - The scraper in its own Python process.
-- `_collection_summary` (def) L110 - How the scrape that just finished went (status and per-source results, as the scraper recorded them), read from
-- `_run_scrape_and_refresh` (def) L126 - Scrape, then bring the topics, trends and conversation index up to date.
-- `trigger_live_scrape` (def) L163 [POST /scrape] - The scrape button: collect public X posts and news now, then refresh topics, trends and the conversation index
-- `scrape_status` (def) L182 [GET /scrape/status] - Whether a scrape is running, and how the last one went: state (idle | running | finished | failed), start and
+## tools/compliance/analytics/listening_router.py (275 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
+- `list_topics` (def) L37 [GET /topics] - Every topic with its current mood, the team's keyword tuning and how often it was matched wrongly.
+- `sync_topics` (def) L43 [POST /topics/sync] - Pull the topic list from the listening source now instead of waiting for the daily sync.
+- `update_topic` (def) L49 [PUT /topics/{topic_id}]
+- `match_test` (def) L54 [POST /match-test] - Which topics this text would match and why, including the near misses.
+- `feedback_reasons` (def) L60 [GET /feedback-reasons] - The reasons a reviewer can give when marking a match unrelated or correcting a recommendation (code -> label).
+- `mood_model_status` (def) L66 [GET /model/status] - The decision model: whether xgboost is installed, which model is registered and loaded, what it was trained on,
+- `get_trends` (def) L73 [GET /trends] - What is trending right now, whether sentiment is positive or negative, and whether the team can jump on
+- `get_nav_public_mood` (def) L80 [GET /nav] - Return both nav scrapings: (1) Financial sentiment about ZenaTech and (2) today's posts public mood.
+- `ingest_x_comments` (def) L89 [POST /x-ingest] - Ingest scraped or collected X (Twitter) topics and comments, classify each comment as POSITIVE/NEGATIVE/NEUTRAL
+- `_now` (def) L106
+- `_normalize_scope` (def) L110
+- `_run_scraper_process` (def) L114 - The scraper in its own Python process.
+- `_collection_summary` (def) L129 - How the scrape that just finished went (status and per-source results, as the scraper recorded them), read from
+- `_run_scrape_and_refresh` (def) L145 - Scrape, then bring the topics, trends and conversation index up to date.
+- `trigger_live_scrape` (def) L192 [POST /scrape] - The scrape button: collect ZenaTech financial coverage and/or today's posts public mood (scope=all|financial|today),
+- `scrape_status` (def) L213 [GET /scrape/status] - Whether a scrape is running, and how the last one went: state (idle | running | finished | failed), start and
+- `_last_collected_at` (def) L223
+- `_try_daily_scrape_lock` (def) L240
+- `_release_daily_scrape_lock` (def) L254
+- `daily_public_scrape_loop` (def) L266 - Run both nav public-mood scrapings daily at 8:30 AM (default America/New_York).
 
 ## tools/compliance/analytics/performance_router.py (45 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - `performance` (def) L22 [GET ] - Live posts (one row per platform) with their numbers and health, problems first, plus totals.

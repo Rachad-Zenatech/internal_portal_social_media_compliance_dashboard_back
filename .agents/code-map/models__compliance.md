@@ -81,34 +81,37 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `PerformanceSummary` (class) L92
 - `PerformanceReport` (class) L106
 
-## models/compliance/public_mood_model.py (342 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
+## models/compliance/public_mood_model.py (381 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - `ListeningPost` (class) L13
-- `TopicSnapshot` (class) L23
-- `MatchedTopic` (class) L41
-- `TopicReading` (class) L55
-- `PublicMoodResult` (class) L61
-- `PublicMoodSummary` (class) L75
-- `MoodFeedbackIn` (class) L89
-- `ConversationMatch` (class) L97 - A scraped news headline or X post found by vector search, and whether it is about this post's subject.
-- `ExcludedMatch` (class) L126 - A retrieved item a reviewer marked unrelated: left out of the mood, listed so it can be put back.
-- `ReviewerCorrection` (class) L138 - A reviewer's view that this assessment's recommendation was wrong (the assessment itself is unchanged).
-- `ConversationMood` (class) L148 - What the verified-relevant conversations found for this post say: specific to this post, not the topic.
-    - `matched_items` (def) L202 - The same list as `matches`, under the name the API contract uses.
-- `UnrelatedIn` (class) L207
-- `SentimentCorrectionIn` (class) L212
-- `CorrectionIn` (class) L217
-- `DismissedTopic` (class) L223
-- `ProcessStep` (class) L230 - One step of how this post's public mood was made, for the page's process log.
-- `PublicMood` (class) L238
-- `ListeningTopic` (class) L256
-- `ListeningTopicUpdate` (class) L276
-- `MatchTestRequest` (class) L282
-- `MatchTestTopic` (class) L286
-- `MatchTestResult` (class) L297
-- `XTrendOpportunity` (class) L303
-- `XCommentInput` (class) L322
-- `XIngestTopicInput` (class) L329
-- `XIngestRequest` (class) L340
+- `TopicSnapshot` (class) L24
+- `MatchedTopic` (class) L42
+- `TopicReading` (class) L56
+- `PublicMoodResult` (class) L62
+- `PublicMoodSummary` (class) L76
+- `MoodFeedbackIn` (class) L90
+- `ConversationMatch` (class) L98 - A scraped news headline or X post found by vector search, and whether it is about this post's subject.
+- `ExcludedMatch` (class) L127 - A retrieved item a reviewer marked unrelated: left out of the mood, listed so it can be put back.
+- `ReviewerCorrection` (class) L139 - A reviewer's view that this assessment's recommendation was wrong (the assessment itself is unchanged).
+- `ConversationMood` (class) L149 - What the verified-relevant conversations found for this post say: specific to this post, not the topic.
+    - `matched_items` (def) L203 - The same list as `matches`, under the name the API contract uses.
+- `UnrelatedIn` (class) L208
+- `SentimentCorrectionIn` (class) L213
+- `CorrectionIn` (class) L218
+- `DismissedTopic` (class) L224
+- `ProcessStep` (class) L231 - One step of how this post's public mood was made, for the page's process log.
+- `PublicMood` (class) L239
+- `ListeningTopic` (class) L257
+- `ListeningTopicUpdate` (class) L277
+- `MatchTestRequest` (class) L283
+- `MatchTestTopic` (class) L287
+- `MatchTestResult` (class) L298
+- `XTrendOpportunity` (class) L304
+- `TodayPostSummary` (class) L332
+- `NavScrapeTrack` (class) L341
+- `NavPublicMoodResponse` (class) L352
+- `XCommentInput` (class) L361
+- `XIngestTopicInput` (class) L368
+- `XIngestRequest` (class) L379
 
 ## models/compliance/script_batch_model.py (132 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - `BatchDetails` (class) L13 - What every post made from the batch shares.

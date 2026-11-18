@@ -1,4 +1,4 @@
-﻿name: CI/CD Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
@@ -297,6 +297,8 @@ jobs:
               git fetch origin main
               git reset --hard origin/main
             fi
+            # Agent/AI tooling lives in GitHub only: never keep it on the server.
+            rm -rf .agents .cursor .claude .cursorrules AGENTS.md CLAUDE.md GEMINI.md .antigravityignore
             # Do not leave the temporary Actions token in the remote URL.
             git remote set-url origin https://github.com/$DEPLOY_REPOSITORY.git
             echo \"Deploying commit: \$(git rev-parse --short HEAD)\"
