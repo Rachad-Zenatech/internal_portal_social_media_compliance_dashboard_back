@@ -106,18 +106,8 @@ async def check_text(row: Dict[str, Any], text: str) -> Dict[str, Any]:
 
 
 def check_key(row: Dict[str, Any], text: str) -> str:
-    """What a script's check depends on: its wording and the details it's judged by (title, brand, audience, region,
-    platforms, rule sets). A check made with the same key and rulebook is still right."""
-    parts = {
-        "title": (row.get("title") or "").strip(),
-        "body": _clean(text),
-        "brands": sorted(subs.brands_of(row)),
-        "audiences": sorted(subs.audiences_of(row)),
-        "region": row.get("region"),
-        "platforms": sorted(row.get("platforms") or []),
-        "rule_sets": sorted(row.get("rule_sets") or []),
-    }
-    return hashlib.sha256(json.dumps(parts, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+    """Only a change to the script wording requires a fresh script check."""
+    return "media-v1:" + hashlib.sha256(_clean(text).encode("utf-8")).hexdigest()
 
 
 def precheck_record(row: Dict[str, Any], text: str, check: Dict[str, Any]) -> str:
@@ -129,9 +119,11 @@ def precheck_record(row: Dict[str, Any], text: str, check: Dict[str, Any]) -> st
 
 
 def still_valid(stored: Any, row: Dict[str, Any], text: str, rulebook: Optional[str]) -> Optional[Dict[str, Any]]:
-    """The stored check, if it was made on this wording and these details against the current rulebook."""
+    """Reuse the script check across detail edits, keeping wording and rulebook gates."""
     stored = subs._json(stored) or {}
-    if not stored.get("check") or stored.get("key") != check_key(row, text):
+    key = stored.get("key") or ""
+    legacy_current = not key.startswith("media-v1:") and "media_edited_at" in row and subs.manual_check_service.content_is_current(row, stored)
+    if not stored.get("check") or (key != check_key(row, text) and not legacy_current):
         return None
     if rulebook and stored.get("rulebook_version") != rulebook:
         return None
