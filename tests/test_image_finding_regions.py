@@ -20,6 +20,19 @@ def finding(status="EVIDENCE_REQUIRED", terms=None):
 
 
 class Coordinates(unittest.TestCase):
+    def test_uses_native_tesseract_in_wsl_instead_of_windows_configuration(self):
+        with patch.dict(regions.os.environ, {"TESSERACT_CMD": "C:/Tools/tesseract.exe"}), \
+             patch.object(regions.sys, "platform", "linux"), \
+             patch.object(regions.shutil, "which", return_value="/usr/bin/tesseract"):
+            self.assertEqual(regions._tesseract_binary(), "/usr/bin/tesseract")
+
+    def test_falls_back_to_wsl_tesseract_when_windows_config_is_not_available(self):
+        with patch.dict(regions.os.environ, {"TESSERACT_CMD": "C:/Tools/tesseract.exe"}), \
+             patch.object(regions.sys, "platform", "linux"), \
+             patch.object(regions.os.path, "isfile", return_value=False), \
+             patch.object(regions.shutil, "which", return_value="/usr/bin/tesseract"):
+            self.assertEqual(regions._tesseract_binary(), "/usr/bin/tesseract")
+
     def test_converts_gemini_order_to_image_fractions(self):
         file_id = uuid4()
         box = regions.region_from_box(file_id, [800, 100, 950, 900])

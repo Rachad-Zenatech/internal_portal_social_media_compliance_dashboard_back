@@ -1367,11 +1367,11 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         """,
         row["id"],
     )
-    segments: List[Dict[str, Any]] = []
-    if video and video["transcript_status"] == "COMPLETED":
-        raw = video["transcript"]
-        segments = (json.loads(raw) if isinstance(raw, str) else raw) or []
+    raw = video["transcript"] if video and video["transcript_status"] == "COMPLETED" else []
+    segments: List[Dict[str, Any]] = (json.loads(raw) if isinstance(raw, str) else raw) or []
     spoken = " ".join(str(s.get("text", "")) for s in segments).strip()
+    visual_segments = await video_finding_service.visual_text_segments(video) if video and video["transcript_status"] == "FAILED" else []
+    visual_text = " ".join(str(s["text"]) for s in visual_segments).strip()
     # The post's images, in the order it shows them; any never read are read now and re-checked when done.
     images = await fetch_all(
         """
@@ -1412,9 +1412,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     if script and not video_scored:
         document_texts.insert(0, f"Script:\n{script}")
     # Scripts and articles carry their page, heading and table marks; the check reads the wording only.
-    text = document_layout.plain_text(
-        "\n\n".join(p for p in source_link_service.with_source_links(row, [_check_text(row), *document_texts, spoken, *image_texts]) if p)
-    ) or row["title"]
+    text = document_layout.plain_text("\n\n".join(p for p in source_link_service.with_source_links(row, [_check_text(row), *document_texts, spoken, visual_text, *image_texts]) if p)) or row["title"]
     # Documents attached as evidence (Supporting documents): what the post's claims are checked against, with the links it
     # cites. Read in the background like the script, and re-checked when done.
     evidence = await fetch_all(
@@ -1435,7 +1433,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     # and a blog's article. Not the title, and not a script (the video is what's published, and it's read once it's in).
     published = document_layout.plain_text("\n\n".join(p for p in [
         *([row["caption_text"]] if row["caption_text"] else []), *_platform_captions(row).values(),
-        spoken, *image_texts,
+        spoken, visual_text, *image_texts,
         *[f"{d['doc_text']}" for d in documents
           if d["kind"] != "SCRIPT" and d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()],
     ] if p and str(p).strip()))
@@ -1443,13 +1441,15 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         check_request(row, text, has_video=bool(video), has_images=bool(images), sources=sources,
                       disclaimer_text=published)
     )
-    await video_finding_service.locate_media_findings(images, video, segments, result.violations)
+    all_video_segments = [*segments, *visual_segments]
+    await video_finding_service.locate_media_findings(images, video, all_video_segments, result.violations)
     match = script_match.compare(script, spoken) if script and segments else None
     script_match.flag_mismatch(result, match)
     check = {
         **result.model_dump(mode="json"),
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "includes_transcript": bool(segments),
+        "includes_visual_text": bool(visual_segments),
         # A video whose transcript isn't ready yet is re-checked automatically when it is.
         "transcript_pending": bool(video) and video["transcript_status"] not in ("COMPLETED", "FAILED"),
         # Image reads still pending are re-checked automatically when done.
@@ -1468,7 +1468,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
             {"name": d["original_name"], "error": d["doc_text_error"]}
             for d in documents if d["doc_text_status"] == "FAILED"
         ],
-        "segment_flags": flag_segments(segments, result.violations),
+        "segment_flags": flag_segments(all_video_segments, result.violations),
         # Everything that couldn't be read, so its wording was never checked. Approval waits for these (see reads_failed).
         "reads_failed": [
             *([{"what": "video transcript", "name": video.get("original_name"), "error": video.get("transcript_error")}]

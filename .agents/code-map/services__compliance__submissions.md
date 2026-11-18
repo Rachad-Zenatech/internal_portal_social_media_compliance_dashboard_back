@@ -130,16 +130,17 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_active_scan_jobs` (def) L366 - Return any in-progress background image source scan jobs for this submission.
 - `get_scan_job` (def) L378 - Return the current status and result of a background image source scan job.
 
-## services/compliance/submissions/manual_check_service.py (105 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
-- `saved_check` (def) L9
-- `timestamp` (def) L14
-- `content_is_current` (def) L24
-- `may_finish_check` (def) L35
-- `require_current_check` (def) L40
-- `analysis_details_missing` (def) L50
-- `readable_script` (def) L63
-- `require_sentiment_ready` (def) L73 - Video sentiment starts only after a real video is attached; scripts do not require it.
-- `require_compliance_ready` (def) L87 - Check the script while no actual video exists, including after script approval.
+## services/compliance/submissions/manual_check_service.py (121 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
+- `saved_check` (def) L10
+- `allow_scriptless_video_compliance` (def) L15 - Permit local video fixtures to check their uploaded media without a script.
+- `timestamp` (def) L23
+- `content_is_current` (def) L33
+- `may_finish_check` (def) L44
+- `require_current_check` (def) L49
+- `analysis_details_missing` (def) L59
+- `readable_script` (def) L72
+- `require_sentiment_ready` (def) L82 - Video sentiment starts only after a real video is attached; scripts do not require it.
+- `require_compliance_ready` (def) L96 - Check the script while no actual video exists, including after script approval.
 
 ## services/compliance/submissions/post_steps_service.py (130 lines) - The five steps a creator works through, and how far each post has got.
 - `missing_words` (def) L34
