@@ -28,6 +28,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `handle_notification` (def) L155
 - `start_cache_invalidation_listener` (def) L169 - Background worker that listens for PostgreSQL NOTIFY events on CACHE_CHANNEL.
 
+## services/shared/core/lifecycle_background_service.py (59 lines) - Background work registered during the API application's lifespan.
+- `_resume_interrupted_reads` (def) L8
+- `start_background_services` (def) L21 - Register non-critical startup work without coupling it to the HTTP module.
+
 ## services/shared/core/logging_service.py (124 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
 - `JsonFormatter` (class) L39 - Emit one compact JSON object per line for CloudWatch Logs Insights.
     - `format` (def) L42

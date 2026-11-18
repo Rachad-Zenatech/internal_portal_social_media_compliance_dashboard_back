@@ -10,8 +10,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Check file sizes (limit and baseline in .agents/file_size_baseline.json)
-        run: node .agents/check_file_sizes.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check file sizes and require touched debt to shrink
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            node .agents/check_file_sizes.mjs --changed-from "$BASE_SHA"
+          else
+            node .agents/check_file_sizes.mjs
+          fi
+      - name: Publish refactoring-debt queue
+        if: always()
+        run: node .agents/check_file_sizes.mjs --report-debt
+      - name: Generate local architecture split plan for changed files
+        if: always()
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            python .agents/ai_architecture_planner.py --changed-from "$BASE_SHA" --output architecture-plan.json
+          else
+            echo '{"plans": []}' > architecture-plan.json
+          fi
+      - name: Upload architecture split plan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-split-plan
+          path: architecture-plan.json

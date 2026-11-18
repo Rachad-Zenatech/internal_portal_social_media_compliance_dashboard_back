@@ -43,6 +43,8 @@ imageio-ffmpeg>=0.5.1
 tzdata>=2024.1
 
 # Social Listening & X (Twitter) Sentiment Testing
+# Local setup also needs: python -m playwright install chromium
+# (the Docker image performs this after installing these requirements).
 vaderSentiment>=3.3.2
 playwright>=1.49.0
 playwright-stealth>=2.0.0

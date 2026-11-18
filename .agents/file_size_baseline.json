@@ -21,10 +21,6 @@
       "max_lines": 616,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
-    "server.py": {
-      "max_lines": 605,
-      "reason": "Over the limit when the check was introduced; split it when you next work on it."
-    },
     "services/compliance/analytics/conversation_evidence.py": {
       "max_lines": 954,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."

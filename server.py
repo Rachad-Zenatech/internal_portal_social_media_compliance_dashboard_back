@@ -7,17 +7,16 @@ import sys
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from typing import List, Optional
-from uuid import UUID, uuid4
+from typing import Optional
+from uuid import uuid4
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
-from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from postgresql_db.database import close_pool, create_pool, fetch_one
@@ -26,10 +25,9 @@ from services.shared.core.logging_service import (
     configure_logging,
     request_id_ctx,
 )
-from services.shared.core.cache_service import start_cache_invalidation_listener
-from services.shared.core.startup_service import resume_reads, run_schema_setups, spawn_background
+from services.shared.core.startup_service import run_schema_setups, spawn_background
+from services.shared.core.lifecycle_background_service import start_background_services
 from services.shared.auth.auth_service import (
-    current_user_id_ctx,
     get_current_user_id_dependency,
 )
 
@@ -38,7 +36,7 @@ from services.shared.auth.secret_config import require_secret
 # FastAPI routers
 from tools.shared.core.search import router as search_router
 from tools.notifications.message_hub_router import message_hub_router
-from tools.shared.auth.rbac_router import router as rbac_router, get_current_user_id
+from tools.shared.auth.rbac_router import router as rbac_router
 from tools.compliance.submissions.approval_path_router import router as approval_path_router
 from tools.compliance.submissions.context_router import router as context_router
 from tools.compliance.analytics.listening_router import router as listening_router
@@ -59,13 +57,12 @@ from tools.compliance.submissions.script_doc_router import router as script_doc_
 from tools.compliance.analytics.canva_router import router as canva_router
 from tools.ai.vector_store_router import router as vector_store_router
 from tools.ai.ai_status_router import router as ai_status_router
+from tools.ai.chat_router import router as chat_router
 from tools.compliance.analytics.sentiment_router import router as sentiment_router
 
 # MCP tools & AI functions
-from mcp_tools import register_all as register_mcp_tools, sync_mcp_tools_to_vector_db
+from mcp_tools import register_all as register_mcp_tools
 from services.ai.observability import ai_observability
-from services.ai.core import assistant_chat_service
-from services.microsoft_graph.graph_sync_job import graph_sync_loop
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -103,63 +100,12 @@ async def lifespan(app: FastAPI):
 
     background_tasks = []
 
-    # 1. Start distributed cache invalidation listener (LISTEN/NOTIFY)
-    spawn_background(background_tasks, start_cache_invalidation_listener(), "cache-listener")
-
-    # 1b. Relay live script editing between workers
-    from services.compliance.evaluation.script_doc_realtime import start_listener as start_script_doc_relay
-    spawn_background(background_tasks, start_script_doc_relay(), "script-doc-relay")
-
-    # 2. Sync MCP tools to PostgreSQL table
-    spawn_background(background_tasks, sync_mcp_tools_to_vector_db(), "mcp-tool-sync")
-
-    # 3. Microsoft Graph user sync (if enabled)
-    if _graph_background_sync_enabled():
-        spawn_background(background_tasks, graph_sync_loop(), "graph-user-sync")
-    else:
-        logger.info(
-            "Graph background sync disabled (set GRAPH_BACKGROUND_SYNC_ENABLED=true to enable)",
-            extra={"event": "graph_sync_disabled"},
-        )
-
-    # 3b. Review and revision deadline reminders
-    from services.compliance.submissions.review_deadline_service import deadline_loop
-    spawn_background(background_tasks, deadline_loop(), "review-deadlines")
-
-    # 3d. Review memory: past review decisions as precedent for sentiment analysis (catches up on anything new)
-    from services.compliance.submissions.review_memory_service import remember_all_in_background
-    spawn_background(background_tasks, remember_all_in_background(), "review-memory-sync")
-
-    # 3d'. Reviewers' verdicts on flags, as examples for the contextual check (indexes any given while it was off)
-    from services.compliance.submissions.finding_precedent_service import remember_all_in_background as remember_verdicts
-    spawn_background(background_tasks, remember_verdicts(), "finding-precedent-sync")
-
-    # 3e0. Facts from the ZenaTech newsroom, re-read once a day
-    from services.compliance.evaluation.newsroom_sync_service import newsroom_sync_loop
-    spawn_background(background_tasks, newsroom_sync_loop(), "newsroom-sync")
-
-    # 3e0b. Platform content policies: their policy pages re-read weekly; changes drafted for a super admin to approve
-    from services.compliance.evaluation.policy_watch_service import policy_watch_loop
-    spawn_background(background_tasks, policy_watch_loop(), "policy-watch")
-
-    # 3e1b. Image and document reads that a restart cut off are started again
-    spawn_background(background_tasks, resume_reads(), "resume-interrupted-reads")
-
-    # 3e2. A script being sent when the server last stopped is picked up again, not left "processing"
-    from services.compliance.evaluation.script_review_service import resume_interrupted_sends
-    spawn_background(background_tasks, resume_interrupted_sends(), "script-send-resume")
-
-    # 3e3. The comment sentiment model: loaded in a worker thread now, so the first public-mood view doesn't load it
-    # on the event loop (that froze every request for minutes)
-    from services.compliance.analytics.listening_providers import warm_up_sentiment_model
-    spawn_background(background_tasks, warm_up_sentiment_model(), "sentiment-model-warm-up")
-
-    # 3f. AI traces and prompt logs: written in batches as they arrive (waits on a queue, no polling)
-    spawn_background(background_tasks, ai_observability.writer_loop(), "ai-trace-writer")
-
-    # 3g. Reference index: rulebook and Messaging Context in the vector store for the assistant's search
-    from services.compliance.evaluation.reference_index_service import sync_soon as sync_reference_index
-    sync_reference_index()
+    start_background_services(
+        background_tasks,
+        spawn_background,
+        logger,
+        _graph_background_sync_enabled(),
+    )
 
     # 4. Initialize Event-Driven MQTT Service Presence & Bus
     from services.notifications import mqtt_presence as mqtt_module
@@ -228,63 +174,6 @@ register_mcp_tools(mcp)
 # per role, traced and redacted by mcp_tools.middleware.
 mcp_http_app = mcp.http_app(path="/")
 app.mount("/mcp", mcp_http_app)
-
-
-# --- AI Chat / Agent Endpoint ---
-class MessageItem(BaseModel):
-    role: str = Field(min_length=1, max_length=32)
-    content: str = Field(min_length=1, max_length=20_000)
-
-class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=20_000)
-    history: List[MessageItem] = Field(default_factory=list, max_length=50)
-
-# The whole conversation sent to Gemini in one request, so one request can't use a huge share of the quota.
-CHAT_MAX_TOTAL_CHARS = 60_000
-
-@app.post("/ai/chat")
-async def ai_chat(req: ChatRequest, user_id: UUID = Depends(get_current_user_id)):
-    if len(req.message) + sum(len(h.content) for h in req.history) > CHAT_MAX_TOTAL_CHARS:
-        raise HTTPException(status_code=413, detail="The conversation is too long. Start a new one.")
-    try:
-        current_user_id_ctx.set(user_id)
-        # Input screening and the semantic cache first: a blocked message or a cached answer uses no AI quota.
-        prepared = await assistant_chat_service.prepare(req.message, req.history, user_id)
-    except Exception:
-        logger.exception("AI chat request failed", extra={"event": "ai_chat_failed"})
-        return JSONResponse(
-            content={"reply": "The AI service is temporarily unavailable. Please try again."},
-            status_code=500
-        )
-    if not prepared.blocked and prepared.cached_answer is None:
-        # Counts toward the same daily AI limits as the other Gemini features (429 with when it frees up).
-        from services.ai.observability import ai_usage_service
-        await ai_usage_service.reserve("CHAT", user_id)
-    try:
-        async def stream_generator():
-            try:
-                async for chunk in assistant_chat_service.stream(prepared):
-                    yield chunk
-            except Exception:
-                import json
-                logger.exception("AI stream request failed", extra={"event": "ai_chat_stream_failed"})
-                yield f"data: {json.dumps({'type': 'error', 'message': 'The AI service is temporarily unavailable.'})}\n\n"
-
-        return StreamingResponse(
-            stream_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no"
-            }
-        )
-    except Exception:
-        logger.exception("AI chat request failed", extra={"event": "ai_chat_failed"})
-        return JSONResponse(
-            content={"reply": "The AI service is temporarily unavailable. Please try again."},
-            status_code=500
-        )
 
 
 # --- Basic Endpoints ---
@@ -360,6 +249,7 @@ app.include_router(script_doc_router, prefix="/api", tags=["Script Documents"])
 app.include_router(submission_router, prefix="/api", tags=["Content Submissions"])
 app.include_router(source_routers, prefix="/api/submissions", tags=["Content Submissions"])
 app.include_router(ai_status_router, prefix="/api", tags=["AI Status"], dependencies=authenticated)
+app.include_router(chat_router, prefix="/api", tags=["AI Chat"])
 app.include_router(approval_path_router, prefix="/api", tags=["Approval Paths"])
 app.include_router(context_router, prefix="/api", tags=["Messaging Context"])
 app.include_router(listening_router, prefix="/api", tags=["Listening Topics"])
