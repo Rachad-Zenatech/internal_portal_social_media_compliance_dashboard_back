@@ -127,75 +127,79 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_source_confirmations` (def) L17 [GET /{submission_id}/source-confirmations] - Everyone's calls on this post's sources, and what reviewers have said about each source's site.
 - `confirm_source` (def) L23 [POST /{submission_id}/source-confirmations] - Confirm (or take back) whether a claim matches its source, or rate the source itself.
 
-## tools/compliance/submissions/submission_router.py (589 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
-- `get_options` (def) L64 [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
-- `list_reviewers` (def) L70 [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
-- `get_hashtag_library` (def) L77 [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
-- `list_delegations` (def) L91 [GET /delegations] - Review hand-offs the user made (by_me) or received (to_me), with each post's current status.
-- `delegation_count` (def) L97 [GET /delegations/count] - Posts delegated to the user that are still waiting for a decision.
-- `dashboard` (def) L103 [GET /dashboard] - Recent activity and last-30-days compliance insights for the dashboard, over the content the user can see
-- `ai_usage` (def) L110 [GET /ai-usage] - How many AI runs (sentiment, transcription) the current user has left in the rolling 24-hour window,
-- `list_my_submissions` (def) L117 [GET ] - The current user's submissions (or everyone's), needs-action first.
-- `create_submission` (def) L127 [POST ] - Start a draft.
-- `get_submission` (def) L133 [GET /{submission_id}]
-- `update_submission` (def) L138 [PATCH /{submission_id}] - Save draft fields.
-- `delete_draft` (def) L144 [DELETE /{submission_id}] - Delete a draft: its creator, super admins and Content Managers can.
-- `upload_file` (def) L150 [POST /{submission_id}/files] - Attach a content asset, script, image or supporting document (multipart/form-data).
-- `download_file` (def) L161 [GET /{submission_id}/files/{file_id}] - Stream a file for preview.
-- `transcribe_file` (def) L168 [POST /{submission_id}/files/{file_id}/transcribe] - Regenerate a video's speech transcript in the background (it is generated automatically on upload).
-- `remove_file` (def) L174 [DELETE /{submission_id}/files/{file_id}]
-- `import_from_canva` (def) L179 [POST /{submission_id}/canva/import] - Export a Canva design and add it as the main content file, exactly like an upload.
-- `reimport_from_canva` (def) L185 [POST /{submission_id}/canva/reimport] - Replace the Canva-imported main file with the design's latest revision; optionally resubmit for review.
-- `run_initial_check` (def) L191 [POST /{submission_id}/check] - Screen the title and caption against the rulebook without submitting.
-- `run_initial_check_stream` (def) L198 [POST /{submission_id}/check/stream] - The same check as /check, streamed as newline-delimited JSON so the page can show its progress: an
-    - `listen` (def) L207
-    - `work` (def) L212
-    - `lines` (def) L226
-- `context_suggestions` (def) L241 [GET /{submission_id}/context-suggestions] - The Messaging Context the analysis would pick on its own for this post, by kind (the picker's suggestions).
-- `find_duplicates` (def) L250 [GET /{submission_id}/duplicates] - Posts already sent for approval with the same content and caption as this draft, with how their Submission
-- `submit_for_review` (def) L265 [POST /{submission_id}/submit] - Validate required information, snapshot a new version and create a review job.
-- `get_version` (def) L274 [GET /{submission_id}/versions/{version}] - One submitted version as it was: snapshot, video, automated check and decision.
-- `get_history` (def) L280 [GET /{submission_id}/history] - Versions, review jobs and the activity log.
-- `get_sentiment` (def) L286 [GET /{submission_id}/sentiment] - Latest sentiment analysis (or null).
-- `request_sentiment` (def) L296 [POST /{submission_id}/sentiment] - Analyse the current content's tone and reputational risk.
-- `suggest_captions` (def) L308 [POST /{submission_id}/caption-suggestions] - Three captions drafted from the post's images, video transcript and title, in the brand's voice, each
-- `get_public_mood` (def) L316 [GET /{submission_id}/public-mood] - How people online currently feel about the topics this post touches (social listening), with the saved
-- `summarise_public_mood` (def) L324 [POST /{submission_id}/public-mood/summary] - An AI reading of how this post is likely to land given the current mood.
-- `dismiss_public_mood_topic` (def) L333 [PUT /{submission_id}/public-mood/topics/{topic_id}/dismissal] - This post isn't about that topic": leave it out here, and count it against the topic's keywords.
-- `restore_public_mood_topic` (def) L340 [DELETE /{submission_id}/public-mood/topics/{topic_id}/dismissal]
-- `mark_conversation_unrelated` (def) L348 - This retrieved item is not about the post: it is left out of this post's conversation assessments from now on.
-- `restore_conversation_item` (def) L356 [DELETE /{submission_id}/public-mood/conversations/items/{item_id}/unrelated] - Put a left-out item back.
-- `correct_conversation_recommendation` (def) L363 [PUT /{submission_id}/public-mood/conversations/{assessment_id}/correction] - This recommendation is wrong: what it should have been and why.
-- `confirm_conversation_recommendation` (def) L372 [PUT /{submission_id}/public-mood/conversations/{assessment_id}/confirmation] - This recommendation is right.
-- `resolve_conversation_decision` (def) L379 [PUT /{submission_id}/public-mood/conversations/{assessment_id}/resolution] - A lead reviewer settles a disagreement between reviewers about an assessment: until then an assessment whose
-- `mark_conversation_sentiment` (def) L390 - This item's sentiment is read wrongly: what it should be.
-- `clear_conversation_sentiment` (def) L399
-- `clear_conversation_correction` (def) L404 [DELETE /{submission_id}/public-mood/conversations/{assessment_id}/correction]
-- `conversation_evidence_of` (def) L410 [GET /{submission_id}/public-mood/conversations/{assessment_id}/evidence] - Every item an assessment looked at, as it read when the assessment ran (even if the feed has changed since),
-- `rate_public_mood` (def) L419 [PUT /{submission_id}/public-mood/summary/{summary_id}/feedback] - Whether the summary helped; one vote per person, changeable.
-- `unrate_public_mood` (def) L426 [DELETE /{submission_id}/public-mood/summary/{summary_id}/feedback]
-- `schedule_sentiment` (def) L432 [POST /{submission_id}/sentiment/{analysis_id}/schedule] - Run an analysis stopped by Gemini's daily limit again automatically once the limit resets.
-- `sentiment_frame` (def) L439 [GET /{submission_id}/sentiment/{analysis_id}/frame] - The analysed video's frame at t seconds, shown beside findings tied to that moment.
-- `sentiment_image` (def) L447 [GET /{submission_id}/sentiment/{analysis_id}/images/{index}] - One of the images the analysis looked at (1 = the first), shown beside findings about it.
-- `_require_reviewer` (def) L455
-- `rate_finding` (def) L460 [PUT /{submission_id}/sentiment/{analysis_id}/findings/{finding_id}/feedback] - A reviewer marks a finding useful or not an issue (their own vote; changing it replaces it).
-- `clear_finding_rating` (def) L468 [DELETE /{submission_id}/sentiment/{analysis_id}/findings/{finding_id}/feedback] - Take back the reviewer's own vote on a finding.
-- `review_submission` (def) L476 [POST /{submission_id}/review] - Reviewer decision on the version in review: approve (schedule it, or publish now) or request changes.
-- `delegate_review` (def) L483 [POST /{submission_id}/delegate] - Reviewer hands the post in review to another reviewer; the delegator keeps seeing it and can still decide.
-- `submission_delegations` (def) L489 [GET /{submission_id}/delegations] - Every review hand-off on this post.
-- `reopen_approval` (def) L495 [POST /{submission_id}/reopen] - Reviewer takes back an approval and sends the content to its creator as changes requested.
-- `reschedule` (def) L501 [POST /{submission_id}/reschedule] - Reviewer moves approved content to a new publish time; the approval stands.
-- `list_flag_reviews` (def) L507 [GET /{submission_id}/flags] - Reviewers' dismissals of automated compliance flags, on every version.
-- `creator_flag_dismissals` (def) L513 [GET /{submission_id}/creator-flag-dismissals]
-- `request_creator_flag_dismissal` (def) L518 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}]
-- `approve_creator_flag_dismissal` (def) L523 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}/approve]
-- `reject_creator_flag_dismissal` (def) L528 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}/reject] - Decline a creator's dismissal request and send the post back through the standard changes flow.
-- `dismiss_flag` (def) L536 [PUT /{submission_id}/flags/{rule_id}] - Dismiss a flag on the version in review as a false alarm, with a reason.
-- `restore_flag` (def) L542 [DELETE /{submission_id}/flags/{rule_id}] - Undo a dismissal on the version in review.
-- `list_flag_verdicts` (def) L548 [GET /{submission_id}/flag-verdicts] - Reviewers' calls on the automated flags (right, or a false alarm), on every version.
-- `confirm_flag` (def) L554 [PUT /{submission_id}/flags/{rule_id}/confirm] - Say a flag on the version in review is right.
-- `unconfirm_flag` (def) L560 [DELETE /{submission_id}/flags/{rule_id}/confirm] - Take back a confirmation.
-- `list_comments` (def) L566 [GET /{submission_id}/comments] - Review comments on every version, oldest first.
-- `add_comment` (def) L572 [POST /{submission_id}/comments] - Add a comment on the current version (reviewers and the creator), optionally pinned to a video time range.
-- `update_comment` (def) L578 [PATCH /{submission_id}/comments/{comment_id}] - Mark a comment resolved (or reopen it).
-- `delete_comment` (def) L584 [DELETE /{submission_id}/comments/{comment_id}] - Delete your own comment.
+## tools/compliance/submissions/submission_flag_router.py (74 lines) - Creator dismissal requests and reviewers' calls on compliance flags.
+- `list_flag_reviews` (def) L17 [GET /{submission_id}/flags] - Reviewers' dismissals of automated compliance flags, on every version.
+- `creator_flag_dismissals` (def) L23 [GET /{submission_id}/creator-flag-dismissals]
+- `request_creator_flag_dismissal` (def) L28 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}]
+- `approve_creator_flag_dismissal` (def) L33 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}/approve]
+- `reject_creator_flag_dismissal` (def) L38 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}/reject] - Decline a creator's dismissal request and send the post back through the standard changes flow.
+- `dismiss_flag` (def) L46 [PUT /{submission_id}/flags/{rule_id}] - Dismiss a flag on the version in review as a false alarm, with a reason.
+- `restore_flag` (def) L52 [DELETE /{submission_id}/flags/{rule_id}] - Undo a dismissal on the version in review.
+- `list_flag_verdicts` (def) L58 [GET /{submission_id}/flag-verdicts] - Reviewers' calls on the automated flags (right, or a false alarm), on every version.
+- `confirm_flag` (def) L64 [PUT /{submission_id}/flags/{rule_id}/confirm] - Say a flag on the version in review is right.
+- `unconfirm_flag` (def) L70 [DELETE /{submission_id}/flags/{rule_id}/confirm] - Take back a confirmation.
+
+## tools/compliance/submissions/submission_review_router.py (70 lines) - Review decisions, hand-offs and comments for content submissions.
+- `review_submission` (def) L17 [POST /{submission_id}/review] - Reviewer decision on the version in review: approve (schedule it, or publish now) or request changes.
+- `delegate_review` (def) L24 [POST /{submission_id}/delegate] - Reviewer hands the post in review to another reviewer; the delegator keeps seeing it and can still decide.
+- `submission_delegations` (def) L30 [GET /{submission_id}/delegations] - Every review hand-off on this post.
+- `reopen_approval` (def) L36 [POST /{submission_id}/reopen] - Reviewer takes back an approval and sends the content to its creator as changes requested.
+- `reschedule` (def) L42 [POST /{submission_id}/reschedule] - Reviewer moves approved content to a new publish time; the approval stands.
+- `list_comments` (def) L48 [GET /{submission_id}/comments] - Review comments on every version, oldest first.
+- `add_comment` (def) L54 [POST /{submission_id}/comments] - Add a comment on the current version (reviewers and the creator), optionally pinned to a video time range.
+- `update_comment` (def) L60 [PATCH /{submission_id}/comments/{comment_id}] - Mark a comment resolved (or reopen it).
+- `delete_comment` (def) L66 [DELETE /{submission_id}/comments/{comment_id}] - Delete your own comment.
+
+## tools/compliance/submissions/submission_router.py (491 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+- `get_options` (def) L81 [GET /options] - Brands, connected publishing accounts and the allowed values for each field.
+- `list_reviewers` (def) L87 [GET /reviewers] - Reviewers and super admins a creator can send content to (on any of the brands, when given; repeat
+- `get_hashtag_library` (def) L94 [GET /hashtags] - Hashtags (and the company cashtag) suited to this brand, audience and these platforms, minus any the
+- `list_delegations` (def) L108 [GET /delegations] - Review hand-offs the user made (by_me) or received (to_me), with each post's current status.
+- `delegation_count` (def) L114 [GET /delegations/count] - Posts delegated to the user that are still waiting for a decision.
+- `dashboard` (def) L120 [GET /dashboard] - Recent activity and last-30-days compliance insights for the dashboard, over the content the user can see
+- `ai_usage` (def) L127 [GET /ai-usage] - How many AI runs (sentiment, transcription) the current user has left in the rolling 24-hour window,
+- `list_my_submissions` (def) L134 [GET ] - The current user's submissions (or everyone's), needs-action first.
+- `create_submission` (def) L144 [POST ] - Start a draft.
+- `get_submission` (def) L150 [GET /{submission_id}]
+- `update_submission` (def) L155 [PATCH /{submission_id}] - Save draft fields.
+- `delete_draft` (def) L161 [DELETE /{submission_id}] - Delete a draft: its creator, super admins and Content Managers can.
+- `upload_file` (def) L167 [POST /{submission_id}/files] - Attach a content asset, script, image or supporting document (multipart/form-data).
+- `download_file` (def) L178 [GET /{submission_id}/files/{file_id}] - Stream a file for preview.
+- `transcribe_file` (def) L185 [POST /{submission_id}/files/{file_id}/transcribe] - Regenerate a video's speech transcript in the background (it is generated automatically on upload).
+- `remove_file` (def) L191 [DELETE /{submission_id}/files/{file_id}]
+- `import_from_canva` (def) L196 [POST /{submission_id}/canva/import] - Export a Canva design and add it as the main content file, exactly like an upload.
+- `reimport_from_canva` (def) L202 [POST /{submission_id}/canva/reimport] - Replace the Canva-imported main file with the design's latest revision; optionally resubmit for review.
+- `run_initial_check` (def) L208 [POST /{submission_id}/check] - Screen the title and caption against the rulebook without submitting.
+- `run_initial_check_stream` (def) L215 [POST /{submission_id}/check/stream] - The same check as /check, streamed as newline-delimited JSON so the page can show its progress: an
+    - `listen` (def) L224
+    - `work` (def) L229
+    - `lines` (def) L243
+- `context_suggestions` (def) L258 [GET /{submission_id}/context-suggestions] - The Messaging Context the analysis would pick on its own for this post, by kind (the picker's suggestions).
+- `find_duplicates` (def) L267 [GET /{submission_id}/duplicates] - Posts already sent for approval with the same content and caption as this draft, with how their Submission
+- `submit_for_review` (def) L282 [POST /{submission_id}/submit] - Validate required information, snapshot a new version and create a review job.
+- `get_version` (def) L291 [GET /{submission_id}/versions/{version}] - One submitted version as it was: snapshot, video, automated check and decision.
+- `get_history` (def) L297 [GET /{submission_id}/history] - Versions, review jobs and the activity log.
+- `get_sentiment` (def) L303 [GET /{submission_id}/sentiment] - Latest sentiment analysis (or null).
+- `request_sentiment` (def) L313 [POST /{submission_id}/sentiment] - Analyse the current content's tone and reputational risk.
+- `suggest_captions` (def) L325 [POST /{submission_id}/caption-suggestions] - Three captions drafted from the post's images, video transcript and title, in the brand's voice, each
+- `get_public_mood` (def) L333 [GET /{submission_id}/public-mood] - How people online currently feel about the topics this post touches (social listening), with the saved
+- `summarise_public_mood` (def) L341 [POST /{submission_id}/public-mood/summary] - An AI reading of how this post is likely to land given the current mood.
+- `dismiss_public_mood_topic` (def) L350 [PUT /{submission_id}/public-mood/topics/{topic_id}/dismissal] - This post isn't about that topic": leave it out here, and count it against the topic's keywords.
+- `restore_public_mood_topic` (def) L357 [DELETE /{submission_id}/public-mood/topics/{topic_id}/dismissal]
+- `mark_conversation_unrelated` (def) L365 - This retrieved item is not about the post: it is left out of this post's conversation assessments from now on.
+- `restore_conversation_item` (def) L373 [DELETE /{submission_id}/public-mood/conversations/items/{item_id}/unrelated] - Put a left-out item back.
+- `correct_conversation_recommendation` (def) L380 [PUT /{submission_id}/public-mood/conversations/{assessment_id}/correction] - This recommendation is wrong: what it should have been and why.
+- `confirm_conversation_recommendation` (def) L389 [PUT /{submission_id}/public-mood/conversations/{assessment_id}/confirmation] - This recommendation is right.
+- `resolve_conversation_decision` (def) L396 [PUT /{submission_id}/public-mood/conversations/{assessment_id}/resolution] - A lead reviewer settles a disagreement between reviewers about an assessment: until then an assessment whose
+- `mark_conversation_sentiment` (def) L407 - This item's sentiment is read wrongly: what it should be.
+- `clear_conversation_sentiment` (def) L416
+- `clear_conversation_correction` (def) L421 [DELETE /{submission_id}/public-mood/conversations/{assessment_id}/correction]
+- `conversation_evidence_of` (def) L427 [GET /{submission_id}/public-mood/conversations/{assessment_id}/evidence] - Every item an assessment looked at, as it read when the assessment ran (even if the feed has changed since),
+- `rate_public_mood` (def) L436 [PUT /{submission_id}/public-mood/summary/{summary_id}/feedback] - Whether the summary helped; one vote per person, changeable.
+- `unrate_public_mood` (def) L443 [DELETE /{submission_id}/public-mood/summary/{summary_id}/feedback]
+- `schedule_sentiment` (def) L449 [POST /{submission_id}/sentiment/{analysis_id}/schedule] - Run an analysis stopped by Gemini's daily limit again automatically once the limit resets.
+- `sentiment_frame` (def) L456 [GET /{submission_id}/sentiment/{analysis_id}/frame] - The analysed video's frame at t seconds, shown beside findings tied to that moment.
+- `sentiment_image` (def) L464 [GET /{submission_id}/sentiment/{analysis_id}/images/{index}] - One of the images the analysis looked at (1 = the first), shown beside findings about it.
+- `_require_reviewer` (def) L472
+- `rate_finding` (def) L477 [PUT /{submission_id}/sentiment/{analysis_id}/findings/{finding_id}/feedback] - A reviewer marks a finding useful or not an issue (their own vote; changing it replaces it).
+- `clear_finding_rating` (def) L485 [DELETE /{submission_id}/sentiment/{analysis_id}/findings/{finding_id}/feedback] - Take back the reviewer's own vote on a finding.

@@ -8,6 +8,7 @@ from html.parser import HTMLParser
 from typing import List, Optional, Tuple
 
 from services.compliance.media.document_layout import _cell, _format_runs, _row
+from services.compliance.media.script_sources import is_sources_label
 
 
 class _HtmlLayoutParser(HTMLParser):
@@ -22,6 +23,7 @@ class _HtmlLayoutParser(HTMLParser):
         self._lists: List[Tuple[str, int]] = []
         self._in_cell = False
         self._row_cells: List[str] = []
+        self._row_links: List[str] = []
         self._table_rows: List[str] = []
 
     def _flush_runs(self) -> str:
@@ -63,6 +65,11 @@ class _HtmlLayoutParser(HTMLParser):
             self._table_rows = []
         elif t == "tr":
             self._row_cells = []
+            self._row_links = []
+        elif t == "a" and self._in_cell:
+            href = dict(attrs).get("href") or ""
+            if href.startswith(("https://", "http://")):
+                self._row_links.append(href)
         elif t in ("td", "th"):
             self._in_cell = True
             self._runs.clear()
@@ -90,6 +97,8 @@ class _HtmlLayoutParser(HTMLParser):
             self._in_cell = False
         elif t == "tr":
             if any(self._row_cells):
+                if is_sources_label(next(cell for cell in self._row_cells if cell)):
+                    self._row_cells.extend(dict.fromkeys(self._row_links))
                 self._table_rows.append(_row(self._row_cells))
             self._row_cells = []
         elif t == "table":

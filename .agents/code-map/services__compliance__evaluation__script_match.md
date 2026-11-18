@@ -4,10 +4,10 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_match.py (152 lines) - Script vs video.
-- `_words` (def) L29
-- `_shown` (def) L34
-- `_script_column` (def) L38 - Extract a production-table column, or return None when the column is absent.
-- `compare` (def) L59 - Compare dialogue and overlays separately, weighting similarity by their word counts.
-- `assess_video` (def) L96 - Keep a missing transcript distinct from a video that follows its retained approved script.
-- `flag_mismatch` (def) L116 - Flag script comparisons that need review and deduct points for low similarity.
+## services/compliance/evaluation/script_match.py (153 lines) - Script vs video.
+- `_words` (def) L30
+- `_shown` (def) L35
+- `_script_column` (def) L39 - Extract a production-table column, or return None when the column is absent.
+- `compare` (def) L60 - Compare dialogue and overlays separately, weighting similarity by their word counts.
+- `assess_video` (def) L97 - Keep a missing transcript distinct from a video that follows its retained approved script.
+- `flag_mismatch` (def) L117 - Flag script comparisons that need review and deduct points for low similarity.

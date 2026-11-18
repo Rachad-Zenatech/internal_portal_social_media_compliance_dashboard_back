@@ -48,6 +48,7 @@ from services.compliance.evaluation.source_claim_checks import (  # noqa: F401
     SUPPORT_MIN_CONFIDENCE, _digits, _to_claims, evidence_overlap, missing_figures,
 )
 from services.shared.core.cache_service import AsyncInMemoryCache
+from services.compliance.media import script_sources
 
 logger = logging.getLogger(__name__)
 
@@ -318,7 +319,7 @@ async def run(
     links = [c for c in citations if c.kind == "URL" and c.where == "source_links"]
     seen_links = {c.reference for c in links}
     seen_names = {c.reference.casefold() for c in citations if c.kind == "NAMED"}
-    for c in citation_finder.find(source_script or ""):
+    for c in citation_finder.find(script_sources.split(source_script or "")[1] or source_script or "", explicit_script=True):
         script_citation = citation_finder.Citation(c.kind, c.reference, "script", c.cue, c.truncated)
         if c.kind == "URL" and c.reference not in seen_links:
             links.append(script_citation)

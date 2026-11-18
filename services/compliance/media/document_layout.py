@@ -19,9 +19,12 @@ from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 from xml.etree import ElementTree
 
+from services.compliance.media.script_sources import is_sources_label
+
 logger = logging.getLogger(__name__)
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_REL_ID = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
 PAGE_RE = re.compile(r"^--- Page (\d+) ---$")
 # A paragraph this big (half-points in Word) reads as a heading even without a heading style.
 DOCX_HEADING_HALF_POINTS = 32
@@ -93,6 +96,14 @@ def _is_heading_style(style_id: str, names: Dict[str, str]) -> bool:
 class _Docx:
     def __init__(self, zf: zipfile.ZipFile):
         self.styles = _style_names(zf)
+        try:
+            relationships = ElementTree.fromstring(zf.read("word/_rels/document.xml.rels"))
+        except KeyError:
+            relationships = []
+        self.links = {
+            rel.get("Id"): target for rel in relationships
+            if rel.get("TargetMode") == "External" and (target := rel.get("Target", "")).startswith(("http://", "https://"))
+        }
         self.lines: List[str] = []
         self.page = 1
 
@@ -166,6 +177,9 @@ class _Docx:
             for tc in tr.findall(f"{_W}tc"):
                 cells.append(" ".join(c for c in (self.paragraph(p, in_table=True) for p in tc.iter(f"{_W}p")) if c))
             if any(cells):
+                if is_sources_label(next(cell for cell in cells if cell)):
+                    links = [self.links.get(link.get(_REL_ID)) for link in tr.iter(f"{_W}hyperlink")]
+                    cells.extend(dict.fromkeys(link for link in links if link))
                 self.lines.append(_row(cells))
 
     def block(self, node: ElementTree.Element) -> None:

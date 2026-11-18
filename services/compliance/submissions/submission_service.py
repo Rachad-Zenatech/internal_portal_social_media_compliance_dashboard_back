@@ -58,6 +58,7 @@ from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.core.audit_service import log_audit_event
 from services.ai.observability import ai_observability, ai_usage_service
 from services.compliance.submissions import approval_path_service, source_link_service
+from services.notifications.submission_notifications import notify_submission as _notify
 from services.compliance.submissions import delegation_service
 from services.compliance.submissions.submission_snapshot import build_snapshot
 from services.compliance.submissions import duplicate_service
@@ -69,6 +70,7 @@ from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
 from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness, image_provenance_service
 from services.compliance.evaluation import source_recheck
+from services.compliance.media import script_sources
 from services.compliance.media import document_layout
 from services.compliance.media import document_text_service
 from services.compliance.media import image_text_service, video_finding_service
@@ -1407,13 +1409,13 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         if d["kind"] == "SCRIPT" and d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
     )
     document_texts = [
-        f"{'Script' if d['kind'] == 'SCRIPT' else 'Article'}:\n{d['doc_text']}"
+        f"Script:\n{script_sources.split(d['doc_text'])[0]}" if d["kind"] == "SCRIPT" else f"Article:\n{d['doc_text']}"
         for d in documents
         if d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
         and not (d["kind"] == "SCRIPT" and (script or video_scored))
     ]
     if script and not video_scored:
-        document_texts.insert(0, f"Script:\n{script}")
+        document_texts.insert(0, "Script:\n" + script_sources.split(script)[0])
     # Scripts and articles carry their page, heading and table marks; the check reads the wording only.
     text = document_layout.plain_text("\n\n".join(p for p in source_link_service.with_source_links(row, [_check_text(row), *document_texts, spoken, visual_text, *image_texts]) if p)) or row["title"]
     # Supporting documents are read in the background and included as evidence.
@@ -1441,7 +1443,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     result = await check_compliance(
         check_request(row, text, has_video=bool(video), has_images=bool(images), sources=sources,
                       disclaimer_text=published,
-                      source_script=document_layout.plain_text(source_script) if video and source_script else None)
+                      source_script=source_script or None)
     )
     all_video_segments = [*segments, *visual_segments]
     await video_finding_service.locate_media_findings(images, video, all_video_segments, result.violations)
@@ -2267,21 +2269,6 @@ async def _review_recipients(row: Dict[str, Any], exclude: Optional[UUID]) -> Li
     return [r for r in picked if r in named]
 
 
-async def _notify(user_ids: List[UUID], title: str, message: str, link: str, submission_id: UUID) -> None:
-    if not user_ids:
-        return
-    try:
-        import asyncio
-        from services.notifications.notification_service import create_notification
-        await asyncio.gather(*(
-            create_notification(NotificationCreate(
-                user_id=str(uid), type="SUBMISSION", title=title, message=message, link_url=link,
-                entity_type="content_submission", entity_id=str(submission_id),
-            ))
-            for uid in user_ids
-        ))
-    except Exception:
-        logger.warning("Could not send review notifications for %s", submission_id, exc_info=True)
 
 
 def _score_line(result: Any, check: Dict[str, Any]) -> str:
