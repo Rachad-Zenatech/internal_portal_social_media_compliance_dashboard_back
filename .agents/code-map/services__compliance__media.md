@@ -50,39 +50,39 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_check` (def) L198
 - `suggest` (def) L220
 
-## services/compliance/media/document_layout.py (419 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
-- `page_marker` (def) L35
-- `_format_runs` (def) L39 - Runs of (text, bold) as one line, each bold stretch wrapped in ** (spacing kept outside the marks).
-- `_cell` (def) L58
-- `_row` (def) L62
-- `_is_on` (def) L68 - A toggle property such as <w:b/>: on unless it says val="0" or "false".
-- `_style_names` (def) L75
-- `_is_heading_style` (def) L88
-- `_Docx` (class) L93
-    - `__init__` (def) L94
-    - `_runs` (def) L99 - A paragraph's (text, bold) runs, the positions in them where a page break falls, and whether every word
-    - `paragraph` (def) L132
-    - `emit` (def) L148
-    - `break_page` (def) L156
-    - `table` (def) L163
-    - `block` (def) L171
-- `docx_to_text` (def) L181 - A .docx with its headings, bold wording, tables and page breaks marked (see the module's notes).
-- `_span_bold` (def) L194
-- `_body_size` (def) L198 - The most common text size, by characters: what the body is set in.
-- `_centre_in` (def) L209
-- `_inside` (def) L214
-- `_cell_text` (def) L218 - The words inside a box, read from the page (so the spacing comes out right); all bold wraps them in **.
-- `_table_rows` (def) L230 - A table as marked rows.
-- `_table_rows_by_cells` (def) L252 - The fallback for tables without a clear first column: find_tables' own rows, empty columns dropped and a row
-- `_join_cells` (def) L271 - Two halves of one cell.
-- `pdf_to_text` (def) L282 - A digital PDF with its headings, bold wording, tables and pages marked, or None when it has no text layer
-- `_line_key` (def) L320 - A line with its digits blanked, so "Page 3" and "Page 4" read as the same running header.
-- `_line_text` (def) L325
-- `_repeated_lines` (def) L329 - Lines that head or foot most pages (a running title, "Page 3"): shown as page breaks already, so left out.
-- `_style` (def) L340 - The size and colour of a line's last words, which is what its text is set in after any bold label.
-- `_starts_item` (def) L350 - A line that begins its own paragraph however wide the one before it was: a label (written with ** in the file),
-- `_block_lines` (def) L356 - A text block as paragraphs: its visual lines joined, except where the style changes or a short line ends one.
-- `plain_text` (def) L402 - The wording alone: page marks dropped, headings, bold and italics unmarked, list markers dropped, table cells
+## services/compliance/media/document_layout.py (433 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
+- `page_marker` (def) L38
+- `_format_runs` (def) L42 - Runs of (text, bold) as one line, each bold stretch wrapped in ** (spacing kept outside the marks).
+- `_cell` (def) L61
+- `_row` (def) L65
+- `_is_on` (def) L71 - A toggle property such as <w:b/>: on unless it says val="0" or "false".
+- `_style_names` (def) L78
+- `_is_heading_style` (def) L91
+- `_Docx` (class) L96
+    - `__init__` (def) L97
+    - `_runs` (def) L110 - A paragraph's (text, bold) runs, the positions in them where a page break falls, and whether every word
+    - `paragraph` (def) L143
+    - `emit` (def) L159
+    - `break_page` (def) L167
+    - `table` (def) L174
+    - `block` (def) L185
+- `docx_to_text` (def) L195 - A .docx with its headings, bold wording, tables and page breaks marked (see the module's notes).
+- `_span_bold` (def) L208
+- `_body_size` (def) L212 - The most common text size, by characters: what the body is set in.
+- `_centre_in` (def) L223
+- `_inside` (def) L228
+- `_cell_text` (def) L232 - The words inside a box, read from the page (so the spacing comes out right); all bold wraps them in **.
+- `_table_rows` (def) L244 - A table as marked rows.
+- `_table_rows_by_cells` (def) L266 - The fallback for tables without a clear first column: find_tables' own rows, empty columns dropped and a row
+- `_join_cells` (def) L285 - Two halves of one cell.
+- `pdf_to_text` (def) L296 - A digital PDF with its headings, bold wording, tables and pages marked, or None when it has no text layer
+- `_line_key` (def) L334 - A line with its digits blanked, so "Page 3" and "Page 4" read as the same running header.
+- `_line_text` (def) L339
+- `_repeated_lines` (def) L343 - Lines that head or foot most pages (a running title, "Page 3"): shown as page breaks already, so left out.
+- `_style` (def) L354 - The size and colour of a line's last words, which is what its text is set in after any bold label.
+- `_starts_item` (def) L364 - A line that begins its own paragraph however wide the one before it was: a label (written with ** in the file),
+- `_block_lines` (def) L370 - A text block as paragraphs: its visual lines joined, except where the style changes or a short line ends one.
+- `plain_text` (def) L416 - The wording alone: page marks dropped, headings, bold and italics unmarked, list markers dropped, table cells
 
 ## services/compliance/media/document_text_service.py (245 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - `UnreadableDocument` (class) L58 - A document we can't read, with a message the creator can act on.
@@ -118,15 +118,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `build` (def) L120 - The library for one post.
     - `keep` (def) L125
 
-## services/compliance/media/html_layout.py (114 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
-- `_HtmlLayoutParser` (class) L13 - Converts rich HTML (tables, headings, lists, bold) into document_layout's light-mark plain text.
-    - `__init__` (def) L16
-    - `_flush_runs` (def) L27
-    - `flush_block` (def) L32
-    - `handle_starttag` (def) L46
-    - `handle_endtag` (def) L72
-    - `handle_data` (def) L100
-- `html_to_text` (def) L105 - Turn Share Document HTML into light-mark text so tables, headings, lists and bold keep their layout.
+## services/compliance/media/html_layout.py (123 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
+- `_HtmlLayoutParser` (class) L14 - Converts rich HTML (tables, headings, lists, bold) into document_layout's light-mark plain text.
+    - `__init__` (def) L17
+    - `_flush_runs` (def) L29
+    - `flush_block` (def) L34
+    - `handle_starttag` (def) L48
+    - `handle_endtag` (def) L79
+    - `handle_data` (def) L109
+- `html_to_text` (def) L114 - Turn Share Document HTML into light-mark text so tables, headings, lists and bold keep their layout.
 
 ## services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
 - `_safe_href` (def) L20
@@ -166,6 +166,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `node` (def) L12
 - `paragraph` (def) L16
 - `script_docx` (def) L34
+
+## services/compliance/media/script_sources.py (48 lines) - Read optional sources from a script template without adding them to its spoken text.
+- `is_sources_label` (def) L10
+- `split` (def) L14 - Return the script body and citations from merged table rows or a plain-text footer.
 
 ## services/compliance/media/transcription_service.py (258 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
 - `_get_client` (def) L65

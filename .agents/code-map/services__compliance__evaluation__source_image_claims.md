@@ -4,12 +4,12 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_image_claims.py (80 lines) - Keep short capability lists visible, and require evidence about the specific capability.
-- `words` (def) L12
-- `is_identifier` (def) L16 - A standalone website, handle, or brand mark makes no factual assertion.
-- `label` (def) L27
-- `labels` (def) L36 - Adjacent short labels form a list; wrapped sentences, logos and source metadata do not.
-- `specific_words` (def) L54
-- `covers` (def) L58
-- `evidence_covers` (def) L63 - Conservatively leave a short image capability unresolved if its evidence addresses something else.
-- `guard_claims` (def) L69
+## services/compliance/evaluation/source_image_claims.py (81 lines) - Keep short capability lists visible, and require evidence about the specific capability.
+- `words` (def) L13
+- `is_identifier` (def) L17 - A standalone website, handle, or brand mark makes no factual assertion.
+- `label` (def) L28
+- `labels` (def) L37 - Adjacent short labels form a list; wrapped sentences, logos and source metadata do not.
+- `specific_words` (def) L55
+- `covers` (def) L59
+- `evidence_covers` (def) L64 - Conservatively leave a short image capability unresolved if its evidence addresses something else.
+- `guard_claims` (def) L70

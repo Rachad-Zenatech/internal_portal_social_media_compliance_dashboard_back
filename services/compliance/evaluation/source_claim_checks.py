@@ -76,6 +76,15 @@ def evidence_overlap(evidence: str, source_text: str) -> float:
     return sum(1 for w in wanted if w in have) / len(wanted)
 
 
+# An article describing one example does not contradict a claim about other examples.
+_SOURCE_OMISSION = re.compile(
+    r"^(?:the |this )?(?:source|article|page) (?:"
+    r"only (?:describes|discusses|covers|mentions) [^.!?]+, (?:but )?not [^.!?]+"
+    r"|(?:does not|doesn't) (?:mention|discuss|cover|address) [^.!?]+)[.!?]?$",
+    re.IGNORECASE,
+)
+
+
 # --- Applying them ---------------------------------------------------------------------------------------------------
 
 def _add(note: Any, extra: str) -> str:
@@ -91,6 +100,8 @@ def _to_claims(results: Sequence[Any], source_text: str) -> List[SourceClaim]:
         verdict = r.verdict if r.verdict in ("SUPPORTED", "CONTRADICTED", "NOT_FOUND", "UNCLEAR") else "UNCLEAR"
         note = (r.note or "").strip() or None
         evidence = (r.evidence or "").strip() or None
+        if verdict == "CONTRADICTED" and note and _SOURCE_OMISSION.fullmatch(note):
+            verdict = "NOT_FOUND"
         if verdict == "SUPPORTED":
             lacking = missing_figures(r.claim, source_text)
             if not evidence or r.confidence < SUPPORT_MIN_CONFIDENCE:

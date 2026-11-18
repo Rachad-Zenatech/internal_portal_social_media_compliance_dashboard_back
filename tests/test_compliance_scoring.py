@@ -1,3 +1,4 @@
+import os
 import unittest
 import uuid
 from datetime import datetime, timezone
@@ -282,6 +283,9 @@ class RulesCacheTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         from services.shared.core.cache_service import rules_cache
+        self._cache_patch = patch.dict(os.environ, {"CACHE_ENABLED": "true"})
+        self._cache_patch.start()
+        self.addCleanup(self._cache_patch.stop)
         self.cache = rules_cache
         await rules_cache.clear()
 

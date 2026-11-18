@@ -7,3 +7,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## models/notifications/notification_model.py (34 lines) - notification model (notifications)
 - `NotificationCreate` (class) L5
 - `NotificationResponse` (class) L18
+
+## models/notifications/review_email_model.py (43 lines) - Small workflow records shared by email selection, scheduling and rendering.
+- `ReviewEmailItem` (class) L10
+- `EmailTimezonePreference` (class) L32
+    - `valid_timezone` (def) L37

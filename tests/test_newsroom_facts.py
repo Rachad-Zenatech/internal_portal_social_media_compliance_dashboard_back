@@ -17,6 +17,7 @@ def claim(text, verdict, evidence=""):
 
 
 def check(reference, claims, **kw):
+    kw.setdefault("where", "newsroom" if reference == nf.REFERENCE else "source_links")
     return SourceCheck(reference=reference, kind="URL", status="READ", claims=claims, **kw)
 
 
@@ -139,6 +140,48 @@ class NotFoundCostsPointsTests(unittest.TestCase):
 
         unclear = sc.findings([check("https://x.com/a", [claim("Maybe a claim about gears", "UNCLEAR")])])
         self.assertEqual(cs._charge_unsupported_claims(unclear), [])
+
+
+class NewsroomVisibilityTests(unittest.IsolatedAsyncioTestCase):
+    def test_saved_gaps_are_hidden_without_changing_support_or_conflict_details(self):
+        supported = claim("Revenue grew 60%", "SUPPORTED", "Revenue grew 60%")
+        conflict = claim("Revenue grew 60%", "CONTRADICTED", "Revenue grew 40%")
+        conflict.source_url = "https://www.zenatech.com/original-article/"
+        newsroom = check(nf.REFERENCE, [supported, conflict, claim("Other claim", "NOT_FOUND"), claim("Eight projects", "UNCLEAR")])
+        original = newsroom.model_dump()
+        visible = nf.visible_checks([newsroom])
+        self.assertEqual(visible[0].claims, [supported, conflict])
+        self.assertEqual(newsroom.model_dump(), original)
+        self.assertEqual(len(sc.findings(visible)), 1)
+        self.assertEqual(sc.findings(visible)[0].penalty, 0)
+
+    def test_missing_or_unavailable_background_newsroom_has_no_review_item(self):
+        self.assertEqual(nf.visible_checks([check(nf.REFERENCE, [claim("Unknown claim", "NOT_FOUND"), claim("Eight projects", "UNCLEAR")])]), [])
+        unavailable = SourceCheck(reference=nf.REFERENCE, kind="URL", where="newsroom", status="UNREADABLE")
+        self.assertEqual(nf.visible_checks([unavailable]), [])
+
+    def test_explicitly_cited_newsroom_keeps_normal_checks_and_scoring(self):
+        cited = check(nf.REFERENCE, [claim("Revenue grew 60%", "CONTRADICTED", "Revenue grew 40%"), claim("Eight projects", "NOT_FOUND")], where="source_links")
+        self.assertFalse(nf.is_newsroom(cited))
+        self.assertIs(nf.visible_checks([cited])[0], cited)
+        findings = sc.findings([cited])
+        self.assertEqual(findings[0].penalty, 20)
+        sc.charge_not_found(findings, 5, 10)
+        self.assertEqual(findings[1].penalty, 5)
+
+    async def test_run_returns_only_actionable_background_results(self):
+        made = check(nf.REFERENCE, [])
+        claims = [claim("Revenue grew 60%", verdict, "Revenue grew 60%")
+                  for verdict in ("SUPPORTED", "NOT_FOUND", "UNCLEAR")]
+        with patch.object(sc, "ENABLED", True), \
+                patch.object(nf, "material", AsyncMock(return_value=(made, ("Newsroom", "Revenue grew 60%")))), \
+                patch.object(sc.source_post_checks, "compare_parts", AsyncMock(return_value=([], "test-model", False))), \
+                patch.object(sc.source_passages, "checked_claims", AsyncMock(return_value=claims)):
+            result = await sc.run("Revenue grew 60%")
+        self.assertFalse(result.ai_failed)
+        self.assertEqual(len(result.checks), 1)
+        self.assertEqual([c.verdict for c in result.checks[0].claims], ["SUPPORTED"])
+        self.assertEqual(sc.findings(result.checks), [])
 
 
 if __name__ == "__main__":

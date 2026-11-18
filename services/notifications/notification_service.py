@@ -97,13 +97,8 @@ async def create_notification(data: NotificationCreate) -> NotificationResponse:
     except Exception:
         pass
 
-    # Deliver it to the person's Teams chat too, when they have one (see teams_service).
-    try:
-        from services.notifications import teams_service
-        if teams_service.enabled():
-            asyncio.create_task(teams_service.notify_user(res))
-    except Exception:
-        pass
+    # Workflow emails are queued from committed review events by review_email.scheduler.
+    # Teams delivery is paused; in-app and ecosystem notifications continue normally.
 
     # Publish cross-application event to CEO Dashboard
     try:

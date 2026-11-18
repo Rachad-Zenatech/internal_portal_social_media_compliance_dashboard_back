@@ -10,26 +10,30 @@ a mood.
 """
 
 import json
-import logging
 import os
 import re
 import threading
-from datetime import date, datetime, timedelta, timezone
-from functools import lru_cache
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-
-_VADER = SentimentIntensityAnalyzer()
+from services.compliance.analytics.item_sentiment import (
+    _VADER,
+    FINANCIAL_MODEL_NAME,
+    LOCAL_MODEL_NAME,
+    SEVERE_COMPOUND_THRESHOLD,
+    SEVERE_VALENCE_THRESHOLD,
+    classify_financial_sentiment,
+    load_financial_model,
+    load_hf_model_from_hub,
+    model_probs_for,
+    run_hf_model,
+    score_with_probs,
+)
+from services.compliance.analytics.zenatech_financial_scrape import is_financial_topic
 
 # <repo>/.data/x_listening_feed.json, next to the app's other data (this file is <repo>/services/compliance/analytics/).
 DEFAULT_X_JSON_PATH = Path(__file__).resolve().parents[3] / ".data" / "x_listening_feed.json"
-
-# VADER's built-in lexicon rates words from -4.0 (most negative) to +4.0 (most positive).
-# Words with a lexicon valence <= -2.0 represent severe negative/crisis intensity.
-SEVERE_VALENCE_THRESHOLD = -2.0
-SEVERE_COMPOUND_THRESHOLD = -0.60
 
 
 # Google News appends the outlet to a headline (" - The New York Times"); the same story from two outlets is one story.
@@ -58,10 +62,10 @@ def volume_change(daily: List[int]) -> Optional[float]:
     return round((recent - prior) / prior * 100, 1)
 
 
-LOCAL_MODEL_NAME = os.getenv("SENTIMENT_MODEL", "cardiffnlp/twitter-roberta-base-sentiment-latest").strip()
 _local_model: Any = None  # (tokenizer, model), False once loading failed (VADER is used from then on)
 # Loading takes a while (and may download the model); callers in worker threads wait for the one load.
 _model_lock = threading.Lock()
+_run_model = run_hf_model
 
 
 def _load_local_model() -> Any:
@@ -74,57 +78,23 @@ def _load_local_model() -> Any:
 
 
 async def warm_up_sentiment_model() -> None:
-    """Load the sentiment model in a worker thread at startup, so no request waits for it (or freezes the server)."""
+    """Load both sentiment models in worker threads at startup, so no request waits for them (or freezes the server)."""
     import asyncio
 
     await asyncio.to_thread(_load_local_model)
+    await asyncio.to_thread(load_financial_model)
 
 
 def _load_local_model_locked() -> Any:
     global _local_model
     if _local_model is None:
-        if not LOCAL_MODEL_NAME or LOCAL_MODEL_NAME.lower() == "vader":
-            _local_model = False
-        else:
-            try:
-                import torch  # noqa: F401
-                from transformers import AutoModelForSequenceClassification, AutoTokenizer
-
-                tok = AutoTokenizer.from_pretrained(LOCAL_MODEL_NAME)
-                mdl = AutoModelForSequenceClassification.from_pretrained(LOCAL_MODEL_NAME).eval()
-                _local_model = (tok, mdl)
-            except Exception as e:
-                logging.getLogger(__name__).warning("Local sentiment model unavailable, using VADER: %s", e)
-                _local_model = False
+        _local_model = load_hf_model_from_hub(LOCAL_MODEL_NAME)
     return _local_model
 
 
 def _model_probs(text: str) -> Optional[Dict[str, float]]:
     """{'POSITIVE': p, 'NEUTRAL': p, 'NEGATIVE': p} from the trained model, or None to fall back to VADER."""
-    loaded = _load_local_model()
-    if not loaded:
-        return None
-    out = _run_model(text, loaded)
-    return dict(out) if out is not None else None
-
-
-# The same headlines are scored on every public-mood view; one model run is slow enough that repeating them in a
-# request stalled the whole server. Keyed by the loaded model too, so a different model never reuses old scores.
-@lru_cache(maxsize=20000)
-def _run_model(text: str, loaded: Tuple[Any, Any]) -> Optional[Dict[str, float]]:
-    try:
-        import torch
-
-        tok, mdl = loaded
-        with torch.no_grad():
-            enc = tok(text, return_tensors="pt", truncation=True, max_length=256)
-            probs = torch.softmax(mdl(**enc).logits[0], dim=-1).tolist()
-        labels = [mdl.config.id2label[i].upper() for i in range(len(probs))]
-        out = {l: p for l, p in zip(labels, probs)}
-        return out if {"POSITIVE", "NEUTRAL", "NEGATIVE"} <= set(out) else None
-    except Exception as e:
-        logging.getLogger(__name__).warning("Local sentiment model failed on a text, using VADER: %s", e)
-        return None
+    return model_probs_for(text, _load_local_model)
 
 
 def classify_comment_sentiment(text: str) -> Dict[str, Any]:
@@ -135,45 +105,18 @@ def classify_comment_sentiment(text: str) -> Dict[str, Any]:
     cleaned = (text or "").strip()
     if not cleaned:
         return {"sentiment": "NEUTRAL", "confidence": 50.0, "compound": 0.0, "crisis_flags": []}
+    return score_with_probs(cleaned, _model_probs(cleaned), model_name=LOCAL_MODEL_NAME)
 
-    tokens = re.findall(r"[a-z0-9'-]+", cleaned.lower())
-    flags = list(dict.fromkeys(w for w in tokens if _VADER.lexicon.get(w, 0.0) <= SEVERE_VALENCE_THRESHOLD))
-    probs = _model_probs(cleaned)
-    if probs:
-        label = max(("POSITIVE", "NEUTRAL", "NEGATIVE"), key=lambda k: probs[k])
-        return {
-            "sentiment": label,
-            "confidence": round(min(99.0, probs[label] * 100.0), 1),
-            "compound": round(probs["POSITIVE"] - probs["NEGATIVE"], 3),
-            # Crisis words only count where the model also reads the text as negative: "kill enemy drone threats" in
-            # a defence contract headline isn't a crisis.
-            "crisis_flags": flags if label == "NEGATIVE" else [],
-            "model": LOCAL_MODEL_NAME,
-        }
 
-    scores = _VADER.polarity_scores(cleaned)
-    compound = float(scores["compound"])
-    tokens = re.findall(r"[a-z0-9'-]+", cleaned.lower())
-    crisis_flags = list(
-        dict.fromkeys(w for w in tokens if _VADER.lexicon.get(w, 0.0) <= SEVERE_VALENCE_THRESHOLD)
-    )
+def classify_topic_sentiment(text: str, topic: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Score one item using FinBERT for financial topics and the general sentiment model otherwise."""
+    scorer = classify_financial_sentiment if (topic and is_financial_topic(topic)) else classify_comment_sentiment
+    return scorer(text)
 
-    if compound >= 0.05:
-        label = "POSITIVE"
-        conf = min(99.0, round(60.0 + abs(compound) * 39.0, 1))
-    elif compound <= -0.05:
-        label = "NEGATIVE"
-        conf = min(99.0, round(60.0 + abs(compound) * 39.0, 1))
-    else:
-        label = "NEUTRAL"
-        conf = min(98.0, round(70.0 + (1.0 - abs(compound)) * 25.0, 1))
 
-    return {
-        "sentiment": label,
-        "confidence": conf,
-        "compound": round(compound, 3),
-        "crisis_flags": crisis_flags,
-    }
+def sentiment_models_label() -> str:
+    """Display summary of the configured general and financial sentiment models."""
+    return f"{LOCAL_MODEL_NAME}, {FINANCIAL_MODEL_NAME}"
 
 
 def evaluate_publishing_decision(
@@ -351,8 +294,8 @@ class UnconfiguredProvider(ListeningProvider):
 # ---------------------------------------------------------------------------
 
 def analyze_raw_x_topic(topic_data: Dict[str, Any], days: int = 7) -> Dict[str, Any]:
-    """Score every comment in an X topic payload using VADER, compute aggregate
-    positive/neutral/negative percentages, daily volume, and top posts with confidence scores."""
+    """Score every comment in an X topic payload (FinBERT for financial topics, Twitter-RoBERTa otherwise, with VADER
+    fallback), compute aggregate positive/neutral/negative percentages, daily volume, and top posts."""
     raw_comments = topic_data.get("comments") or topic_data.get("top_posts") or []
     scored_posts: List[Dict[str, Any]] = []
     counts = {"POSITIVE": 0, "NEUTRAL": 0, "NEGATIVE": 0}
@@ -369,7 +312,7 @@ def analyze_raw_x_topic(topic_data: Dict[str, Any], days: int = 7) -> Dict[str, 
         if c.get("sentiment") in counts and c.get("confidence") is not None:
             sentiment, confidence = c["sentiment"], float(c["confidence"])  # already scored: don't run the model again
         else:
-            cls = classify_comment_sentiment(text)
+            cls = classify_topic_sentiment(text, topic_data)
             sentiment = c.get("sentiment") if c.get("sentiment") in counts else cls["sentiment"]
             confidence = float(c.get("confidence") if c.get("confidence") is not None else cls["confidence"])
         counts[sentiment] += 1

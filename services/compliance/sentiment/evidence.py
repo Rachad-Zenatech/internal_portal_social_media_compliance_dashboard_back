@@ -50,6 +50,18 @@ def _locate(quote: str, inp: Dict[str, Any]) -> Optional[Tuple[str, Optional[flo
     return None
 
 
+def _context_quote(quote: str, inp: Dict[str, Any]) -> bool:
+    """Ground context claims in captions, transcripts and completed image text."""
+    if _locate(quote, inp):
+        return True
+    captions = inp.get("platform_captions") or {}
+    images = inp.get("images") or []
+    texts = list(captions.values()) if isinstance(captions, dict) else []
+    if isinstance(images, list):
+        texts.extend(image.get("ocr_text") or "" for image in images if isinstance(image, dict))
+    return any(_locate(quote, {"caption": text}) for text in texts if text)
+
+
 def _match_rule(cited: Optional[str], rule_numbers: Set[str]) -> Optional[str]:
     """Map the model's citation ("Rule 1", "1", "Rule 1 (Challenge...)") to an applicable rule number."""
     if not cited:
@@ -183,16 +195,16 @@ def _check_report(report: Optional[ContextReport], inp: Dict[str, Any]) -> Optio
         return None
     entries = inp.get("context") or []
     voice = report.brand_voice
-    voice.follows = [f for f in voice.follows if _locate(f.quote, inp) and _cite(f, entries, ("BRAND_VOICE",))][:3]
+    voice.follows = [f for f in voice.follows if _context_quote(f.quote, inp) and _cite(f, entries, ("BRAND_VOICE",))][:3]
     drifts = []
     for d in voice.drifts:
-        if _locate(d.quote, inp):
+        if _context_quote(d.quote, inp):
             _cite(d, entries, ("BRAND_VOICE",))
             drifts.append(d)
     voice.drifts = drifts
     claims = []
     for c in report.facts.claims:
-        if not _locate(c.claim, inp):
+        if not _context_quote(c.claim, inp):
             continue
         cited = _cite(c, entries, ("FACT",))
         if c.result != "NO_FACT" and not cited:
@@ -205,6 +217,9 @@ def _check_report(report: Optional[ContextReport], inp: Dict[str, Any]) -> Optio
     report.platform_norms.checks = [n for n in report.platform_norms.checks
                                     if _cite(n, entries, ("PLATFORM_NORM",))]
     report.audiences.readings = [a for a in report.audiences.readings if _cite(a, entries, ("AUDIENCE_PROFILE",))]
+    for observation in [*report.platform_norms.checks, *report.audiences.readings]:
+        if observation.evidence_type == "WORDING" and observation.evidence and not _context_quote(observation.evidence, inp):
+            observation.evidence = None
     report.gaps = [g.strip() for g in report.gaps if g and g.strip()][:5]
     _settle_verdicts(report, entries)
     return report

@@ -35,40 +35,42 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `one` (def) L97
 - `enrich_items` (def) L113 - Read the text in the images and flag the links of everything that will be kept (`per_topic` items each).
 
-## scripts/scrape_x_media.py (97 lines) - Source links and image text for scraped X posts and news items.
-- `image_urls_from_block` (def) L30 - Pictures in a rendered post (avatars, emoji and icons are not the post's images).
-- `source_links_from_block` (def) L39 - The post's own link first, then any outside link it contains.
-- `media_fields` (def) L48 - source_links, image_urls and (to be filled in later) image_text for one collected item.
-- `_download` (def) L54
-- `add_image_text` (def) L66 - Set item["image_text"] on items that have image_urls.
+## scripts/scrape_x_media.py (152 lines) - Source links and image text for scraped X posts and news items.
+- `image_urls_from_block` (def) L31 - Pictures in a rendered post (avatars, emoji and icons are not the post's images).
+- `source_links_from_block` (def) L40 - The post's own link first, then any outside link it contains.
+- `media_fields` (def) L49 - source_links, image_urls and (to be filled in later) image_text for one collected item.
+- `snowflake_time` (def) L55 - When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits).
+- `_extract_tweets_from_rendered_profile` (def) L64 - Parse X posts from a rendered public X profile: text, link and real post time (from the post id).
+- `_download` (def) L109
+- `add_image_text` (def) L121 - Set item["image_text"] on items that have image_urls.
 
-## scripts/scrape_x_playwright.py (617 lines) - Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
-- `snowflake_time` (def) L114 - When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits).
-- `_extract_tweets_from_rendered_profile` (def) L123 - Parse X posts from a rendered public X profile: text, link and real post time (from the post id).
-- `_page_status` (def) L172 - Why a page gave what it gave: SUCCESS, EMPTY (loaded, nothing there), AUTH_REQUIRED or RATE_LIMITED.
-- `_scrape_x_handle_playwright` (def) L184 - Scrape a public X profile using Playwright.
-- `_rss_date_iso` (def) L203 - An RSS date ('Tue, 10 Nov 2026 14:03:00 GMT') as an ISO timestamp, or None.
-- `_scrape_live_trend_news_playwright` (def) L215 - Scrape live breaking news & public headlines via Playwright for a market/world trend query.
-- `_env_num` (def) L270
-- `_csv_env` (def) L286
-- `_stem` (def) L290
-- `_words` (def) L294
-- `_exclusions` (def) L298
-- `topic_vocabulary` (def) L302 - The words that make an X post a candidate for a topic: any single word from its name, keywords or extra
-- `is_candidate` (def) L313
-- `overall_status` (def) L320 - SUCCESS | PARTIAL | EMPTY | AUTH_REQUIRED | RATE_LIMITED | FAILED for the run as a whole.
-- `topic_score` (def) L341 - How strongly a text belongs to a market topic: 2 per topic keyword phrase in it, 1 per shared word.
-- `assign_unique` (def) L347 - One home for each story.
-- `_collect_watch` (def) L364 - Searches about the company itself (names, hashtags, products, links, events, competitors).
-- `mentions_all` (def) L392
-- `_plain` (def) L396
-- `mentions_any` (def) L400
-- `mentions_topic` (def) L405 - A headline is about a wider topic when it shares at least two of a term's main words ("military drone
-- `_collect_post_searches` (def) L417 - News searches built from each draft's own words.
-- `read_post_searches` (def) L468
-- `build_live_x_listening_json` (def) L473 - Launch Playwright headless Chromium and collect candidates for each market topic and for searches about the
-    - `out_of_time` (def) L487
-- `main` (def) L598
+## scripts/scrape_x_playwright.py (459 lines) - Live Playwright Financial ZenaTech & Today's Posts News Scraper + Sentiment Analyzer.
+- `_page_status` (def) L74 - Why a page gave what it gave: SUCCESS, EMPTY (loaded, nothing there), AUTH_REQUIRED or RATE_LIMITED.
+- `_scrape_x_handle_playwright` (def) L86 - Scrape a public X profile using Playwright.
+- `_scrape_live_trend_news_playwright` (def) L105 - Scrape live breaking news & public headlines via Playwright for a market/world trend query.
+- `_env_num` (def) L128
+- `_csv_env` (def) L144
+- `_stem` (def) L148
+- `_words` (def) L152
+- `_exclusions` (def) L156
+- `topic_vocabulary` (def) L160 - The words that make an X post a candidate for a topic: any single word from its name, keywords or extra
+- `is_candidate` (def) L171
+- `overall_status` (def) L178 - SUCCESS | PARTIAL | EMPTY | AUTH_REQUIRED | RATE_LIMITED | FAILED for the run as a whole.
+- `topic_score` (def) L197 - How strongly a text belongs to a market topic: 2 per topic keyword phrase in it, 1 per shared word.
+- `assign_unique` (def) L203 - One home for each story.
+- `_collect_watch` (def) L220 - Searches about the company itself (names, hashtags, products, links, events, competitors).
+- `mentions_all` (def) L248
+- `_plain` (def) L252
+- `mentions_any` (def) L256
+- `mentions_topic` (def) L261 - A headline is about a wider topic when it shares at least two of a term's main words ("military drone
+- `_collect_post_searches` (def) L273 - News searches built from each draft's own words.
+- `read_post_searches` (def) L324
+- `_scrape_rss_playwright` (def) L329 - Fetch an RSS feed through Playwright and return parsed recent items and status.
+- `_collect_financial` (def) L342 - Scrape financial, stock, and media coverage about ZenaTech & NASDAQ: ZENA.
+- `_topic_entry` (def) L351
+- `build_live_x_listening_json` (def) L369 - Launch Playwright headless Chromium and collect candidates for ZenaTech financial coverage and today's/draft
+    - `out_of_time` (def) L382
+- `main` (def) L440
 
 ## scripts/script_hub_eval.py (148 lines) - Script hub visibility and submitted-upload regression checks; no database or external services.
 - `load_service` (def) L15

@@ -13,6 +13,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ensure_notifications_schema` (def) L26
     - `main` (def) L37
 
+## postgresql_db/schemas/roles_schema.py (28 lines) - Role hierarchy and audit columns for new and existing databases.
+- `setup_roles` (def) L4
+
 ## postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
 - `setup` (def) L12
 
@@ -47,6 +50,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
 - `setup` (def) L11
 
+## postgresql_db/schemas/setup_review_email_schema.py (34 lines) - Durable delivery and activation boundary for review workflow emails.
+- `setup` (def) L5
+
 ## postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
 - `setup` (def) L14
 
@@ -64,14 +70,25 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
 - `setup` (def) L13
 
-## postgresql_db/schemas/setup_submissions_schema.py (699 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
-- `setup` (def) L16
-- `_sync_script_checks` (def) L450
-- `_retire_product_brands` (def) L481 - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
-- `_account_key` (def) L588 - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
-- `_retire_demo_social_accounts` (def) L612 - Remove the earlier demo accounts.
-- `_seed_demo_social_accounts` (def) L645 - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
-- `_main` (def) L688
+## postgresql_db/schemas/setup_submissions_schema.py (295 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+- `setup` (def) L17
+- `_sync_script_checks` (def) L46
+- `_retire_product_brands` (def) L77 - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
+- `_account_key` (def) L184 - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
+- `_retire_demo_social_accounts` (def) L208 - Remove the earlier demo accounts.
+- `_seed_demo_social_accounts` (def) L241 - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
+- `_main` (def) L284
 
 ## postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - `setup` (def) L13
+
+## postgresql_db/schemas/submission_tables_schema.py (460 lines) - Submission table definitions, grouped by the feature records they store.
+- `_create_core_records` (def) L4
+- `_create_access_and_approvals` (def) L78
+- `_create_media_metadata` (def) L109
+- `_create_review_history` (def) L172
+- `_create_script_stage` (def) L213
+- `_create_flag_verdicts` (def) L287
+- `_create_comments_and_delegations` (def) L334
+- `_create_sentiment_records` (def) L386
+- `setup_submission_tables` (def) L449 - The original DDL batch remains atomic across the feature-specific statements.

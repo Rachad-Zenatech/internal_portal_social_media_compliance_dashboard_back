@@ -4,12 +4,13 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/newsroom_facts.py (114 lines) - Newsroom facts: the company's own published facts as one more source for a post's claims.
+## services/compliance/evaluation/newsroom_facts.py (130 lines) - Newsroom facts: the company's own published facts as one more source for a post's claims.
 - `_words` (def) L46
 - `rank` (def) L50 - The facts that share enough distinctive words with the post, best match first.
 - `material` (def) L63 - The newsroom as a source to read: its check and (label, text) for the model, or None when no fact is close to
 - `in_post` (def) L89 - The claims the post really makes.
 - `is_newsroom` (def) L96
-- `_same` (def) L100
-- `supports` (def) L105 - Whether the newsroom supports this claim (as another source worded it).
-- `unsettled` (def) L112
+- `visible_checks` (def) L100 - Keep automatic newsroom corroboration and conflicts; absence from a summary is not a review task.
+- `_same` (def) L116
+- `supports` (def) L121 - Whether the newsroom supports this claim (as another source worded it).
+- `unsettled` (def) L128

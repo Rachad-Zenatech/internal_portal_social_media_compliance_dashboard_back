@@ -7,7 +7,11 @@ from unittest.mock import patch
 from scripts import scrape_x_playwright as sx
 from services.compliance.analytics import listening_providers as lp
 
-DELIVERY = next(t for t in sx.TRENDING_MARKET_TOPICS if "delivery" in t["external_id"])
+DELIVERY = {
+    "external_id": "trend-drone-delivery-logistics",
+    "name": "Drone Delivery & Last-Mile Logistics",
+    "keywords": ["drone delivery", "delivery drone", "delivery drones", "last mile", "medical drone delivery", "air taxi", "evtol"],
+}
 
 
 class NoInventedNumbersTests(unittest.TestCase):

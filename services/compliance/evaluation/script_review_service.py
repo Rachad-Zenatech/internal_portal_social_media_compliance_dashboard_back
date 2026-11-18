@@ -42,13 +42,14 @@ from models.compliance.script_review_model import (
     SuggesterItem,
 )
 from postgresql_db.database import execute, fetch_all, fetch_one, get_pool
-from services.compliance.media import document_layout
+from services.compliance.media import document_layout, script_sources
 from services.compliance.media import document_text_service
 from services.compliance.submissions import review_deadline_service
 from services.compliance.submissions.flag_review_service import MIN_APPROVAL_SCORE
 from services.compliance.submissions import submission_service as subs
 from services.compliance.evaluation.script_queue_service import QUEUE_TABS as _QUEUE_TABS
-from services.compliance.evaluation.compliance_service import check_compliance, rulebook_version
+from services.compliance.evaluation.compliance_service import rulebook_version
+from services.compliance.evaluation.script_compliance_check import check_text
 from services.shared.core.audit_service import log_audit_event
 
 logger = logging.getLogger(__name__)
@@ -96,20 +97,10 @@ def _status(row: Dict[str, Any]) -> str:
     return row.get("script_status") or "DRAFT"
 
 
-async def check_text(row: Dict[str, Any], text: str) -> Dict[str, Any]:
-    """The rulebook check of a script: the title and the script, scoped like the post. The script is what the video
-    will say and show, so rules for video apply."""
-    body = "\n\n".join(p for p in [(row["title"] or "").strip(), document_layout.plain_text(text).strip()] if p)
-    result = await check_compliance(subs.check_request(row, body, has_video=True, has_images=False))
-    check = result.model_dump(mode="json")
-    # Same flag as the post's own check: a context rule matched but no AI model could read it, so there's no score.
-    check["ai_unavailable"] = result.ai_unavailable
-    return check
-
-
 def check_key(row: Dict[str, Any], text: str) -> str:
     """Only a change to the script wording requires a fresh script check."""
-    return "media-v1:" + hashlib.sha256(_clean(text).encode("utf-8")).hexdigest()
+    prefix = "media-v1:sources:" if script_sources.split(text)[1] else "media-v1:"
+    return prefix + hashlib.sha256(_clean(text).encode("utf-8")).hexdigest()
 
 
 def precheck_record(row: Dict[str, Any], text: str, check: Dict[str, Any]) -> str:
@@ -125,7 +116,7 @@ def still_valid(stored: Any, row: Dict[str, Any], text: str, rulebook: Optional[
     stored = subs._json(stored) or {}
     key = stored.get("key") or ""
     legacy_current = not key.startswith("media-v1:") and "media_edited_at" in row and subs.manual_check_service.content_is_current(row, stored)
-    if not stored.get("check") or (key != check_key(row, text) and not legacy_current):
+    if not stored.get("check") or (key != check_key(row, text) and not (legacy_current and not script_sources.split(text)[1])):
         return None
     if rulebook and stored.get("rulebook_version") != rulebook:
         return None

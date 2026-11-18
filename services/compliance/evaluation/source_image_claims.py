@@ -6,6 +6,7 @@ from services.compliance.analytics.post_signals import URL_PATTERN
 
 # Connectors separate fragments of body copy from the short nominal labels used in feature lists.
 FRAGMENT_WORDS = frozenset("a an the can could may might must will would should is are was were be been being it its this these those how why who which that while when where in into on at of to for from with without by or".split())
+COUNT_WORDS = frozenset("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety hundred thousand million billion".split())
 GENERIC_WORDS = frozenset("and support supports capability capabilities feature features".split())
 
 
@@ -28,7 +29,7 @@ def label(text):
     text = re.sub(r"^\s*(?:[-*?]+|\d+[.)])\s*", "", text).strip()
     tokens = words(text)
     if (is_identifier(text) or not 2 <= len(tokens) <= 6 or len(text) > 70 or re.search(r"[.,!?;:=/\d]", text)
-            or set(tokens) & FRAGMENT_WORDS):
+            or set(tokens) & (FRAGMENT_WORDS | COUNT_WORDS)):
         return None
     return text
 

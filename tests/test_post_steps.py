@@ -92,7 +92,9 @@ class StepsTests(unittest.TestCase):
 
     def test_a_check_the_ai_could_not_finish_has_to_be_run_again(self):
         s = ps.compute_steps(post(ai_unavailable=True, latest_score=None))
-        self.assertEqual((s.compliance, s.ready_to_send), ("todo", False))
+        self.assertEqual((s.compliance, s.ready_to_send), ("unavailable", False))
+        revision = ps.compute_steps(post(status="CHANGES_REQUESTED", ai_unavailable=True, latest_score=None))
+        self.assertEqual((revision.compliance, revision.ready_to_send), ("unavailable", False))
 
     def test_a_check_saved_before_checks_were_timed_counts_as_current(self):
         s = ps.compute_steps(post(check_at=None, latest_score=85))

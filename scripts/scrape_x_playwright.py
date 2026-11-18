@@ -1,13 +1,9 @@
-"""Live Playwright Global Trends & Market News Scraper + VADER Sentiment Analyzer.
+"""Live Playwright Financial ZenaTech & Today's Posts News Scraper + Sentiment Analyzer.
 
-Scrapes general, company-agnostic market trends, public X posts from global news/industry accounts
-(@AP, @FAANews, @BBCBreaking, @UAVCoach, @JobyAviation, @KratosDefense, @RedCatHoldings), and live
-real-time news discussions across broad market & world topics (never scraping ZenaTech's own profiles).
-
-Then classifies each scraped post/headline as POSITIVE, NEGATIVE, or NEUTRAL with confidence scores
-the sentiment model (VADER as the fallback), computes POST / WAIT / HOLD recommendations, and stores the
-live feed in the vector database's `x_feed_data` collection (a JSON file only when there is no vector database, or
-with --out).
+Scrapes financial/media coverage about ZenaTech (NASDAQ: ZENA) and news around today's scheduled/active posts,
+classifies each item as POSITIVE, NEGATIVE, or NEUTRAL via the sentiment model (VADER fallback), computes
+POST / WAIT / HOLD recommendations, and stores the feed in the vector database's `x_feed_data` collection
+(or a JSON file with --out / when no vector database is configured).
 
 Usage:
     python -m scripts.scrape_x_playwright            # stores the feed in x_feed_data
@@ -41,14 +37,26 @@ try:  # a command-line run needs the same MONGODB_URI the server has (the server
 except ImportError:
     pass
 
-from scripts.scrape_x_links import enrich_items, media_fields
+from scripts.scrape_x_links import enrich_items
+from scripts.scrape_x_media import (
+    _extract_tweets_from_rendered_profile,
+    media_fields,
+    snowflake_time,
+)
 from services.compliance.analytics.listening_providers import (
-    LOCAL_MODEL_NAME,
     analyze_raw_x_topic,
-    classify_comment_sentiment,
+    classify_topic_sentiment,
     clean_headline,
     evaluate_publishing_decision,
+    load_feed,
     save_feed,
+    sentiment_models_label,
+)
+from services.compliance.analytics.zenatech_financial_scrape import (
+    collect_financial_topics,
+    merge_scoped_feed,
+    parse_rss_items,
+    rss_date_iso as _rss_date_iso,
 )
 
 logger = logging.getLogger("scrape_x_playwright")
@@ -57,112 +65,6 @@ try:
     NEWS_MAX_AGE_DAYS = int(os.getenv("X_SCRAPE_NEWS_MAX_AGE_DAYS", os.getenv("PUBLIC_MOOD_ITEM_WINDOW_DAYS", "14")))
 except ValueError:
     NEWS_MAX_AGE_DAYS = 14
-
-# Broad industry, technology, and global news trends (company-agnostic, zero ZenaTech handles/queries).
-TRENDING_MARKET_TOPICS: List[Dict[str, Any]] = [
-    {
-        "external_id": "trend-attack-drones-warfare",
-        "name": "Attack Drones & Military Strikes",
-        "description": "Military attack drones, drone raids, airstrikes, counter-UAS interceptors, and geopolitical drone warfare in the news.",
-        "keywords": ["attack drone", "attack drones", "drone strike", "drone strikes", "drone raid", "military drone", "counter uas", "counter drone", "interceptor", "airstrike"],
-        "x_handles": ["AP", "KratosDefense", "RedCatHoldings"],
-        "live_query": "attack drones OR drone strikes OR drone raid casualties warfare",
-    },
-    {
-        "external_id": "trend-ag-drones-farming",
-        "name": "Agricultural Drones & Smart Farming",
-        "description": "Drones used on farms: crop monitoring, precision spraying, field mapping, agricultural yield and farm automation.",
-        "keywords": ["agricultural drone", "agricultural drones", "crop spraying", "precision agriculture", "smart farming", "farm drone", "crop", "crops", "farmers"],
-        "x_handles": ["UAVCoach"],
-        "live_query": "agricultural drones OR precision agriculture crop spraying farmers",
-    },
-    {
-        "external_id": "trend-autonomous-ai-agents",
-        "name": "Autonomous AI & Robotics",
-        "description": "AI agents, autonomous robotics, physical AI, automation breakthroughs, and public sentiment around AI adoption.",
-        "keywords": ["agentic ai", "ai agents", "autonomous ai", "robotics", "physical ai", "ai automation", "artificial intelligence"],
-        "x_handles": ["AP"],
-        "live_query": "autonomous AI robotics breakthroughs OR agentic AI automation",
-    },
-    {
-        "external_id": "trend-drone-delivery-logistics",
-        "name": "Drone Delivery & Last-Mile Logistics",
-        "description": "Delivering packages, food and medical supplies by autonomous drone; last-mile delivery, noise, and city logistics.",
-        "keywords": ["drone delivery", "delivery drone", "delivery drones", "last mile", "medical drone delivery", "air taxi", "evtol"],
-        "x_handles": ["JobyAviation", "UAVCoach"],
-        "live_query": "drone delivery OR medical drone delivery last mile logistics",
-    },
-    {
-        "external_id": "trend-faa-airspace-regulation",
-        "name": "FAA Airspace & Drone Regulation",
-        "description": "FAA rules, BVLOS (beyond visual line of sight) waivers, airspace safety, flight delays, and aviation regulations.",
-        "keywords": ["faa", "part 107", "bvlos", "waiver", "drone regulation", "drone rules", "airspace", "air traffic"],
-        "x_handles": ["FAANews"],
-        "live_query": "FAA drone regulation BVLOS airspace safety rules",
-    },
-    {
-        "external_id": "trend-commercial-surveying-mapping",
-        "name": "Commercial Drone Surveying & Inspection",
-        "description": "Using commercial drones for infrastructure inspection, land surveying, 3D mapping, construction, and solar/roof inspections.",
-        "keywords": ["drone survey", "drone surveying", "drone inspection", "3d mapping", "lidar drone", "infrastructure inspection", "daas", "drone as a service"],
-        "x_handles": ["UAVCoach"],
-        "live_query": "commercial drone surveying OR drone infrastructure inspection mapping",
-    },
-]
-
-
-def snowflake_time(status_id: str) -> Optional[datetime]:
-    """When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits)."""
-    try:
-        ms = (int(status_id) >> 22) + 1288834974657
-        return datetime.fromtimestamp(ms / 1000, timezone.utc)
-    except (ValueError, OverflowError, OSError):
-        return None
-
-
-def _extract_tweets_from_rendered_profile(body: str, handle: str) -> List[Dict[str, Any]]:
-    """Parse X posts from a rendered public X profile: text, link and real post time (from the post id). Engagement
-    isn't read: the page's numbers can't be told apart from dates and counts of other posts.
-
-    The page is a list; every post starts at a bullet ("*   [...") and runs to the next one. Inside a post: the
-    author header ending in a dated link to the post, then the text, then media and counts."""
-    posts: List[Dict[str, Any]] = []
-    seen_ids = set()
-    status = re.compile(r"https://x\.com/([A-Za-z0-9_]+)/status/(\d+)")
-    for block in re.split(r"\n\s*\*\s{2,}(?=\[)", body)[1:]:
-        first = status.search(block)
-        if not first:
-            continue
-        author_handle, status_id = first.group(1), first.group(2)
-        if status_id in seen_ids:
-            continue
-        seen_ids.add(status_id)
-        posted = snowflake_time(status_id)
-
-        # The text starts after the dated link ("[Nov 10](.../status/ID)", "[3h](...)"), the first one with a label.
-        dated = re.search(rf"\[[^\]\n]+\]\(https://x\.com/[A-Za-z0-9_]+/status/{status_id}\)", block)
-        chunk = block[dated.end():] if dated else block
-        # ...and ends at the first media or empty link (photo, compose box), or the post's own counts.
-        chunk = re.split(r"!\[|\[\]\(https://x\.com/", chunk, maxsplit=1)[0]
-        chunk = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", chunk)      # links keep their label
-        chunk = re.sub(r"\s+Show more.*$", "", chunk, flags=re.DOTALL)
-        chunk = re.sub(r"\s+\d+(?:\s+\d+){0,4}\s*$", "", chunk)      # trailing reply / like counts
-        chunk = re.sub(r"\s+", " ", chunk).strip(" *-\n\t")
-        if len(chunk) < 25:
-            continue
-
-        posts.append({
-            "network": "X",
-            "author": f"@{author_handle}",
-            "status_id": status_id,
-            "url": f"https://x.com/{author_handle}/status/{status_id}",
-            "text": chunk[:500],
-            **media_fields(block, f"https://x.com/{author_handle}/status/{status_id}"),
-            "engagements": 0,
-            "published_at": posted.isoformat() if posted else None,
-            "posted_on": posted.date().isoformat() if posted else None,
-        })
-    return posts
 
 
 _AUTH_MARKERS = ("log in", "sign in", "sign up", "login required", "create your account")
@@ -200,66 +102,22 @@ async def _scrape_x_handle_playwright(page, handle: str, limit: int = 20):
         return [], ("RATE_LIMITED" if any(m in str(e).lower() for m in _RATE_MARKERS) else "FAILED")
 
 
-def _rss_date_iso(value: Optional[str]) -> Optional[str]:
-    """An RSS date ('Tue, 10 Nov 2026 14:03:00 GMT') as an ISO timestamp, or None."""
-    if not value:
-        return None
-    try:
-        from email.utils import parsedate_to_datetime
-        d = parsedate_to_datetime(value)
-        return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).isoformat()
-    except (TypeError, ValueError):
-        return None
-
-
 async def _scrape_live_trend_news_playwright(page, query: str, limit: int = 10, exclude_terms: Optional[List[str]] = None,
                                              drop_own_brand: bool = True):
-    """Scrape live breaking news & public headlines via Playwright for a market/world trend query.
-    Returns (items, status)."""
-    # Google's `when:Nd` keeps to recent articles; without it the RSS returns the most relevant ones of any age
-    # (some from years ago), which are not "what people are saying now".
+    """Scrape live breaking news & public headlines via Playwright for a market/world trend query."""
     url = f"https://news.google.com/rss/search?q={quote_plus(f'{query} when:{NEWS_MAX_AGE_DAYS}d')}&hl=en-US&gl=US&ceid=US:en"
-    items: List[Dict[str, Any]] = []
-    status = "EMPTY"
-    oldest = datetime.now(timezone.utc) - timedelta(days=NEWS_MAX_AGE_DAYS)
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=20000)
         raw_xml = await page.content()
-        item_blocks = re.findall(r"<item>(.*?)</item>", raw_xml, flags=re.DOTALL)
-        for idx, block in enumerate(item_blocks[:limit]):
-            title_m = re.search(r"<title>(.*?)</title>", block, flags=re.DOTALL)
-            source_m = re.search(r"<source[^>]*>(.*?)</source>", block, flags=re.DOTALL)
-            link_m = re.search(r"<link>(.*?)</link>", block, flags=re.DOTALL)
-            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block, flags=re.DOTALL)
-            if not title_m:
-                continue
-            title_txt = html.unescape(re.sub(r"<[^>]+>", "", title_m.group(1))).strip()
-            # Market trends stay company-agnostic (no ZenaTech PR); searches about the company keep its own coverage.
-            if drop_own_brand and ("zenatech" in title_txt.lower() or "zenadrone" in title_txt.lower()):
-                continue
-            if any(t in title_txt.lower() for t in (exclude_terms or [])):
-                continue
-            published = _rss_date_iso(date_m.group(1).strip() if date_m else None)
-            if published and datetime.fromisoformat(published) < oldest:
-                continue  # the query asked for recent news, but the guard is cheap
-            source_txt = html.unescape(re.sub(r"<[^>]+>", "", source_m.group(1))).strip() if source_m else "News"
-            author_slug = re.sub(r"[^A-Za-z0-9_]", "", source_txt.replace(" ", "_"))[:22] or "MarketNews"
-            items.append({
-                "network": "X",
-                "author": f"@{author_slug}",
-                "url": link_m.group(1).strip() if link_m else None,
-                "text": title_txt,
-                **media_fields("", link_m.group(1).strip() if link_m else None),
-                "engagements": 0,  # Google News gives no engagement figures, so none are claimed.
-                # The article's own publish time (RSS pubDate); items without one are dated from when first seen.
-                "published_at": published,
-                "posted_on": (published or "")[:10] or None,
-            })
-        status = "SUCCESS" if items else _page_status(raw_xml, 0)
+        items = parse_rss_items(
+            raw_xml, limit=limit, max_age_days=NEWS_MAX_AGE_DAYS,
+            default_network="X", default_author="@News",
+            drop_own_brand=drop_own_brand, exclude_terms=exclude_terms,
+        )
+        return items, ("SUCCESS" if items else _page_status(raw_xml, 0))
     except Exception as e:
         logger.warning("Playwright live trend scrape failed for %r: %s", query, e)
-        status = "RATE_LIMITED" if any(m in str(e).lower() for m in _RATE_MARKERS) else "FAILED"
-    return items, status
+        return [], ("RATE_LIMITED" if any(m in str(e).lower() for m in _RATE_MARKERS) else "FAILED")
 
 
 # ---------------------------------------------------------------------------
@@ -333,9 +191,7 @@ def overall_status(sources: List[Dict[str, Any]], total_items: int, deadline_hit
     return "PARTIAL" if problem or deadline_hit else "SUCCESS"
 
 
-# The fixed market topics above are only collected when asked for; the default is to search what the drafts say.
-FIXED_TOPICS_ON = os.getenv("SCRAPE_FIXED_TOPICS", "off").strip().lower() in ("on", "1", "true", "yes")
-WATCH_SCORE = 1000  # a search about the company itself outranks a market topic's claim to the same story
+WATCH_SCORE = 1000  # a search about the company or its posts outranks general topic scores
 
 
 def topic_score(text: str, cfg: Dict[str, Any]) -> int:
@@ -470,19 +326,58 @@ def read_post_searches() -> List[Dict[str, Any]]:
     return read_file()
 
 
+async def _scrape_rss_playwright(page, url: str, network: str, author: str):
+    """Fetch an RSS feed through Playwright and return parsed recent items and status."""
+    try:
+        await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+        raw_xml = await page.content()
+        items = parse_rss_items(raw_xml, limit=NEWS_LIMIT, max_age_days=NEWS_MAX_AGE_DAYS,
+                                default_network=network, default_author=author)
+        return items, ("SUCCESS" if items else _page_status(raw_xml, 0))
+    except Exception as e:
+        logger.warning("Playwright RSS scrape failed for %r: %s", url, e)
+        return [], ("RATE_LIMITED" if any(m in str(e).lower() for m in _RATE_MARKERS) else "FAILED")
+
+
+async def _collect_financial(page, sources, out_of_time, pool) -> List[Dict[str, Any]]:
+    """Scrape financial, stock, and media coverage about ZenaTech & NASDAQ: ZENA."""
+    return await collect_financial_topics(
+        lambda url, net, auth: _scrape_rss_playwright(page, url, net, auth),
+        lambda q: _scrape_live_trend_news_playwright(page, q, limit=NEWS_LIMIT, drop_own_brand=False),
+        sources, out_of_time, pool, limit=NEWS_LIMIT, watch_score=WATCH_SCORE, score_fn=topic_score,
+    )
+
+
+def _topic_entry(topic_cfg: Dict[str, Any], analyzed: Dict[str, Any], is_spike: bool,
+                 rec: str, rec_reason: str, collected: List[Dict[str, Any]]) -> Dict[str, Any]:
+    entry: Dict[str, Any] = {
+        "external_id": topic_cfg["external_id"], "name": topic_cfg["name"],
+        "description": topic_cfg["description"], "keywords": topic_cfg["keywords"],
+        "category": topic_cfg.get("category") or "market", **analyzed,
+        "is_spike": is_spike, "recommendation": rec, "recommendation_reason": rec_reason,
+        "comments": collected,
+    }
+    queries = topic_cfg.get("live_queries") or topic_cfg.get("queries")
+    if queries:
+        entry["queries"] = list(queries)
+    for key in ("scrape_track", "post_meta"):
+        if topic_cfg.get(key):
+            entry[key] = topic_cfg[key]
+    return entry
+
+
 async def build_live_x_listening_json(output_path: Optional[Path] = None) -> Dict[str, Any]:
-    """Launch Playwright headless Chromium and collect candidates for each market topic and for searches about the
-    company itself (bounded by time and item limits), give every story one home, score each with the sentiment model,
-    and store the feed with a per-source collection status: in the vector database's x_feed_data collection, or in
-    `output_path` (a JSON file) when one is given or there is no vector database. Numbers are only what was
-    collected: no estimated volume, daily counts, spike or engagement. The result says where it went (`stored_in`)."""
+    """Launch Playwright headless Chromium and collect candidates for ZenaTech financial coverage and today's/draft
+    posts (controlled via SCRAPE_SCOPE=all|financial|today), score sentiment, and store the feed."""
     import time
     from playwright.async_api import async_playwright
-    from services.compliance.analytics.listening_sources import build_queries, load_plan
+    from services.compliance.analytics.listening_sources import CATEGORIES  # noqa: F401
+    from services.compliance.analytics.post_queries import assign_unique_per_post
     from services.shared.core.browser_stealth import new_stealth_context
 
-    started = time.monotonic()
-    deadline_hit = False
+    scope = os.getenv("SCRAPE_SCOPE", "all").strip().lower()
+    scope = scope if scope in ("all", "financial", "today") else "all"
+    started, deadline_hit = time.monotonic(), False
 
     def out_of_time() -> bool:
         nonlocal deadline_hit
@@ -490,104 +385,51 @@ async def build_live_x_listening_json(output_path: Optional[Path] = None) -> Dic
             deadline_hit = True
         return deadline_hit
 
-    handle_cache: Dict[str, List[Dict[str, Any]]] = {}
     sources: List[Dict[str, Any]] = []
+    financial_pool: List[Dict[str, Any]] = []
     pool: List[Dict[str, Any]] = []
-    post_searches = read_post_searches()
-    market_topics = TRENDING_MARKET_TOPICS if FIXED_TOPICS_ON else []
-    if not post_searches:
+    post_searches = [] if scope == "financial" else read_post_searches()
+    if scope != "financial" and not post_searches:
         sources.append({"kind": "post", "name": "drafts", "status": "NOT_CONFIGURED", "items": 0})
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await new_stealth_context(browser)
         page = await context.new_page()
-
-        unique_handles = list(dict.fromkeys(h for t in market_topics for h in t.get("x_handles", [])))
-        for handle in unique_handles:
-            if out_of_time():
-                sources.append({"kind": "x_handle", "name": f"@{handle}", "status": "SKIPPED", "items": 0})
-                continue
-            posts, status = await _scrape_x_handle_playwright(page, handle, limit=MAX_POSTS_PER_HANDLE)
-            handle_cache[handle] = posts
-            sources.append({"kind": "x_handle", "name": f"@{handle}", "status": status, "items": len(posts)})
-            print(f"[Playwright Live] @{handle}: {len(posts)} X posts ({status})")
-
-        # Market topics: news for each topic's query, and X posts from its accounts.
-        for topic_cfg in market_topics:
-            tid = topic_cfg["external_id"]
-            if out_of_time():
-                sources.append({"kind": "news", "name": topic_cfg["name"], "status": "SKIPPED", "items": 0})
-            else:
-                news, status = await _scrape_live_trend_news_playwright(
-                    page, topic_cfg["live_query"], limit=NEWS_LIMIT,
-                    exclude_terms=[t.lower() for t in _exclusions(topic_cfg)])
-                sources.append({"kind": "news", "name": topic_cfg["name"], "status": status, "items": len(news)})
-                print(f"[Playwright Live] {topic_cfg['name']!r}: {len(news)} news items ({status})")
-                for item in news:
-                    pool.append({"topic": tid, "score": max(1, topic_score(item["text"], topic_cfg)),
-                                 "item": {**item, "category": "market", "collected_by": topic_cfg["live_query"]}})
-            for h in topic_cfg.get("x_handles", []):
-                for post in handle_cache.get(h, []):
-                    if is_candidate(post["text"], topic_cfg):
-                        pool.append({"topic": tid, "score": topic_score(post["text"], topic_cfg),
-                                     "item": {**post, "category": "market", "collected_by": f"@{h}"}})
-
-        # Searches taken from what each draft says (title, caption, script): the main source.
-        post_topics = await _collect_post_searches(page, post_searches, sources, out_of_time, pool)
-
-        # No company-wide searches: only what the drafts themselves say is searched.
+        financial_topics = await _collect_financial(page, sources, out_of_time, financial_pool) if scope in ("all", "financial") else []
+        post_topics = await _collect_post_searches(page, post_searches, sources, out_of_time, pool) if scope != "financial" else []
         await browser.close()
 
-    all_topics = [*post_topics, *market_topics]  # a draft's own searches first: they win ties
-    homes = assign_unique(pool, [t["external_id"] for t in all_topics])
+    all_topics = [*financial_topics, *post_topics]
+    homes = {**assign_unique(financial_pool, [t["external_id"] for t in financial_topics]), **assign_unique_per_post(pool, post_topics, assign_unique)}
     topics_out: List[Dict[str, Any]] = []
     await enrich_items(all_topics, homes, MAX_ITEMS_PER_TOPIC, topic_score)
     for topic_cfg in all_topics:
         collected = homes[topic_cfg["external_id"]][:MAX_ITEMS_PER_TOPIC]
         if topic_cfg.get("category") and not collected:
-            continue  # a company search that found nothing isn't a topic; the sources list says why
+            continue
         for c in collected:
-            cls = classify_comment_sentiment(c["text"])
-            c["sentiment"] = cls["sentiment"]
-            c["confidence"] = cls["confidence"]
-            c["compound"] = cls["compound"]
-            c["crisis_flags"] = cls["crisis_flags"]
-        # No volume, daily counts or change are passed: analyze_raw_x_topic uses the number collected and leaves
-        # the rest unknown (the server works the trend out from everything collected so far).
-        analyzed = analyze_raw_x_topic({"comments": collected}, days=7)
+            cls = classify_topic_sentiment(c["text"], topic_cfg)
+            c.update(sentiment=cls["sentiment"], confidence=cls["confidence"], compound=cls["compound"], crisis_flags=cls["crisis_flags"])
+        analyzed = analyze_raw_x_topic({**topic_cfg, "comments": collected}, days=7)
         is_spike = (analyzed["volume_change_pct"] or 0) >= 35.0
         rec, rec_reason = evaluate_publishing_decision(
             positive_pct=analyzed["positive"], neutral_pct=analyzed["neutral"], negative_pct=analyzed["negative"],
-            volume=analyzed["volume"], volume_change_pct=analyzed["volume_change_pct"], is_spike=is_spike,
-            top_posts=analyzed["top_posts"],
+            volume=analyzed["volume"], volume_change_pct=analyzed["volume_change_pct"], is_spike=is_spike, top_posts=analyzed["top_posts"],
         )
-        topics_out.append({
-            "external_id": topic_cfg["external_id"],
-            "name": topic_cfg["name"],
-            "description": topic_cfg["description"],
-            "keywords": topic_cfg["keywords"],
-            "category": topic_cfg.get("category") or "market",
-            **analyzed,
-            "is_spike": is_spike,
-            "recommendation": rec,
-            "recommendation_reason": rec_reason,
-            "comments": collected,
-        })
+        topics_out.append(_topic_entry(topic_cfg, analyzed, is_spike, rec, rec_reason, collected))
 
+    existing = await load_feed(output_path) if scope != "all" else None
+    topics_out, sources = merge_scoped_feed(scope, existing, topics_out, sources)
     total_items = sum(len(t["comments"]) for t in topics_out)
     status = overall_status(sources, total_items, deadline_hit)
     payload = {
-        "source": f"Playwright Live Scrape (Global News & Industry X Trends) + sentiment model ({LOCAL_MODEL_NAME})",
-        "is_live_scraped": True,
-        "collected_at": datetime.now(timezone.utc).isoformat(),
+        "source": f"Playwright Live Scrape (ZenaTech Financial & Today's Posts) + sentiment models ({sentiment_models_label()})",
+        "is_live_scraped": True, "collected_at": datetime.now(timezone.utc).isoformat(),
         "collection": {
-            "status": status,
-            "items": total_items,
-            "sources": sources,
+            "status": status, "scope": scope, "items": total_items, "sources": sources,
             "note": "Stopped at the time limit; later sources were skipped." if deadline_hit else None,
-            "limits": {"max_items_per_topic": MAX_ITEMS_PER_TOPIC, "max_posts_per_handle": MAX_POSTS_PER_HANDLE,
-                       "news_limit": NEWS_LIMIT, "max_seconds": MAX_SECONDS},
+            "limits": {"max_items_per_topic": MAX_ITEMS_PER_TOPIC, "max_posts_per_handle": MAX_POSTS_PER_HANDLE, "news_limit": NEWS_LIMIT, "max_seconds": MAX_SECONDS},
         },
         "topics": topics_out,
     }

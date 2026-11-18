@@ -19,6 +19,36 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `link_token` (def) L312 [POST /auth/link-token] - A short-lived token for loading media and the notification stream by URL (<img>, <video>, EventSource
 - `logout` (def) L320 [POST /auth/logout]
 
+## tools/shared/auth/auth_router.py (383 lines) - auth router (shared auth)
+- `_sha256` (def) L40
+- `microsoft_login` (def) L71 [GET /auth/microsoft/login]
+- `microsoft_callback` (def) L102 [GET /auth/microsoft/callback]
+- `LoginCodeExchange` (class) L189
+- `exchange_login_code` (def) L194 [POST /auth/exchange] - Swap the one-time code from the sign-in redirect, with the nonce this browser made when it started signing
+- `test_login_status` (def) L217 [GET /auth/test-login] - Whether the login page offers the test sign-in buttons.
+- `test_login` (def) L223 [POST /auth/test-login] - Sign in locally as an existing, allowlisted dummy reviewer.
+- `get_auth_bootstrap` (def) L239 [GET /auth/bootstrap]
+- `get_all_navigation_items` (def) L269
+- `get_all_mcp_tools` (def) L275
+- `heartbeat` (def) L281 [POST /auth/heartbeat]
+- `link_token` (def) L312 [POST /auth/link-token] - A short-lived token for loading media and the notification stream by URL (<img>, <video>, EventSource
+- `logout` (def) L320 [POST /auth/logout]
+
+## tools/shared/auth/auth_router.py (383 lines) - auth router (shared auth)
+- `_sha256` (def) L40
+- `microsoft_login` (def) L71 [GET /auth/microsoft/login]
+- `microsoft_callback` (def) L102 [GET /auth/microsoft/callback]
+- `LoginCodeExchange` (class) L189
+- `exchange_login_code` (def) L194 [POST /auth/exchange] - Swap the one-time code from the sign-in redirect, with the nonce this browser made when it started signing
+- `test_login_status` (def) L217 [GET /auth/test-login] - Whether the login page offers the test sign-in buttons.
+- `test_login` (def) L223 [POST /auth/test-login] - Sign in locally as an existing, allowlisted dummy reviewer.
+- `get_auth_bootstrap` (def) L239 [GET /auth/bootstrap]
+- `get_all_navigation_items` (def) L269
+- `get_all_mcp_tools` (def) L275
+- `heartbeat` (def) L281 [POST /auth/heartbeat]
+- `link_token` (def) L312 [POST /auth/link-token] - A short-lived token for loading media and the notification stream by URL (<img>, <video>, EventSource
+- `logout` (def) L320 [POST /auth/logout]
+
 ## tools/shared/auth/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
 - `list_organizations` (def) L38 [GET /organizations] - List all top-level organizations (e.g.
 - `get_organization` (def) L44 [GET /organizations/{organization_id}]

@@ -4,6 +4,8 @@ import asyncio
 import os
 from typing import List, Dict
 from models.notifications.notification_model import NotificationResponse
+from models.notifications.review_email_model import EmailTimezonePreference
+from services.notifications.review_email.preferences import save_timezone
 from services.notifications.notification_service import get_recent_notifications, get_unread_count, mark_notification_as_read, mark_all_notifications_as_read, clear_read_notifications, clear_all_notifications, broadcaster
 
 from services.shared.auth.auth_service import get_current_user_id_dependency
@@ -13,6 +15,11 @@ notification_router = APIRouter()
 
 def get_current_user_id(user_id: UUID = Depends(get_current_user_id_dependency)) -> str:
     return str(user_id)
+
+
+@notification_router.put("/notifications/email-timezone")
+async def api_save_email_timezone(preference: EmailTimezonePreference, user_id: str = Depends(get_current_user_id)):
+    return await save_timezone(user_id, preference)
 
 
 @notification_router.get("/notifications", response_model=List[NotificationResponse])
@@ -62,11 +69,11 @@ async def api_notification_stream(request: Request, user_id: str = Depends(get_c
             ends_at = asyncio.get_running_loop().time() + STREAM_MAX_SECONDS
             while asyncio.get_running_loop().time() < ends_at:
                 try:
-                    msg = await asyncio.wait_for(q.get(), timeout=30.0)
+                    msg = await asyncio.wait_for(q.get(), timeout=15.0)
                     if msg.user_id == "*" or str(msg.user_id).lower() == str(user_id).lower():
                         yield f"data: {msg.model_dump_json()}\n\n"
                 except asyncio.TimeoutError:
-                    # Lightweight keep-alive comment/ping to prevent CloudFront/proxy timeouts without querying the database
+                    # Lightweight keep-alive comment/ping every 15s (under CloudFront's 30s origin timeout)
                     yield ": ping\n\n"
         except (asyncio.CancelledError, GeneratorExit):
             pass

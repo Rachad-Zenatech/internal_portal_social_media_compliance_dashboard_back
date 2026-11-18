@@ -38,8 +38,8 @@ def compute(row, missing):
         "compliance": checked(row.get("check_at"), bool(row.get("analysis_pending"))),
         "sentiment": checked(row.get("sentiment_at"), bool(row.get("sentiment_running"))),
     }
-    if row.get("ai_unavailable"):
-        states["compliance"] = "todo"
+    if row.get("ai_unavailable") and not row.get("analysis_pending"):
+        states["compliance"] = "unavailable"
     script_only = row.get("script_stage") and not row.get("main_is_video")
     required = ["suggestions", "details", "compliance"] + ([] if script_only else ["sentiment"])
     next_step = next((key for key in required if states[key] != "done"), "send")

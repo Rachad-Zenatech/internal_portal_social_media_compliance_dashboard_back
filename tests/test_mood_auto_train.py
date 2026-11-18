@@ -281,7 +281,7 @@ class WhatStartsItTests(unittest.TestCase):
             for path in (root / folder).rglob("*.py"):
                 if path.name != "mood_auto_train.py" and "mood_auto_train.schedule(" in path.read_text(encoding="utf-8"):
                     found.append((path.name, path.read_text(encoding="utf-8").count("mood_auto_train.schedule(")))
-        self.assertEqual(found, [("conversation_feedback.py", 2)])
+        self.assertEqual(sorted(found), [("conversation_feedback.py", 2), ("mood_training_examples.py", 1)])
 
 
 if __name__ == "__main__":

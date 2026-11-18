@@ -17,15 +17,8 @@ from models.compliance.public_mood_model import CorrectionIn, MoodFeedbackIn, Pu
 from models.compliance.sentiment_model import FindingFeedback, FindingFeedbackIn, SentimentAnalysis
 from models.compliance.submission_model import (
     DashboardSummary,
-    DelegateRequest,
     Delegation,
     DelegationDirection,
-    ReviewComment,
-    ReviewCommentCreate,
-    ReviewCommentUpdate,
-    ReviewDecisionRequest,
-    ReopenRequest,
-    RescheduleRequest,
     ReviewerOption,
     VersionView,
     Submission,
@@ -40,16 +33,38 @@ from models.compliance.submission_model import (
     SubmitRequest,
 )
 from services.ai.observability import ai_observability, ai_usage_service
-from services.compliance.submissions import delegation_service
 from services.compliance.submissions import duplicate_service
 from services.compliance.media.file_mime_policy import safe_disposition_type
 from services.compliance.media import caption_service
 from services.compliance.analytics import conversation_evidence, conversation_feedback, public_mood_service
 from services.compliance.analytics import sentiment_service
-from services.compliance.submissions import flag_review_service
 from services.compliance.submissions import submission_service as svc
 from tools.compliance.submissions.review_queue_router import ViewScope, router as review_queue_router
-from models.compliance.flag_review_model import CreatorFlagDismissalRequest, CreatorFlagDismissalRejection, FindingVerdict, FlagConfirmRequest, FlagDismissRequest, FlagReview
+from tools.compliance.submissions.submission_flag_router import (
+    router as submission_flag_router,
+    list_flag_reviews as list_flag_reviews,
+    creator_flag_dismissals as creator_flag_dismissals,
+    request_creator_flag_dismissal as request_creator_flag_dismissal,
+    approve_creator_flag_dismissal as approve_creator_flag_dismissal,
+    reject_creator_flag_dismissal as reject_creator_flag_dismissal,
+    dismiss_flag as dismiss_flag,
+    restore_flag as restore_flag,
+    list_flag_verdicts as list_flag_verdicts,
+    confirm_flag as confirm_flag,
+    unconfirm_flag as unconfirm_flag,
+)
+from tools.compliance.submissions.submission_review_router import (
+    router as submission_review_router,
+    review_submission as review_submission,
+    delegate_review as delegate_review,
+    submission_delegations as submission_delegations,
+    reopen_approval as reopen_approval,
+    reschedule as reschedule,
+    list_comments as list_comments,
+    add_comment as add_comment,
+    update_comment as update_comment,
+    delete_comment as delete_comment,
+)
 from services.shared.auth.auth_service import get_current_user_id_dependency, require_permission
 from services.compliance.media.hashtag_library import HashtagLibrary
 
@@ -57,6 +72,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/submissions", tags=["Content Submissions"])
 router.include_router(review_queue_router)
+router.include_router(submission_flag_router)
+router.include_router(submission_review_router)
 
 CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 
@@ -212,7 +229,7 @@ async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser, bo
     async def work() -> None:
         ai_observability.attempt_listener.set(listen)
         try:
-            sub = await svc.run_initial_check(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost))
+            sub = await svc.run_initial_check(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost), refresh_sources=bool(body and body.refresh_sources))
             queue.put_nowait({"event": "done", "submission": sub.model_dump(mode="json")})
         except HTTPException as e:
             queue.put_nowait({"event": "failed", "status": e.status_code, "detail": e.detail})
@@ -471,118 +488,3 @@ async def clear_finding_rating(submission_id: UUID, analysis_id: UUID, finding_i
     await svc.get_submission(submission_id, user_id)
     await _require_reviewer(user_id)
     return await sentiment_service.clear_feedback(submission_id, analysis_id, finding_id, user_id)
-
-
-@router.post("/{submission_id}/review", response_model=Submission)
-async def review_submission(submission_id: UUID, data: ReviewDecisionRequest, user_id: CurrentUser):
-    """Reviewer decision on the version in review: approve (schedule it, or publish now) or request changes.
-    Reviewers can't decide on their own uploads; the creator is notified either way."""
-    return await svc.decide_review(submission_id, user_id, data)
-
-
-@router.post("/{submission_id}/delegate", response_model=Submission)
-async def delegate_review(submission_id: UUID, data: DelegateRequest, user_id: CurrentUser):
-    """Reviewer hands the post in review to another reviewer; the delegator keeps seeing it and can still decide."""
-    return await delegation_service.delegate(submission_id, user_id, data)
-
-
-@router.get("/{submission_id}/delegations", response_model=List[Delegation])
-async def submission_delegations(submission_id: UUID, user_id: CurrentUser):
-    """Every review hand-off on this post."""
-    return await delegation_service.submission_delegations(submission_id, user_id)
-
-
-@router.post("/{submission_id}/reopen", response_model=Submission)
-async def reopen_approval(submission_id: UUID, data: ReopenRequest, user_id: CurrentUser):
-    """Reviewer takes back an approval and sends the content to its creator as changes requested."""
-    return await svc.reopen_approved(submission_id, user_id, data)
-
-
-@router.post("/{submission_id}/reschedule", response_model=Submission)
-async def reschedule(submission_id: UUID, data: RescheduleRequest, user_id: CurrentUser):
-    """Reviewer moves approved content to a new publish time; the approval stands."""
-    return await svc.reschedule_approved(submission_id, user_id, data)
-
-
-@router.get("/{submission_id}/flags", response_model=List[FlagReview])
-async def list_flag_reviews(submission_id: UUID, user_id: CurrentUser):
-    """Reviewers' dismissals of automated compliance flags, on every version."""
-    return await flag_review_service.list_for(submission_id, user_id)
-
-
-@router.get("/{submission_id}/creator-flag-dismissals", response_model=List[CreatorFlagDismissalRequest])
-async def creator_flag_dismissals(submission_id: UUID, user_id: CurrentUser):
-    return await flag_review_service.creator_requests_for(submission_id, user_id)
-
-
-@router.put("/{submission_id}/creator-flag-dismissals/{rule_id}", response_model=CreatorFlagDismissalRequest)
-async def request_creator_flag_dismissal(submission_id: UUID, rule_id: UUID, data: FlagDismissRequest, user_id: CurrentUser):
-    return await flag_review_service.request_dismissal(submission_id, rule_id, user_id, data)
-
-
-@router.put("/{submission_id}/creator-flag-dismissals/{rule_id}/approve", response_model=FlagReview)
-async def approve_creator_flag_dismissal(submission_id: UUID, rule_id: UUID, user_id: CurrentUser):
-    return await flag_review_service.approve_creator_request(submission_id, rule_id, user_id)
-
-
-@router.put("/{submission_id}/creator-flag-dismissals/{rule_id}/reject", response_model=Submission)
-async def reject_creator_flag_dismissal(
-    submission_id: UUID, rule_id: UUID, data: CreatorFlagDismissalRejection, user_id: CurrentUser,
-):
-    """Decline a creator's dismissal request and send the post back through the standard changes flow."""
-    return await flag_review_service.reject_creator_request(submission_id, rule_id, user_id, data)
-
-
-@router.put("/{submission_id}/flags/{rule_id}", response_model=FlagReview)
-async def dismiss_flag(submission_id: UUID, rule_id: UUID, data: FlagDismissRequest, user_id: CurrentUser):
-    """Dismiss a flag on the version in review as a false alarm, with a reason. The score itself isn't changed."""
-    return await flag_review_service.dismiss(submission_id, rule_id, user_id, data)
-
-
-@router.delete("/{submission_id}/flags/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def restore_flag(submission_id: UUID, rule_id: UUID, user_id: CurrentUser):
-    """Undo a dismissal on the version in review."""
-    await flag_review_service.undo(submission_id, rule_id, user_id)
-
-
-@router.get("/{submission_id}/flag-verdicts", response_model=List[FindingVerdict])
-async def list_flag_verdicts(submission_id: UUID, user_id: CurrentUser):
-    """Reviewers' calls on the automated flags (right, or a false alarm), on every version."""
-    return await flag_review_service.verdicts_for(submission_id, user_id)
-
-
-@router.put("/{submission_id}/flags/{rule_id}/confirm", response_model=FindingVerdict)
-async def confirm_flag(submission_id: UUID, rule_id: UUID, data: FlagConfirmRequest, user_id: CurrentUser):
-    """Say a flag on the version in review is right. It's kept as an example for the contextual check."""
-    return await flag_review_service.confirm(submission_id, rule_id, user_id, data)
-
-
-@router.delete("/{submission_id}/flags/{rule_id}/confirm", status_code=status.HTTP_204_NO_CONTENT)
-async def unconfirm_flag(submission_id: UUID, rule_id: UUID, user_id: CurrentUser):
-    """Take back a confirmation."""
-    await flag_review_service.unconfirm(submission_id, rule_id, user_id)
-
-
-@router.get("/{submission_id}/comments", response_model=List[ReviewComment])
-async def list_comments(submission_id: UUID, user_id: CurrentUser):
-    """Review comments on every version, oldest first."""
-    return await svc.list_comments(submission_id, user_id)
-
-
-@router.post("/{submission_id}/comments", response_model=ReviewComment, status_code=status.HTTP_201_CREATED)
-async def add_comment(submission_id: UUID, data: ReviewCommentCreate, user_id: CurrentUser):
-    """Add a comment on the current version (reviewers and the creator), optionally pinned to a video time range."""
-    return await svc.add_comment(submission_id, user_id, data)
-
-
-@router.patch("/{submission_id}/comments/{comment_id}", response_model=ReviewComment)
-async def update_comment(submission_id: UUID, comment_id: UUID, data: ReviewCommentUpdate, user_id: CurrentUser):
-    """Mark a comment resolved (or reopen it)."""
-    return await svc.set_comment_resolved(submission_id, comment_id, user_id, data.resolved)
-
-
-@router.delete("/{submission_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_comment(submission_id: UUID, comment_id: UUID, user_id: CurrentUser):
-    """Delete your own comment."""
-    await svc.delete_comment(submission_id, comment_id, user_id)
-

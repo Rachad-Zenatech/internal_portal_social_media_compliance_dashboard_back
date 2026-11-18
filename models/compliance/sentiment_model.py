@@ -124,6 +124,7 @@ class ClaimCheck(EntryRef):
     claim: str
     result: Literal["MATCHES", "CONFLICTS", "NO_FACT"]
     note: str = ""
+    improvement: Optional[str] = None
 
 
 class FactsReport(BaseModel):
@@ -133,7 +134,14 @@ class FactsReport(BaseModel):
     fix: Optional[str] = None
 
 
-class NormCheck(EntryRef):
+class ActionableContext(EntryRef):
+    """Post-specific evidence and an actionable edit for a context judgement."""
+    evidence: Optional[str] = None
+    evidence_type: Literal["WORDING", "VISUAL", "AUDIO"] = "WORDING"
+    improvement: Optional[str] = None
+
+
+class NormCheck(ActionableContext):
     """One thing a platform norm asks for (length, opening, hashtags...) and how the post does."""
     aspect: str
     norm: str
@@ -147,7 +155,7 @@ class NormsReport(BaseModel):
     checks: List[NormCheck] = Field(default_factory=list)
 
 
-class AudienceReading(EntryRef):
+class AudienceReading(ActionableContext):
     audience: str
     reading: str
     reaction: Literal["RESONATES", "NEUTRAL", "CAUTIOUS", "NEGATIVE"]

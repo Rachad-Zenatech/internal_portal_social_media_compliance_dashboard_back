@@ -1,5 +1,5 @@
 """Compare each published part separately so caption claims cannot crowd out image claims."""
-from models.compliance.compliance_model import SourceClaim
+from models.compliance.compliance_model import ComplianceViolation, SourceClaim
 from .image_marks import IMAGE_MARK
 from . import source_image_claims
 
@@ -13,6 +13,26 @@ def parts(text):
         end = marks[index + 1].start() if index + 1 < len(marks) else len(text)
         out.append((text[mark.start():end].strip(), True))
     return [(body, image) for body, image in out if body]
+
+
+def unsourced_image_findings(text, checks):
+    """Surface source requirements for image capability lists even without a supplied source."""
+    from .source_check_service import ENABLED, NOT_FOUND_ID, claim_id
+
+    if not ENABLED or any(check.where != "newsroom" for check in checks):
+        return []
+    supported = [claim.claim for check in checks for claim in check.claims if claim.verdict == "SUPPORTED"]
+    labels = dict.fromkeys(label for body, image in parts(text) if image for label in source_image_claims.labels(body))
+    return [
+        ComplianceViolation(
+            rule_id=claim_id(NOT_FOUND_ID, label), rule_number="Rule 18",
+            title="Image claim needs a source", category="Source Check", severity="MEDIUM",
+            traffic_light="YELLOW", status="EVIDENCE_REQUIRED", flagged_terms=[label],
+            explanation="The image lists this capability without a source that supports it.",
+            remediation_guidance="Add a source that specifically supports this capability, or revise the image text.",
+        )
+        for label in labels if not any(source_image_claims.covers(label, claim) for claim in supported)
+    ]
 
 
 async def complete_image_claims(body, claims, arguments, compare):

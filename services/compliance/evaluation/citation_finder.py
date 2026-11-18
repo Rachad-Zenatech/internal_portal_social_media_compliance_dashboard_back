@@ -100,12 +100,12 @@ def _is_social(host: str) -> bool:
     return any(host == h or host.endswith("." + h) for h in _SOCIAL_HOSTS)
 
 
-def _named_parts(text: str) -> List[str]:
+def _named_parts(text: str, minimum_words: int = 2) -> List[str]:
     """The sources in a "Source: ..." line: links and hashtags are taken out; several are split on ";"."""
     text = post_signals.URL_PATTERN.sub(" ", text)
     text = re.sub(r"(?<![\w#&])[#$][A-Za-z][\w]*", " ", text)
     parts = [" ".join(p.split()).strip(" ,;:-–—|") for p in re.split(r";|\s\|\s", text)]
-    return [p for p in parts if len(re.findall(r"[A-Za-z]{2,}", p)) >= 2]
+    return [p for p in parts if len(re.findall(r"[A-Za-z]{2,}", p)) >= minimum_words]
 
 
 def _continues(previous: str, line: str) -> bool:
@@ -120,7 +120,7 @@ def _continues(previous: str, line: str) -> bool:
     return not post_signals.URL_PATTERN.search(line)
 
 
-def find(text: str) -> List[Citation]:
+def find(text: str, *, explicit_script: bool = False) -> List[Citation]:
     """The citations in this text, each once, in the order they appear, at most MAX_CITATIONS."""
     lines = (text or "").splitlines()
     found: List[Citation] = []
@@ -154,7 +154,7 @@ def find(text: str) -> List[Citation]:
                 k += 1
                 last = lines[k]
                 rest += " " + last.strip()
-            for part in _named_parts(rest):
+            for part in _named_parts(rest, minimum_words=1 if explicit_script else 2):
                 add(Citation("NAMED", part, where, m.group("cue").strip().capitalize() + ":"))
 
         # 2. A named source inside a sentence ("according to Gartner").
