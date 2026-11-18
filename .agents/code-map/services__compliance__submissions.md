@@ -176,7 +176,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `backfill_missing` (def) L190 - Give content that was already waiting when deadlines were introduced a deadline from now, as if it had just
 - `deadline_loop` (def) L217
 
-## services/compliance/submissions/review_memory_service.py (229 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
+## services/compliance/submissions/review_memory_service.py (233 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - `_json` (def) L81
 - `post_text` (def) L85 - The text a post is matched on: its caption, what its video says, its script and the text read from its photos,
 - `_doc` (def) L92 - A reviewed version as a vector document: its content is what gets matched, the review is what comes back.
@@ -184,11 +184,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `remember` (def) L133 - Store (or refresh) one reviewed version.
 - `remember_all` (def) L138 - Store every decided review; only new or changed content is embedded again.
 - `remember_soon` (def) L143 - remember() in the background, so the request that triggered it doesn't wait on embedding.
-    - `run` (def) L148
-- `remember_all_in_background` (def) L159 - Startup: catch up on anything decided while review memory was off or the server was down.
-- `query_text` (def) L170 - The text a post is matched on: the same parts that are stored for past reviews.
-- `_photo_text` (def) L179 - The text read from the post's photos, which the analysis input only refers to by file.
-- `similar` (def) L200 - The past reviews most like this content, closest first, as {score, title, text, meta}.
+    - `run` (def) L145
+- `remember_all_in_background` (def) L163 - Startup: catch up on anything decided while review memory was off or the server was down.
+- `query_text` (def) L174 - The text a post is matched on: the same parts that are stored for past reviews.
+- `_photo_text` (def) L183 - The text read from the post's photos, which the analysis input only refers to by file.
+- `similar` (def) L204 - The past reviews most like this content, closest first, as {score, title, text, meta}.
 
 ## services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.
 - `for_submissions` (def) L6

@@ -4,6 +4,10 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/analytics/mood_training_examples.py (36 lines) - What the decision model was trained on: the examples of the dataset behind the current model, for the Training Data page.
-- `_current_version` (def) L11 - The dataset the registered model learned from, else the newest finished dataset.
-- `training_examples` (def) L21 - {dataset_version, total, splits, examples[]}: each example is one reviewed assessment (features, the system's
+## services/compliance/analytics/mood_training_examples.py (295 lines) - What the XGBoost decision model was trained on (and live reviewed assessments queued for training), with post details, reviewer comment n...
+- `_post_decision_to_mood` (def) L21
+- `sync_post_decision_to_mood` (def) L29 - When a reviewer decides on a post (or leaves review comments and approves/requests changes),
+- `_backfill_from_postgres` (def) L92 - Ensure any reviewed assessments or decided posts in Postgres are mirrored into mood_store so they show up.
+- `_current_version` (def) L113 - The dataset the registered model learned from, else the newest finished dataset.
+- `_enrich_submissions` (def) L123
+- `training_examples` (def) L190 - Return the fixed dataset examples (or live candidate examples if no fixed dataset exists yet),

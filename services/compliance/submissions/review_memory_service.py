@@ -142,10 +142,14 @@ async def remember_all() -> Dict[str, int]:
 
 def remember_soon(submission_id: UUID, version: int) -> None:
     """remember() in the background, so the request that triggered it doesn't wait on embedding."""
-    if not store.is_enabled():
-        return
-
     async def run() -> None:
+        try:
+            from services.compliance.analytics import mood_training_examples
+            await mood_training_examples.sync_post_decision_to_mood(submission_id, version)
+        except Exception as e:
+            logger.warning("Couldn't sync post review of %s v%s to XGBoost training: %s", submission_id, version, e)
+        if not store.is_enabled():
+            return
         try:
             await remember(submission_id, version)
         except Exception as e:

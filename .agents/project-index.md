@@ -92,7 +92,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/analytics/mood_records.py (113 lines) - Saving an assessment for learning: when the system evaluates a draft it writes one record to `mood_assessments`.
 - services/compliance/analytics/mood_reviews.py (138 lines) - What reviewers say about an assessment, kept for learning (the screen's own state lives in Postgres, see conversation_feedback; these wri...
 - services/compliance/analytics/mood_training.py (375 lines) - Training and judging the decision model.
-- services/compliance/analytics/mood_training_examples.py (36 lines) - What the decision model was trained on: the examples of the dataset behind the current model, for the Training Data page.
+- services/compliance/analytics/mood_training_examples.py (295 lines) - What the XGBoost decision model was trained on (and live reviewed assessments queued for training), with post details, reviewer comment n...
 - services/compliance/analytics/nav_public_mood_service.py (247 lines) - Nav Public Mood overview: combines the two public scrapings shown in the navigation page: 1.
 - services/compliance/analytics/performance_service.py (323 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
 - services/compliance/analytics/post_metrics_providers.py (303 lines) - Where published posts' numbers come from, and what each platform's API can actually give us.
@@ -184,7 +184,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/request_coalescer.py (50 lines) - Short-lived request sharing for expensive submission-list reads.
 - services/compliance/submissions/review_approval_service.py (75 lines) - Approval gates for a submitted post: saved checks, findings and final approvers.
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
-- services/compliance/submissions/review_memory_service.py (229 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
+- services/compliance/submissions/review_memory_service.py (233 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.
 - services/compliance/submissions/source_link_service.py (178 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
 - services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
