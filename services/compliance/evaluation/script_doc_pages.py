@@ -7,7 +7,7 @@ or from an uploaded file split into scripts as an uploaded batch is; every page 
 import json
 import logging
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import HTTPException
