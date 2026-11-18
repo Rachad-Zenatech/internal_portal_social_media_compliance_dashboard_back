@@ -61,7 +61,7 @@ class AnalysisUsesTheGuideTests(unittest.TestCase):
         self.assertIn("visual identity (colours, typefaces, logo)", config.INSTRUCTIONS)
         self.assertIn("is a BRAND finding with basis OBSERVED_VISUAL", config.INSTRUCTIONS)
         self.assertIn("not held to the palette", config.INSTRUCTIONS)
-        self.assertEqual(config.PROMPT_VERSION, "sentiment-v14")
+        self.assertEqual(config.PROMPT_VERSION, "sentiment-v16")
 
 
 if __name__ == "__main__":
