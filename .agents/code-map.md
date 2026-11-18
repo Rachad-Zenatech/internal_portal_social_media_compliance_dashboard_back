@@ -9,7 +9,7 @@ to find the right file.
 
 | Folder map | Files | Size |
 | --- | --- | --- |
-| .agents/code-map/_root.md | 3 | 2 KB |
+| .agents/code-map/_root.md | 1 | 1 KB |
 | .agents/code-map/mcp_tools.md | 3 | 1 KB |
 | .agents/code-map/mcp_tools__compliance.md | 1 | 1 KB |
 | .agents/code-map/mcp_tools__shared.md | 1 | 1 KB |
@@ -70,6 +70,7 @@ to find the right file.
 | .agents/code-map/services__notifications.md | 9 | 9 KB |
 | .agents/code-map/services__shared__auth.md | 6 | 5 KB |
 | .agents/code-map/services__shared__core.md | 6 | 3 KB |
+| .agents/code-map/services__shared__storage.md | 1 | 1 KB |
 | .agents/code-map/tools__ai.md | 3 | 1 KB |
 | .agents/code-map/tools__compliance__analytics.md | 4 | 4 KB |
 | .agents/code-map/tools__compliance__submissions.md | 11 | 23 KB |

@@ -63,6 +63,7 @@ from services.compliance.submissions.submission_snapshot import build_snapshot
 from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
 from services.compliance.submissions import creator_dismissal_service, flag_review_service
+from services.shared.storage.s3_storage_service import ensure_local_file, s3_enabled, s3_key_for, upload_file_to_s3
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
@@ -570,9 +571,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
     """The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers."""
     # Independent lookups at once: one database round trip of waiting instead of five in a row.
     is_manager, is_reviewer, is_super, brand_scope, rules = await asyncio.gather(
-        _can_manage_team_content(user_id), _can_review(user_id), _is_super_admin(user_id), _brand_scope(user_id),
-        approval_path_service.load_rules(),
-    )
+        _can_manage_team_content(user_id), _can_review(user_id), _is_super_admin(user_id), _brand_scope(user_id), approval_path_service.load_rules())
     if scope == "all" and not (is_manager or is_reviewer):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only see your own content")
     rows = await fetch_all(
@@ -746,13 +745,11 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
     fields: Dict[str, Any] = {}
     payload = data.model_dump(exclude_unset=True, exclude={"clear_fields"})
 
-    if "title" in payload and payload["title"] is not None:
-        fields["title"] = payload["title"].strip()
+    if "title" in payload and payload["title"] is not None: fields["title"] = payload["title"].strip()
     if payload.get("content_type"):
         fields["content_type"] = payload["content_type"]
         # A draft switched to a video before it was ever sent goes through the script stage too.
-        if payload["content_type"] == "VIDEO" and row["current_version"] == 0 and not row.get("script_required"):
-            fields["script_required"] = True
+        if payload["content_type"] == "VIDEO" and row["current_version"] == 0 and not row.get("script_required"): fields["script_required"] = True
     brand_codes = payload.get("brand_codes")
     if brand_codes is None and payload.get("brand_code"):
         brand_codes = [payload["brand_code"]]
@@ -1046,6 +1043,9 @@ async def _record_file(
             await ai_usage_service.reserve("TRANSCRIPTION", user_id, submission_id)
         except AiLimitExceeded as e:
             transcript_blocked = f"Not transcribed: {e.detail}"
+    rel_path = str(path.relative_to(STORAGE_ROOT))
+    if s3_enabled():
+        await asyncio.to_thread(upload_file_to_s3, path.read_bytes(), s3_key_for("submissions", rel_path), mime)
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -1250,7 +1250,11 @@ async def get_file_for_download(submission_id: UUID, file_id: UUID, user_id: UUI
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
     path = (STORAGE_ROOT / f["storage_path"]).resolve()
-    if STORAGE_ROOT not in path.parents or not path.is_file():
+    if STORAGE_ROOT not in path.parents:
+        raise HTTPException(status_code=404, detail="File not found")
+    if not path.is_file():
+        await asyncio.to_thread(ensure_local_file, path, "submissions", f["storage_path"])
+    if not path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
     return path, safe_file_mime(f["original_name"]), f["original_name"]
 
@@ -1362,11 +1366,8 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     transcript and the text shown in the post's images (each once it's been read), against the rules scoped to this
     submission. Includes timeline flags and check coverage."""
     video = await fetch_one(
-        """
-        SELECT id, original_name, storage_path, mime_type, transcript, transcript_status, transcript_error FROM content_submission_files
-        WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL AND mime_type LIKE 'video/%'
-        ORDER BY created_at DESC LIMIT 1
-        """,
+        "SELECT id, original_name, storage_path, mime_type, transcript, transcript_status, transcript_error FROM content_submission_files "
+        "WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL AND mime_type LIKE 'video/%' ORDER BY created_at DESC LIMIT 1",
         row["id"],
     )
     raw = video["transcript"] if video and video["transcript_status"] == "COMPLETED" else []
@@ -1658,19 +1659,13 @@ def _review_job(r: Dict[str, Any]) -> ReviewJob:
     )
 
 
-async def submit_for_review(submission_id: UUID, user_id: UUID,
-                            confirm_repost: bool = False) -> Tuple[Submission, ReviewJob]:
+async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: bool = False) -> Tuple[Submission, ReviewJob]:
     row = await _get_owned_row(submission_id, user_id)
     publish_after_changes = row["status"] == "CHANGES_REQUESTED" and bool(row.get("publish_after_changes"))
-    if row["status"] == "IN_REVIEW":
-        raise HTTPException(status_code=409, detail="This submission is already in review")
+    if row["status"] == "IN_REVIEW": raise HTTPException(status_code=409, detail="This submission is already in review")
     _require_editable(row)
-
     if len(brands_of(row)) > 1:
-        raise HTTPException(status_code=422, detail={
-            "message": "A post is for one brand. Keep one brand here and make a separate post for each other brand.",
-            "missing": ["brand_code"],
-        })
+        raise HTTPException(status_code=422, detail={"message": "A post is for one brand. Keep one brand here and make a separate post for each other brand.", "missing": ["brand_code"]})
     missing = await _missing_for_submit(row)
     account_ids = _account_ids(row)
     accounts = await _connected_accounts(account_ids)
