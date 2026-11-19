@@ -2,7 +2,7 @@
 from uuid import UUID
 import asyncpg
 from postgresql_db.database import fetch_one
-from postgresql_db.schemas.setup_review_email_schema import setup_review_email_schema
+from postgresql_db.schemas.setup_review_email_schema import setup as setup_review_email_schema
 from models.notifications.review_email_model import EmailTimezonePreference
 
 _UPSERT_SQL = """

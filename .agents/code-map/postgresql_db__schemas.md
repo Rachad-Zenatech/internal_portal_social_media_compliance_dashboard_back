@@ -13,7 +13,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ensure_notifications_schema` (def) L26
     - `main` (def) L37
 
-## postgresql_db/schemas/pbac_seed.py (203 lines) - Default navigation, permission groups, roles and initial administrators.
+## postgresql_db/schemas/pbac_seed.py (204 lines) - Default navigation, permission groups, roles and initial administrators.
 - `seed_navigation` (def) L6
 - `seed_permission_groups` (def) L54
 - `seed_roles` (def) L127
