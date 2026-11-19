@@ -28,6 +28,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `handle_notification` (def) L155
 - `start_cache_invalidation_listener` (def) L169 - Background worker that listens for PostgreSQL NOTIFY events on CACHE_CHANNEL.
 
+## services/shared/core/integration_status_service.py (33 lines) - Small cached health snapshot used by the integrations status widget.
+- `get_integration_status` (def) L13 - Avoid a database readiness query for every component mount.
+
 ## services/shared/core/lifecycle_background_service.py (61 lines) - Background work registered during the API application's lifespan.
 - `_resume_interrupted_reads` (def) L8
 - `start_background_services` (def) L21 - Register non-critical startup work without coupling it to the HTTP module.
@@ -38,6 +41,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `configure_logging` (def) L64 - Configure stdout once; AWS container log drivers collect this stream.
 - `log_background_task_result` (def) L91 - Log a task that exits unexpectedly instead of losing its exception.
 - `asyncio_exception_handler` (def) L108 - Capture detached asyncio failures that would otherwise only reach stderr.
+
+## services/shared/core/production_url_policy.py (29 lines) - Validation for browser-facing URLs supplied by deployment configuration.
+- `validate_production_web_config` (def) L6 - Reject insecure or loopback browser URLs before a production server starts.
 
 ## services/shared/core/startup_service.py (71 lines) - Server startup helpers for schema updates and tracked background tasks.
 - `run_schema_setups` (def) L32 - Apply schema changes once at a time across workers; fail startup if any setup fails.

@@ -4,11 +4,11 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## tools/notifications/message_hub_router.py (57 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
-- `message_hub_status` (def) L11 [GET /status] - Live RabbitMQ Message Hub snapshot for the topbar servers dropdown (same contract as the other portals).
-- `message_hub_test` (def) L19 [POST /test]
-- `message_hub_stream` (def) L26 [GET /stream] - SSE: an initial snapshot, then a new snapshot whenever any server's status changes.
-    - `_event_generator` (def) L32
+## tools/notifications/message_hub_router.py (70 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
+- `message_hub_status` (def) L14 [GET /status] - Live RabbitMQ Message Hub snapshot for the topbar servers dropdown (same contract as the other portals).
+- `message_hub_test` (def) L32 [POST /test]
+- `message_hub_stream` (def) L39 [GET /stream] - SSE: an initial snapshot, then a new snapshot whenever any server's status changes.
+    - `_event_generator` (def) L45
 
 ## tools/notifications/notification_router.py (94 lines) - notification router (notifications)
 - `get_current_user_id` (def) L16

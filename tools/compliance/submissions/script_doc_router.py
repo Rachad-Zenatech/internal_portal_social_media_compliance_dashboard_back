@@ -21,6 +21,7 @@ from services.compliance.evaluation import script_doc_realtime as realtime
 from services.compliance.evaluation import script_doc_pages as pages
 from services.compliance.evaluation import script_doc_reads as reads
 from services.compliance.evaluation import script_doc_service as svc
+from services.compliance.evaluation import script_template_store as tpl_store
 from services.compliance.evaluation import shared_script_review as sharedrev
 from tools.compliance.submissions.script_directory_router import router as directory_router
 from services.shared.auth.auth_service import AUTH_COOKIE_NAME, get_current_user_id_dependency, verify_token
@@ -36,6 +37,24 @@ CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 async def list_templates(user_id: CurrentUser):
     """The script templates a creator can start from."""
     return svc.templates()
+
+
+@router.get("/default-template")
+async def get_default_template(user_id: CurrentUser):
+    """The active default script template (built-in or uploaded custom template)."""
+    return await tpl_store.get_default_template_summary()
+
+
+@router.post("/default-template")
+async def upload_default_template(user_id: CurrentUser, file: UploadFile = File(...)):
+    """Upload a script template (.docx, .pdf, .txt) to replace the default script template."""
+    return await tpl_store.save_default_template(user_id, file.filename or "script-template", await file.read())
+
+
+@router.delete("/default-template")
+async def reset_default_template(user_id: CurrentUser):
+    """Reset the default script template back to the built-in 4-column Reels layout."""
+    return await tpl_store.reset_default_template()
 
 
 @router.post("/upload", response_model=UploadedPages)

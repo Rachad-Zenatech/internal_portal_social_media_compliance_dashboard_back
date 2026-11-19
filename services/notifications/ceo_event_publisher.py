@@ -17,7 +17,7 @@ TIMEOUT_SECONDS = 2.0
 
 
 async def _send_event_async(event_type: str, source: str, entity_id: str, data: Dict[str, Any]):
-    ceo_api_base = os.getenv("CEO_DASHBOARD_API_URL", os.getenv("CEO_API_BASE", "http://127.0.0.1:8005"))
+    ceo_api_base = (os.getenv("CEO_DASHBOARD_API_URL") or os.getenv("CEO_API_BASE") or "").strip()
     if not ceo_api_base:
         logger.debug("CEO_DASHBOARD_API_URL is not set; skipping event publishing")
         return

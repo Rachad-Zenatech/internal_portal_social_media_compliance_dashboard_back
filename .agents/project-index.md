@@ -72,9 +72,9 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/script_submission_documents_eval.py (204 lines) - Shared-document adoption and original-post sync regressions, using isolated mocked services.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
-- server.py (497 lines) - server
+- server.py (471 lines) - server
 - services/ai/core/assistant_chat_service.py (258 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
-- services/ai/core/gemini_service.py (154 lines) - gemini service (ai core)
+- services/ai/core/gemini_service.py (196 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
 - services/ai/core/mood_store.py (121 lines) - The collections public mood learns from, in the same MongoDB database as the vector store.
 - services/ai/core/semantic_cache.py (202 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
@@ -127,10 +127,10 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_batch_service.py (663 lines) - Script batches.
 - services/compliance/evaluation/script_compliance_check.py (18 lines) - Script compliance checks and source evidence.
 - services/compliance/evaluation/script_creator_workflow.py (15 lines) - Creator script revisions and the handoff to filming.
-- services/compliance/evaluation/script_doc_pages.py (267 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
+- services/compliance/evaluation/script_doc_pages.py (269 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
 - services/compliance/evaluation/script_doc_reads.py (88 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
 - services/compliance/evaluation/script_doc_realtime.py (256 lines) - Live editing of script documents.
-- services/compliance/evaluation/script_doc_service.py (498 lines) - Script documents.
+- services/compliance/evaluation/script_doc_service.py (501 lines) - Script documents.
 - services/compliance/evaluation/script_doc_split.py (37 lines) - Splitting a script document into the scripts it holds.
 - services/compliance/evaluation/script_doc_templates.py (133 lines) - Script templates: a table of beats, each with what is seen, what is said and the text on screen.
 - services/compliance/evaluation/script_hub_submissions.py (68 lines) - Submitted Create Post scripts projected into the script hub without a second review workflow.
@@ -143,8 +143,9 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_submission_content.py (29 lines) - Lossless line/table conversion for scripts submitted through Create Post.
 - services/compliance/evaluation/script_submission_documents.py (140 lines) - Create Post uploads entering the existing native/shared script-document review.
 - services/compliance/evaluation/script_submission_sync.py (53 lines) - Mirror canonical script-document review back to its original Create Post submission.
-- services/compliance/evaluation/shared_script_review.py (101 lines) - A script page's review, handed to the Share Document server.
-- services/compliance/evaluation/shared_script_service.py (171 lines) - Shared documents for script pages.
+- services/compliance/evaluation/script_template_store.py (176 lines) - Custom default script template uploaded from the Social Media portal.
+- services/compliance/evaluation/shared_script_review.py (105 lines) - A script page's review, handed to the Share Document server.
+- services/compliance/evaluation/shared_script_service.py (191 lines) - Shared documents for script pages.
 - services/compliance/evaluation/shared_script_sync.py (131 lines) - Keeping this portal in step with the Share Document server's script reviews.
 - services/compliance/evaluation/source_browser_fetch.py (96 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
 - services/compliance/evaluation/source_check_service.py (501 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
@@ -208,12 +209,12 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
 - services/notifications/ceo_event_publisher.py (50 lines) - Cross-application event publisher for CEO Dashboard integration.
 - services/notifications/email_service.py (228 lines) - Email service module using SendGrid REST API for Social Media Compliance & Notifications.
-- services/notifications/mqtt_presence.py (320 lines) - MQTT Service Presence & Event-Driven Messaging Component for Social Media Compliance.
+- services/notifications/mqtt_presence.py (325 lines) - MQTT Service Presence & Event-Driven Messaging Component for Social Media Compliance.
 - services/notifications/notification_service.py (181 lines) - notification service (notifications)
-- services/notifications/rabbitmq_config.py (196 lines) - RabbitMQ / Message Hub configuration: env-driven connection settings, exchange names and the hub server registry.
+- services/notifications/rabbitmq_config.py (205 lines) - RabbitMQ / Message Hub configuration: env-driven connection settings, exchange names and the hub server registry.
 - services/notifications/rabbitmq_hub_status.py (493 lines) - Message Hub behaviour for RabbitMQManager: SSE fan-out, shutdown, presence heartbeats, peer monitoring and live status snapshots.
 - services/notifications/rabbitmq_in_memory.py (46 lines) - In-memory fallback broker used when no live RabbitMQ is available.
-- services/notifications/rabbitmq_service.py (521 lines) - RabbitMQ Service & Topology Manager Provides resilient connection management, topology declaration, publisher confirmations, and dead-let...
+- services/notifications/rabbitmq_service.py (520 lines) - RabbitMQ Service & Topology Manager Provides resilient connection management, topology declaration, publisher confirmations, and dead-let...
 - services/notifications/review_email/config.py (48 lines) - The admin dashboard's SendGrid configuration, with social portal URLs and team time.
 - services/notifications/review_email/outbox.py (92 lines) - Atomic deduplication, leases and retriable delivery without blocking review workflows.
 - services/notifications/review_email/policy.py (108 lines) - Select actionable work, respecting assignments, check-ins and the team's calendar.
@@ -222,10 +223,11 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/notifications/review_email/scheduler.py (95 lines) - One 9 a.m.
 - services/notifications/review_email/templates.py (60 lines) - Short, accessible workflow emails using the admin dashboard's branded SendGrid shell.
 - services/notifications/submission_notifications.py (25 lines) - In-app notifications for submission review workflows, shared by posts and scripts.
-- services/notifications/teams_service.py (358 lines) - Microsoft Teams direct messages: the portal's notifications, delivered to people's Teams chat by a bot.
+- services/notifications/teams_service.py (363 lines) - Microsoft Teams direct messages: the portal's notifications, delivered to people's Teams chat by a bot.
 - services/shared/auth/auth_service.py (446 lines) - Who a token is for: this app only.
 - services/shared/auth/microsoft_auth_service.py (198 lines) - Microsoft Entra user provisioning and claim mapping.
-- services/shared/auth/oauth_connection_service.py (608 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
+- services/shared/auth/oauth_connection_remote_sync.py (24 lines) - Read optional OAuth connections from the administration portal.
+- services/shared/auth/oauth_connection_service.py (599 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
 - services/shared/auth/rbac_service.py (757 lines) - Utility for audit logging
 - services/shared/auth/secret_config.py (18 lines) - Validated secret lookup from environment variables with no hardcoded fallbacks.
 - services/shared/auth/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
@@ -233,8 +235,10 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/core/audit_service.py (126 lines) - audit service (shared core)
 - services/shared/core/browser_stealth.py (40 lines) - Playwright stealth: hides the usual headless-browser giveaways (navigator.webdriver, missing plugins, the "HeadlessChrome" user agent, .....
 - services/shared/core/cache_service.py (221 lines) - cache service (shared core)
+- services/shared/core/integration_status_service.py (33 lines) - Small cached health snapshot used by the integrations status widget.
 - services/shared/core/lifecycle_background_service.py (61 lines) - Background work registered during the API application's lifespan.
 - services/shared/core/logging_service.py (124 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
+- services/shared/core/production_url_policy.py (29 lines) - Validation for browser-facing URLs supplied by deployment configuration.
 - services/shared/core/startup_service.py (71 lines) - Server startup helpers for schema updates and tracked background tasks.
 - services/shared/storage/s3_storage_service.py (166 lines) - AWS S3 storage helper (ported from administration backend) with local-cache hydration.
 - tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
@@ -250,7 +254,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/review_queue_router.py (39 lines) - Review Queue endpoints, protected from duplicate browser requests.
 - tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - tools/compliance/submissions/script_directory_router.py (63 lines) - Script directory for the Share Document portal (app-to-app).
-- tools/compliance/submissions/script_doc_router.py (223 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
+- tools/compliance/submissions/script_doc_router.py (242 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
 - tools/compliance/submissions/script_review_router.py (145 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - tools/compliance/submissions/source_link_router.py (69 lines) - Router for quick AI checking of submission source links.
 - tools/compliance/submissions/source_trust_router.py (27 lines) - Router for people's calls on a post's sources (does a claim match the page? is the page a good source?) and the standing each source's si...
@@ -258,10 +262,10 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/submission_review_router.py (70 lines) - Review decisions, hand-offs and comments for content submissions.
 - tools/compliance/submissions/submission_router.py (489 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
-- tools/notifications/message_hub_router.py (57 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
+- tools/notifications/message_hub_router.py (70 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
 - tools/notifications/notification_router.py (94 lines) - notification router (notifications)
 - tools/notifications/teams_router.py (55 lines) - Microsoft Teams: the endpoint the bot's messages arrive on, and a person's own on/off switch for them.
-- tools/shared/auth/auth_router.py (383 lines) - auth router (shared auth)
+- tools/shared/auth/auth_router.py (387 lines) - auth router (shared auth)
 - tools/shared/auth/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
 - tools/shared/auth/rbac_router.py (236 lines) - rbac router (shared auth)
 - tools/shared/core/log_router.py (74 lines) - log router (shared core)

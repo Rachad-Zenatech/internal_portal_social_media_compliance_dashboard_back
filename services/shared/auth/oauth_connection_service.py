@@ -5,12 +5,9 @@ Organization -> Companies/Entities -> OAuth connections
 """
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
-
-import httpx
 
 from models.shared.oauth_connection_model import (
     Company,
@@ -578,19 +575,13 @@ async def sync_with_social_media_app_mqtt() -> dict[str, Any]:
             }
         )
 
-    # 2. Try fetching from marketing service REST API if running
-    marketing_api_url = os.getenv("ADMIN_PORTAL_API_URL", "http://127.0.0.1:8002").rstrip("/")
-    synced_from_rest = False
-    try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(f"{marketing_api_url}/api/oauth/connections")
-        if resp.status_code == 200:
-            remote_connections = resp.json()
-            if isinstance(remote_connections, list) and len(remote_connections) > 0:
-                await sync_accounts_from_mqtt(remote_connections, source_topic="http://marketing-api")
-                synced_from_rest = True
-    except Exception:
-        pass
+    # 2. Try fetching from the optional administration portal REST API.
+    from services.shared.auth.oauth_connection_remote_sync import fetch_admin_portal_connections
+
+    remote_connections = await fetch_admin_portal_connections()
+    synced_from_rest = bool(remote_connections)
+    if remote_connections:
+        await sync_accounts_from_mqtt(remote_connections, source_topic="http://marketing-api")
 
     # 3. Ensure the core ZenaTech/ZenaDrone social entities are synchronized via MQTT Bus
     if not synced_from_rest:

@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_doc_service.py (498 lines) - Script documents.
+## services/compliance/evaluation/script_doc_service.py (501 lines) - Script documents.
 - `templates` (def) L59
 - `_color` (def) L63
 - `_name` (def) L69
@@ -21,17 +21,17 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_detail` (def) L194
 - `get` (def) L216
 - `create` (def) L235 - A new document from a template: the document and its first script (page).
-- `update` (def) L253
-- `delete` (def) L271
-- `save_snapshot` (def) L285 - An editor saves the script as it reads now (for lists, the check and history); the live editor itself is kept as updates.
-- `reviewer_options` (def) L297
-- `submit` (def) L303
-- `note_change` (def) L362 - Someone changed the script or its notes.
-- `check_in` (def) L387
-- `withdraw_check_in` (def) L411
-- `_votes` (def) L422
-- `_stamp_version` (def) L430
-- `_close` (def) L437
-- `finalize` (def) L449 - Everyone has checked in: send it to the Content Manager (level 2), or approve it back to the creator.
-- `decide` (def) L477 - The Content Manager's final decision (level 2, or earlier: they can decide at any point in review).
-- `_pages_module` (def) L494 - The pages module (it imports this one, so it is loaded when first needed).
+- `update` (def) L254
+- `delete` (def) L272
+- `save_snapshot` (def) L286 - An editor saves the script as it reads now (for lists, the check and history); the live editor itself is kept as updates.
+- `reviewer_options` (def) L298
+- `submit` (def) L304
+- `note_change` (def) L363 - Someone changed the script or its notes.
+- `check_in` (def) L388
+- `withdraw_check_in` (def) L414
+- `_votes` (def) L425
+- `_stamp_version` (def) L433
+- `_close` (def) L440
+- `finalize` (def) L452 - Everyone has checked in: send it to the Content Manager (level 2), or approve it back to the creator.
+- `decide` (def) L480 - The Content Manager's final decision (level 2, or earlier: they can decide at any point in review).
+- `_pages_module` (def) L497 - The pages module (it imports this one, so it is loaded when first needed).

@@ -1,5 +1,6 @@
 import os
 import logging
+import time
 from typing import Any, Optional, List
 from google import genai
 from google.genai import errors
@@ -14,6 +15,7 @@ def _normalize_ai_model_name(name: str) -> str:
     """
     return name.strip().lower().replace(" ", "-")
 DEPRECATED_MODELS = {
+    "gemini-3-flash-preview",
     "gemini-2.0-flash",
     "gemini-2.0-pro",
     "gemini-2.0-flash-lite",
@@ -28,13 +30,48 @@ DEPRECATED_MODELS = {
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
 }
+_PERMANENTLY_REMOVED_MODELS = {"gemini-3-flash-preview"}
+
+_model_cooldowns: dict[str, float] = {}
+
+
+def _model_failure_cooldown_seconds(error: Exception) -> int:
+    """Avoid retrying a model known to be unavailable while a request burst is in progress."""
+    status_code = str(getattr(error, "code", "") or getattr(error, "status_code", ""))
+    message = f"{status_code} {error}".lower()
+    if "404" in message or "not found" in message or "not available" in message:
+        return 300
+    if "429" in message or "503" in message or "resource_exhausted" in message or "quota" in message:
+        return 60
+    return 0
+
+
+def model_is_available(model_name: str) -> bool:
+    """Return false while a short provider-failure cooldown for this model is active."""
+    until = _model_cooldowns.get(model_name)
+    if until is None:
+        return True
+    if until > time.monotonic():
+        return False
+    _model_cooldowns.pop(model_name, None)
+    return True
+
+
+def record_model_failure(model_name: str, error: Exception) -> None:
+    cooldown = _model_failure_cooldown_seconds(error)
+    if cooldown:
+        _model_cooldowns[model_name] = time.monotonic() + cooldown
 
 
 def without_retired(models):
     """The models that can still be called, in the same order. Falls back to the list as given if every one is retired,
     so a misconfigured list fails with the API's own error rather than with nothing to try."""
     kept = [m for m in models if m.strip().lower() not in DEPRECATED_MODELS]
-    return kept or list(models)
+    if kept:
+        return kept
+    # Keep the legacy "let the provider explain a wholly stale list" behavior, except for models we know must
+    # never be called again. That prevents an environment override from reintroducing a guaranteed 404.
+    return [m for m in models if m.strip().lower() not in _PERMANENTLY_REMOVED_MODELS]
 
 
 def get_gemini_fallback_models() -> List[str]:
@@ -43,19 +80,19 @@ def get_gemini_fallback_models() -> List[str]:
     from the environment configuration, filtering out deprecated/retired models.
     Guarantees active, proven general-purpose models are prioritized at the front of the rotation chain.
     """
-    models_str = os.getenv("GEMINI_AVAILABLE_MODELS", "gemini-3.1-flash-lite,gemini-3-flash-preview,gemini-3.1-pro-preview")
+    models_str = os.getenv("GEMINI_AVAILABLE_MODELS", "gemini-3.1-flash-lite,gemini-3.1-pro-preview")
     raw_models = [_normalize_ai_model_name(m) for m in models_str.split(",") if m.strip()]
 
     # Filter out deprecated models that are no longer available in the Google GenAI API
     models = [m for m in raw_models if m not in DEPRECATED_MODELS]
-    priority_order = ["gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-3.1-pro-preview"]
+    priority_order = ["gemini-3.1-flash-lite", "gemini-3.1-pro-preview"]
     # Proven models go first, but only ones the env lists: a model the key has no quota for (e.g. 3.1 Pro on the
     # free tier) must not be added, or every fallback chain ends with a call that can only fail.
     ordered = [m for m in priority_order if m in models]
     for m in models:
         if m not in ordered:
             ordered.append(m)
-    return ordered or ["gemini-3.1-flash-lite", "gemini-3-flash-preview"]
+    return ordered or ["gemini-3.1-flash-lite"]
 
 def is_rotatable_model_error(e: Exception) -> bool:
     """
@@ -119,7 +156,11 @@ async def generate_content_with_fallback(
 
     last_exception = None
 
-    for i, model_name in enumerate(models):
+    available_models = [model for model in models if model_is_available(model)]
+    if not available_models:
+        raise RuntimeError("All configured Gemini models are temporarily unavailable; retry shortly.")
+
+    for i, model_name in enumerate(available_models):
         logger.info(f"Attempting Gemini model: {model_name}")
 
         try:
@@ -143,6 +184,7 @@ async def generate_content_with_fallback(
         except Exception as e:
             last_exception = e
             if is_rotatable_model_error(e):
+                record_model_failure(model_name, e)
                 logger.warning(f"Gemini model {model_name} unavailable or quota exceeded ({e}). Moving to next model.")
                 continue
             else:

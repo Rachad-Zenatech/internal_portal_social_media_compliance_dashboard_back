@@ -157,7 +157,11 @@ async def microsoft_callback(request: Request):
     # Connect Microsoft Entra identity to local RBAC
     user = await upsertMicrosoftUser(claims, graph_profile)
 
-    frontend_url = (os.getenv("FRONTEND_URL") or "http://localhost:5179").rstrip("/")
+    frontend_url = (os.getenv("FRONTEND_URL") or "").strip().rstrip("/")
+    if not frontend_url:
+        if os.getenv("APP_ENV", "development").lower() == "production":
+            raise HTTPException(status_code=503, detail="FRONTEND_URL is not configured")
+        frontend_url = "http://localhost:5179"
 
     if not user.get("is_active"):
         await log_login_activity(email, user["id"], False, "Account pending/inactive", ip_address, user_agent)

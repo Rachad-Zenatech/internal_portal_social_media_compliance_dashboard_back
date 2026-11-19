@@ -22,12 +22,13 @@ def _doc(status="IN_REVIEW"):
 
 
 def test_all_checked_needs_every_editing_reviewer_and_ignores_view_only():
-    a = {"capacity": "EDIT", "vote": "APPROVE"}
+    a = {"capacity": "EDIT", "vote": "DONE"}
     b = {"capacity": "EDIT", "vote": None}
     v = {"capacity": "VIEW", "vote": None}
     assert not svc._all_checked(_doc(), [a, b, v])
     b["vote"] = "DONE"
     assert svc._all_checked(_doc(), [a, b, v])
+    assert svc._all_checked(_doc(), [{"capacity": "EDIT", "vote": "APPROVE"}, {"capacity": "EDIT", "vote": None}])
     assert not svc._all_checked(_doc("LEVEL2_REVIEW"), [a, b])
     assert not svc._all_checked(_doc(), [v])
 
