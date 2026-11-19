@@ -64,14 +64,14 @@ async def feedback_reasons(user_id: CurrentUser):
 
 
 @router.get("/model/status")
-async def mood_model_status(user_id: ManageUser):
+async def mood_model_status(user_id: CurrentUser):
     """The decision model: whether xgboost is installed, which model is registered and loaded, what it was trained on,
     which measurements matter most, how it did in training, and the limits that keep it in check."""
     return await mood_model.model_status()
 
 
 @router.get("/model/training-data")
-async def mood_model_training_data(user_id: ManageUser, version: Optional[str] = Query(None, max_length=80)):
+async def mood_model_training_data(user_id: CurrentUser, version: Optional[str] = Query(None, max_length=80)):
     """The reviewed assessments the decision model was trained on (features, reviewer label, split, source draft)."""
     return await mood_training_examples.training_examples(version)
 
