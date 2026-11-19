@@ -70,7 +70,7 @@ VIDEO_READY_TIMEOUT_SEC = 300
 _PREFERRED = os.getenv("SENTIMENT_MODEL", "").strip()
 MODEL_CHAIN: List[str] = without_retired(list(dict.fromkeys(
     ([_PREFERRED] if _PREFERRED else [])
-    + [m.strip() for m in os.getenv("SENTIMENT_MODELS", "gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.8-flash").split(",")
+    + [m.strip() for m in os.getenv("SENTIMENT_MODELS", "gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.8-flash").split(",")
        if m.strip()]
 )))
 MODEL = MODEL_CHAIN[0]

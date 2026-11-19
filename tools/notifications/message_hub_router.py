@@ -4,8 +4,11 @@ import asyncio
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
+from services.shared.core.cache_service import AsyncInMemoryCache
 
 message_hub_router = APIRouter()
+_status_cache = AsyncInMemoryCache(maxsize=1)
+_status_lock = asyncio.Lock()
 
 
 @message_hub_router.get("/status")
@@ -13,7 +16,17 @@ async def message_hub_status(test: bool = False):
     """Live RabbitMQ Message Hub snapshot for the topbar servers dropdown (same contract as the other portals)."""
     from services.notifications.rabbitmq_service import rabbitmq_manager
 
-    return await rabbitmq_manager.get_hub_live_status(active_test=test)
+    if test:
+        return await rabbitmq_manager.get_hub_live_status(active_test=True)
+    cached = await _status_cache.get("message-hub-status")
+    if cached is not None:
+        return cached
+    async with _status_lock:
+        cached = await _status_cache.get("message-hub-status")
+        if cached is None:
+            cached = await rabbitmq_manager.get_hub_live_status(active_test=False)
+            await _status_cache.set("message-hub-status", cached, ttl_seconds=10)
+        return cached
 
 
 @message_hub_router.post("/test")

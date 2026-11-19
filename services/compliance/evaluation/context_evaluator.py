@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 PROMPT_VERSION = "context-v3"
 MODELS = without_retired([m.strip() for m in os.getenv(
     "CONTEXT_EVAL_MODELS",
-    os.getenv("SENTIMENT_MODELS", "gemini-3-flash-preview,gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite"),
+    os.getenv("SENTIMENT_MODELS", "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite"),
 ).split(",") if m.strip()])
 TIMEOUT_SEC = int(os.getenv("CONTEXT_EVAL_TIMEOUT_SEC", "40"))
 # Pause before the second pass over the models when none could answer the first time.
