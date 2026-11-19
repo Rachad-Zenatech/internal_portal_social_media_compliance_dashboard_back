@@ -93,13 +93,13 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - `setup` (def) L13
 
-## postgresql_db/schemas/submission_tables_schema.py (460 lines) - Submission table definitions, grouped by the feature records they store.
+## postgresql_db/schemas/submission_tables_schema.py (464 lines) - Submission table definitions, grouped by the feature records they store.
 - `_create_core_records` (def) L4
-- `_create_access_and_approvals` (def) L78
-- `_create_media_metadata` (def) L109
-- `_create_review_history` (def) L172
-- `_create_script_stage` (def) L213
-- `_create_flag_verdicts` (def) L287
-- `_create_comments_and_delegations` (def) L334
-- `_create_sentiment_records` (def) L386
-- `setup_submission_tables` (def) L449 - The original DDL batch remains atomic across the feature-specific statements.
+- `_create_access_and_approvals` (def) L81
+- `_create_media_metadata` (def) L112
+- `_create_review_history` (def) L176
+- `_create_script_stage` (def) L217
+- `_create_flag_verdicts` (def) L291
+- `_create_comments_and_delegations` (def) L338
+- `_create_sentiment_records` (def) L390
+- `setup_submission_tables` (def) L453 - The original DDL batch remains atomic across the feature-specific statements.

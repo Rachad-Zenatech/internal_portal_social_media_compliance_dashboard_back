@@ -120,6 +120,7 @@ class SubmissionUpdate(SourceLinksUpdateMixin):
     # AUDIENCE_PROFILE). A kind left out is automatic; an empty list means none of that kind.
     context_picks: Optional[Dict[str, List[UUID]]] = None
     ai_generated_images: Optional[bool] = None
+    people_in_images: Optional[bool] = None
     # A different caption for some platforms, as plain text by platform; the others use caption_text. {} clears them.
     platform_captions: Optional[Dict[str, str]] = Field(None, max_length=len(PLATFORMS))
     rule_sets: Optional[List[str]] = Field(None, max_length=len(RULE_SETS))
@@ -160,6 +161,7 @@ class SubmissionFile(BaseModel):
     doc_text: Optional[str] = None
     doc_text_status: Optional[str] = None
     doc_text_error: Optional[str] = None
+    person_detected: Optional[bool] = None
     # Where it came from. CANVA files remember the design and revision, so the creator can reimport the latest.
     source: Literal["UPLOAD", "CANVA"] = "UPLOAD"
     canva_design_id: Optional[str] = None

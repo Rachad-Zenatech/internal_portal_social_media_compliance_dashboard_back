@@ -23,4 +23,8 @@ def update_fields(row, payload):
     fields = {} if row.get("ai_generated_images_confirmed") else {"ai_generated_images_confirmed": True}
     if answer != bool(row.get("ai_generated_images")):
         fields.update(ai_generated_images=answer, image_provenance_edited_at=datetime.now(timezone.utc))
+    people_answer = payload.get("people_in_images")
+    if people_answer is not None:
+        fields["people_in_images"] = people_answer
+        fields["people_in_images_confirmed"] = True
     return fields

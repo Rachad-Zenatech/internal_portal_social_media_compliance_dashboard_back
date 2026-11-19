@@ -70,6 +70,9 @@ async def _create_core_records(conn) -> None:
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS context_picks JSONB NOT NULL DEFAULT '{}'::jsonb;
             ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS ai_generated_images BOOLEAN NOT NULL DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS image_provenance_edited_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS ai_generated_images_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
+            ALTER TABLE content_submissions ADD COLUMN IF NOT EXISTS people_in_images BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS people_in_images_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS people_in_images_detected BOOLEAN;
 
             -- Brands each user works on. A user with none listed (and every super admin) works on all brands.
     """)
@@ -152,6 +155,7 @@ async def _create_media_metadata(conn) -> None:
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text TEXT;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_status VARCHAR(20);
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_error TEXT;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS person_detected BOOLEAN;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_updated_at TIMESTAMP WITH TIME ZONE;
             -- Text of a script (or a blog's article file), read once so the rulebook check screens it like the
             -- caption (see services/compliance/media/document_text_service.py).

@@ -54,9 +54,10 @@ photo rather than the design: licence plates, signs, stickers, clothing, packagi
 vehicles, posters, graffiti and tattoos, even when it is small, in the background or at an angle (an offensive word
 on a licence plate or a T-shirt matters as much as the headline). Keep the reading order, one line per line of text,
 with text in the photo after the design's own text. Do not describe the image, translate, correct or summarise
-anything. Skip only text that is too blurred to read. If there is no readable text, return an empty string."""
+anything. Skip only text that is too blurred to read. If there is no readable text, return an empty string. Also say whether
+one or more real people are visibly present (a face, body, or person shown in a photo or illustration); do not identify anyone."""
 
-RESPONSE_SCHEMA = {"type": "OBJECT", "properties": {"text": {"type": "STRING"}}, "required": ["text"]}
+RESPONSE_SCHEMA = {"type": "OBJECT", "properties": {"text": {"type": "STRING"}, "person_detected": {"type": "BOOLEAN"}}, "required": ["text", "person_detected"]}
 
 
 def is_image_file(kind: str, mime_type: str) -> bool:
@@ -89,14 +90,14 @@ async def _claim(file_id: UUID) -> Optional[dict]:
     )
 
 
-async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: Optional[str] = None) -> None:
+async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: Optional[str] = None, person_detected: Optional[bool] = None) -> None:
     await get_pool().execute(
         """
         UPDATE content_submission_files
-        SET image_text_status = $2, image_text = $3, image_text_error = $4, image_text_updated_at = NOW()
+        SET image_text_status = $2, image_text = $3, image_text_error = $4, person_detected = $5, image_text_updated_at = NOW()
         WHERE id = $1
         """,
-        file_id, status, text, error,
+        file_id, status, text, error, person_detected,
     )
 
 
@@ -142,8 +143,15 @@ async def read_file(file_id: UUID) -> None:
                 raise FileNotFoundError("The image file is missing from storage.")
             data, mime_type = await asyncio.to_thread(_image_bytes, path, row["mime_type"])
             response = await _generate(contents=[types.Part.from_bytes(data=data, mime_type=mime_type), PROMPT])
-            text = _clean(json.loads(response.text or "{}").get("text", ""))
-            await _save(file_id, "COMPLETED", text=text)
+            result = json.loads(response.text or "{}")
+            text = _clean(result.get("text", ""))
+            await _save(file_id, "COMPLETED", text=text, person_detected=bool(result.get("person_detected")))
+            await get_pool().execute("""
+                UPDATE content_submissions s SET people_in_images_detected = (
+                    SELECT BOOL_OR(person_detected) FROM content_submission_files f
+                    WHERE f.submission_id = s.id AND f.deleted_at IS NULL AND f.person_detected IS NOT NULL
+                ) WHERE s.id = (SELECT submission_id FROM content_submission_files WHERE id = $1)
+            """, file_id)
             logger.info("Read %d characters of text in image %s", len(text), file_id)
         except Exception as e:
             logger.warning("Couldn't read the text in image %s: %s", file_id, e)
