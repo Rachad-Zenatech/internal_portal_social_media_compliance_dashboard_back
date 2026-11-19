@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/shared_script_review.py (105 lines) - A script page's review, handed to the Share Document server.
+## services/compliance/evaluation/shared_script_review.py (101 lines) - A script page's review, handed to the Share Document server.
 - `shared_id` (def) L24 - The page's shared document, when the shared editor is on and the page has one.
 - `_email` (def) L29
 - `_emails` (def) L34
