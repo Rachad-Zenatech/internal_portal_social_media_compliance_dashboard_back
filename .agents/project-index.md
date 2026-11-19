@@ -209,7 +209,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/notifications/review_email/config.py (48 lines) - The admin dashboard's SendGrid configuration, with social portal URLs and team time.
 - services/notifications/review_email/outbox.py (92 lines) - Atomic deduplication, leases and retriable delivery without blocking review workflows.
 - services/notifications/review_email/policy.py (108 lines) - Select actionable work, respecting assignments, check-ins and the team's calendar.
-- services/notifications/review_email/preferences.py (14 lines) - A person's detected email time zone, independent of Graph-managed user fields.
+- services/notifications/review_email/preferences.py (22 lines) - A person's detected email time zone, independent of Graph-managed user fields.
 - services/notifications/review_email/repository.py (91 lines) - Batch reads of current work and committed review decisions; no emails are sent here.
 - services/notifications/review_email/scheduler.py (95 lines) - One 9 a.m.
 - services/notifications/review_email/templates.py (60 lines) - Short, accessible workflow emails using the admin dashboard's branded SendGrid shell.
