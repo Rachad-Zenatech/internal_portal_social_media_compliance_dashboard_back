@@ -85,3 +85,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `require_application_scope` (def) L115 - FastAPI dependency that enforces Application-Level Scope authorization.
     - `_scope_guard` (def) L120
 - `generate_scoped_outbound_token` (def) L211 - Generates a minimal, scope-restricted token for sending requests to another application.
+
+## services/shared/auth/test_login_service.py (51 lines) - Local sign-in for the existing, explicitly allowed dummy review accounts.
+- `test_login_allowed` (def) L20
+- `sign_in_test_user` (def) L28 - Reuse an active dummy user and its permissions; never create or reactivate users.

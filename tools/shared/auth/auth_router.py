@@ -26,6 +26,8 @@ from services.shared.auth.rbac_service import log_login_activity
 from postgresql_db.database import get_pool
 from uuid import UUID
 from pydantic import BaseModel, Field
+from models.shared.test_login_model import TestLoginRequest
+from services.shared.auth.test_login_service import sign_in_test_user, test_login_allowed as _test_login_allowed
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -211,6 +213,28 @@ async def exchange_login_code(data: LoginCodeExchange):
     invalidate_user_auth_cache(row["id"])
     return {"token": create_access_token(row["id"], bool(row["is_super_admin"]))}
 
+
+@router.get("/auth/test-login")
+async def test_login_status(request: Request):
+    """Whether the login page offers the test sign-in buttons."""
+    return {"enabled": _test_login_allowed(request)}
+
+
+@router.post("/auth/test-login")
+async def test_login(data: TestLoginRequest, request: Request):
+    """Sign in locally as an existing, allowlisted dummy reviewer."""
+    if not _test_login_allowed(request):
+        raise HTTPException(status_code=404, detail="Not found")
+    user = await sign_in_test_user(data.as_)
+    email = user["email"]
+    invalidate_user_auth_cache(user["id"])
+    logger.warning("Test sign-in as %s (%s)", data.as_, email, extra={"event": "test_login"})
+    await log_login_activity(email, user["id"], True, None, request.client.host if request.client else None,
+                             request.headers.get("user-agent"))
+    token = create_access_token(user["id"], bool(user["is_super_admin"]))
+    response = JSONResponse({"token": token})
+    set_access_token_cookie(response, token)
+    return response
 
 @router.get("/auth/bootstrap")
 async def get_auth_bootstrap(user_id: UUID = Depends(get_current_user_id_dependency)):

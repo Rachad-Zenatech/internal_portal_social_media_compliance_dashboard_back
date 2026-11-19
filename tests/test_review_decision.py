@@ -125,6 +125,14 @@ class ReviewDecisionTestCase(unittest.IsolatedAsyncioTestCase):
 
 
 class WhoMayDecideTests(ReviewDecisionTestCase):
+    async def test_manager_can_approve_content_assigned_to_a_descendant_reviewer(self):
+        _, conn = await self.decide(approve_now(), submission_row(manager_review_access=True),
+                                    approvers=([uuid4()], ["Assigned Reviewer"]))
+        self.assertEqual(self.job_update(conn)[3], "APPROVED")
+
+    async def test_manager_still_cannot_approve_their_own_content(self):
+        await self.assert_refused(403, approve_now(), submission_row(created_by=REVIEWER, manager_review_access=True))
+
     async def test_only_reviewers_can_decide(self):
         await self.assert_refused(403, approve_now(), submission_row(), is_reviewer=False)
 

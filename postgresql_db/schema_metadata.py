@@ -59,6 +59,9 @@ roles = sa.Table(
     sa.Column("deleted_at", postgresql.TIMESTAMP(timezone=True)),
     sa.Column("created_at", postgresql.TIMESTAMP(timezone=True), server_default=sa.text("now()")),
     sa.Column("updated_at", postgresql.TIMESTAMP(timezone=True), server_default=sa.text("now()")),
+    sa.Column("created_by", sa.UUID()),
+    sa.Column("updated_by", sa.UUID()),
+    sa.Column("deleted_by", sa.UUID()),
     sa.UniqueConstraint("code", name="roles_code_key"),
 )
 

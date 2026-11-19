@@ -109,6 +109,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `_consume_in_memory` (def) L471
     - `close` (def) L485
 
+## services/notifications/submission_notifications.py (25 lines) - In-app notifications for submission review workflows, shared by posts and scripts.
+- `notify_submission` (def) L10
+
 ## services/notifications/teams_service.py (358 lines) - Microsoft Teams direct messages: the portal's notifications, delivered to people's Teams chat by a bot.
 - `_app_id` (def) L56
 - `_password` (def) L60

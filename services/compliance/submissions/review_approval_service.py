@@ -65,7 +65,7 @@ async def require_approval(row, user_id, is_super):
     approver_ids, approver_names = subs._approvers(await subs.approval_path_service.load_rules(), row, subs._accounts(row))
     # A named final approver who delegated the post passes their approval to the delegate.
     approver_ids = await subs.delegation_service.with_delegates(submission_id, approver_ids)
-    if not subs._may_approve(user_id, is_super, approver_ids):
+    if not row.get("manager_review_access", False) and not subs._may_approve(user_id, is_super, approver_ids):
         raise HTTPException(
             status_code=403,
             detail=f"Final approval for this content is with {', '.join(approver_names)}. "

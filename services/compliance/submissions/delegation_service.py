@@ -176,6 +176,9 @@ async def list_delegations(user_id: UUID, direction: DelegationDirection = "all"
         "to_me": "d.to_user_id = $1",
         "all": "(d.from_user_id = $1 OR d.to_user_id = $1)",
     }[direction]
+    from services.compliance.submissions.review_hierarchy_service import managed_reviewers_sql
+    if direction == "all":
+        where += f" OR d.from_user_id = ANY({managed_reviewers_sql('$1')}) OR d.to_user_id = ANY({managed_reviewers_sql('$1')})"
     rows = await fetch_all(_SELECT + f" WHERE {where} ORDER BY d.created_at DESC LIMIT 500", user_id)
     return [_out(r) for r in rows]
 

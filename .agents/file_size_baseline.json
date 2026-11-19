@@ -13,14 +13,6 @@
       "max_lines": 1159,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
-    "postgresql_db/schemas/setup_submissions_schema.py": {
-      "max_lines": 698,
-      "reason": "Over the limit when the check was introduced; split it when you next work on it."
-    },
-    "scripts/scrape_x_playwright.py": {
-      "max_lines": 504,
-      "reason": "Over the limit when the check was introduced; split it when you next work on it."
-    },
     "services/compliance/analytics/conversation_evidence.py": {
       "max_lines": 954,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
@@ -50,7 +42,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
-      "max_lines": 2949,
+      "max_lines": 2934,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/notifications/rabbitmq_service.py": {
@@ -68,10 +60,6 @@
     "tests/test_mood_learning_pipeline.py": {
       "max_lines": 673,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
-    },
-    "tools/compliance/submissions/submission_router.py": {
-      "max_lines": 588,
-      "reason": "Over the limit when the check was introduced; split it when you next work on it."
     }
   },
   "blocks": {
@@ -83,20 +71,8 @@
       "max_lines": 205,
       "kind": "py_function"
     },
-    "postgresql_db/schemas/setup_pbac_schema.py#setup": {
-      "max_lines": 437,
-      "kind": "py_function"
-    },
-    "postgresql_db/schemas/setup_submissions_schema.py#setup": {
-      "max_lines": 432,
-      "kind": "py_function"
-    },
     "scripts/validate_mood_flow.py#scenarios": {
       "max_lines": 127,
-      "kind": "py_function"
-    },
-    "services/compliance/evaluation/compliance_service.py#check_compliance": {
-      "max_lines": 200,
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#_run_check": {

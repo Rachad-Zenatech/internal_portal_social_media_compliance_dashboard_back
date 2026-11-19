@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Mapping
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from models.compliance.compliance_model import ComplianceCheckResponse, ComplianceViolation
+from services.compliance.media import script_sources
 
 MATCH_AT = 0.90      # this much alike or more: the video follows the script
 PARTIAL_AT = 0.70    # below MATCH_AT but here or more: some wording differs
@@ -58,7 +59,7 @@ def _script_column(script: str, name: str) -> Optional[str]:
 
 def compare(script: Optional[str], spoken: Optional[str], on_screen: str = "") -> Optional[Dict[str, Any]]:
     """Compare dialogue and overlays separately, weighting similarity by their word counts."""
-    script = script or ""
+    script = script_sources.split(script or "")[0]
     voiceover = _script_column(script, "voiceover")
     overlays = _script_column(script, "on-screen text")
     channels = [(_words(script if voiceover is None else voiceover), _words(spoken or ""))]
