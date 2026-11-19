@@ -155,10 +155,12 @@ async def _new_page(set_id: UUID, creator: UUID, title: str, html: str, text: st
 
 async def add_page(doc_id: UUID, user_id: UUID) -> DocDetail:
     """A new page: another script in the same document, on its own page with its own table, sent for review on its own."""
+    from services.compliance.evaluation.script_template_store import initial_content_for
     doc, set_id = await _owned_set(doc_id, user_id)
     n = len(await _pages(set_id)) + 1
     title = "New script"
-    new_id = await _new_page(set_id, user_id, title, empty_script_html(n, title))
+    body_html, body_text = await initial_content_for(n, title, empty_script_html(n, title))
+    new_id = await _new_page(set_id, user_id, title, body_html, body_text)
     return await core.get(new_id, user_id)
 
 

@@ -158,9 +158,24 @@ async def ensure_shared_document(page_id: UUID) -> Optional[str]:
         if page["share_document_id"]:
             return page["share_document_id"]
         details, beats = text_to_beats(page["body_text"])
-        made = await call("POST", "", ["script_documents:write"], json={
-            "user_email": page["email"], "title": page["title"], "number": page["position"] or 1, "details": details, "rows": beats,
-            "external_ref": {"system": SOURCE_SERVICE, "id": str(page["id"])}})
+        from services.compliance.evaluation.script_template_store import get_default_template, parse_table_from_text
+        custom_headers, custom_rows, parsed_details = parse_table_from_text(page["body_text"])
+        payload: Dict[str, Any] = {
+            "user_email": page["email"], "title": page["title"], "number": page["position"] or 1,
+            "details": details or parsed_details, "rows": beats,
+            "external_ref": {"system": SOURCE_SERVICE, "id": str(page["id"])},
+        }
+        if custom_headers:
+            payload["headers"] = custom_headers
+            if custom_rows:
+                payload["table_rows"] = custom_rows
+        elif not beats:
+            tpl = await get_default_template()
+            if tpl:
+                payload["headers"] = tpl["headers"]
+                payload["table_rows"] = tpl["table_rows"]
+                payload["details"] = {**tpl["details"], **payload["details"]}
+        made = await call("POST", "", ["script_documents:write"], json=payload)
         # Two requests can race here; the loser leaves a spare shared document behind, which is harmless.
         await execute("UPDATE script_documents SET share_document_id = $2 WHERE id = $1 AND share_document_id IS NULL RETURNING id",
                       page_id, made["document_id"])

@@ -127,10 +127,10 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_batch_service.py (663 lines) - Script batches.
 - services/compliance/evaluation/script_compliance_check.py (18 lines) - Script compliance checks and source evidence.
 - services/compliance/evaluation/script_creator_workflow.py (15 lines) - Creator script revisions and the handoff to filming.
-- services/compliance/evaluation/script_doc_pages.py (267 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
+- services/compliance/evaluation/script_doc_pages.py (269 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
 - services/compliance/evaluation/script_doc_reads.py (88 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
 - services/compliance/evaluation/script_doc_realtime.py (256 lines) - Live editing of script documents.
-- services/compliance/evaluation/script_doc_service.py (498 lines) - Script documents.
+- services/compliance/evaluation/script_doc_service.py (501 lines) - Script documents.
 - services/compliance/evaluation/script_doc_split.py (37 lines) - Splitting a script document into the scripts it holds.
 - services/compliance/evaluation/script_doc_templates.py (133 lines) - Script templates: a table of beats, each with what is seen, what is said and the text on screen.
 - services/compliance/evaluation/script_hub_submissions.py (68 lines) - Submitted Create Post scripts projected into the script hub without a second review workflow.
@@ -143,8 +143,9 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_submission_content.py (29 lines) - Lossless line/table conversion for scripts submitted through Create Post.
 - services/compliance/evaluation/script_submission_documents.py (140 lines) - Create Post uploads entering the existing native/shared script-document review.
 - services/compliance/evaluation/script_submission_sync.py (53 lines) - Mirror canonical script-document review back to its original Create Post submission.
+- services/compliance/evaluation/script_template_store.py (176 lines) - Custom default script template uploaded from the Social Media portal.
 - services/compliance/evaluation/shared_script_review.py (101 lines) - A script page's review, handed to the Share Document server.
-- services/compliance/evaluation/shared_script_service.py (171 lines) - Shared documents for script pages.
+- services/compliance/evaluation/shared_script_service.py (186 lines) - Shared documents for script pages.
 - services/compliance/evaluation/shared_script_sync.py (131 lines) - Keeping this portal in step with the Share Document server's script reviews.
 - services/compliance/evaluation/source_browser_fetch.py (96 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
 - services/compliance/evaluation/source_check_service.py (501 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
@@ -250,7 +251,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/review_queue_router.py (39 lines) - Review Queue endpoints, protected from duplicate browser requests.
 - tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - tools/compliance/submissions/script_directory_router.py (63 lines) - Script directory for the Share Document portal (app-to-app).
-- tools/compliance/submissions/script_doc_router.py (223 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
+- tools/compliance/submissions/script_doc_router.py (242 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
 - tools/compliance/submissions/script_review_router.py (145 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - tools/compliance/submissions/source_link_router.py (69 lines) - Router for quick AI checking of submission source links.
 - tools/compliance/submissions/source_trust_router.py (27 lines) - Router for people's calls on a post's sources (does a claim match the page? is the page a good source?) and the standing each source's si...

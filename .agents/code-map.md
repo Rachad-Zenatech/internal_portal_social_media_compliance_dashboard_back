@@ -79,6 +79,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__script_submission_content.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_submission_documents.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_submission_sync.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__script_template_store.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__shared_script_review.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__shared_script_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__shared_script_sync.md | 1 | 1 KB |

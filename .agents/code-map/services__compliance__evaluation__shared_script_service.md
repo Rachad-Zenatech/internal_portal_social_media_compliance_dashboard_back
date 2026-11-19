@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/shared_script_service.py (171 lines) - Shared documents for script pages.
+## services/compliance/evaluation/shared_script_service.py (186 lines) - Shared documents for script pages.
 - `SharedScriptError` (class) L37
     - `__init__` (def) L38
 - `enabled` (def) L43

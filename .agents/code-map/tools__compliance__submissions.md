@@ -68,34 +68,37 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `script_users` (def) L44 [GET /script-users] - The people `email` could send a script to (reviewers, suggesting reviewers, super admins), in the shape of the
 - `_profiles` (def) L59
 
-## tools/compliance/submissions/script_doc_router.py (223 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
-- `list_templates` (def) L35 [GET /templates] - The script templates a creator can start from.
-- `attach_script` (def) L41 [POST /upload] - Attach a script: a new document made from an uploaded file, with a page for each script in it.
-- `delete_set` (def) L47 [DELETE /sets/{set_id}] - Delete a document and its scripts, only while every one is still a draft.
-- `list_sets` (def) L54 [GET /sets] - The creator's documents (each with its scripts as pages).
-- `list_docs` (def) L60 [GET ] - mine: scripts the user wrote; review: scripts sent to them; all: every script (Content Managers).
-- `create_doc` (def) L66 [POST ]
-- `adopt_submission` (def) L71 [POST /from-submission/{submission_id}]
-- `get_shared_editor` (def) L77 [GET /{doc_id}/shared-editor] - Where the Share Document server's editor for this script is, and a 15-minute sign-in for it (for the iframe).
-- `get_doc` (def) L84 [GET /{doc_id}]
-- `update_doc` (def) L89 [PATCH /{doc_id}]
-- `delete_doc` (def) L94 [DELETE /{doc_id}]
-- `save_snapshot` (def) L100 [PUT /{doc_id}/snapshot] - An editor saves the script as it reads now.
-- `reviewer_options` (def) L107 [GET /{doc_id}/reviewers] - The people the creator can send this script to.
-- `submit` (def) L113 [POST /{doc_id}/submit] - Send the script for review.
-- `check_in` (def) L119 [POST /{doc_id}/check-in] - A reviewer says they are finished (approve, request changes, or done for a suggesting reviewer).
-- `withdraw_check_in` (def) L125 [DELETE /{doc_id}/check-in]
-- `finalize` (def) L130 [POST /{doc_id}/finalize] - Every reviewer has checked in: pass to the Content Manager (level 2) or approve back to the creator.
-- `decide` (def) L136 [POST /{doc_id}/decision] - The Content Manager's final decision.
-- `add_page` (def) L142 [POST /{doc_id}/pages] - A new page (script) in the same document, with its own table.
-- `upload_pages` (def) L148 [POST /{doc_id}/pages/upload] - Upload a file: it is split into scripts and each becomes a page of the document.
-- `submit_pages` (def) L154 [POST /{doc_id}/pages/submit] - Send the document's scripts for review together, each on its own.
-- `create_posts` (def) L160 [POST /{doc_id}/posts] - Make the posts for an approved script document that could not be made when it was approved.
-- `history` (def) L166 [GET /{doc_id}/history]
-- `check` (def) L171 [POST /{doc_id}/check] - The rulebook check of the script as it reads now (or of `text`).
-- `_valid_user` (def) L177
-- `_ws_user` (def) L190 - Who the connection is: the sign-in cookie, or a first message {"type": "auth", "token": ...}.
-- `live` (def) L210 [WEBSOCKET /{doc_id}/live] - The live connection for one script: its text and notes, or (`notes_only`, for a script edited in the Share Document
+## tools/compliance/submissions/script_doc_router.py (242 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
+- `list_templates` (def) L36 [GET /templates] - The script templates a creator can start from.
+- `get_default_template` (def) L42 [GET /default-template] - The active default script template (built-in or uploaded custom template).
+- `upload_default_template` (def) L48 [POST /default-template] - Upload a script template (.docx, .pdf, .txt) to replace the default script template.
+- `reset_default_template` (def) L54 [DELETE /default-template] - Reset the default script template back to the built-in 4-column Reels layout.
+- `attach_script` (def) L60 [POST /upload] - Attach a script: a new document made from an uploaded file, with a page for each script in it.
+- `delete_set` (def) L66 [DELETE /sets/{set_id}] - Delete a document and its scripts, only while every one is still a draft.
+- `list_sets` (def) L73 [GET /sets] - The creator's documents (each with its scripts as pages).
+- `list_docs` (def) L79 [GET ] - mine: scripts the user wrote; review: scripts sent to them; all: every script (Content Managers).
+- `create_doc` (def) L85 [POST ]
+- `adopt_submission` (def) L90 [POST /from-submission/{submission_id}]
+- `get_shared_editor` (def) L96 [GET /{doc_id}/shared-editor] - Where the Share Document server's editor for this script is, and a 15-minute sign-in for it (for the iframe).
+- `get_doc` (def) L103 [GET /{doc_id}]
+- `update_doc` (def) L108 [PATCH /{doc_id}]
+- `delete_doc` (def) L113 [DELETE /{doc_id}]
+- `save_snapshot` (def) L119 [PUT /{doc_id}/snapshot] - An editor saves the script as it reads now.
+- `reviewer_options` (def) L126 [GET /{doc_id}/reviewers] - The people the creator can send this script to.
+- `submit` (def) L132 [POST /{doc_id}/submit] - Send the script for review.
+- `check_in` (def) L138 [POST /{doc_id}/check-in] - A reviewer says they are finished (approve, request changes, or done for a suggesting reviewer).
+- `withdraw_check_in` (def) L144 [DELETE /{doc_id}/check-in]
+- `finalize` (def) L149 [POST /{doc_id}/finalize] - Every reviewer has checked in: pass to the Content Manager (level 2) or approve back to the creator.
+- `decide` (def) L155 [POST /{doc_id}/decision] - The Content Manager's final decision.
+- `add_page` (def) L161 [POST /{doc_id}/pages] - A new page (script) in the same document, with its own table.
+- `upload_pages` (def) L167 [POST /{doc_id}/pages/upload] - Upload a file: it is split into scripts and each becomes a page of the document.
+- `submit_pages` (def) L173 [POST /{doc_id}/pages/submit] - Send the document's scripts for review together, each on its own.
+- `create_posts` (def) L179 [POST /{doc_id}/posts] - Make the posts for an approved script document that could not be made when it was approved.
+- `history` (def) L185 [GET /{doc_id}/history]
+- `check` (def) L190 [POST /{doc_id}/check] - The rulebook check of the script as it reads now (or of `text`).
+- `_valid_user` (def) L196
+- `_ws_user` (def) L209 - Who the connection is: the sign-in cookie, or a first message {"type": "auth", "token": ...}.
+- `live` (def) L229 [WEBSOCKET /{doc_id}/live] - The live connection for one script: its text and notes, or (`notes_only`, for a script edited in the Share Document
 
 ## tools/compliance/submissions/script_review_router.py (145 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `suggest_fix` (def) L35 [POST /scripts/suggest-fix] - A compliant rewrite of one flagged passage of a script, for the creator to use or not.

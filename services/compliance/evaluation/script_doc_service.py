@@ -164,7 +164,7 @@ async def _access(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], user_id:
 
 def _all_checked(doc: Dict[str, Any], reviewers: List[Dict[str, Any]]) -> bool:
     required = [r for r in reviewers if r["capacity"] == "EDIT"]
-    return doc["status"] == "IN_REVIEW" and bool(required) and all(r["vote"] for r in required)
+    return doc["status"] == "IN_REVIEW" and bool(required) and (any(r["vote"] in ("APPROVE", "CHANGES") for r in required) or all(r["vote"] for r in required))
 
 
 def _state(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], changed_by: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -234,8 +234,9 @@ async def get(doc_id: UUID, user_id: UUID) -> DocDetail:
 
 async def create(user_id: UUID, req: DocCreate) -> DocDetail:
     """A new document from a template: the document and its first script (page)."""
-    t = get_template(req.template_key)
-    title = req.title.strip()
+    from services.compliance.evaluation.script_template_store import initial_content_for
+    t, title = get_template(req.template_key), req.title.strip()
+    body_html, body_text = await initial_content_for(1, title, template_html(t, title)) if t.key == "blank" else (template_html(t, title), "")
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -243,7 +244,7 @@ async def create(user_id: UUID, req: DocCreate) -> DocDetail:
             doc_id = await conn.fetchval(
                 "INSERT INTO script_documents (title, template_key, created_by, body_html, body_text, set_id, position) "
                 "VALUES ($1, $2, $3, $4, $5, $6, 1) RETURNING id",
-                title, t.key, user_id, template_html(t, title), "", set_id)
+                title, t.key, user_id, body_html, body_text, set_id)
     await _event(doc_id, 0, user_id, "CREATED", {"template": t.key})
     await log_audit_event("script_document", str(doc_id), "CREATE", user_id, {"template": t.key})
     await shared.ensure_shared_document(doc_id)
@@ -405,6 +406,8 @@ async def check_in(doc_id: UUID, user_id: UUID, req: CheckIn) -> DocDetail:
         doc_id, doc["round"], user_id, req.vote, (req.note or "").strip() or None, bool(req.pass_to_manager))
     await _event(doc_id, doc["round"], user_id, "CHECKIN", {"vote": req.vote, "note": req.note, "pass_to_manager": req.pass_to_manager})
     await _broadcast_state(doc_id)
+    if req.vote in ("APPROVE", "CHANGES"):
+        return await finalize(doc_id, user_id, Finalize(route="LEVEL2" if req.pass_to_manager else "CREATOR", note=req.note))
     return await get(doc_id, user_id)
 
 
