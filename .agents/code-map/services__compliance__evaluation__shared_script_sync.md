@@ -4,10 +4,11 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/shared_script_sync.py (131 lines) - Keeping this portal in step with the Share Document server's script reviews.
-- `_page` (def) L34
-- `refresh_text` (def) L40 - Read the script's text back from the shared document into the page (for lists, the rulebook check and the post).
-- `_mirror_checkins` (def) L57 - A change in the shared editor clears everyone's check-in there; the same people's check-ins are cleared here.
-- `_mirror_status` (def) L68
-- `handle` (def) L93 - One event from the Share Document server.
-- `start_consumer` (def) L113 - Background task: subscribe once the message bus is up (it connects after this is started).
+## services/compliance/evaluation/shared_script_sync.py (165 lines) - Keeping this portal in step with the Share Document server's script reviews.
+- `_page` (def) L35
+- `refresh_text` (def) L41 - Read the script's text back from the shared document into the page (for lists, the rulebook check and the post).
+- `_mirror_checkins` (def) L58 - A change in the shared editor clears everyone's check-in there; the same people's check-ins are cleared here.
+- `_mirror_reviewers` (def) L69 - Keep script_document_reviewers in sync with Share Document's review collaborators so Sent to me lists them.
+- `_mirror_status` (def) L98
+- `handle` (def) L127 - One event from the Share Document server.
+- `start_consumer` (def) L147 - Background task: subscribe once the message bus is up (it connects after this is started).

@@ -128,7 +128,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_compliance_check.py (18 lines) - Script compliance checks and source evidence.
 - services/compliance/evaluation/script_creator_workflow.py (15 lines) - Creator script revisions and the handoff to filming.
 - services/compliance/evaluation/script_doc_pages.py (269 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
-- services/compliance/evaluation/script_doc_reads.py (88 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
+- services/compliance/evaluation/script_doc_reads.py (91 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
 - services/compliance/evaluation/script_doc_realtime.py (256 lines) - Live editing of script documents.
 - services/compliance/evaluation/script_doc_service.py (501 lines) - Script documents.
 - services/compliance/evaluation/script_doc_split.py (37 lines) - Splitting a script document into the scripts it holds.
@@ -146,7 +146,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_template_store.py (176 lines) - Custom default script template uploaded from the Social Media portal.
 - services/compliance/evaluation/shared_script_review.py (101 lines) - A script page's review, handed to the Share Document server.
 - services/compliance/evaluation/shared_script_service.py (186 lines) - Shared documents for script pages.
-- services/compliance/evaluation/shared_script_sync.py (131 lines) - Keeping this portal in step with the Share Document server's script reviews.
+- services/compliance/evaluation/shared_script_sync.py (165 lines) - Keeping this portal in step with the Share Document server's script reviews.
 - services/compliance/evaluation/source_browser_fetch.py (96 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
 - services/compliance/evaluation/source_check_service.py (501 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_claim_checks.py (127 lines) - Safeguards on the model's claim-by-claim answer for a source.

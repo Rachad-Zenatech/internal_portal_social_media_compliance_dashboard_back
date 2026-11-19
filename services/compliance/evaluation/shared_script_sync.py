@@ -18,6 +18,7 @@ Handling an event twice does nothing twice: a status is only acted on when it ch
 import asyncio
 import logging
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 from postgresql_db.database import execute, fetch_one
 from services.compliance.evaluation import shared_script_service as shared
@@ -65,12 +66,45 @@ async def _mirror_checkins(page: Dict[str, Any], share_id: str) -> None:
                RETURNING c.user_id""", page["id"], cleared)
 
 
+async def _mirror_reviewers(page_id: UUID, share_id: str, actor_email: str) -> None:
+    """Keep script_document_reviewers in sync with Share Document's review collaborators so Sent to me lists them."""
+    from postgresql_db.database import get_pool
+
+    state = await shared.call("GET", f"/{share_id}/review", ["script_documents:read"], params={"email": actor_email})
+    rows = []
+    for pos, collab in enumerate(state.get("collaborators") or []):
+        email = (collab.get("email") or "").strip().lower()
+        if not email or collab.get("role") == "CREATOR":
+            continue
+        cap = "VIEW" if str(collab.get("capacity") or "").upper() == "VIEW" else "EDIT"
+        rows.append((email, cap, pos))
+    if not rows:
+        return
+    async with get_pool().acquire() as conn:
+        async with conn.transaction():
+            users = await conn.fetch("SELECT id, lower(email) AS email FROM users WHERE lower(email) = ANY($1::text[])", [r[0] for r in rows])
+            by_email = {u["email"]: u["id"] for u in users}
+            resolved = [(by_email[e], cap, pos) for e, cap, pos in rows if e in by_email]
+            if not resolved:
+                return
+            await conn.execute("DELETE FROM script_document_reviewers WHERE document_id = $1", page_id)
+            for uid, cap, pos in resolved:
+                await conn.execute(
+                    "INSERT INTO script_document_reviewers (document_id, user_id, capacity, position) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
+                    page_id, uid, cap, pos,
+                )
+
+
 async def _mirror_status(page: Dict[str, Any], payload: Dict[str, Any]) -> None:
     from services.compliance.evaluation import script_doc_pages as pages, script_doc_service as core
 
     status = payload.get("status")
     if status not in STATUSES:
         return
+    try:
+        await _mirror_reviewers(page["id"], payload["documentId"], page["email"])
+    except Exception:
+        logger.debug("Could not sync collaborators for shared script %s", page["id"], exc_info=True)
     changed = await fetch_one(
         """UPDATE script_documents SET status = $2, round = GREATEST(round, $3), decision_note = coalesce($4, decision_note),
                decided_at = CASE WHEN $2 = 'IN_REVIEW' THEN NULL ELSE NOW() END, updated_at = NOW()

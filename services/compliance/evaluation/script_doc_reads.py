@@ -21,7 +21,10 @@ async def list_docs(user_id: UUID, scope: str = "mine") -> List[DocSummary]:
     if scope == "all":
         where, args = "TRUE", []
     elif scope == "review":
-        where, args = "EXISTS (SELECT 1 FROM script_document_reviewers rr WHERE rr.document_id = d.id AND rr.user_id = $1)", [user_id]
+        if manager:
+            where, args = "(EXISTS (SELECT 1 FROM script_document_reviewers rr WHERE rr.document_id = d.id AND rr.user_id = $1) OR (d.status = 'LEVEL2_REVIEW' AND d.created_by <> $1))", [user_id]
+        else:
+            where, args = "EXISTS (SELECT 1 FROM script_document_reviewers rr WHERE rr.document_id = d.id AND rr.user_id = $1)", [user_id]
     else:
         where, args = "d.created_by = $1", [user_id]
     rows = await fetch_all(
