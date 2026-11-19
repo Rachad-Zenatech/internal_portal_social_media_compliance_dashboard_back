@@ -6,9 +6,10 @@ from datetime import datetime
 from typing import List, Literal, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
+from models.compliance.rule_check_model import CheckingMethod, RuleCheckingMethods, RuleCoverageFields
 
 
-class ComplianceRuleBase(BaseModel):
+class ComplianceRuleBase(RuleCheckingMethods):
     rule_number: str = Field(..., description="Unique rule identifier e.g. 'Rule 1', 'Section 10'")
     category: str = Field(..., description="Category: Thought Leadership, Product Maturity, Defense Imagery, AI & Concepts, Security, etc.")
     title: str = Field(..., description="Concise rule title")
@@ -55,10 +56,12 @@ class ComplianceRuleBase(BaseModel):
 
 
 class ComplianceRuleCreate(ComplianceRuleBase):
+    checking_methods: List[CheckingMethod] = Field(..., min_length=1)
     rulebook_id: Optional[UUID] = None
 
 
-class ComplianceRuleUpdate(BaseModel):
+class ComplianceRuleUpdate(RuleCheckingMethods):
+    checking_methods: Optional[List[CheckingMethod]] = Field(None, min_length=1)
     rule_number: Optional[str] = None
     category: Optional[str] = None
     title: Optional[str] = None
@@ -245,8 +248,7 @@ class ComplianceViolation(BaseModel):
 
 
 class ManualReviewRule(BaseModel):
-    """An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
-    for, e.g. image editing or image rights), so a reviewer has to confirm it."""
+    """An applicable rule explicitly configured to require human confirmation."""
     rule_id: UUID
     rule_number: str
     title: str
@@ -315,7 +317,7 @@ class AddedRuleSet(BaseModel):
     because: List[str] = Field(default_factory=list)
 
 
-class ComplianceCheckResponse(BaseModel):
+class ComplianceCheckResponse(RuleCoverageFields):
     is_compliant: bool
     traffic_light: str = "GREEN"  # GREEN, YELLOW, RED
     score: int = 100  # 0 to 100
@@ -338,7 +340,7 @@ class ComplianceCheckResponse(BaseModel):
     violations: List[ComplianceViolation] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
     rules_checked: int = 0
-    # Of rules_checked, the ones the text check can't actually test: a reviewer confirms these when approving.
+    # Applicable rules explicitly configured for human confirmation.
     manual_review_rules: List[ManualReviewRule] = Field(default_factory=list)
     # The scope the rules were picked by: the audiences (target plus implied; empty when none is set, so every
     # audience's rules ran) and the content parts (empty when not known, so every rule's applies_to matched).

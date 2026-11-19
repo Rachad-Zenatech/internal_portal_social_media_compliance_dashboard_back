@@ -1,0 +1,44 @@
+[
+  {
+    "name": "ordinary-event-caption",
+    "request": {
+      "text": "Thank you to everyone who visited our booth. We enjoyed meeting the community and hearing your questions.",
+      "content_type": "TEXT",
+      "content_parts": [
+        "caption"
+      ]
+    }
+  },
+  {
+    "name": "sensitive-ai-concept-without-label",
+    "request": {
+      "text": "Our combat-proven drones are deployed in military operations. We guarantee 100% accuracy. Text in image 1: autonomous battlefield deployment",
+      "content_type": "IMAGE",
+      "content_parts": [
+        "caption",
+        "imagery"
+      ],
+      "ai_generated_images": true
+    },
+    "expected": {
+      "Rule 9": "EVIDENCE_REQUIRED_OR_HUMAN_REVIEW",
+      "Rule 24": "ISSUE"
+    }
+  },
+  {
+    "name": "claim-with-supplied-evidence",
+    "request": {
+      "text": "We signed three survey contracts. The work brings this year's transportation portfolio to eight projects.",
+      "content_type": "TEXT",
+      "content_parts": [
+        "caption"
+      ],
+      "sources": [
+        {
+          "name": "Benchmark-only company announcement",
+          "text": "The company signed three survey contracts. Its transportation portfolio now includes eight projects this year."
+        }
+      ]
+    }
+  }
+]

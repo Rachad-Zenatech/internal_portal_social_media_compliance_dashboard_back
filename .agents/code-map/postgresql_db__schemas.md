@@ -50,6 +50,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_review_email_schema.py (34 lines) - Durable delivery and activation boundary for review workflow emails.
 - `setup` (def) L5
 
+## postgresql_db/schemas/setup_rule_checks_schema.py (53 lines) - One-time explicit checking-method configuration; never infer manual checks from empty phrases.
+- `setup` (def) L26
+
 ## postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
 - `setup` (def) L14
 

@@ -1,0 +1,645 @@
+{
+  "mode": "SHADOW",
+  "promoted": false,
+  "cases": [
+    {
+      "name": "ordinary-event-caption",
+      "fast_seconds": 52.714,
+      "fast_complete_rules": 16,
+      "fast_score": 100,
+      "fast_ai_unavailable": false,
+      "rulebook_version": "2026-11-19T14:13:11.673331+00:00|claims-5|signals-1|scope-15|context-v3",
+      "full": {
+        "model": "gemini-3.8-flash",
+        "mode": "SHADOW_TEXT_TRIAGE",
+        "applied_to_score": false,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "thought_tokens": 0,
+        "total_tokens": 0,
+        "error": "ServerError: benchmark request did not complete",
+        "elapsed_seconds": 39.806,
+        "results": [
+          {
+            "rule_id": "b25f0bba-1ce8-449e-8ebf-6e8db02c39b8",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "ddec59c9-3f67-4ff2-a212-d31677e56b57",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "d201557d-f64f-4dcb-ac52-cf1d023516df",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "174e4ecc-4087-4551-9448-2ee7161d0a00",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "1d7379a8-8106-44cc-9079-e0c317792f7e",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "f008f192-6875-4608-b984-c4202a47e367",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c1bff286-46cd-48f4-9f60-cf55fbdae416",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "6e824998-5198-43f2-9026-10e0191804fa",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "daba326a-ec99-4203-801b-e5ca537dd00f",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "cdb2d884-8ec1-4ff1-80a2-da07df6c66cb",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "6e016030-5e50-42b6-85a6-4fd63987abee",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "d5ec2a39-0902-45d5-930a-644da24e4d8e",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c944f8e6-ed69-4819-ae40-52d2cbc5b36b",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "4741bb44-8681-4c30-9097-0c520999cb41",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2e24202b-1bf5-4bb3-8403-57a5bd2fe735",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2eb8c5b8-75b5-4fd8-b0a8-76831ef63629",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2e3ff3ef-dae7-4f3a-94b2-50411b894739",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "0456febc-e232-44a8-8e7d-ae09cc520bda",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c13b586b-a99c-4540-9f95-baa8212fdcb8",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "af20f5d4-fd4e-43ca-b90e-82a796c60f89",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "e11cbae1-9631-4342-a9f9-338defed9518",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "14841ac7-6963-47a4-bbbe-ca69d1ca5b3f",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "865b2615-3806-49f5-82f0-ecc3c158f323",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "a4c87ba1-ddb2-4515-b302-d37e58e42165",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2f528688-ccf0-4ca9-b362-5b73e7bded48",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c8b1c3e0-7821-4c1c-a2a5-1606ada6b685",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "f3af0ef5-8edc-4e22-9a8c-129764c0162d",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "b170ab75-18df-4ab6-bc9a-8c22444ad77d",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c2bab263-2b9b-47eb-ab08-af88a842dae4",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "1724419f-c95d-45d2-899d-072a7eec537b",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "4b5d7621-5471-40a0-b58b-67867bd8361f",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          }
+        ],
+        "completed_rules": 0,
+        "applicable_rules": 31,
+        "disagreements": []
+      },
+      "estimated_incremental_cost": null,
+      "expected_spot_checks": {}
+    },
+    {
+      "name": "sensitive-ai-concept-without-label",
+      "fast_seconds": 95.501,
+      "fast_complete_rules": 6,
+      "fast_score": 35,
+      "fast_ai_unavailable": false,
+      "rulebook_version": "2026-11-19T14:13:11.673331+00:00|claims-5|signals-1|scope-15|context-v3",
+      "full": {
+        "model": "gemini-3.8-flash",
+        "mode": "SHADOW_TEXT_TRIAGE",
+        "applied_to_score": false,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "thought_tokens": 0,
+        "total_tokens": 0,
+        "error": "ClientError: benchmark request did not complete",
+        "elapsed_seconds": 0.183,
+        "results": [
+          {
+            "rule_id": "b25f0bba-1ce8-449e-8ebf-6e8db02c39b8",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "ddec59c9-3f67-4ff2-a212-d31677e56b57",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "d201557d-f64f-4dcb-ac52-cf1d023516df",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "174e4ecc-4087-4551-9448-2ee7161d0a00",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "1d7379a8-8106-44cc-9079-e0c317792f7e",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "f008f192-6875-4608-b984-c4202a47e367",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c1bff286-46cd-48f4-9f60-cf55fbdae416",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "6e824998-5198-43f2-9026-10e0191804fa",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "daba326a-ec99-4203-801b-e5ca537dd00f",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "cdb2d884-8ec1-4ff1-80a2-da07df6c66cb",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "6e016030-5e50-42b6-85a6-4fd63987abee",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "d5ec2a39-0902-45d5-930a-644da24e4d8e",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c944f8e6-ed69-4819-ae40-52d2cbc5b36b",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "4741bb44-8681-4c30-9097-0c520999cb41",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2e24202b-1bf5-4bb3-8403-57a5bd2fe735",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2eb8c5b8-75b5-4fd8-b0a8-76831ef63629",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2e3ff3ef-dae7-4f3a-94b2-50411b894739",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "0456febc-e232-44a8-8e7d-ae09cc520bda",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c13b586b-a99c-4540-9f95-baa8212fdcb8",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "af20f5d4-fd4e-43ca-b90e-82a796c60f89",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "e11cbae1-9631-4342-a9f9-338defed9518",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "14841ac7-6963-47a4-bbbe-ca69d1ca5b3f",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "865b2615-3806-49f5-82f0-ecc3c158f323",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "a4c87ba1-ddb2-4515-b302-d37e58e42165",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2f528688-ccf0-4ca9-b362-5b73e7bded48",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c8b1c3e0-7821-4c1c-a2a5-1606ada6b685",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "f3af0ef5-8edc-4e22-9a8c-129764c0162d",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "b170ab75-18df-4ab6-bc9a-8c22444ad77d",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c2bab263-2b9b-47eb-ab08-af88a842dae4",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "1724419f-c95d-45d2-899d-072a7eec537b",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "4b5d7621-5471-40a0-b58b-67867bd8361f",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          }
+        ],
+        "completed_rules": 0,
+        "applicable_rules": 31,
+        "disagreements": []
+      },
+      "estimated_incremental_cost": null,
+      "expected_spot_checks": {
+        "Rule 9": "EVIDENCE_REQUIRED_OR_HUMAN_REVIEW",
+        "Rule 24": "ISSUE"
+      }
+    },
+    {
+      "name": "claim-with-supplied-evidence",
+      "fast_seconds": 94.972,
+      "fast_complete_rules": 16,
+      "fast_score": 100,
+      "fast_ai_unavailable": false,
+      "rulebook_version": "2026-11-19T14:13:11.673331+00:00|claims-5|signals-1|scope-15|context-v3",
+      "full": {
+        "model": "gemini-3.8-flash",
+        "mode": "SHADOW_TEXT_TRIAGE",
+        "applied_to_score": false,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "thought_tokens": 0,
+        "total_tokens": 0,
+        "error": "ServerError: benchmark request did not complete",
+        "elapsed_seconds": 7.171,
+        "results": [
+          {
+            "rule_id": "b25f0bba-1ce8-449e-8ebf-6e8db02c39b8",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "ddec59c9-3f67-4ff2-a212-d31677e56b57",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "d201557d-f64f-4dcb-ac52-cf1d023516df",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "174e4ecc-4087-4551-9448-2ee7161d0a00",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "1d7379a8-8106-44cc-9079-e0c317792f7e",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "f008f192-6875-4608-b984-c4202a47e367",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c1bff286-46cd-48f4-9f60-cf55fbdae416",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "6e824998-5198-43f2-9026-10e0191804fa",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "daba326a-ec99-4203-801b-e5ca537dd00f",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "cdb2d884-8ec1-4ff1-80a2-da07df6c66cb",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "6e016030-5e50-42b6-85a6-4fd63987abee",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "d5ec2a39-0902-45d5-930a-644da24e4d8e",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c944f8e6-ed69-4819-ae40-52d2cbc5b36b",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "4741bb44-8681-4c30-9097-0c520999cb41",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2e24202b-1bf5-4bb3-8403-57a5bd2fe735",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2eb8c5b8-75b5-4fd8-b0a8-76831ef63629",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2e3ff3ef-dae7-4f3a-94b2-50411b894739",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "0456febc-e232-44a8-8e7d-ae09cc520bda",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c13b586b-a99c-4540-9f95-baa8212fdcb8",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "af20f5d4-fd4e-43ca-b90e-82a796c60f89",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "e11cbae1-9631-4342-a9f9-338defed9518",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "14841ac7-6963-47a4-bbbe-ca69d1ca5b3f",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "865b2615-3806-49f5-82f0-ecc3c158f323",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "a4c87ba1-ddb2-4515-b302-d37e58e42165",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "2f528688-ccf0-4ca9-b362-5b73e7bded48",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c8b1c3e0-7821-4c1c-a2a5-1606ada6b685",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "f3af0ef5-8edc-4e22-9a8c-129764c0162d",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "b170ab75-18df-4ab6-bc9a-8c22444ad77d",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "c2bab263-2b9b-47eb-ab08-af88a842dae4",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "1724419f-c95d-45d2-899d-072a7eec537b",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          },
+          {
+            "rule_id": "4b5d7621-5471-40a0-b58b-67867bd8361f",
+            "outcome": null,
+            "complete": false,
+            "reason": "The full-rule benchmark did not return a unique, valid, grounded result for this rule."
+          }
+        ],
+        "completed_rules": 0,
+        "applicable_rules": 31,
+        "disagreements": []
+      },
+      "estimated_incremental_cost": null,
+      "expected_spot_checks": {}
+    }
+  ]
+}

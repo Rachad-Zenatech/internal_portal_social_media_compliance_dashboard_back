@@ -74,12 +74,11 @@ def build_response(scope, rules, violations, breaches, unsupported, to_check, si
 
     recommendations = review_recommendations(blocked, breaches, needs_review, needs_evidence, to_check, rules)
 
-    # Rules with nothing to look for in text (no phrases, no disclaimers) still apply; say so instead of letting a
-    # clean score suggest they passed.
+    # Human confirmation is configured explicitly, independent of phrase lists.
     manual = [
         ManualReviewRule(rule_id=r.id, rule_number=r.rule_number, title=r.title, severity=r.severity)
         for r in rules
-        if not r.prohibited_terms and not r.required_disclaimers
+        if "HUMAN_CONFIRMATION" in r.checking_methods
     ]
     return ComplianceCheckResponse(
         audiences_checked=scope.audiences,

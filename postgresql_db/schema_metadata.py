@@ -312,6 +312,8 @@ compliance_rules = sa.Table(
     sa.Column("traffic_light", sa.VARCHAR(length=20), nullable=False, server_default=sa.text("'YELLOW'::character varying")),
     sa.Column("prohibited_terms", postgresql.ARRAY(sa.TEXT()), server_default=sa.text("'{}'::text[]")),
     sa.Column("required_disclaimers", postgresql.ARRAY(sa.TEXT()), server_default=sa.text("'{}'::text[]")),
+    sa.Column("checking_methods", postgresql.ARRAY(sa.TEXT()), nullable=False, server_default=sa.text("ARRAY['HUMAN_CONFIRMATION']::text[]")),
+    sa.Column("checking_methods_origin", sa.TEXT(), nullable=False, server_default=sa.text("'UNCONFIGURED'")),
     sa.Column("allowed_examples", sa.TEXT()),
     sa.Column("prohibited_examples", sa.TEXT()),
     sa.Column("remediation_guidance", sa.TEXT()),

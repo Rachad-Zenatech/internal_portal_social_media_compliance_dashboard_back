@@ -41,7 +41,7 @@ from services.compliance.evaluation import claim_checks, synthetic_media_disclos
 from services.compliance.evaluation import context_evaluator
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
-from services.compliance.evaluation import source_check_service, source_post_checks, compliance_check_result
+from services.compliance.evaluation import source_check_service, source_post_checks, compliance_check_result, rule_coverage
 from services.compliance.evaluation.image_marks import without_image_marks
 from services.shared.core.audit_service import log_audit_event
 from services.shared.core.cache_service import AsyncInMemoryCache, emit_cache_invalidation, rules_cache
@@ -122,6 +122,7 @@ def _row_to_rule(row: dict) -> ComplianceRule:
         applies_to=list(row.get("applies_to") or ["video", "imagery", "caption"]),
         **{f: list(row.get(f) or []) for f in SCOPE_FIELDS},
         is_active=row["is_active"],
+        checking_methods=list(row.get("checking_methods") or []),
         evaluation_mode=row.get("evaluation_mode") or "RULE",
         evaluation_guidance=row.get("evaluation_guidance"),
         is_custom=row.get("is_custom", False),
@@ -269,7 +270,7 @@ async def create_compliance_rule(data: ComplianceRuleCreate, user_id: Optional[U
                     allowed_examples, prohibited_examples, remediation_guidance,
                     applies_to, is_active, is_custom, sort_order, created_by, updated_by,
                     rule_sets, brands, audiences, regions, platforms, disclaimer_triggers, exception_terms,
-                    evaluation_mode, evaluation_guidance
+                    evaluation_mode, evaluation_guidance, checking_methods, checking_methods_origin
                 )
                 VALUES (
                     $1, $2, $3, $4, $5,
@@ -277,7 +278,7 @@ async def create_compliance_rule(data: ComplianceRuleCreate, user_id: Optional[U
                     $10, $11, $12,
                     $13, $14, true, $15, $16, $16,
                     $17, $18, $19, $20, $21, $22, $23,
-                    $24, $25
+                    $24, $25, $26, 'MANUAL'
                 )
                 RETURNING *;
             """,
@@ -306,6 +307,7 @@ async def create_compliance_rule(data: ComplianceRuleCreate, user_id: Optional[U
                 data.exception_terms,
                 data.evaluation_mode,
                 (data.evaluation_guidance or "").strip() or None,
+                data.checking_methods,
             )
     except asyncpg.UniqueViolationError:
         raise _duplicate_number(data.rule_number)
@@ -346,6 +348,7 @@ async def update_compliance_rule(rule_id: UUID, data: ComplianceRuleUpdate, user
         "applies_to": _clean_applies_to(data.applies_to),
         "is_active": data.is_active,
         "sort_order": data.sort_order,
+        "checking_methods": data.checking_methods,
         "evaluation_mode": data.evaluation_mode,
         "evaluation_guidance": data.evaluation_guidance.strip() if data.evaluation_guidance is not None else None,
         **await _clean_scope({f: getattr(data, f) for f in SCOPE_FIELDS}),
@@ -356,6 +359,8 @@ async def update_compliance_rule(rule_id: UUID, data: ComplianceRuleUpdate, user
         return existing
 
     updates = [f"{col} = ${i}" for i, col in enumerate(changed, start=1)]
+    if "checking_methods" in changed:
+        updates.append("checking_methods_origin = 'MANUAL'")
     params: List[Any] = list(changed.values())
     updates.append("updated_at = NOW()")
     if user_id:
@@ -1249,6 +1254,8 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # Two rules can ask for the same disclaimer (e.g. Rules 4 and 13); a missing one is reported once.
     reported_disclaimers: set = set()
     for rule in rules:
+        if rule.checking_methods and "TEXT_ANALYSIS" not in rule.checking_methods:
+            continue
         v = _evaluate_rule(rule, padded_text, hashtag_keys, disclaimer_padded)
         if not v:
             continue
@@ -1298,7 +1305,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # Claim checks carry their rule's number but don't stand in for the rule, so they don't take it off the list.
     found = {v.rule_number for v in violations if v.rule_id not in claim_checks.CHECK_IDS}
     _ai_incomplete.set(False)
-    violations.extend(await _semantic_findings(req, rules, found, padded_text, disclaimer_padded))
+    violations.extend(await _semantic_findings(req, [r for r in rules if not r.checking_methods or "TEXT_ANALYSIS" in r.checking_methods], found, padded_text, disclaimer_padded))
 
     # The sources the post cites (links, "Source:" lines, attached documents) are opened and compared with its claims. A
     # claim that contradicts its source costs points; one the source doesn't settle is for a person; one it supports
@@ -1329,10 +1336,11 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     unsupported = _charge_unsupported_claims(violations)
     to_check = _charge_review_findings(violations, rules)
     notes = compliance_check_result.check_notes(req, scope, signals, IMPLIED_BY, _READERS)
-    return compliance_check_result.build_response(
+    response = compliance_check_result.build_response(
         scope, rules, violations, breaches, unsupported, to_check, signals,
         ai_unavailable, notes, source_result.checks, await rulebook_version(),
     )
+    return rule_coverage.attach_results(req, rules, response)
 
 
 def flagged_tags(tags: Sequence[str], rules: List[ComplianceRule]) -> Dict[str, str]:

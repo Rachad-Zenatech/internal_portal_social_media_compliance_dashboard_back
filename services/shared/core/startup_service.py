@@ -15,6 +15,7 @@ SCHEMA_SETUPS = [
     ("setup_pbac_schema", "Schema verification note"),
     ("setup_social_media_schema", "Social media schema setup note"),
     ("setup_compliance_schema", "Compliance schema setup note"),
+    ("setup_rule_checks_schema", "Rule checking methods schema setup note"),
     ("setup_submissions_schema", "Submission schema setup note"),
     ("setup_context_schema", "Messaging context schema setup note"),
     ("setup_listening_schema", "Listening schema setup note"),

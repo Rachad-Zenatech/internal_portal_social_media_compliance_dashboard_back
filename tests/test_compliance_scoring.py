@@ -217,8 +217,8 @@ class PostSignalScoringTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ManualReviewRuleTests(unittest.IsolatedAsyncioTestCase):
-    async def test_rules_with_nothing_to_look_for_in_text_are_listed_not_passed(self):
-        image_rule = rule(rule_number="Rule 20", title="Image editing", severity="CRITICAL", traffic_light="RED")
+    async def test_explicit_human_rules_are_listed_for_confirmation(self):
+        image_rule = rule(rule_number="Rule 20", title="Image editing", severity="CRITICAL", traffic_light="RED", checking_methods=["HUMAN_CONFIRMATION"])
         phrase_rule = rule(rule_number="Rule 24", prohibited_terms=["guaranteed"])
         disclaimer_rule = rule(rule_number="Rule 4", required_disclaimers=["No endorsement implied"], disclaimer_triggers=["army"])
 

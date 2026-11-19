@@ -12,6 +12,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_cache_numbers` (def) L155
 - `main` (def) L174
 
+## scripts/benchmark_rule_coverage.py (75 lines) - Benchmark the normal checker against opt-in full-rule AI triage; never save or promote results.
+- `arguments` (def) L15
+- `benchmark` (def) L28
+- `main` (def) L61
+
 ## scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
 - `_show` (def) L35
 - `_status` (def) L39
