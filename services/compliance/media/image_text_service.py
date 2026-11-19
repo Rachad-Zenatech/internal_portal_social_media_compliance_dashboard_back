@@ -170,12 +170,15 @@ async def read_file(file_id: UUID) -> None:
             text = _clean(result.get("text", ""))
             face_boxes = _face_boxes(result.get("faces"))
             await _save(file_id, "COMPLETED", text=text, person_detected=bool(result.get("person_detected")) or bool(face_boxes), face_boxes=face_boxes)
-            await get_pool().execute("""
-                UPDATE content_submissions s SET people_in_images_detected = (
-                    SELECT BOOL_OR(person_detected) FROM content_submission_files f
-                    WHERE f.submission_id = s.id AND f.deleted_at IS NULL AND f.person_detected IS NOT NULL
-                ) WHERE s.id = (SELECT submission_id FROM content_submission_files WHERE id = $1)
-            """, file_id)
+            try:
+                await get_pool().execute("""
+                    UPDATE content_submissions s SET people_in_images_detected = (
+                        SELECT BOOL_OR(person_detected) FROM content_submission_files f
+                        WHERE f.submission_id = s.id AND f.deleted_at IS NULL AND f.person_detected IS NOT NULL
+                    ) WHERE s.id = (SELECT submission_id FROM content_submission_files WHERE id = $1)
+                """, file_id)
+            except Exception as e:
+                logger.warning("Couldn't refresh person detection for image %s: %s", file_id, e)
             logger.info("Read %d characters of text in image %s", len(text), file_id)
         except Exception as e:
             logger.warning("Couldn't read the text in image %s: %s", file_id, e)
