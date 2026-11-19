@@ -31,7 +31,10 @@ def get_rabbitmq_host() -> str:
     parsed = _explicit_url_parts()
     if parsed and parsed.hostname:
         return parsed.hostname
-    return os.getenv("RABBITMQ_HOST", "127.0.0.1")
+    configured = (os.getenv("RABBITMQ_HOST") or "").strip()
+    if configured:
+        return configured
+    return "" if os.getenv("APP_ENV", "development").lower() == "production" else "127.0.0.1"
 
 
 def get_rabbitmq_port() -> int:
@@ -110,6 +113,8 @@ def get_rabbitmq_url() -> str:
     if explicit:
         return explicit
     host = get_rabbitmq_host()
+    if not host:
+        return ""
     port = get_rabbitmq_port()
     user = get_rabbitmq_user()
     password = get_rabbitmq_password()
@@ -173,16 +178,20 @@ def _build_hub_application(app_id: str, name: str, user: str, prefix: str, defau
     # This service uses its own PORT; peers use <PREFIX>_PORT / <PREFIX>_BACKEND_URL from the environment.
     if app_id == DEFAULT_SERVICE_KEY:
         port = int(os.getenv("PORT", default_port))
-        base_url = f"http://127.0.0.1:{port}"
+        base_url = (os.getenv("SOCIAL_MEDIA_COMPLIANCE_BACKEND_URL") or "").strip().rstrip("/")
+        if not base_url and os.getenv("APP_ENV", "development").lower() != "production":
+            base_url = f"http://127.0.0.1:{port}"
     else:
         port = int(os.getenv(f"{prefix}_PORT", default_port))
-        base_url = os.getenv(f"{prefix}_BACKEND_URL", f"http://127.0.0.1:{port}").rstrip("/")
+        base_url = (os.getenv(f"{prefix}_BACKEND_URL") or "").strip().rstrip("/")
+        if not base_url and os.getenv("APP_ENV", "development").lower() != "production":
+            base_url = f"http://127.0.0.1:{port}"
     return {
         "id": app_id,
         "name": name,
         "service_user": user,
         "port": port,
-        "health_url": f"{base_url}/health/live",
+        "health_url": f"{base_url}/health/live" if base_url else "",
         "queues": [f"{app_id}.commands", f"{app_id}.commands.dlq", f"ceo.{app_id}.events"],
         "primary_queue": f"{app_id}.commands",
         "streams": [f"{app_id}.events.stream", "hub.presence.stream"],

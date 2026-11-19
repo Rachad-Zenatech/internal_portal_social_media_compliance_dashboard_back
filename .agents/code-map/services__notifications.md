@@ -16,24 +16,24 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_render_base_email` (def) L126 - Renders standard ZenaTech branded HTML email template.
 - `send_compliance_alert_email` (def) L190 - Notify reviewer/creator about an AI compliance flag.
 
-## services/notifications/mqtt_presence.py (320 lines) - MQTT Service Presence & Event-Driven Messaging Component for Social Media Compliance.
+## services/notifications/mqtt_presence.py (325 lines) - MQTT Service Presence & Event-Driven Messaging Component for Social Media Compliance.
 - `get_default_instance_id` (def) L26
 - `MqttServicePresence` (class) L32 - Manages long-lived MQTT connection for microservice availability announcements.
     - `__init__` (def) L38
-    - `_build_status_payload` (def) L76
-    - `_init_client` (def) L88
-    - `_handle_connect` (def) L122
-    - `_handle_message` (def) L167 - Processes incoming MQTT messages from social media / marketing services.
-    - `_handle_disconnect` (def) L188
-    - `start` (def) L203 - Starts the MQTT client with background loop and resilient reconnection.
-    - `_connection_supervisor` (def) L212
-    - `publish_business_event` (def) L253 - Publishes non-retained business notification event at QoS 1.
-    - `stop` (def) L262 - Gracefully publishes offline status with retain=True, waits for send confirmation, and disconnects.
-    - `add_on_connect_callback` (def) L295
-    - `add_on_disconnect_callback` (def) L298
-    - `is_connected` (def) L302
-- `get_social_media_presence` (def) L310
-- `publish_social_media_event` (def) L315 - Convenience helper to publish a social media event over MQTT if connected.
+    - `_build_status_payload` (def) L78
+    - `_init_client` (def) L90
+    - `_handle_connect` (def) L124
+    - `_handle_message` (def) L169 - Processes incoming MQTT messages from social media / marketing services.
+    - `_handle_disconnect` (def) L190
+    - `start` (def) L205 - Starts the MQTT client with background loop and resilient reconnection.
+    - `_connection_supervisor` (def) L217
+    - `publish_business_event` (def) L258 - Publishes non-retained business notification event at QoS 1.
+    - `stop` (def) L267 - Gracefully publishes offline status with retain=True, waits for send confirmation, and disconnects.
+    - `add_on_connect_callback` (def) L300
+    - `add_on_disconnect_callback` (def) L303
+    - `is_connected` (def) L307
+- `get_social_media_presence` (def) L315
+- `publish_social_media_event` (def) L320 - Convenience helper to publish a social media event over MQTT if connected.
 
 ## services/notifications/notification_service.py (181 lines) - notification service (notifications)
 - `NotificationBroadcaster` (class) L7
@@ -49,25 +49,25 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `clear_read_notifications` (def) L168
 - `clear_all_notifications` (def) L176
 
-## services/notifications/rabbitmq_config.py (196 lines) - RabbitMQ / Message Hub configuration: env-driven connection settings, exchange names and the hub server registry.
+## services/notifications/rabbitmq_config.py (205 lines) - RabbitMQ / Message Hub configuration: env-driven connection settings, exchange names and the hub server registry.
 - `_sanitize_amqp_url` (def) L12 - Mask password from AMQP URLs to prevent logging credentials.
 - `_explicit_url_parts` (def) L19 - Parsed RABBITMQ_URL, or None if unset.
 - `get_rabbitmq_host` (def) L30
-- `get_rabbitmq_port` (def) L37
-- `get_rabbitmq_management_port` (def) L50
-- `get_hub_status_cache_ttl` (def) L57 - Seconds a hub snapshot is reused (0 disables caching).
-- `hub_peer_http_probe_enabled` (def) L65 - Whether peers must also pass an HTTP /health/live probe to count as online (default off: hub presence is authoritative).
-- `get_rabbitmq_user` (def) L70
-- `get_rabbitmq_password` (def) L82
-- `get_rabbitmq_vhost` (def) L94 - Virtual host: from RABBITMQ_URL path, else RABBITMQ_VHOST / RABBITMQ_DEFAULT_VHOST, else '/'.
-- `_vhost_url_part` (def) L104
-- `get_rabbitmq_url` (def) L108
-- `get_commands_exchange` (def) L119
-- `get_events_exchange` (def) L123
-- `get_dlx_exchange` (def) L127
-- `get_presence_exchange` (def) L131
-- `get_prefetch_count` (def) L135
-- `_build_hub_application` (def) L172
+- `get_rabbitmq_port` (def) L40
+- `get_rabbitmq_management_port` (def) L53
+- `get_hub_status_cache_ttl` (def) L60 - Seconds a hub snapshot is reused (0 disables caching).
+- `hub_peer_http_probe_enabled` (def) L68 - Whether peers must also pass an HTTP /health/live probe to count as online (default off: hub presence is authoritative).
+- `get_rabbitmq_user` (def) L73
+- `get_rabbitmq_password` (def) L85
+- `get_rabbitmq_vhost` (def) L97 - Virtual host: from RABBITMQ_URL path, else RABBITMQ_VHOST / RABBITMQ_DEFAULT_VHOST, else '/'.
+- `_vhost_url_part` (def) L107
+- `get_rabbitmq_url` (def) L111
+- `get_commands_exchange` (def) L124
+- `get_events_exchange` (def) L128
+- `get_dlx_exchange` (def) L132
+- `get_presence_exchange` (def) L136
+- `get_prefetch_count` (def) L140
+- `_build_hub_application` (def) L177
 
 ## services/notifications/rabbitmq_hub_status.py (493 lines) - Message Hub behaviour for RabbitMQManager: SSE fan-out, shutdown, presence heartbeats, peer monitoring and live status snapshots.
 - `HubStatusMixin` (class) L37 - Methods mixed into RabbitMQManager; relies on its connection/registry attributes.
@@ -92,47 +92,47 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `publish` (def) L21
     - `clear` (def) L40
 
-## services/notifications/rabbitmq_service.py (521 lines) - RabbitMQ Service & Topology Manager Provides resilient connection management, topology declaration, publisher confirmations, and dead-let...
+## services/notifications/rabbitmq_service.py (520 lines) - RabbitMQ Service & Topology Manager Provides resilient connection management, topology declaration, publisher confirmations, and dead-let...
 - `RabbitMQManager` (class) L80
     - `__init__` (def) L81
     - `amqp_url` (def) L119
     - `amqp_url` (def) L123
     - `is_connected` (def) L127
     - `connect` (def) L130 - Attempts to connect to RabbitMQ broker and initialize topology.
-    - `_setup_topology` (def) L218 - Declares durable exchanges, queues, DLX, and bindings.
-    - `_setup_hub_streams` (def) L301 - Declares RabbitMQ Streams.
-    - `_handle_incoming_presence_payload` (def) L323
-    - `_start_hub_consumers` (def) L345 - Consumers for this server's command queue, the presence stream, and an instant status-notify queue.
-    - `publish_message` (def) L394 - Publishes a persistent message with publisher confirmations.
-    - `publish_social_media_event` (def) L428 - Convenience method to publish domain events to the service events exchange.
-    - `consume_queue` (def) L440 - Subscribes to a queue and processes messages with manual acknowledgments.
-    - `_consume_in_memory` (def) L471
-    - `close` (def) L485
+    - `_setup_topology` (def) L217 - Declares durable exchanges, queues, DLX, and bindings.
+    - `_setup_hub_streams` (def) L300 - Declares RabbitMQ Streams.
+    - `_handle_incoming_presence_payload` (def) L322
+    - `_start_hub_consumers` (def) L344 - Consumers for this server's command queue, the presence stream, and an instant status-notify queue.
+    - `publish_message` (def) L393 - Publishes a persistent message with publisher confirmations.
+    - `publish_social_media_event` (def) L427 - Convenience method to publish domain events to the service events exchange.
+    - `consume_queue` (def) L439 - Subscribes to a queue and processes messages with manual acknowledgments.
+    - `_consume_in_memory` (def) L470
+    - `close` (def) L484
 
 ## services/notifications/submission_notifications.py (25 lines) - In-app notifications for submission review workflows, shared by posts and scripts.
 - `notify_submission` (def) L10
 
-## services/notifications/teams_service.py (358 lines) - Microsoft Teams direct messages: the portal's notifications, delivered to people's Teams chat by a bot.
+## services/notifications/teams_service.py (363 lines) - Microsoft Teams direct messages: the portal's notifications, delivered to people's Teams chat by a bot.
 - `_app_id` (def) L56
 - `_password` (def) L60
 - `_tenant` (def) L64
 - `enabled` (def) L68 - Whether the bot is set up.
 - `portal_url` (def) L75
-- `safe_service_url` (def) L79 - The address Teams told us to reply to, when it is a Microsoft one over https (else None).
-- `_signing_key` (def) L95
-- `verify_inbound` (def) L102 - Whether a request really comes from the Bot Framework, for this bot, about the address it names.
-- `_bot_token` (def) L125
-- `_conversation_path` (def) L139
-- `_call` (def) L143 - A call to the Bot Connector with the bot's token: a fresh token on 401, one more try after a 429.
-- `card` (def) L159 - An Adaptive Card: the title, the message and a button that opens the page in the portal.
-- `_post_card` (def) L175
-- `_say` (def) L185
-- `_member_email` (def) L195 - The person's email, from the chat's roster (Teams sends only ids in the activity).
-- `_save_conversation` (def) L207 - Remember the chat, linked to the portal user it belongs to.
-- `_set_enabled` (def) L233
-- `_deactivate` (def) L238
-- `_command` (def) L251
-- `handle_activity` (def) L256 - React to what Teams sends the bot: a person installing it, or writing to it.
-- `notify_user` (def) L308 - Post a portal notification to its user's Teams chat, if they have one and haven't paused it.
-- `status_for` (def) L341 - What the portal shows a person about their Teams messages.
-- `set_enabled_for` (def) L355
+- `safe_service_url` (def) L84 - The address Teams told us to reply to, when it is a Microsoft one over https (else None).
+- `_signing_key` (def) L100
+- `verify_inbound` (def) L107 - Whether a request really comes from the Bot Framework, for this bot, about the address it names.
+- `_bot_token` (def) L130
+- `_conversation_path` (def) L144
+- `_call` (def) L148 - A call to the Bot Connector with the bot's token: a fresh token on 401, one more try after a 429.
+- `card` (def) L164 - An Adaptive Card: the title, the message and a button that opens the page in the portal.
+- `_post_card` (def) L180
+- `_say` (def) L190
+- `_member_email` (def) L200 - The person's email, from the chat's roster (Teams sends only ids in the activity).
+- `_save_conversation` (def) L212 - Remember the chat, linked to the portal user it belongs to.
+- `_set_enabled` (def) L238
+- `_deactivate` (def) L243
+- `_command` (def) L256
+- `handle_activity` (def) L261 - React to what Teams sends the bot: a person installing it, or writing to it.
+- `notify_user` (def) L313 - Post a portal notification to its user's Teams chat, if they have one and haven't paused it.
+- `status_for` (def) L346 - What the portal shows a person about their Teams messages.
+- `set_enabled_for` (def) L360

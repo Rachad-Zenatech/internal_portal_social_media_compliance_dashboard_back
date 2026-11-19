@@ -45,7 +45,12 @@ def enabled() -> bool:
 
 
 def base_url() -> str:
-    return os.getenv("SHARE_DOCUMENT_URL", "http://localhost:8006").rstrip("/")
+    configured = (os.getenv("SHARE_DOCUMENT_URL") or "").strip().rstrip("/")
+    if configured:
+        return configured
+    if os.getenv("APP_ENV", "development").lower() == "production":
+        raise SharedScriptError("SHARE_DOCUMENT_URL is required when the shared editor is enabled")
+    return "http://localhost:8006"
 
 
 def _service_token(scopes: List[str]) -> str:

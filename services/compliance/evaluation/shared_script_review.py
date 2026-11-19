@@ -96,5 +96,9 @@ async def editor_session(doc: Dict[str, Any], user_id: UUID) -> Dict[str, Any]:
         if not sid:
             raise HTTPException(status_code=503, detail="The shared editor isn't available for this script right now")
         token = await _call("POST", f"/{sid}/embed-token", ["script_documents:write"], params={"email": email})
-    front = os.getenv("SHARE_DOCUMENT_FRONT_URL", "http://localhost:5176").rstrip("/")
+    front = (os.getenv("SHARE_DOCUMENT_FRONT_URL") or "").strip().rstrip("/")
+    if not front:
+        if os.getenv("APP_ENV", "development").lower() == "production":
+            raise HTTPException(status_code=503, detail="SHARE_DOCUMENT_FRONT_URL is not configured")
+        front = "http://localhost:5176"
     return {"share_document_id": sid, "url": f"{front}/embed/script/{sid}", "origin": front, **token}

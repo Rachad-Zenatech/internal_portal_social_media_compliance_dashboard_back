@@ -99,7 +99,7 @@ to find the right file.
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |
 | .agents/code-map/services__notifications.md | 10 | 9 KB |
 | .agents/code-map/services__notifications__review_email.md | 7 | 2 KB |
-| .agents/code-map/services__shared__auth.md | 7 | 5 KB |
+| .agents/code-map/services__shared__auth.md | 8 | 5 KB |
 | .agents/code-map/services__shared__core.md | 8 | 4 KB |
 | .agents/code-map/services__shared__storage.md | 1 | 1 KB |
 | .agents/code-map/tools__ai.md | 3 | 1 KB |

@@ -73,7 +73,12 @@ def enabled() -> bool:
 
 
 def portal_url() -> str:
-    return (os.getenv("FRONTEND_URL") or "http://localhost:5179").rstrip("/")
+    configured = (os.getenv("FRONTEND_URL") or "").strip().rstrip("/")
+    if configured:
+        return configured
+    if os.getenv("APP_ENV", "development").lower() == "production":
+        raise RuntimeError("FRONTEND_URL is required for Teams notifications in production")
+    return "http://localhost:5179"
 
 
 def safe_service_url(url: Optional[str]) -> Optional[str]:
