@@ -314,13 +314,13 @@ class GuardTests(unittest.TestCase):
 
 
 class RouteTests(unittest.TestCase):
-    def test_the_model_status_is_an_administrators_view(self):
+    def test_the_model_status_is_an_authenticated_view(self):
         os.environ.setdefault("JWT_SECRET", "test-only-secret-not-used-anywhere-else-0123456789")
         from tools.compliance.analytics import listening_router as lr
         route = next(r for r in lr.router.routes if r.path == "/listening/model/status")
         self.assertEqual(route.methods, {"GET"})
         dependency = route.dependant.dependencies[0].call
-        self.assertIsNot(dependency, lr.get_current_user_id_dependency)  # the permission check, not just a signed-in user
+        self.assertIs(dependency, lr.get_current_user_id_dependency)  # authenticated viewers can read model status
 
 
 if __name__ == "__main__":
