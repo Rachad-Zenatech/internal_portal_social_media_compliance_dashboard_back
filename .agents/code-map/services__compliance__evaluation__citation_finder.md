@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/citation_finder.py (201 lines) - Citation finder: what a post says it got its claims from.
+## services/compliance/evaluation/citation_finder.py (230 lines) - Citation finder: what a post says it got its claims from.
 - `Citation` (class) L62
 - `_clean_link` (def) L74
 - `_host_and_path` (def) L81
@@ -12,6 +12,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_is_social` (def) L99
 - `_named_parts` (def) L103 - The sources in a "Source: ..." line: links and hashtags are taken out; several are split on ";".
 - `_continues` (def) L111 - Whether a line carries on the source line before it.
-- `find` (def) L123 - The citations in this text, each once, in the order they appear, at most MAX_CITATIONS.
-    - `add` (def) L132
-- `describe` (def) L192 - Why a citation can't be checked as it stands, or None when it can.
+- `without_citation_text` (def) L123 - Remove explicit source blocks before rule matching, while keeping them available for source checks.
+- `find` (def) L152 - The citations in this text, each once, in the order they appear, at most MAX_CITATIONS.
+    - `add` (def) L161
+- `describe` (def) L221 - Why a citation can't be checked as it stands, or None when it can.

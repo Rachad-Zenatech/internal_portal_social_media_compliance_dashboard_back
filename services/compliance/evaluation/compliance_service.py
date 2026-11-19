@@ -37,7 +37,7 @@ from models.compliance.submission_model import AUDIENCES, PLATFORMS, REGIONS, RU
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
-from services.compliance.evaluation import claim_checks, synthetic_media_disclosure
+from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure
 from services.compliance.evaluation import context_evaluator
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
@@ -1233,10 +1233,14 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # Cashtags, hashtags, mentions and links, read before normalizing strips their symbols, and before the rules are
     # picked: a cashtag brings in the investor rules. CamelCase hashtags are added as words ("#CombatProven" ->
     # "combat proven") so phrase rules see them.
-    signals = post_signals.extract(req.text)
-    scope = check_scope(req, signals)
+    # Explicit source credits are evidence rather than post copy.  Keep the original request for source verification,
+    # but never let a citation printed on an image trigger a rule or expand the compliance scope.
+    match_text = citation_finder.without_citation_text(req.text)
+    match_req = req.model_copy(update={"text": match_text})
+    signals = post_signals.extract(match_text)
+    scope = check_scope(match_req, signals)
     rules = await applicable_rules(req)
-    padded_text = f" {_normalize(chr(10).join([without_image_marks(req.text), *signals.hashtag_phrases]))} "
+    padded_text = f" {_normalize(chr(10).join([without_image_marks(match_text), *signals.hashtag_phrases]))} "
     hashtag_keys = signals.hashtag_keys
     # Where a required disclaimer has to be: the published parts only, when the caller says which those are.
     disclaimer_padded = (
@@ -1268,7 +1272,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         for v in violations
     )
     violations.extend(
-        c for c in claim_checks.find_claims(req.text)
+        c for c in claim_checks.find_claims(match_text)
         if not (safe_harbor_reported and c.rule_id == claim_checks.FORWARD_LOOKING_ID)
     )
     # Tagged government or military accounts and linked .gov / .mil sites (see post_signals). When the rulebook
@@ -1298,7 +1302,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # Claim checks carry their rule's number but don't stand in for the rule, so they don't take it off the list.
     found = {v.rule_number for v in violations if v.rule_id not in claim_checks.CHECK_IDS}
     _ai_incomplete.set(False)
-    violations.extend(await _semantic_findings(req, rules, found, padded_text, disclaimer_padded))
+    violations.extend(await _semantic_findings(match_req, rules, found, padded_text, disclaimer_padded))
 
     # The sources the post cites (links, "Source:" lines, attached documents) are opened and compared with its claims. A
     # claim that contradicts its source costs points; one the source doesn't settle is for a person; one it supports
@@ -1313,16 +1317,16 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # something a person has to check, a claim that needs a source, or not a breach at all.
     exceptions_of = {r.id: r.exception_terms for r in rules}
     for v in violations:
-        v.passage, v.context = _passage(req.text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])
+        v.passage, v.context = _passage(match_text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])
     await context_evaluator.evaluate(
         [context_evaluator.Candidate(v, rule, v.passage or "", v.context or "") for v, rule in contextual],
-        req.text,
+        match_text,
         brand=req.brand_code,
     )
     source_check_service.clear_supported(violations, source_result.checks)
     # The check is incomplete when a context rule couldn't be read, or the meaning check couldn't run at all.
     ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations)
-    synthetic_media_disclosure.ensure_review(req, rules, violations)
+    synthetic_media_disclosure.ensure_review(match_req, rules, violations)
     breaches = [v for v in violations if v.status == "VIOLATION"]
     _count_overlaps_once(breaches, padded_text)
     _count_extra_claims(breaches, rules, padded_text)

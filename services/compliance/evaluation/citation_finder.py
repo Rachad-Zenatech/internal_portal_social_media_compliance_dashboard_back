@@ -120,6 +120,35 @@ def _continues(previous: str, line: str) -> bool:
     return not post_signals.URL_PATTERN.search(line)
 
 
+def without_citation_text(text: str) -> str:
+    """Remove explicit source blocks before rule matching, while keeping them available for source checks.
+
+    Source credits often repeat terms such as military organizations, product names, or performance claims.  They are
+    evidence for the post, not post copy, so they must not create a compliance finding of their own.
+    """
+    lines = (text or "").splitlines()
+    kept: List[str] = []
+    under_heading = False
+    for line in lines:
+        if _SOURCES_HEADING.match(line):
+            under_heading = True
+            continue
+        if under_heading:
+            if not line.strip():
+                under_heading = False
+            else:
+                continue
+        match = _SOURCE_LINE.search(line)
+        if match:
+            # A citation can follow a real sentence on the same line; retain only that real post copy.
+            before = line[:match.start()].rstrip()
+            if before:
+                kept.append(before)
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
 def find(text: str, *, explicit_script: bool = False) -> List[Citation]:
     """The citations in this text, each once, in the order they appear, at most MAX_CITATIONS."""
     lines = (text or "").splitlines()
