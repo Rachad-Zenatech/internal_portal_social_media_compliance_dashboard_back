@@ -13,6 +13,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ensure_notifications_schema` (def) L26
     - `main` (def) L37
 
+## postgresql_db/schemas/pbac_seed.py (203 lines) - Default navigation, permission groups, roles and initial administrators.
+- `seed_navigation` (def) L6
+- `seed_permission_groups` (def) L54
+- `seed_roles` (def) L127
+- `seed_super_admins` (def) L182
+
 ## postgresql_db/schemas/roles_schema.py (28 lines) - Role hierarchy and audit columns for new and existing databases.
 - `setup_roles` (def) L4
 
@@ -43,9 +49,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_login_codes_schema.py (28 lines) - One-time sign-in codes: after Microsoft sign-in the browser gets a short-lived code in the redirect (never the session token), and swaps ...
 - `setup` (def) L12
 
-## postgresql_db/schemas/setup_pbac_schema.py (444 lines) - setup pbac schema (schemas)
-- `setup` (def) L9
-- `_main` (def) L434
+## postgresql_db/schemas/setup_pbac_schema.py (285 lines) - setup pbac schema (schemas)
+- `_setup_users` (def) L12
+- `_setup_navigation` (def) L63
+- `_setup_permission_groups` (def) L117
+- `_setup_mcp_permissions` (def) L164
+- `_setup_activity` (def) L196
+- `setup` (def) L258
+- `_main` (def) L275
 
 ## postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
 - `setup` (def) L11

@@ -71,10 +71,6 @@
       "max_lines": 205,
       "kind": "py_function"
     },
-    "postgresql_db/schemas/setup_pbac_schema.py#setup": {
-      "max_lines": 423,
-      "kind": "py_function"
-    },
     "scripts/validate_mood_flow.py#scenarios": {
       "max_lines": 127,
       "kind": "py_function"

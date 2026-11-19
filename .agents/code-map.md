@@ -17,7 +17,7 @@ to find the right file.
 | .agents/code-map/models__notifications.md | 2 | 1 KB |
 | .agents/code-map/models__shared.md | 3 | 2 KB |
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |
-| .agents/code-map/postgresql_db__schemas.md | 22 | 6 KB |
+| .agents/code-map/postgresql_db__schemas.md | 23 | 6 KB |
 | .agents/code-map/scripts.md | 11 | 9 KB |
 | .agents/code-map/services__ai__core.md | 7 | 6 KB |
 | .agents/code-map/services__ai__observability.md | 5 | 4 KB |

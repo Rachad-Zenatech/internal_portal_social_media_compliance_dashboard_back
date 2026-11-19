@@ -41,6 +41,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/baseline_context_guidance.py (94 lines) - Contextual review guidance applied to baseline compliance rules during schema setup.
 - postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (19 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
+- postgresql_db/schemas/pbac_seed.py (203 lines) - Default navigation, permission groups, roles and initial administrators.
 - postgresql_db/schemas/roles_schema.py (28 lines) - Role hierarchy and audit columns for new and existing databases.
 - postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
 - postgresql_db/schemas/setup_ai_usage_schema.py (17 lines) - Usage records for AI rate limits; created after the submission tables exist.
@@ -49,7 +50,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
 - postgresql_db/schemas/setup_listening_schema.py (217 lines) - Public mood: topics from the social listening source (Sprout Social, mocked for now), dated snapshots of how people feel about each one, ...
 - postgresql_db/schemas/setup_login_codes_schema.py (28 lines) - One-time sign-in codes: after Microsoft sign-in the browser gets a short-lived code in the redirect (never the session token), and swaps ...
-- postgresql_db/schemas/setup_pbac_schema.py (444 lines) - setup pbac schema (schemas)
+- postgresql_db/schemas/setup_pbac_schema.py (285 lines) - setup pbac schema (schemas)
 - postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
 - postgresql_db/schemas/setup_review_email_schema.py (34 lines) - Durable delivery and activation boundary for review workflow emails.
 - postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
