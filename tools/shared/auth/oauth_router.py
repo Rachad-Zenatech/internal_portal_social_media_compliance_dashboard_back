@@ -212,7 +212,7 @@ async def get_mqtt_sync_status(_user_id: CurrentUser):
         "mqtt_connected": bool(presence and presence.is_connected),
         "service": presence.service_name if presence else "social-media",
         "instance_id": presence.instance_id if presence else "social-media-01",
-        "broker": f"{presence.host}:{presence.port}" if presence else "127.0.0.1:1883",
+        "broker": f"{presence.host}:{presence.port}" if presence and presence.host else "Not configured",
         "subscribed_topics": [
             "services/marketing/connections",
             "services/social-media/connections",

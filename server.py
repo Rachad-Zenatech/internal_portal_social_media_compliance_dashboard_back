@@ -25,6 +25,8 @@ from services.shared.core.logging_service import (
     configure_logging,
     request_id_ctx,
 )
+from services.shared.core.production_url_policy import validate_production_web_config
+from services.shared.core.integration_status_service import get_integration_status
 from services.shared.core.startup_service import run_schema_setups, spawn_background
 from services.shared.core.lifecycle_background_service import start_background_services
 from services.shared.auth.auth_service import (
@@ -198,35 +200,7 @@ async def health_ready():
 @app.get("/api/integration-status")
 @app.get("/api/integration/status")
 async def integration_status():
-    db_ok = True
-    try:
-        await asyncio.wait_for(fetch_one("SELECT 1 AS ready"), timeout=2.0)
-    except Exception:
-        db_ok = False
-
-    return {
-        "status": "healthy" if db_ok else "degraded",
-        "services": [
-            {
-                "id": "database_pool",
-                "name": "PostgreSQL Connection Pool",
-                "state": "CONNECTED" if db_ok else "DISCONNECTED",
-                "status": "online" if db_ok else "offline",
-                "description": "Asyncpg connection pool with Tier 1 in-memory caching",
-                "mode": "Active Pool",
-                "failure_count": 0 if db_ok else 1,
-            },
-            {
-                "id": "realtime_sse",
-                "name": "Real-time Notification Stream (SSE)",
-                "state": "STREAMING",
-                "status": "online",
-                "description": "Server-Sent Events with 30s zero-DB keep-alive heartbeat",
-                "mode": "Live Stream",
-                "failure_count": 0,
-            },
-        ],
-    }
+    return await get_integration_status()
 
 
 # --- Routers ---
@@ -475,7 +449,7 @@ async def request_observability(request: Request, call_next):
 
 # --- CORS Configuration ---
 cors_origins = [origin.strip() for origin in (os.getenv("CORS_ALLOWED_ORIGINS", "") or os.getenv("CORS_ORIGINS", "")).split(",") if origin.strip()]
-if _is_prod and not cors_origins: raise RuntimeError("CORS_ALLOWED_ORIGINS must list explicit HTTPS origins when APP_ENV=production")
+validate_production_web_config(_is_prod, cors_origins, os.getenv("FRONTEND_URL"))
 _cors_regex = None if _is_prod else r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$"
 
 app.add_middleware(

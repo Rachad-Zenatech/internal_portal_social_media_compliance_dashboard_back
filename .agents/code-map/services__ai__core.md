@@ -16,12 +16,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_stream_round` (def) L136 - One model turn, streamed.
 - `stream` (def) L190 - The SSE events for a prepared chat.
 
-## services/ai/core/gemini_service.py (154 lines) - gemini service (ai core)
-- `_normalize_ai_model_name` (def) L9 - Normalizes a model name from the environment variable list
-- `without_retired` (def) L33 - The models that can still be called, in the same order.
-- `get_gemini_fallback_models` (def) L40 - Retrieves and normalizes the list of available Gemini models
-- `is_rotatable_model_error` (def) L60 - Determines if a given exception represents a rate limit, quota exhaustion,
-- `generate_content_with_fallback` (def) L98 - A robust wrapper around client.models.generate_content that automatically
+## services/ai/core/gemini_service.py (196 lines) - gemini service (ai core)
+- `_normalize_ai_model_name` (def) L10 - Normalizes a model name from the environment variable list
+- `_model_failure_cooldown_seconds` (def) L38 - Avoid retrying a model known to be unavailable while a request burst is in progress.
+- `model_is_available` (def) L49 - Return false while a short provider-failure cooldown for this model is active.
+- `record_model_failure` (def) L60
+- `without_retired` (def) L66 - The models that can still be called, in the same order.
+- `get_gemini_fallback_models` (def) L77 - Retrieves and normalizes the list of available Gemini models
+- `is_rotatable_model_error` (def) L97 - Determines if a given exception represents a rate limit, quota exhaustion,
+- `generate_content_with_fallback` (def) L135 - A robust wrapper around client.models.generate_content that automatically
 
 ## services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
 - `Route` (class) L44

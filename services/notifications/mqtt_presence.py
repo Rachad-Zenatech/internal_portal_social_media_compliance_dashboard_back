@@ -52,7 +52,9 @@ class MqttServicePresence:
             or os.getenv("SERVICE_INSTANCE_ID")
             or get_default_instance_id(self.service_name)
         )
-        self.host = host or os.getenv("MQTT_HOST", "127.0.0.1")
+        self.host = host or os.getenv("MQTT_HOST") or (
+            "" if os.getenv("APP_ENV", "development").lower() == "production" else "127.0.0.1"
+        )
         self.port = int(port or os.getenv("MQTT_PORT", "1883"))
         self.username = username or os.getenv("MQTT_USERNAME") or None
         self.password = password or os.getenv("MQTT_PASSWORD") or None
@@ -203,6 +205,9 @@ class MqttServicePresence:
     async def start(self):
         """Starts the MQTT client with background loop and resilient reconnection."""
         if self._running:
+            return
+        if not self.host:
+            logger.info("MQTT presence is disabled because MQTT_HOST is not configured.")
             return
         self._running = True
         self._loop = asyncio.get_running_loop()

@@ -4,15 +4,15 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/shared_script_service.py (186 lines) - Shared documents for script pages.
+## services/compliance/evaluation/shared_script_service.py (191 lines) - Shared documents for script pages.
 - `SharedScriptError` (class) L37
     - `__init__` (def) L38
 - `enabled` (def) L43
 - `base_url` (def) L47
-- `_service_token` (def) L51 - A 5-minute token naming this service, signed with SCRIPT_SERVICE_SECRET (SESSION_SECRET when that isn't set).
-- `call` (def) L59 - One call to the Share Document server's script API as this service.
-- `_clean` (def) L80
-- `text_to_beats` (def) L84 - (details, beats) from a script's text as it is read from an uploaded file: "| a | b |" table rows (Time, Visual
-- `_page` (def) L120
-- `delete_shared_documents` (def) L127 - Delete the shared documents of these pages (or of every page of a set) in one call, as each page's creator, after the
-- `ensure_shared_document` (def) L149 - The id of the page's shared document, made now when it has none.
+- `_service_token` (def) L56 - A 5-minute token naming this service, signed with SCRIPT_SERVICE_SECRET (SESSION_SECRET when that isn't set).
+- `call` (def) L64 - One call to the Share Document server's script API as this service.
+- `_clean` (def) L85
+- `text_to_beats` (def) L89 - (details, beats) from a script's text as it is read from an uploaded file: "| a | b |" table rows (Time, Visual
+- `_page` (def) L125
+- `delete_shared_documents` (def) L132 - Delete the shared documents of these pages (or of every page of a set) in one call, as each page's creator, after the
+- `ensure_shared_document` (def) L154 - The id of the page's shared document, made now when it has none.

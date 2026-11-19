@@ -27,15 +27,21 @@ class RetiredModelTests(unittest.TestCase):
         with patch.dict(os.environ, env):
             models = gemini_service.get_gemini_fallback_models()
         self.assertNotIn("gemini-3.1-pro-preview", models)
-        self.assertEqual(sorted(models), sorted(env["GEMINI_AVAILABLE_MODELS"].split(",")))
+        self.assertEqual(sorted(models), ["gemini-3.1-flash-lite", "gemini-3.8-flash"])
 
     def test_no_route_tries_a_retired_model_first(self):
         for tier in model_router.TIERS:
             self.assertFalse(set(model_router.tier_models(tier)) & gemini_service.DEPRECATED_MODELS, tier)
 
     def test_a_route_set_in_env_is_filtered_too(self):
-        with patch.dict(os.environ, {"AI_ROUTE_TIER_STANDARD": "gemini-2.5-flash,gemini-3-flash-preview"}):
-            self.assertEqual(model_router.tier_models("STANDARD"), ["gemini-3-flash-preview"])
+        with patch.dict(os.environ, {"AI_ROUTE_TIER_STANDARD": "gemini-2.5-flash,gemini-3-flash-preview,gemini-3.1-flash-lite"}):
+            self.assertEqual(model_router.tier_models("STANDARD"), ["gemini-3.1-flash-lite"])
+
+    def test_provider_failure_cooldown_skips_the_same_model(self):
+        gemini_service._model_cooldowns.clear()
+        gemini_service.record_model_failure("gemini-test", RuntimeError("429 resource exhausted"))
+        self.assertFalse(gemini_service.model_is_available("gemini-test"))
+        gemini_service._model_cooldowns.clear()
 
 
 if __name__ == "__main__":

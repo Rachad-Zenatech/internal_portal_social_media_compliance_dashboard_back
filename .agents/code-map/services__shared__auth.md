@@ -28,24 +28,27 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_ensure_microsoft_user_roles` (def) L36 - Ensure the Standard User role exists and assign initial/default roles for a Microsoft user.
 - `upsertMicrosoftUser` (def) L94 - Create or update the local user record for an authenticated Microsoft
 
-## services/shared/auth/oauth_connection_service.py (608 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
-- `list_organizations` (def) L34
-- `get_organization` (def) L45
-- `create_organization` (def) L56
-- `list_companies` (def) L67
-- `get_company` (def) L90
-- `create_company` (def) L107
-- `update_company` (def) L118
-- `delete_company` (def) L156
-- `_row_to_connection` (def) L167
-- `list_connections` (def) L201
-- `get_connection` (def) L243
-- `store_connection` (def) L263 - Stores or updates a social account connection.
-- `update_connection` (def) L298
-- `revoke_connection` (def) L357
-- `handle_mqtt_social_accounts_message` (def) L372 - Callback triggered whenever an MQTT message is received with connected accounts.
-- `sync_accounts_from_mqtt` (def) L467 - Upserts social media accounts provided by the marketing/social media app via MQTT.
-- `sync_with_social_media_app_mqtt` (def) L563 - Requests account synchronization over MQTT, and populates connected accounts.
+## services/shared/auth/oauth_connection_remote_sync.py (24 lines) - Read optional OAuth connections from the administration portal.
+- `fetch_admin_portal_connections` (def) L11 - Return remote connections when the optional administration portal is configured.
+
+## services/shared/auth/oauth_connection_service.py (599 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
+- `list_organizations` (def) L31
+- `get_organization` (def) L42
+- `create_organization` (def) L53
+- `list_companies` (def) L64
+- `get_company` (def) L87
+- `create_company` (def) L104
+- `update_company` (def) L115
+- `delete_company` (def) L153
+- `_row_to_connection` (def) L164
+- `list_connections` (def) L198
+- `get_connection` (def) L240
+- `store_connection` (def) L260 - Stores or updates a social account connection.
+- `update_connection` (def) L295
+- `revoke_connection` (def) L354
+- `handle_mqtt_social_accounts_message` (def) L369 - Callback triggered whenever an MQTT message is received with connected accounts.
+- `sync_accounts_from_mqtt` (def) L464 - Upserts social media accounts provided by the marketing/social media app via MQTT.
+- `sync_with_social_media_app_mqtt` (def) L560 - Requests account synchronization over MQTT, and populates connected accounts.
 
 ## services/shared/auth/rbac_service.py (757 lines) - Utility for audit logging
 - `log_audit` (def) L12

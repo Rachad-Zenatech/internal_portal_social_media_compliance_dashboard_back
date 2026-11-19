@@ -154,14 +154,13 @@ class RabbitMQManager(HubStatusMixin):
 
             vhost_part = _vhost_url_part(get_rabbitmq_vhost())
 
-            for alt_host in [host, "rabbitmq", "127.0.0.1", "host.docker.internal"]:
+            for alt_host in [host, *([] if os.getenv("APP_ENV", "development").lower() == "production" else ["rabbitmq", "127.0.0.1", "host.docker.internal"])]:
                 if alt_host:
                     alt_url = f"amqp://{user}:{password}@{alt_host}:{port}/{vhost_part}"
                     if alt_url not in candidates:
                         candidates.append(alt_url)
 
             unique_candidates = [c for c in candidates if c]
-
             for attempt in range(1, max_retries + 1):
                 for target_url in unique_candidates:
                     masked_url = _sanitize_amqp_url(target_url)

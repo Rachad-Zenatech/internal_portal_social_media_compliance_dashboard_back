@@ -58,7 +58,7 @@ VERSION = f"sources-1|{citation_finder.VERSION}|{PROMPT_VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 MODELS = without_retired([m.strip() for m in os.getenv(
     "SOURCE_CHECK_MODELS",
-    "gemini-3-flash-preview,gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite",
 ).split(",") if m.strip()])
 TIMEOUT_SEC = int(os.getenv("SOURCE_CHECK_TIMEOUT_SEC", "45"))
 RETRY_PAUSE_SEC = context_evaluator.RETRY_PAUSE_SEC
