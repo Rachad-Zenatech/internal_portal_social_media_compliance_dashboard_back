@@ -164,7 +164,7 @@ async def _access(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], user_id:
 
 def _all_checked(doc: Dict[str, Any], reviewers: List[Dict[str, Any]]) -> bool:
     required = [r for r in reviewers if r["capacity"] == "EDIT"]
-    return doc["status"] == "IN_REVIEW" and bool(required) and (any(r["vote"] in ("APPROVE", "CHANGES") for r in required) or all(r["vote"] for r in required))
+    return doc["status"] == "IN_REVIEW" and (any(r["vote"] in ("APPROVE", "CHANGES") for r in reviewers) or (bool(required) and all(r["vote"] for r in required)))
 
 
 def _state(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], changed_by: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
