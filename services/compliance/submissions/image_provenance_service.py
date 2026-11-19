@@ -1,5 +1,9 @@
 """Require an explicit Yes/No disclosure for attached post images."""
 from datetime import datetime, timezone
+from uuid import UUID
+from fastapi import HTTPException
+from models.compliance.submission_model import SubmissionFile
+from postgresql_db.database import fetch_one
 
 HAS_IMAGES_SQL = """EXISTS (SELECT 1 FROM content_submission_files ip WHERE ip.submission_id = s.id
     AND ip.deleted_at IS NULL AND ip.kind IN ('MAIN', 'IMAGE') AND ip.mime_type LIKE 'image/%')"""
@@ -32,3 +36,22 @@ def update_fields(row, payload):
         fields["employee_in_images"] = employee_answer
         fields["employee_in_images_confirmed"] = True
     return fields
+
+
+async def retry_image_read(submission_id: UUID, file_id: UUID, user_id: UUID) -> SubmissionFile:
+    """Queue an image's OCR and anonymous face read again, including a stalled attempt."""
+    from services.ai.core import image_text_service
+    from services.compliance.submissions import submission_service
+
+    await submission_service._get_owned_row(submission_id, user_id)
+    f = await fetch_one(
+        "UPDATE content_submission_files SET image_text_status = NULL, image_text_error = NULL, "
+        "image_text_updated_at = NOW() WHERE id = $1 AND submission_id = $2 AND deleted_at IS NULL AND mime_type LIKE 'image/%' "
+        "RETURNING id, kind, original_name, mime_type, size_bytes, created_at, image_text, image_text_status, image_text_error, "
+        "person_detected, face_boxes, face_detection_version",
+        file_id, submission_id,
+    )
+    if not f:
+        raise HTTPException(status_code=404, detail="Image file not found")
+    image_text_service.schedule([file_id])
+    return submission_service._file_out(submission_id, f)

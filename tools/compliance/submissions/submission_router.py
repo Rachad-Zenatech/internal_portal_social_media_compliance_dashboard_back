@@ -33,7 +33,7 @@ from models.compliance.submission_model import (
     SubmitRequest,
 )
 from services.ai.observability import ai_observability, ai_usage_service
-from services.compliance.submissions import delegation_service, duplicate_service
+from services.compliance.submissions import delegation_service, duplicate_service, image_provenance_service
 from services.compliance.media.file_mime_policy import safe_disposition_type
 from services.compliance.media import caption_service
 from services.compliance.analytics import conversation_evidence, conversation_feedback, public_mood_service
@@ -184,6 +184,12 @@ async def download_file(submission_id: UUID, file_id: UUID, user_id: CurrentUser
 async def transcribe_file(submission_id: UUID, file_id: UUID, user_id: CurrentUser):
     """Regenerate a video's speech transcript in the background (it is generated automatically on upload)."""
     return await svc.retranscribe(submission_id, file_id, user_id)
+
+
+@router.post("/{submission_id}/files/{file_id}/read-image", response_model=SubmissionFile, status_code=status.HTTP_202_ACCEPTED)
+async def retry_image_read(submission_id: UUID, file_id: UUID, user_id: CurrentUser):
+    """Queue image OCR and anonymous face detection again after a failed or stalled read."""
+    return await image_provenance_service.retry_image_read(submission_id, file_id, user_id)
 
 
 @router.delete("/{submission_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
