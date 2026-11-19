@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/analytics/nav_public_mood_service.py (247 lines) - Nav Public Mood overview: combines the two public scrapings shown in the navigation page: 1.
+## services/compliance/analytics/nav_public_mood_service.py (250 lines) - Nav Public Mood overview: combines the two public scrapings shown in the navigation page: 1.
 - `_trend_angle` (def) L21
 - `_search_method` (def) L39
 - `build_trend_opportunity` (def) L49 - Convert one ListeningTopic + snapshot into an XTrendOpportunity card.

@@ -73,7 +73,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `FindingVerdict` (class) L57 - A reviewer's call on a finding, kept as a labelled example: the flag was right, or it was a false alarm.
 - `RuleFlagStats` (class) L70
 
-## models/compliance/image_provenance_model.py (11 lines) - Saved AI-image disclosure and whether the creator explicitly answered the question.
+## models/compliance/image_provenance_model.py (13 lines) - Saved AI-image disclosure and whether the creator explicitly answered the question.
 - `ImageProvenanceFields` (class) L5
 
 ## models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
@@ -233,10 +233,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `AccountOption` (class) L63
 - `SubmissionOptions` (class) L75
 - `ReviewerOption` (class) L85 - Someone a creator can send content to for review.
-- `SubmissionCreate` (class) L95
-- `SubmissionUpdate` (class) L100
-- `TranscriptSegment` (class) L139
-- `SubmissionFile` (class) L147
+- `SubmissionCreate` (class) L94
+- `SubmissionUpdate` (class) L99
+- `TranscriptSegment` (class) L138
+- `SubmissionFile` (class) L146
 - `AnalysisStep` (class) L172 - One part of the post still being read before the rulebook check can score it.
 - `AnalysisProgress` (class) L183 - How far the post's reading has got and when the score is expected.
 - `SubmissionSummary` (class) L195

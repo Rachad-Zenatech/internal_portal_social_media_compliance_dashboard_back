@@ -225,7 +225,10 @@ def _file_out(submission_id: UUID, row: Dict[str, Any]) -> SubmissionFile:
         doc_text=row.get("doc_text"),
         doc_text_status=row.get("doc_text_status"),
         doc_text_error=row.get("doc_text_error"),
+        image_text_status=row.get("image_text_status"),
         person_detected=row.get("person_detected"),
+        face_boxes=json.loads(row["face_boxes"]) if isinstance(row.get("face_boxes"), str) else row.get("face_boxes") or [],
+        face_detection_version=row.get("face_detection_version") or 0,
         source=row.get("source") or "UPLOAD",
         canva_design_id=row.get("canva_design_id"),
         canva_design_title=row.get("canva_design_title"),
@@ -399,6 +402,7 @@ async def _list_files(submission_id: UUID) -> List[Dict[str, Any]]:
         """
         SELECT id, kind, original_name, mime_type, size_bytes, created_at,
                transcript, transcript_status, transcript_error, doc_text, doc_text_status, doc_text_error,
+                image_text_status, person_detected, face_boxes, face_detection_version,
                source, canva_design_id, canva_design_title, canva_revision
         FROM content_submission_files
         WHERE submission_id = $1 AND deleted_at IS NULL

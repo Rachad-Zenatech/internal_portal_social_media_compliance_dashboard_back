@@ -27,4 +27,8 @@ def update_fields(row, payload):
     if people_answer is not None:
         fields["people_in_images"] = people_answer
         fields["people_in_images_confirmed"] = True
+    employee_answer = payload.get("employee_in_images")
+    if employee_answer is not None:
+        fields["employee_in_images"] = employee_answer
+        fields["employee_in_images_confirmed"] = True
     return fields
