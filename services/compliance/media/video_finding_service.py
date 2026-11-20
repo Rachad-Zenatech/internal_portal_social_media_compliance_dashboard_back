@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 from services.compliance.evaluation.compliance_service import _hit, _normalize
+from services.compliance.evaluation.finding_evidence import highlight_terms
 from services.compliance.media import image_finding_service
 from services.compliance.media.image_finding_service import _ocr_regions, _ocr_word_boxes
 from services.compliance.media.transcription_service import STORAGE_ROOT
@@ -72,7 +73,7 @@ async def locate_video_findings(video, segments, findings):
             continue
         padded = f" {_normalize(str(segment.get('text', '')))} "
         candidates = [finding for finding in findings if finding.status != "CLEARED" and any(
-            _hit(term, padded, finding.exception_terms) for term in finding.flagged_terms
+            _hit(term, padded, finding.exception_terms) for term in highlight_terms(finding)
         )]
         if not candidates:
             continue
@@ -84,7 +85,7 @@ async def locate_video_findings(video, segments, findings):
             logger.info("Video finding localization: no OCR words at %.2fs", start)
             continue
         for finding in candidates:
-            regions = _ocr_regions(video["id"], words, finding.flagged_terms, start, end)
+            regions = _ocr_regions(video["id"], words, highlight_terms(finding), start, end)
             for region in regions:
                 if region not in finding.image_regions:
                     finding.image_regions.append(region)

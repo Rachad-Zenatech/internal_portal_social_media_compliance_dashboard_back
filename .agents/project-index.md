@@ -119,6 +119,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/compliance_service.py (1559 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - services/compliance/evaluation/context_evaluator.py (388 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/evaluation/context_service.py (226 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
+- services/compliance/evaluation/finding_evidence.py (34 lines) - Use a finding's judged evidence consistently across image, video and text locations.
 - services/compliance/evaluation/image_marks.py (12 lines) - The "Text in image 1:" labels the check puts before each image's text, and keeping them out of the wording match.
 - services/compliance/evaluation/newsroom_facts.py (130 lines) - Newsroom facts: the company's own published facts as one more source for a post's claims.
 - services/compliance/evaluation/newsroom_sync_service.py (311 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.

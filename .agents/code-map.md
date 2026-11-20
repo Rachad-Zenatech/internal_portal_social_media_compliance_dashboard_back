@@ -55,6 +55,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__compliance_service.md | 1 | 6 KB |
 | .agents/code-map/services__compliance__evaluation__context_evaluator.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__context_service.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__finding_evidence.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__image_marks.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__newsroom_facts.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__newsroom_sync_service.md | 1 | 1 KB |

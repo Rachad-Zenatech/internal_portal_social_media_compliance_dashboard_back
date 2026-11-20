@@ -2,6 +2,7 @@
 Rule CRUD and rulebook screening of captions, scripts and transcripts.
 """
 
+from services.compliance.evaluation.finding_evidence import highlight_terms, VERSION as HIGHLIGHT_VERSION
 import asyncio
 import contextvars
 import hashlib
@@ -577,7 +578,7 @@ def flag_segments(segments: List[Dict[str, Any]], violations: List[ComplianceVio
         padded = f" {_normalize(str(seg.get('text', '')))} "
         # A trigger the context cleared isn't a flag; one that only needs a look is amber, never red.
         hits = [v for v in violations if v.status != "CLEARED"
-                and any(_hit(t, padded, v.exception_terms) for t in v.flagged_terms)]
+                and any(_hit(t, padded, v.exception_terms) for t in highlight_terms(v))]
         light = "GREEN"
         if hits:
             red = any(v.status == "VIOLATION" and (v.traffic_light == "RED" or v.severity.upper() == "CRITICAL") for v in hits)
@@ -1469,7 +1470,7 @@ async def rulebook_version() -> Optional[str]:
     generation = rules_cache.generation
     row = await fetch_one("SELECT max(greatest(updated_at, coalesce(deleted_at, updated_at))) AS v FROM compliance_rules")
     rules = row["v"].isoformat() if row and row["v"] else "none"
-    version = f"{rules}|{claim_checks.VERSION}|{post_signals.VERSION}|{SCOPE_VERSION}|{context_evaluator.PROMPT_VERSION}"
+    version = f"{rules}|{claim_checks.VERSION}|{post_signals.VERSION}|{SCOPE_VERSION}|{context_evaluator.PROMPT_VERSION}|{HIGHLIGHT_VERSION}"
     await rules_cache.set_if_unchanged("version", version, generation, RULES_CACHE_TTL)
     return version
 
