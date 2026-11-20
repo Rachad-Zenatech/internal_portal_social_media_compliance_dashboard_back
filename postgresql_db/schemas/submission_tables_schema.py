@@ -74,7 +74,8 @@ async def _create_core_records(conn) -> None:
                 ADD COLUMN IF NOT EXISTS people_in_images_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS people_in_images_detected BOOLEAN,
                 ADD COLUMN IF NOT EXISTS employee_in_images BOOLEAN NOT NULL DEFAULT FALSE,
-                ADD COLUMN IF NOT EXISTS employee_in_images_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
+                ADD COLUMN IF NOT EXISTS employee_in_images_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS face_employee_flags JSONB NOT NULL DEFAULT '{}'::jsonb;
 
             -- Brands each user works on. A user with none listed (and every super admin) works on all brands.
     """)

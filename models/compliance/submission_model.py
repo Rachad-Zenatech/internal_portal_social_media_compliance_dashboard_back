@@ -118,8 +118,7 @@ class SubmissionUpdate(SourceLinksUpdateMixin):
     # Messaging Context the creator chose for the analysis, by kind (BRAND_VOICE, FACT, PLATFORM_NORM,
     # AUDIENCE_PROFILE). A kind left out is automatic; an empty list means none of that kind.
     context_picks: Optional[Dict[str, List[UUID]]] = None
-    ai_generated_images: Optional[bool] = None
-    people_in_images: Optional[bool] = None; employee_in_images: Optional[bool] = None
+    ai_generated_images: Optional[bool] = None; people_in_images: Optional[bool] = None; employee_in_images: Optional[bool] = None; face_employee_flags: Optional[Dict[str, bool]] = None
     # A different caption for some platforms, as plain text by platform; the others use caption_text. {} clears them.
     platform_captions: Optional[Dict[str, str]] = Field(None, max_length=len(PLATFORMS))
     rule_sets: Optional[List[str]] = Field(None, max_length=len(RULE_SETS))

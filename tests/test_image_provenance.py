@@ -48,6 +48,15 @@ class RequiredAnswer(unittest.TestCase):
         self.assertFalse(fields["employee_in_images"])
         self.assertTrue(fields["employee_in_images_confirmed"])
 
+    def test_per_face_employee_flags_derive_overall_employee_flag(self):
+        fields = provenance.update_fields({}, dict(face_employee_flags={"f1-0": False, "f1-1": True}))
+        self.assertEqual(fields["face_employee_flags"], '{"f1-0": false, "f1-1": true}')
+        self.assertTrue(fields["employee_in_images"])
+        self.assertTrue(fields["employee_in_images_confirmed"])
+        fields_no = provenance.update_fields({}, dict(face_employee_flags={"f1-0": False, "f1-1": False}))
+        self.assertFalse(fields_no["employee_in_images"])
+        self.assertTrue(fields_no["employee_in_images_confirmed"])
+
     def test_face_boxes_validation(self):
         from services.compliance.media.image_text_service import _face_boxes
         self.assertEqual(_face_boxes(None), [])

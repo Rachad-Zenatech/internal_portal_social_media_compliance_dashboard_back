@@ -96,9 +96,9 @@ async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: O
     await get_pool().execute(
         """
         UPDATE content_submission_files
-        SET image_text_status = $2, image_text = $3, image_text_error = $4, person_detected = $5,
+        SET image_text_status = $2::varchar, image_text = $3, image_text_error = $4, person_detected = $5,
             face_boxes = COALESCE($6::jsonb, face_boxes),
-            face_detection_version = CASE WHEN $2 = 'COMPLETED' THEN 1 ELSE face_detection_version END,
+            face_detection_version = CASE WHEN $2::varchar = 'COMPLETED' THEN 1 ELSE face_detection_version END,
             image_text_updated_at = NOW()
         WHERE id = $1
         """,
@@ -155,6 +155,7 @@ async def read_file(file_id: UUID) -> None:
     """Read one image's text and save it, then re-check its submission if it's still open."""
     from services.compliance.analytics.sentiment_service import _image_bytes  # local imports: those modules import this one's callers
     from services.compliance.media.transcription_service import STORAGE_ROOT
+    from services.shared.storage.s3_storage_service import ensure_local_file
 
     async with _semaphore:
         row = await _claim(file_id)
@@ -162,7 +163,10 @@ async def read_file(file_id: UUID) -> None:
             return
         try:
             path = (STORAGE_ROOT / row["storage_path"]).resolve()
-            if STORAGE_ROOT not in path.parents or not path.is_file():
+            if STORAGE_ROOT not in path.parents:
+                raise FileNotFoundError("The image file is missing from storage.")
+            await asyncio.to_thread(ensure_local_file, path, "submissions", row["storage_path"])
+            if not path.is_file():
                 raise FileNotFoundError("The image file is missing from storage.")
             data, mime_type = await asyncio.to_thread(_image_bytes, path, row["mime_type"])
             response = await _generate(contents=[types.Part.from_bytes(data=data, mime_type=mime_type), PROMPT])
