@@ -132,23 +132,36 @@ def without_citation_text(text: str) -> str:
     kept: List[str] = []
     under_heading = False
     for line in lines:
-        if _SOURCES_HEADING.match(line):
+        marker = _IMAGE_MARK.match(line)
+        prefix = line[:marker.end()] if marker else ""
+        content = line[marker.end():].lstrip() if marker else line.lstrip()
+        if marker:
+            under_heading = False
+        if _SOURCES_HEADING.match(content):
+            if prefix:
+                kept.append(prefix.rstrip())
             under_heading = True
             continue
         if under_heading:
-            if not line.strip():
+            if not content.strip():
                 under_heading = False
             else:
                 continue
-        match = _SOURCE_LINE.search(line)
+        match = _SOURCE_LINE.search(content)
         if match:
-            # A citation can follow a real sentence on the same line; retain only that real post copy.
-            before = line[:match.start()].rstrip()
+            before = (prefix + content[:match.start()]).rstrip()
             if before:
                 kept.append(before)
             continue
         kept.append(line)
     return "\n".join(kept)
+
+
+def is_reference_only(text: str) -> bool:
+    """A printed source credit identifies evidence; its URL/date is not a claim to substantiate."""
+    value = (text or "").strip().strip("\"'\u201c\u201d\u2018\u2019")
+    value = _IMAGE_MARK.sub("", value).strip()
+    return bool(value) and not without_citation_text(value).strip()
 
 
 def find(text: str, *, explicit_script: bool = False) -> List[Citation]:

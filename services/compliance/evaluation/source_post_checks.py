@@ -1,10 +1,11 @@
 """Compare each published part separately so caption claims cannot crowd out image claims."""
 from models.compliance.compliance_model import ComplianceViolation, SourceClaim
 from .image_marks import IMAGE_MARK
-from . import source_image_claims
+from . import source_image_claims, citation_finder
 
 
 def parts(text):
+    text = citation_finder.without_citation_text(text)
     marks = list(IMAGE_MARK.finditer(text))
     if not marks:
         return [(text, False)]
@@ -61,6 +62,8 @@ async def compare_parts(text, label, title, url, published, source_text, compare
     combined, models, seen = [], [], set()
     completed, failed = False, False
     for body, image in parts(text):
+        if not IMAGE_MARK.sub("", body).strip():
+            continue
         claims, model = await compare(body, label, title, url, published, source_text)
         if claims is None:
             failed = True
@@ -81,4 +84,4 @@ async def compare_parts(text, label, title, url, published, source_text, compare
             if key not in seen:
                 seen.add(key)
                 combined.append(claim.model_copy(update={"where": where}))
-    return combined if completed else None, ", ".join(models) or None, failed
+    return combined if completed or not failed else None, ", ".join(models) or None, failed

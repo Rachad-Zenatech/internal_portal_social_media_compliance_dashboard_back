@@ -4,18 +4,18 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/context_evaluator.py (391 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
-- `_Result` (class) L113
-- `_Response` (class) L123
-- `_enum` (def) L127
-- `Candidate` (class) L156 - A rule match to be read in context: the finding, the rule, the line it's in and the lines around it.
-- `_get_client` (def) L166
-- `_norm` (def) L176
-- `_key` (def) L180
-- `_visible_test_claim` (def) L190 - A visible claim in a proposed image is still reviewable despite a fixture label beside it.
-- `_item` (def) L196
-- `_precedent` (def) L220
-- `_ask` (def) L228
-- `_judge` (def) L250 - One request for a batch, trying each model in turn.
-- `_apply` (def) L280 - Put the model's answer on the finding, through the safeguards.
-- `evaluate` (def) L361 - Read each candidate in context and set its status (in place).
+## services/compliance/evaluation/context_evaluator.py (402 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+- `_Result` (class) L116
+- `_Response` (class) L126
+- `_enum` (def) L130
+- `Candidate` (class) L159 - A rule match to be read in context: the finding, the rule, the line it's in and the lines around it.
+- `_get_client` (def) L171
+- `_norm` (def) L181
+- `_key` (def) L185
+- `_visible_test_claim` (def) L196 - A visible claim in a proposed image is still reviewable despite a fixture label beside it.
+- `_item` (def) L202
+- `_precedent` (def) L228
+- `_ask` (def) L236
+- `_judge` (def) L258 - One request for a batch, trying each model in turn.
+- `_apply` (def) L288 - Put the model's answer on the finding, through the safeguards.
+- `evaluate` (def) L372 - Read each candidate in context and set its status (in place).
