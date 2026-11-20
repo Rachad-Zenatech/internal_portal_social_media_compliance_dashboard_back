@@ -72,6 +72,7 @@ from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
 from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness, image_provenance_service
+from services.compliance.submissions import submission_fields, media_read_status
 from services.compliance.evaluation import source_recheck
 from services.compliance.media import script_sources
 from services.compliance.media import document_layout
@@ -671,13 +672,8 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
     summaries = []
     edges = await delegation_service.edges_for([r["id"] for r in rows if r["status"] == "IN_REVIEW"])
     for r in rows:
-        base = {k: v for k, v in r.items()
-                if not k.startswith(("acc_", "cov_"))
-                and k not in ("platforms", "accounts_json", "due_at", "due_kind", "rule_sets", "platform_captions")}
+        base = submission_fields.summary_fields(r)
         cover = {k[4:]: v for k, v in r.items() if k.startswith("cov_")}
-        if base.get("script_excerpt"):
-            # The card shows the wording, without the page, heading and table marks.
-            base["script_excerpt"] = " ".join(document_layout.plain_text(base["script_excerpt"]).split())
         summaries.append(SubmissionSummary(
             **base,
             platforms=list(r["platforms"] or []),
@@ -743,14 +739,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
     row = await _get_owned_row(submission_id, user_id)
     _require_editable(row)
 
-    fields: Dict[str, Any] = {}
     payload = data.model_dump(exclude_unset=True, exclude={"clear_fields"})
-
-    if "title" in payload and payload["title"] is not None: fields["title"] = payload["title"].strip()
-    if payload.get("content_type"):
-        fields["content_type"] = payload["content_type"]
-        # A draft switched to a video before it was ever sent goes through the script stage too.
-        if payload["content_type"] == "VIDEO" and row["current_version"] == 0 and not row.get("script_required"): fields["script_required"] = True
+    fields = submission_fields.editable_type_fields(row, payload)
     brand_codes = payload.get("brand_codes")
     if brand_codes is None and payload.get("brand_code"):
         brand_codes = [payload["brand_code"]]
@@ -1473,14 +1463,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         ],
         "segment_flags": flag_segments(all_video_segments, result.violations),
         # Everything that couldn't be read, so its wording was never checked. Approval waits for these (see reads_failed).
-        "reads_failed": [
-            *([{"what": "video transcript", "name": video.get("original_name"), "error": video.get("transcript_error")}]
-              if video and video["transcript_status"] == "FAILED" else []),
-            *({"what": "image text", "name": i.get("original_name"), "error": i.get("image_text_error")}
-              for i in images if i["image_text_status"] == "FAILED"),
-            *({"what": "document", "name": d.get("original_name"), "error": d.get("doc_text_error")}
-              for d in documents if d["doc_text_status"] == "FAILED"),
-        ],
+        "reads_failed": media_read_status.failed_reads(video, images, documents),
         # No score when AI is unavailable; re-run the check once it is back.
         "ai_unavailable": result.ai_unavailable,
         "script_match": match,
@@ -1692,11 +1675,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
             "message": "The approval date has to be on or before the publish date.",
             "missing": ["approval_needed_by"],
         })
-    if missing:
-        raise HTTPException(status_code=422, detail={
-            "message": "Some required information is missing.",
-            "missing": sorted(set(missing)),
-        })
+    manual_check_service.require_submission_fields(missing)
     await _require_not_duplicate(row, confirm_repost, (_json(row.get("latest_check")) or {}).get("repost_confirmed"))
 
     # Sent to the reviewers picked (required, see _missing_for_submit) who can still review it, and its final
@@ -1720,7 +1699,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
 
     result, check = manual_check_service.require_current_check(row, await compliance_rulebook_version())
     if not publish_after_changes:
-        manual_check_service.require_send_score(result.score)
+        manual_check_service.require_send_score(result.score, pending_score=await creator_dismissal_service.send_score(row, check))
 
     files = await _list_files(submission_id)
     # The script's text as read now, kept with the version so later versions can be compared with it.

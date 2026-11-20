@@ -59,12 +59,21 @@ def require_current_check(row, rulebook_version, *, allow_incomplete=False, vali
     return result, check
 
 
-def require_send_score(score: int) -> None:
+def require_submission_fields(missing: list[str]) -> None:
+    if missing:
+        raise HTTPException(status_code=422, detail={
+            "message": "Some required information is missing.",
+            "missing": sorted(set(missing)),
+        })
+
+
+def require_send_score(score: int, *, pending_score: int | None = None) -> None:
     from services.compliance.submissions.flag_review_service import MIN_APPROVAL_SCORE
 
-    if score < MIN_APPROVAL_SCORE:
+    if score < MIN_APPROVAL_SCORE and (pending_score is None or pending_score < MIN_APPROVAL_SCORE):
         raise HTTPException(
-            422, f"The compliance score is {score}/100. Sending for review requires at least {MIN_APPROVAL_SCORE}."
+            422, f"The compliance score is {score}/100. Sending for review requires at least {MIN_APPROVAL_SCORE}, "
+            "or pending dismissal requests that cover enough disputed deductions to reach it."
         )
 
 

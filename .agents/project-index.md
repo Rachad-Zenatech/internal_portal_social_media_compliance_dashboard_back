@@ -193,8 +193,9 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/image_source_checks.py (107 lines) - Checking a post against more than one candidate source found for an image's citation.
 - services/compliance/submissions/image_source_search.py (185 lines) - Find a cited source on the web: Gemini Google Search grounding first, then search APIs (Serper or Google CSE) when configured, then the s...
 - services/compliance/submissions/image_source_service.py (388 lines) - Scan an image for source citations (URLs or named title + date references), locate the source on the web, and scrape/verify it.
-- services/compliance/submissions/manual_check_service.py (134 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
+- services/compliance/submissions/manual_check_service.py (142 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
 - services/compliance/submissions/media_freshness.py (39 lines) - Check freshness follows media revisions, independently of post detail edits.
+- services/compliance/submissions/media_read_status.py (13 lines) - Unread media recorded in a submission's saved compliance check.
 - services/compliance/submissions/post_steps_service.py (134 lines) - The five steps a creator works through, and how far each post has got.
 - services/compliance/submissions/request_coalescer.py (50 lines) - Short-lived request sharing for expensive submission-list reads.
 - services/compliance/submissions/review_approval_service.py (75 lines) - Approval gates for a submitted post: saved checks, findings and final approvers.
@@ -204,7 +205,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.
 - services/compliance/submissions/source_link_service.py (178 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
 - services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
-- services/compliance/submissions/submission_service.py (2933 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_fields.py (23 lines) - Field shaping for submission summaries and draft type changes.
+- services/compliance/submissions/submission_service.py (2912 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
