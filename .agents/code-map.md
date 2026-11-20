@@ -99,7 +99,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__source_recheck.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_settings.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__synthetic_media_disclosure.md | 1 | 1 KB |
-| .agents/code-map/services__compliance__media.md | 16 | 14 KB |
+| .agents/code-map/services__compliance__media.md | 17 | 14 KB |
 | .agents/code-map/services__compliance__sentiment.md | 8 | 7 KB |
 | .agents/code-map/services__compliance__submissions.md | 26 | 28 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |

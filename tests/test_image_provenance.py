@@ -67,6 +67,16 @@ class RequiredAnswer(unittest.TestCase):
         # inverted or empty boxes dropped
         self.assertEqual(_face_boxes([{"box": [200, 200, 100, 100]}]), [])
 
+    def test_yunet_face_detection_handles_invalid_and_blank_images(self):
+        import io
+        from PIL import Image
+        from services.compliance.media.face_detection_service import detect_faces
+        self.assertIsNone(detect_faces(b""))
+        self.assertIsNone(detect_faces(b"not-an-image"))
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 64), color=(255, 255, 255)).save(buf, format="PNG")
+        self.assertEqual(detect_faces(buf.getvalue()), [])
+
 
 class SubmissionGate(unittest.IsolatedAsyncioTestCase):
     async def test_retry_image_read_schedules_ocr_and_face_detection(self):

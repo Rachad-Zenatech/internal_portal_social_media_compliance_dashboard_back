@@ -154,6 +154,7 @@ def _face_boxes(faces: object) -> List[List[int]]:
 async def read_file(file_id: UUID) -> None:
     """Read one image's text and save it, then re-check its submission if it's still open."""
     from services.compliance.analytics.sentiment_service import _image_bytes  # local imports: those modules import this one's callers
+    from services.compliance.media import face_detection_service
     from services.compliance.media.transcription_service import STORAGE_ROOT
     from services.shared.storage.s3_storage_service import ensure_local_file
 
@@ -169,10 +170,11 @@ async def read_file(file_id: UUID) -> None:
             if not path.is_file():
                 raise FileNotFoundError("The image file is missing from storage.")
             data, mime_type = await asyncio.to_thread(_image_bytes, path, row["mime_type"])
+            local_boxes = await asyncio.to_thread(face_detection_service.detect_faces, data)
             response = await _generate(contents=[types.Part.from_bytes(data=data, mime_type=mime_type), PROMPT])
             result = json.loads(response.text or "{}")
             text = _clean(result.get("text", ""))
-            face_boxes = _face_boxes(result.get("faces"))
+            face_boxes = local_boxes if local_boxes else _face_boxes(result.get("faces"))
             await _save(file_id, "COMPLETED", text=text, person_detected=bool(result.get("person_detected")) or bool(face_boxes), face_boxes=face_boxes)
             try:
                 await get_pool().execute("""

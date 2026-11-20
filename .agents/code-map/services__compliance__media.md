@@ -101,6 +101,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `schedule_missing` (def) L224 - Read the documents among these that were never read, or whose read was abandoned (e.g.
 - `paragraphs` (def) L241 - A read document's paragraphs, in order (one per line as stored).
 
+## services/compliance/media/face_detection_service.py (57 lines) - Local CPU face detection using OpenCV YuNet, returning anonymous [top, left, bottom, right] 0..1000 boxes.
+- `detect_faces` (def) L16 - Detect faces locally with OpenCV YuNet; returns None if OpenCV/model is unavailable.
+
 ## services/compliance/media/file_mime_policy.py (60 lines) - Server-side MIME type and Content-Disposition policy for user-uploaded files.
 - `safe_file_mime` (def) L50 - Return an allowlisted MIME type based on file extension, or application/octet-stream.
 - `safe_disposition_type` (def) L56 - Allow inline browser preview only for safe raster images, videos, and PDFs.
@@ -149,7 +152,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_ocr_regions` (def) L117 - Find flagged phrases in OCR words and return one tight region per affected text line.
 - `locate_image_findings` (def) L143 - Locate flagged wording, including warnings that still need evidence.
 
-## services/compliance/media/image_text_service.py (246 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+## services/compliance/media/image_text_service.py (248 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def) L65
 - `_get_client` (def) L69
 - `_claim` (def) L79 - Atomically mark an image as being read unless another worker already is.
@@ -158,10 +161,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_clean` (def) L131
 - `_face_boxes` (def) L136 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
 - `read_file` (def) L154 - Read one image's text and save it, then re-check its submission if it's still open.
-- `_run` (def) L195
-- `schedule` (def) L202 - Read each image in the background, unless this process is already reading it.
-- `resume_interrupted` (def) L213 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
-- `schedule_missing` (def) L230 - Read the images among these that were never read, or whose read was abandoned (e.g.
+- `_run` (def) L197
+- `schedule` (def) L204 - Read each image in the background, unless this process is already reading it.
+- `resume_interrupted` (def) L215 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
+- `schedule_missing` (def) L232 - Read the images among these that were never read, or whose read was abandoned (e.g.
 
 ## services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - `node` (def) L12
