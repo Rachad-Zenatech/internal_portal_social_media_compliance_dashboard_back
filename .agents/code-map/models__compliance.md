@@ -34,7 +34,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `EvidenceClaim` (class) L13
 - `ClaimManifest` (class) L26
 
-## models/compliance/compliance_model.py (358 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (361 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class) L12
 - `ComplianceRuleCreate` (class) L58
 - `ComplianceRuleUpdate` (class) L62
@@ -43,17 +43,17 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `RuleSelfTest` (class) L109
 - `ProvidedSource` (class) L119 - A document the author attached as evidence (a supporting file), already read as text, to check claims against.
 - `ComplianceCheckRequest` (class) L125
-    - `_keep_audience_and_audiences_in_step` (def) L155
-- `ContextEvaluation` (class) L175 - How the AI read a rule's trigger in context, kept beside the finding so the decision can be audited.
-- `ImageFindingRegion` (class) L193
-    - `_time_range_is_whole` (def) L204
-- `ComplianceViolation` (class) L212
-- `ManualReviewRule` (class) L248 - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
-- `CheckSignals` (class) L257 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
-- `SourceClaim` (class) L273 - One claim the post makes, and whether the source it cites backs it up.
-- `SourceCheck` (class) L295 - A source the post cites (or that was attached), and what reading it showed.
-- `AddedRuleSet` (class) L315 - A rule set checked because of what the post says, not because it was chosen.
-- `ComplianceCheckResponse` (class) L321
+    - `_keep_audience_and_audiences_in_step` (def) L156
+- `ContextEvaluation` (class) L176 - How the AI read a rule's trigger in context, kept beside the finding so the decision can be audited.
+- `ImageFindingRegion` (class) L194
+    - `_time_range_is_whole` (def) L205
+- `ComplianceViolation` (class) L213
+- `ManualReviewRule` (class) L250 - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
+- `CheckSignals` (class) L259 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
+- `SourceClaim` (class) L275 - One claim the post makes, and whether the source it cites backs it up.
+- `SourceCheck` (class) L297 - A source the post cites (or that was attached), and what reading it showed.
+- `AddedRuleSet` (class) L317 - A rule set checked because of what the post says, not because it was chosen.
+- `ComplianceCheckResponse` (class) L323
 
 ## models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - `ContextEntryIn` (class) L12

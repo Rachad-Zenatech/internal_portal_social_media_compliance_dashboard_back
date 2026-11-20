@@ -367,59 +367,32 @@ class CashtagAudienceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.audiences_checked, ["INVESTORS"])
 
 
-class RuleSetsFromWordingTests(unittest.IsolatedAsyncioTestCase):
-    """Investor and defense wording brings in the Public Company Disclosure and ZenaDrone Defense rule sets."""
-    check = ScoringTests.check
-    disclosure_rule = rule(rule_number="Rule 25", rule_sets=[cs.DISCLOSURE_RULE_SET], prohibited_terms=["to the moon"])
-    defense_rule = rule(rule_number="Rule 2", rule_sets=[cs.DEFENSE_RULE_SET], prohibited_terms=["combat proven"])
-    general = {"audience": "GENERAL", "rule_sets": ["ZenaTech General"]}
+class RuleSetsFromSelectionTests(unittest.TestCase):
+    def scope(self, text, **values):
+        return cs.check_scope(ComplianceCheckRequest(text=text, **values))
 
-    async def test_a_cashtag_on_a_general_post_adds_the_disclosure_rules(self):
-        result = await self.check([self.disclosure_rule], "$ZENA is going to the moon.", **self.general)
-        self.assertEqual([v.rule_number for v in result.violations], ["Rule 25"])
-        self.assertEqual([(a.rule_set, a.because) for a in result.added_rule_sets],
-                         [(cs.DISCLOSURE_RULE_SET, ["$ZENA"])])
-        self.assertTrue(result.signals.notes[0].startswith('Public Company Disclosure rules added because of "$ZENA"'))
-        self.assertEqual(result.signals.implied_audiences, ["INVESTORS"])
+    def test_disclosure_applies_without_investor_wording(self):
+        scope = self.scope("Ordinary company update.", brand_code="SOFTWARE", audience="GENERAL")
+        self.assertIn(cs.DISCLOSURE_RULE_SET, scope.rule_sets)
+        self.assertEqual(scope.implied_audiences, [])
 
-    async def test_investor_wording_without_a_cashtag_adds_them_too(self):
-        result = await self.check([self.disclosure_rule], "A note to our shareholders: to the moon.", **self.general)
-        self.assertEqual(result.violations_count, 1)
-        self.assertEqual(result.added_rule_sets[0].because, ["shareholders"])
+    def test_a_cashtag_still_identifies_an_investor_audience_within_public_rules(self):
+        scope = self.scope("$ZENA update.", brand_code="SOFTWARE", audience="GENERAL")
+        self.assertEqual(scope.implied_audiences, ["INVESTORS"])
+        self.assertEqual(scope.wording[cs.DISCLOSURE_RULE_SET], ["$ZENA"])
 
-    async def test_a_general_post_with_no_investor_wording_is_left_alone(self):
-        result = await self.check([self.disclosure_rule], "Our new drone is going to the moon.", **self.general)
-        self.assertTrue(result.is_compliant)
-        self.assertEqual(result.added_rule_sets, [])
-        self.assertEqual(result.signals.implied_audiences, [])
-        self.assertEqual(result.signals.notes, [])
+    def test_defense_wording_does_not_widen_an_unrelated_brand_selection(self):
+        scope = self.scope("Pentagon program managers. #DoD", brand_code="SOFTWARE", audience="GENERAL")
+        self.assertNotIn(cs.DEFENSE_RULE_SET, scope.rule_sets)
+        self.assertNotIn("DEFENSE", scope.implied_audiences)
 
-    async def test_defense_wording_adds_the_defense_rules(self):
-        result = await self.check([self.defense_rule], "Built for program managers at the Pentagon. Combat proven.",
-                                  **self.general)
-        self.assertEqual([v.rule_number for v in result.violations], ["Rule 2"])
-        self.assertEqual(result.added_rule_sets[0].rule_set, cs.DEFENSE_RULE_SET)
-        self.assertEqual(result.added_rule_sets[0].because, ["pentagon", "program managers"])
-        self.assertEqual(result.signals.implied_audiences, ["DEFENSE"])
+    def test_defense_target_selects_rules_without_requiring_military_words(self):
+        scope = self.scope("Ordinary update.", brand_code="SOFTWARE", audience="DEFENSE")
+        self.assertIn(cs.DEFENSE_RULE_SET, scope.rule_sets)
 
-    async def test_a_hashtag_is_reported_once(self):
-        result = await self.check([self.defense_rule], "Proud day. #DoD", **self.general)
-        self.assertEqual(result.added_rule_sets[0].because, ["#DoD"])
-
-    async def test_nothing_is_added_when_already_chosen_or_none_are_chosen(self):
-        chosen = await self.check([self.disclosure_rule], "$ZENA is going to the moon.", audience="GENERAL",
-                                  rule_sets=[cs.DISCLOSURE_RULE_SET])
-        self.assertEqual((chosen.violations_count, chosen.added_rule_sets), (1, []))
-        # With no rule sets chosen every rule already runs; adding one would narrow the check.
-        none = await self.check([self.disclosure_rule, self.defense_rule], "$ZENA is going to the moon. Combat proven.",
-                                audience="GENERAL")
-        self.assertEqual((none.violations_count, none.added_rule_sets), (2, []))
-
-    async def test_both_reasons_are_given_investors_first(self):
-        result = await self.check([], "$ZENA shareholders: a Pentagon update.", **self.general)
-        self.assertEqual([a.rule_set for a in result.added_rule_sets], [cs.DISCLOSURE_RULE_SET, cs.DEFENSE_RULE_SET])
-        self.assertTrue(result.signals.notes[0].startswith("Public Company Disclosure"))
-        self.assertTrue(result.signals.notes[1].startswith("ZenaDrone Defense"))
+    def test_empty_rule_selection_does_not_run_every_set(self):
+        scope = self.scope("$ZENA. Combat proven.", audience="GENERAL")
+        self.assertEqual(scope.rule_sets, [cs.DISCLOSURE_RULE_SET])
 
 
 if __name__ == "__main__":

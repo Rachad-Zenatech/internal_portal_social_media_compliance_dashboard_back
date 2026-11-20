@@ -15,7 +15,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/canva_model.py (41 lines) - Canva Integration Models Connecting a Canva account, picking a design and importing (or reimporting) its export into a submission.
 - models/compliance/caption_model.py (39 lines) - Caption suggestions: Gemini drafts a few captions from the post itself, checked against the rulebook.
 - models/compliance/claim_manifest_model.py (34 lines) - Source-independent, versioned claims retained with each compliance result.
-- models/compliance/compliance_model.py (358 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+- models/compliance/compliance_model.py (361 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - models/compliance/duplicate_model.py (41 lines) - Duplicate-post comparisons shown before a creator submits a post.
 - models/compliance/flag_review_model.py (78 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
@@ -122,7 +122,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/claim_payload.py (43 lines) - Bound each AI request while covering all passages/claims in successive batches.
 - services/compliance/evaluation/claim_verification.py (50 lines) - Bind source judgments to an existing inventory; sources cannot rewrite or discover claims.
 - services/compliance/evaluation/compliance_check_result.py (117 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
-- services/compliance/evaluation/compliance_service.py (1557 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+- services/compliance/evaluation/compliance_service.py (1555 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - services/compliance/evaluation/context_evaluator.py (402 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/evaluation/context_service.py (226 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/evaluation/defense_disclaimer.py (27 lines) - Military names and citations alone do not establish use of government visual material.
@@ -133,6 +133,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/newsroom_sync_service.py (311 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.
 - services/compliance/evaluation/policy_watch_service.py (439 lines) - Policy watch: keeps the platform content-policy norms (Messaging Context entries seeded as "policy:...") up to date.
 - services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
+- services/compliance/evaluation/rule_set_policy.py (40 lines) - Required rule sets by selected brand and target audience, shared by draft saving and evaluation.
 - services/compliance/evaluation/script_batch_service.py (663 lines) - Script batches.
 - services/compliance/evaluation/script_compliance_check.py (18 lines) - Script compliance checks and source evidence.
 - services/compliance/evaluation/script_creator_workflow.py (15 lines) - Creator script revisions and the handoff to filming.
@@ -168,6 +169,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_recheck.py (36 lines) - Refresh source comparisons on request and keep a record of resolved findings.
 - services/compliance/evaluation/source_settings.py (86 lines) - Settings for checking a post's sources, none of them fixed in code.
 - services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
+- services/compliance/evaluation/visual_review.py (170 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
 - services/compliance/media/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
 - services/compliance/media/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
 - services/compliance/media/caption_service.py (338 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
@@ -178,7 +180,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/hashtag_library.py (145 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - services/compliance/media/html_layout.py (123 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
 - services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
-- services/compliance/media/image_finding_service.py (226 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+- services/compliance/media/image_finding_service.py (227 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - services/compliance/media/image_text_service.py (249 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - services/compliance/media/script_sources.py (48 lines) - Read optional sources from a script template without adding them to its spoken text.
@@ -214,10 +216,10 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/review_hierarchy_service.py (40 lines) - Review access inherited by Content Managers through the saved role hierarchy.
 - services/compliance/submissions/review_memory_service.py (233 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.
-- services/compliance/submissions/source_link_service.py (192 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
+- services/compliance/submissions/source_link_service.py (195 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
 - services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
 - services/compliance/submissions/submission_fields.py (23 lines) - Field shaping for submission summaries and draft type changes.
-- services/compliance/submissions/submission_service.py (2899 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2900 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.

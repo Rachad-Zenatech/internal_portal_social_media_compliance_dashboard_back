@@ -751,8 +751,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         scope = await _brand_scope(user_id)
         if added and scope is not None and any(b not in scope for b in added):
             raise HTTPException(status_code=403, detail="You don't work on that brand")
-        fields["brand_codes"] = brand_codes
-        fields["brand_code"] = brand_codes[0] if brand_codes else None
+        fields.update(brand_codes=brand_codes, brand_code=brand_codes[0] if brand_codes else None)
     audiences = payload.get("audiences") if payload.get("audiences") is not None else ([payload["audience"]] if payload.get("audience") else None)
     if audiences is not None:
         audiences = list(dict.fromkeys(audiences))
@@ -798,7 +797,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
             raise HTTPException(status_code=422, detail="A platform caption is too long")
         # An empty caption means that platform uses the main one.
         fields["platform_captions"] = {p: c for p, c in captions.items() if c.strip()}
-    source_link_service.apply_update_fields(payload, fields, RULE_SETS)
+    source_link_service.apply_update_fields(payload, fields, RULE_SETS, row=row)
     if payload.get("reviewer_route") is not None:
         bad = [r for r in payload["reviewer_route"] if r not in REVIEWER_ROUTES]
         if bad:
