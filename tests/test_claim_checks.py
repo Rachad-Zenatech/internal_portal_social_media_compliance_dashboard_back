@@ -100,6 +100,16 @@ class ClaimCheckTests(unittest.TestCase):
 
 
 class ScoreWithClaimChecksTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        # Exercise the legacy wording/semantic checks independently of the source-inventory pipeline.
+        enabled = patch.object(compliance_service.source_check_service, "ENABLED", False)
+        source = patch.object(compliance_service.source_check_service, "run", AsyncMock(
+            return_value=compliance_service.source_check_service.SourceCheckResult()))
+        enabled.start()
+        source.start()
+        self.addCleanup(enabled.stop)
+        self.addCleanup(source.stop)
+
     async def check(self, text):
         # No vector store or model: only the wording-based findings.
         with (

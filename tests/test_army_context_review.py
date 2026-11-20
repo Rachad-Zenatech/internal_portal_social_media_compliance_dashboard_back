@@ -18,13 +18,15 @@ Source: U.S. Army / army.mil/article/295038
 
 
 class ArmyRoutingTests(unittest.IsolatedAsyncioTestCase):
-    async def test_army_in_any_part_brings_in_active_rule4_despite_scope(self):
+    async def test_army_in_any_part_reaches_active_rule4_within_defense_scope(self):
         rule = defense_rules()[0]
         rule.rule_sets = ["ZenaDrone Defense"]
         for text in ("Army", "The Army published a report.", "Source: U.S. Army / army.mil/article/295038", "Thanks @USArmy"):
             with self.subTest(text=text), patch.object(cs, "list_compliance_rules", AsyncMock(return_value=[rule])):
-                req = ComplianceCheckRequest(text=text, rule_sets=["ZenaTech General"], audiences=["GENERAL"])
+                req = ComplianceCheckRequest(text=text, brand_code="ZENADRONE", audiences=["DEFENSE"])
                 self.assertIn(rule, await cs.applicable_rules(req))
+                req = ComplianceCheckRequest(text=text, brand_code="SOFTWARE", audiences=["GENERAL"])
+                self.assertNotIn(rule, await cs.applicable_rules(req))
 
     def test_no_army_mention_does_not_add_a_candidate(self):
         candidates, findings = [], []
@@ -111,7 +113,7 @@ class ArmyPipelineTests(unittest.IsolatedAsyncioTestCase):
                 ):
                     result = await cs.check_compliance(ComplianceCheckRequest(text=text, audiences=["DEFENSE"]))
                 ai.assert_awaited_once()
-                self.assertEqual(ai.await_args.args[0][0][1].context, text)
+                self.assertEqual(ai.await_args.args[0][0][1].context, cs.branding.without_branding(text))
                 finding = next(v for v in result.violations if v.rule_number == "Rule 4")
                 self.assertEqual(finding.penalty, expected_points)
                 self.assertEqual(finding.evaluation.model, "context-test-model")

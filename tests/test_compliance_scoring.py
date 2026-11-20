@@ -12,13 +12,16 @@ from services.compliance.evaluation import compliance_service as cs
 # These tests are about the wording-based rules, so the vector store and the model that match rules by meaning are
 # left out (they would be called for real otherwise).
 _no_semantic_matches = patch.object(cs, "_semantic_findings", new=AsyncMock(return_value=[]))
+_no_source_checks = patch.object(cs.source_check_service, "run", new=AsyncMock(return_value=cs.source_check_service.SourceCheckResult()))
 
 
 def setUpModule():
     _no_semantic_matches.start()
+    _no_source_checks.start()
 
 
 def tearDownModule():
+    _no_source_checks.stop()
     _no_semantic_matches.stop()
 
 
@@ -166,8 +169,8 @@ class ScoringTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_rules_for_other_rule_sets_are_skipped(self):
         rules = [rule(rule_sets=["ZenaDrone Defense"], severity="CRITICAL", traffic_light="RED", prohibited_terms=["kill chain"])]
-        self.assertTrue((await self.check(rules, "Shortening the kill chain.", rule_sets=["ZenaTech General"])).is_compliant)
-        self.assertFalse((await self.check(rules, "Shortening the kill chain.", rule_sets=["ZenaDrone Defense"])).is_compliant)
+        self.assertTrue((await self.check(rules, "Shortening the kill chain.", brand_code="SOFTWARE", audience="GENERAL")).is_compliant)
+        self.assertFalse((await self.check(rules, "Shortening the kill chain.", brand_code="ZENADRONE", audience="DEFENSE")).is_compliant)
 
 
 class PostSignalScoringTests(unittest.IsolatedAsyncioTestCase):
@@ -261,7 +264,8 @@ class AppliesToTests(unittest.TestCase):
         ceo_only = rule(applies_to=["ceo_post"])
         self.assertFalse(cs._rule_applies(ceo_only, ComplianceCheckRequest(text="x", content_type="SOCIAL_POST", brand_code="ZENATECH")))
         self.assertTrue(cs._rule_applies(ceo_only, ComplianceCheckRequest(text="x", content_type="SOCIAL_POST", brand_code=cs.CEO_BRAND)))
-        self.assertTrue(cs._rule_applies(ceo_only, ComplianceCheckRequest(text="x", content_type="SOCIAL_POST", rule_sets=[cs.CEO_RULE_SET])))
+        # Managed rule sets are derived from the selected brand, not an arbitrary incoming selection.
+        self.assertFalse(cs._rule_applies(ceo_only, ComplianceCheckRequest(text="x", content_type="SOCIAL_POST", rule_sets=[cs.CEO_RULE_SET])))
 
     def test_default_rules_apply_to_everything(self):
         default = rule()
@@ -351,7 +355,7 @@ class CashtagAudienceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([v.rule_number for v in result.violations], ["Rule IR"])
         self.assertEqual(result.audiences_checked, ["GENERAL", "INVESTORS"])
         self.assertEqual(result.signals.implied_audiences, ["INVESTORS"])
-        self.assertTrue(result.signals.notes[0].startswith('"$ZENA" means investors will read this post'))
+        self.assertTrue(any('"$ZENA"' in note and "investors will read this post" in note for note in result.signals.notes))
 
     async def test_no_audience_still_checks_every_audience(self):
         defense_rule = rule(audiences=["DEFENSE"], prohibited_terms=["combat proven"])

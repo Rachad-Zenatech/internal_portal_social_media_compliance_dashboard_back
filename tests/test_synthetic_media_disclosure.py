@@ -1,5 +1,4 @@
 import unittest
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from models.compliance.compliance_model import ComplianceCheckRequest
@@ -175,7 +174,7 @@ class RerunTests(unittest.IsolatedAsyncioTestCase):
              patch.object(cs, "rulebook_version", AsyncMock(return_value="test-rules")), \
              patch.object(cs, "_semantic_findings", AsyncMock(return_value=[stale_finding])), \
              patch.object(cs.context_evaluator, "evaluate", AsyncMock()), \
-             patch.object(cs.source_check_service, "run", AsyncMock(return_value=SimpleNamespace(ai_failed=False, checks=[]))):
+             patch.object(cs.source_check_service, "run", AsyncMock(return_value=cs.source_check_service.SourceCheckResult())):
             for _ in range(2):
                 result = await cs.check_compliance(req)
                 self.assertEqual(result.score, 100)
@@ -188,7 +187,7 @@ class RerunTests(unittest.IsolatedAsyncioTestCase):
              patch.object(cs, "rulebook_version", AsyncMock(return_value="test-rules")), \
              patch.object(cs, "_semantic_findings", AsyncMock(return_value=[])), \
              patch.object(cs.context_evaluator, "evaluate", AsyncMock()), \
-             patch.object(cs.source_check_service, "run", AsyncMock(return_value=SimpleNamespace(ai_failed=False, checks=[]))):
+             patch.object(cs.source_check_service, "run", AsyncMock(return_value=cs.source_check_service.SourceCheckResult())):
             for _ in range(2):
                 result = await cs.check_compliance(req)
                 finding, = [f for f in result.violations if f.rule_number == "Rule 9"]
@@ -238,7 +237,7 @@ class RealPhotoReruns(unittest.IsolatedAsyncioTestCase):
              patch.object(cs, "rulebook_version", AsyncMock(return_value="test-rules")), \
              patch.object(cs, "_semantic_findings", AsyncMock(return_value=[])), \
              patch.object(cs.context_evaluator, "evaluate", AsyncMock()), \
-             patch.object(cs.source_check_service, "run", AsyncMock(return_value=SimpleNamespace(ai_failed=False, checks=[]))):
+             patch.object(cs.source_check_service, "run", AsyncMock(return_value=cs.source_check_service.SourceCheckResult())):
             for _ in range(2):
                 result = await cs.check_compliance(req)
                 self.assertEqual([f for f in result.violations if f.rule_number == "Rule 9"], [])

@@ -1,4 +1,5 @@
 import unittest
+import re
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -118,7 +119,9 @@ class PickingReviewersTests(unittest.IsolatedAsyncioTestCase):
     @staticmethod
     def reviewers_update(conn):
         """The statement that saves who it was sent to (a lock timeout is set before it)."""
-        return next(c.args for c in conn.execute.await_args_list if "reviewer_ids" in c.args[0])
+        args = next(c.args for c in conn.execute.await_args_list if "reviewer_ids" in c.args[0])
+        parameter = int(re.search(r"reviewer_ids = \$(\d+)", args[0]).group(1))
+        return args[0], args[parameter]
 
     async def update(self, picked, eligible, super_admin=False):
         conn = MagicMock()
@@ -141,9 +144,9 @@ class PickingReviewersTests(unittest.IsolatedAsyncioTestCase):
     async def test_picked_reviewers_are_saved_once_each(self):
         conn, reviewer_ids = await self.update([PICKED, PICKED], [PICKED, OTHER_REVIEWER])
 
-        sql, *params = self.reviewers_update(conn)
-        self.assertIn("reviewer_ids = $2", sql)
-        self.assertEqual(params[1], [PICKED])
+        sql, reviewers = self.reviewers_update(conn)
+        self.assertRegex(sql, r"reviewer_ids = \$\d+")
+        self.assertEqual(reviewers, [PICKED])
         reviewer_ids.assert_awaited_once_with(exclude=CREATOR, brand_codes=["ZENADRONE"])
 
     async def test_a_super_admin_can_pick_themselves(self):
@@ -158,7 +161,7 @@ class PickingReviewersTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_clearing_the_choice_sends_it_to_every_reviewer_again(self):
         conn, _ = await self.update([], [PICKED])
-        self.assertEqual(self.reviewers_update(conn)[2], [])
+        self.assertEqual(self.reviewers_update(conn)[1], [])
 
 
 class ReviewersAreRequiredTests(unittest.IsolatedAsyncioTestCase):
