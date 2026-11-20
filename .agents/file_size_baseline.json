@@ -6,7 +6,7 @@
   },
   "files": {
     "models/compliance/submission_model.py": {
-      "max_lines": 627,
+      "max_lines": 626,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "postgresql_db/schemas/setup_compliance_schema.py": {
@@ -42,7 +42,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
-      "max_lines": 2900,
+      "max_lines": 2829,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/notifications/rabbitmq_service.py": {
@@ -76,15 +76,15 @@
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#list_submissions": {
-      "max_lines": 130,
+      "max_lines": 129,
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#submit_for_review": {
-      "max_lines": 146,
+      "max_lines": 145,
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#update_submission": {
-      "max_lines": 128,
+      "max_lines": 127,
       "kind": "py_function"
     },
     "services/notifications/rabbitmq_hub_status.py#HubStatusMixin._build_hub_live_status": {

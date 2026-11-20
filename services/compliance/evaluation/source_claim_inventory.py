@@ -8,11 +8,13 @@ from services.compliance.evaluation.image_marks import IMAGE_MARK
 from services.compliance.evaluation.source_image_claims import is_identifier
 from services.compliance.evaluation.citation_finder import is_reference_only
 
-VERSION = "claims-v1"
+VERSION = "claims-v2-combined-post"
 PROMPT = """Identify factual assertions in this post, without consulting any source.
 Return claims in the supplied JSON schema, with verdict UNCLEAR and confidence 0.
 Use exact excerpts of at most 400 characters for claim; preserve context and conditions.
 Set where to caption or image. Do not invent, paraphrase or complete assertions.
+Read the caption and all images together to resolve context, subjects and qualifiers.
+The numbered 'Text in image' markers identify locations; never include them in a claim.
 Skip headings, topic labels, standalone product names, branding, source credits,
 opinions, calls to action and general statements that make no verifiable assertion.
 Adjacent short labels alone do not establish a capability claim. Include a capability
@@ -58,9 +60,15 @@ async def extract(text, ask, models, limit):
                     raise ValueError("Claim identification returned wording absent from the post")
                 if is_identifier(claim) or is_reference_only(claim):
                     continue
-                if key not in seen:
-                    seen.add(key)
-                    claims.append({"claim": claim, "where": "image" if IMAGE_MARK.search(text) else "caption"})
+                locations = {"caption" if n == 0 else "image"
+                             for n, body in enumerate(IMAGE_MARK.split(text))
+                             if key in " ".join(body.split()).casefold()}
+                if not locations:
+                    raise ValueError("Claim spans separate post locations")
+                for where in ("caption", "image"):
+                    if where in locations and (key, where) not in seen:
+                        seen.add((key, where))
+                        claims.append({"claim": claim, "where": where})
             return claims[:limit]
         except Exception:
             continue

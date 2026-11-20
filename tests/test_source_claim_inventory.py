@@ -54,6 +54,22 @@ class ClaimInventoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, [{"claim": "Range is 30 km", "where": "image"}])
         self.assertNotIn("<source>", ask.call_args.args[1])
 
+    async def test_combined_context_preserves_caption_and_image_locations(self):
+        ask = AsyncMock(return_value=sc._Response(claims=[
+            sc._Result(claim="Range is 30 km", where="image", verdict="UNCLEAR"),
+            sc._Result(claim="Speed is 20 km/h", where="caption", verdict="UNCLEAR")]))
+        post = "Range is 30 km\nText in image 1: Speed is 20 km/h"
+        result = await inventory.extract(post, ask, ["model"], 12)
+        self.assertEqual(result, [{"claim": "Range is 30 km", "where": "caption"},
+                                  {"claim": "Speed is 20 km/h", "where": "image"}])
+        self.assertIn(post, ask.call_args.args[1])
+
+    async def test_repeated_caption_and_image_claim_keeps_both_locations(self):
+        ask = AsyncMock(return_value=sc._Response(claims=[
+            sc._Result(claim="Range is 30 km", verdict="UNCLEAR")]))
+        result = await inventory.extract("Range is 30 km\nText in image 1: Range is 30 km", ask, ["model"], 12)
+        self.assertEqual([r["where"] for r in result], ["caption", "image"])
+
     async def test_source_refresh_reuses_inventory_and_ignores_extra_claims(self):
         saved = [{"claim": "Range is 30 km", "where": "caption"}]
         ask = AsyncMock(return_value=sc._Response(claims=[

@@ -1,13 +1,8 @@
-"""Checking a post against more than one candidate source found for an image's citation.
+"""Find candidate sources while keeping each source's compliance verdict separate.
 
-The candidates are tried by reviewers' standing of their sites first (rated good, unrated, rated poor; see
-source_trust_service), then most authoritative first (official, then the company's own, then news). Up to MAX_SOURCES
-readable ones are compared with the post, and their answers are merged claim by claim into the first one's check:
-
-- a claim the first source doesn't back (NOT_FOUND or UNCLEAR) but another source does becomes SUPPORTED, with that
-  source's evidence and a note naming it;
-- a CONTRADICTED claim is never overruled; when another source backs it, the note says so, for a person to settle;
-- a claim only another source speaks to is added, with a note naming that source.
+Candidates are ordered by reviewer trust, then authority. The first readable check
+is the primary card; other readable sources retain their own results. The legacy
+merge helpers remain importable, but scanning no longer uses them to change verdicts.
 """
 
 import os
@@ -85,8 +80,7 @@ def merge_checks(primary: SourceCheck, others: Sequence[SourceCheck]) -> SourceC
 async def check_candidates(
     submission_id: UUID, urls: Sequence[str], user_id: UUID, image_text: Optional[str],
 ) -> Tuple[Optional[SourceCheck], List[SourceCheck]]:
-    """(the merged check, the readable checks it was built from), trying the candidates most authoritative first.
-    When none could be read, the merged check is the first attempt's (it says why) and the list is empty."""
+    """Return the primary source and individual readable checks, preserving source-specific verdicts."""
     from services.compliance.submissions import source_link_service
 
     from services.compliance.submissions.source_trust_service import rank_by_trust
@@ -97,10 +91,11 @@ async def check_candidates(
     for url in (await rank_by_trust(rank_by_authority(urls)))[:MAX_CANDIDATES]:
         check = await source_link_service.check_submission_source_link(submission_id, url, user_id, image_text=image_text)
         first = first or check
-        if check.status == "READ" and check.claims:
+        if check.status == "READ":
             read.append(check)
             if len(read) >= MAX_SOURCES:
                 break
     if not read:
         return first, []
-    return merge_checks(read[0], read[1:]), read
+    # Keep the saved card's verdict tied to its own source, as in full compliance.
+    return read[0], read

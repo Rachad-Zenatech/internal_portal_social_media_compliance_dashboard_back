@@ -1,4 +1,4 @@
-"""Compare each published part separately so caption claims cannot crowd out image claims."""
+"""Check the combined post, retaining caption and image context as the source panel does."""
 from .image_marks import IMAGE_MARK
 from . import citation_finder, branding
 
@@ -21,23 +21,9 @@ def unsourced_image_findings(text, checks):
 
 
 async def compare_parts(text, label, title, url, published, source_text, compare):
-    """Keep every part's findings and expose any part no model could compare."""
-    combined, models, seen = [], [], set()
-    completed, failed = False, False
-    for body, image in parts(text):
-        if not IMAGE_MARK.sub("", body).strip():
-            continue
-        claims, model = await compare(body, label, title, url, published, source_text)
-        if claims is None:
-            failed = True
-            continue
-        completed = True
-        if model and model not in models:
-            models.append(model)
-        for claim in claims:
-            where = "image" if image else "caption"
-            key = (" ".join(claim.claim.casefold().split()), where)
-            if key not in seen:
-                seen.add(key)
-                combined.append(claim.model_copy(update={"where": where}))
-    return combined if completed or not failed else None, ", ".join(models) or None, failed
+    """Compatibility entry point: identify and verify claims with the whole post in view."""
+    body = branding.without_branding(citation_finder.without_citation_text(text)).strip()
+    if not IMAGE_MARK.sub("", body).strip():
+        return [], None, False
+    claims, model = await compare(body, label, title, url, published, source_text)
+    return claims, model, claims is None

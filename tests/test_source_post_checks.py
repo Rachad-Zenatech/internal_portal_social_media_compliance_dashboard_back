@@ -19,45 +19,40 @@ class SourcePartChecks(unittest.IsolatedAsyncioTestCase):
         source = SourceCheck(reference="Product page", kind="URL", where="source_links", status="READ")
         self.assertEqual(coverage.unsourced_image_findings(post, [source]), [])
 
-    async def test_supported_caption_does_not_hide_unsupported_image_capabilities(self):
-        async def compare(post, *args):
-            if not post.startswith("Text in image"):
-                return [sc._Result(claim="Drones support rescue operations", verdict="SUPPORTED",
-                                   evidence="Drones support rescue operations", confidence=0.95)], "test-model"
-            return [sc._Result(claim=claim, verdict="NOT_FOUND", confidence=0.9)
-                    for claim in ("Supply Delivery", "Communications Support")], "test-model"
-        compare = AsyncMock(side_effect=compare)
-        result = await self.run_check("Drones support rescue operations.\nText in image 1: Supply Delivery\nCommunications Support", compare)
-        self.assertEqual(compare.await_count, 2)
-        claims = result.checks[0].claims
-        self.assertEqual([(c.claim, c.where) for c in claims], [
-            ("Drones support rescue operations", "caption"),
-            ("Supply Delivery", "image"), ("Communications Support", "image")])
-        self.assertEqual([v.flagged_terms for v in sc.findings(result.checks)],
-                         [["Supply Delivery"], ["Communications Support"]])
+    async def test_combined_result_keeps_caption_and_image_claims(self):
+        answers = [sc._Result(claim="Drones support rescue operations", verdict="SUPPORTED",
+                              evidence="Drones support rescue operations", confidence=0.95),
+                   sc._Result(claim="Supply Delivery", where="image", verdict="NOT_FOUND", confidence=0.9)]
+        compare = AsyncMock(return_value=(answers, "test-model"))
+        post = "Drones support rescue operations.\nText in image 1: Supply Delivery"
+        result = await self.run_check(post, compare)
+        compare.assert_awaited_once()
+        self.assertEqual(compare.call_args.args[0], post)
+        self.assertEqual([(c.claim, c.where) for c in result.checks[0].claims], [
+            ("Drones support rescue operations", "caption"), ("Supply Delivery", "image")])
         self.assertFalse(result.ai_failed)
 
-    async def test_each_carousel_image_gets_its_own_comparison(self):
+    async def test_carousel_images_and_caption_are_compared_together(self):
         compare = AsyncMock(return_value=([], "test-model"))
-        await self.run_check("Caption\nText in image 1: first\nText in image 2: second", compare)
-        self.assertEqual(compare.await_count, 3)
-        bodies = [call.args[0] for call in compare.await_args_list]
-        self.assertEqual(bodies, ["Caption", "Text in image 1: first", "Text in image 2: second"])
+        post = "Caption\nText in image 1: first\nText in image 2: second"
+        await self.run_check(post, compare)
+        compare.assert_awaited_once()
+        self.assertEqual(compare.call_args.args[0], post)
 
-    async def test_an_image_failure_does_not_look_like_a_complete_source_check(self):
-        compare = AsyncMock(side_effect=[([], "caption-model"), (None, None)])
+    async def test_combined_comparison_failure_is_reported(self):
+        compare = AsyncMock(return_value=(None, None))
         result = await self.run_check("Caption\nText in image 1: capability", compare)
         self.assertTrue(result.ai_failed)
-        self.assertIn("could not be compared", result.checks[0].message)
+        self.assertIn("No AI model", result.checks[0].message)
         self.assertNotIn("No claim", result.checks[0].message)
 
-    async def test_caption_edits_do_not_change_the_image_comparison_input(self):
+    async def test_caption_edits_update_the_combined_input(self):
         compare = AsyncMock(return_value=([], "test-model"))
         await self.run_check("First caption\nText in image 1: capability", compare)
         await self.run_check("Edited caption\nText in image 1: capability", compare)
         calls = compare.await_args_list
-        self.assertEqual(calls[1].args[0], calls[3].args[0])
-        self.assertNotEqual(calls[0].args[0], calls[2].args[0])
+        self.assertNotEqual(calls[0].args[0], calls[1].args[0])
+        self.assertIn("Text in image 1: capability", calls[1].args[0])
 
     async def test_removing_an_image_does_not_reuse_its_previous_findings(self):
         compare = AsyncMock(return_value=([], "test-model"))
@@ -67,7 +62,7 @@ class SourcePartChecks(unittest.IsolatedAsyncioTestCase):
 
     async def test_caption_and_image_occurrences_of_a_claim_are_kept_separate(self):
         claim = sc._Result(claim="One capability", verdict="NOT_FOUND", confidence=0.9)
-        compare = AsyncMock(return_value=([claim], "test-model"))
+        compare = AsyncMock(return_value=([claim, claim.model_copy(update={"where": "image"})], "test-model"))
         claims, model, failed = await coverage.compare_parts(
             "One capability\nText in image 1: One capability", "source", None, None, None, "source text", compare)
         self.assertEqual([c.where for c in claims], ["caption", "image"])

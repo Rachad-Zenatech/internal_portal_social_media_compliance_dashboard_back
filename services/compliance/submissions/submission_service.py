@@ -57,7 +57,7 @@ from models.compliance.submission_model import (
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.core.audit_service import log_audit_event
 from services.ai.observability import ai_observability, ai_usage_service
-from services.compliance.submissions import approval_path_service, source_link_service
+from services.compliance.submissions import approval_path_service, source_link_service, submission_check_material
 from services.notifications.submission_notifications import notify_submission as _notify
 from services.compliance.submissions import delegation_service
 from services.compliance.submissions.review_hierarchy_service import (
@@ -74,8 +74,6 @@ from services.compliance.submissions import analysis_progress_service
 from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness, image_provenance_service
 from services.compliance.submissions import submission_fields, media_read_status
 from services.compliance.evaluation import source_recheck
-from services.compliance.media import script_sources
-from services.compliance.media import document_layout
 from services.compliance.media import document_text_service
 from services.compliance.media import image_text_service, video_finding_service
 from services.compliance.submissions import review_memory_service, review_approval_service
@@ -1347,81 +1345,14 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     """The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video
     transcript and the text shown in the post's images (each once it's been read), against the rules scoped to this
     submission. Includes timeline flags and check coverage."""
-    video = await fetch_one(
-        "SELECT id, original_name, storage_path, mime_type, transcript, transcript_status, transcript_error FROM content_submission_files "
-        "WHERE submission_id = $1 AND kind = 'MAIN' AND deleted_at IS NULL AND mime_type LIKE 'video/%' ORDER BY created_at DESC LIMIT 1",
-        row["id"],
-    )
-    raw = video["transcript"] if video and video["transcript_status"] == "COMPLETED" else []
-    segments: List[Dict[str, Any]] = (json.loads(raw) if isinstance(raw, str) else raw) or []
-    spoken = " ".join(str(s.get("text", "")) for s in segments).strip()
-    visual_segments = await video_finding_service.visual_text_segments(video) if video and video["transcript_status"] == "FAILED" else []
-    visual_text = " ".join(str(s["text"]) for s in visual_segments).strip()
-    images = await fetch_all(
-        "SELECT id, original_name, storage_path, mime_type, image_text, image_text_status, image_text_error FROM content_submission_files "
-        "WHERE submission_id = $1 AND kind = ANY($2::text[]) AND deleted_at IS NULL AND mime_type LIKE 'image/%' "
-        "ORDER BY (kind <> 'MAIN'), created_at",
-        row["id"], list(image_text_service.IMAGE_KINDS),
-    )
-    await image_text_service.schedule_missing([i["id"] for i in images if i["image_text_status"] in (None, "PROCESSING")])
-    image_texts = [
-        f"Text in image {n}: {i['image_text']}"
-        for n, i in enumerate(images, start=1)
-        if i["image_text_status"] == "COMPLETED" and (i["image_text"] or "").strip()
-    ]
-    documents = await fetch_all(
-        """
-        SELECT id, kind, original_name, doc_text, doc_text_status, doc_text_error FROM content_submission_files
-        WHERE submission_id = $1 AND kind IN ('SCRIPT', 'MAIN') AND deleted_at IS NULL
-          AND lower(original_name) ~ '\\.(txt|md|docx|pdf|doc)$'
-        ORDER BY (kind <> 'SCRIPT'), created_at
-        """,
-        row["id"],
-    )
-    await document_text_service.schedule_missing([d["id"] for d in documents if d["doc_text_status"] in (None, "PROCESSING")])
-    script = await approved_script(row)
-    # Score the completed video transcript and use the script for citations and script comparison.
-    video_scored = bool(video and video["transcript_status"] == "COMPLETED")
-    source_script = script or "\n\n".join(
-        d["doc_text"] for d in documents
-        if d["kind"] == "SCRIPT" and d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
-    )
-    document_texts = [
-        f"Script:\n{script_sources.split(d['doc_text'])[0]}" if d["kind"] == "SCRIPT" else f"Article:\n{d['doc_text']}"
-        for d in documents
-        if d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
-        and not (d["kind"] == "SCRIPT" and (script or video_scored))
-    ]
-    if script and not video_scored:
-        document_texts.insert(0, "Script:\n" + script_sources.split(script)[0])
-    # Scripts and articles carry their page, heading and table marks; the check reads the wording only.
-    text = document_layout.plain_text("\n\n".join(p for p in source_link_service.with_source_links(row, [_check_text(row), *document_texts, spoken, visual_text, *image_texts]) if p)) or row["title"]
-    # Supporting documents are read in the background and included as evidence.
-    evidence = await fetch_all(
-        """
-        SELECT id, original_name, doc_text, doc_text_status FROM content_submission_files
-        WHERE submission_id = $1 AND kind = 'SUPPORTING' AND deleted_at IS NULL
-          AND lower(original_name) ~ '\\.(txt|md|docx|pdf)$'
-        ORDER BY created_at
-        """,
-        row["id"],
-    )
-    await document_text_service.schedule_missing([d["id"] for d in evidence if d["doc_text_status"] in (None, "PROCESSING")])
-    sources = [
-        ProvidedSource(name=d["original_name"], text=d["doc_text"])
-        for d in evidence if d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()
-    ]
-    # Only published material can satisfy a required disclaimer.
-    published = document_layout.plain_text("\n\n".join(p for p in [
-        *([row["caption_text"]] if row["caption_text"] else []), *_platform_captions(row).values(),
-        spoken, visual_text, *image_texts,
-        *[f"{d['doc_text']}" for d in documents
-          if d["kind"] != "SCRIPT" and d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip()],
-    ] if p and str(p).strip()))
+    material = await submission_check_material.load(row)
+    video, images, documents = material.video, material.images, material.documents
+    script, segments, visual_segments = material.script, material.segments, material.visual_segments
+    video_scored = material.video_scored
     result = await check_compliance(
-        check_request(row, text, has_video=bool(video), has_images=bool(images), sources=sources,
-                      disclaimer_text=published,
-                      source_script=source_script or None)
+        check_request(row, material.text, has_video=bool(video), has_images=bool(images), sources=material.sources,
+                      disclaimer_text=material.published,
+                      source_script=material.source_script or None)
     )
     all_video_segments = [*segments, *visual_segments]
     await video_finding_service.locate_media_findings(images, video, all_video_segments, result.violations)

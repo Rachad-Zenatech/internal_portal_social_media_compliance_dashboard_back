@@ -125,7 +125,7 @@ async def _extract_fallback_source(data: bytes, mime_type: str) -> List[ImageSou
 async def _check_supporting_document(submission_id: UUID, reference: str, post_material: str):
     """Check if an attached SUPPORTING document on the submission matches the cited named source."""
     from models.compliance.compliance_model import ProvidedSource, SourceCheck
-    from services.compliance.evaluation import source_check_service, source_passages
+    from services.compliance.evaluation import source_check_service
 
     rows = await fetch_all(
         """
@@ -141,23 +141,15 @@ async def _check_supporting_document(submission_id: UUID, reference: str, post_m
     match = next((d for d in docs if source_check_service._matches(reference, d)), None)
     if not match:
         return None
-    results, model = await source_check_service._compare(
-        post_material, match.name, match.name, None, None, match.text,
-    )
-    if results is None:
-        return None
-    claims = await source_passages.checked_claims(results, match.text)
-    return SourceCheck(
+    check = SourceCheck(
         reference=reference,
         kind="DOCUMENT",
         where="attached",
         cue="Supporting document",
         status="READ",
         title=match.name,
-        claims=claims,
-        model=model,
-        message=None if claims else "No claim in the post turned out to depend on this supporting document.",
     )
+    return await source_link_service.compare_with_source(check, post_material, match.name, match.text)
 
 
 async def _load_submission_image(
@@ -286,7 +278,8 @@ async def scan_image_and_check_source(
         return ImageSourceScanResponse(**reply, resolved_url=read[0].url, check=merged, source_checks=read)
 
     # No page could be read (bot walls, nothing found): an attached Supporting Document may be the source.
-    doc_check = await _check_supporting_document(submission_id, citations[0].reference, text)
+    material = await source_link_service.submission_material(submission_id, user_id)
+    doc_check = await _check_supporting_document(submission_id, citations[0].reference, material)
     if doc_check:
         return ImageSourceScanResponse(**reply, resolved_url=merged.url if merged else None, check=doc_check)
     if not candidate_urls:

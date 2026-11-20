@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_post_checks.py (44 lines) - Compare each published part separately so caption claims cannot crowd out image claims.
+## services/compliance/evaluation/source_post_checks.py (30 lines) - Check the combined post, retaining caption and image context as the source panel does.
 - `parts` (def) L6
 - `unsourced_image_findings` (def) L18 - Labels alone cannot establish a factual assertion requiring evidence.
-- `compare_parts` (def) L23 - Keep every part's findings and expose any part no model could compare.
+- `compare_parts` (def) L23 - Compatibility entry point: identify and verify claims with the whole post in view.

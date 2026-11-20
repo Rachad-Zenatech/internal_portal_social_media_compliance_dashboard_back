@@ -7,9 +7,10 @@ from uuid import uuid4
 
 from models.compliance.compliance_model import ComplianceCheckResponse
 from services.compliance.media import image_text_service
-from services.compliance.submissions import submission_service
+from services.compliance.submissions import submission_service, source_link_service
 
 SVC = "services.compliance.submissions.submission_service"
+MATERIAL = "services.compliance.submissions.submission_check_material"
 ITS = "services.compliance.media.image_text_service"
 
 
@@ -37,6 +38,7 @@ class RulebookCheckReadsImageTextTests(unittest.IsolatedAsyncioTestCase):
     async def run_check(self, images, video=None):
         check = AsyncMock(return_value=ComplianceCheckResponse(is_compliant=True, rules_checked=3))
         schedule_missing = AsyncMock()
+        row = submission_row()
 
         # The check reads the post's documents (script, article) and its images with separate queries; these
         # tests are about images, so the post has no documents.
@@ -44,13 +46,17 @@ class RulebookCheckReadsImageTextTests(unittest.IsolatedAsyncioTestCase):
             return [] if "doc_text" in sql else images
 
         with (
-            patch(f"{SVC}.fetch_one", new=AsyncMock(return_value=video)),
-            patch(f"{SVC}.fetch_all", new=fetch_all),
+            patch(f"{MATERIAL}.fetch_one", new=AsyncMock(return_value=video)),
+            patch(f"{MATERIAL}.fetch_all", new=fetch_all),
             patch(f"{SVC}.check_compliance", new=check),
             patch(f"{SVC}.image_text_service.schedule_missing", new=schedule_missing),
             patch(f"{SVC}.document_text_service.schedule_missing", new=AsyncMock()),
+            patch(f"{SVC}._get_owned_row", new=AsyncMock(return_value=row)),
         ):
-            _, stored = await submission_service._run_check(submission_row())
+            _, stored = await submission_service._run_check(row)
+            with patch(f"{ITS}.schedule_missing", new=AsyncMock()):
+                quick_material = await source_link_service.submission_material(row["id"], uuid4())
+        self.assertEqual(quick_material, check.await_args.args[0].text)
         return check.await_args.args[0].text, stored, schedule_missing
 
     async def test_text_in_images_is_checked_with_the_caption_in_order(self):

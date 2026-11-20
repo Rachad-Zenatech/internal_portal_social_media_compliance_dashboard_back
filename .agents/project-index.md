@@ -156,13 +156,13 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_browser_fetch.py (96 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
 - services/compliance/evaluation/source_check_service.py (488 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_claim_checks.py (128 lines) - Safeguards on the model's claim-by-claim answer for a source.
-- services/compliance/evaluation/source_claim_inventory.py (81 lines) - Persist source-independent claims; source refreshes never invalidate this inventory.
+- services/compliance/evaluation/source_claim_inventory.py (89 lines) - Persist source-independent claims; source refreshes never invalidate this inventory.
 - services/compliance/evaluation/source_fetch_service.py (348 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - services/compliance/evaluation/source_findings.py (37 lines) - Stable source-finding identities and construction, independent of source retrieval.
 - services/compliance/evaluation/source_identity.py (56 lines) - Identify repeated source URLs without conflating different reports from one publisher.
 - services/compliance/evaluation/source_image_claims.py (82 lines) - Keep short capability lists visible, and require evidence about the specific capability.
 - services/compliance/evaluation/source_passages.py (263 lines) - Passages of a source: what the model reads of a long source, and where in the source each claim really is.
-- services/compliance/evaluation/source_post_checks.py (44 lines) - Compare each published part separately so caption claims cannot crowd out image claims.
+- services/compliance/evaluation/source_post_checks.py (30 lines) - Check the combined post, retaining caption and image context as the source panel does.
 - services/compliance/evaluation/source_recheck.py (36 lines) - Refresh source comparisons on request and keep a record of resolved findings.
 - services/compliance/evaluation/source_settings.py (86 lines) - Settings for checking a post's sources, none of them fixed in code.
 - services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
@@ -199,9 +199,9 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
 - services/compliance/submissions/flag_review_service.py (456 lines) - Reviewers' calls on automated compliance flags.
 - services/compliance/submissions/image_provenance_service.py (81 lines) - Require an explicit Yes/No disclosure for attached post images.
-- services/compliance/submissions/image_source_checks.py (107 lines) - Checking a post against more than one candidate source found for an image's citation.
+- services/compliance/submissions/image_source_checks.py (102 lines) - Find candidate sources while keeping each source's compliance verdict separate.
 - services/compliance/submissions/image_source_search.py (185 lines) - Find a cited source on the web: Gemini Google Search grounding first, then search APIs (Serper or Google CSE) when configured, then the s...
-- services/compliance/submissions/image_source_service.py (390 lines) - Scan an image for source citations (URLs or named title + date references), locate the source on the web, and scrape/verify it.
+- services/compliance/submissions/image_source_service.py (383 lines) - Scan an image for source citations (URLs or named title + date references), locate the source on the web, and scrape/verify it.
 - services/compliance/submissions/manual_check_service.py (142 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
 - services/compliance/submissions/media_freshness.py (39 lines) - Check freshness follows media revisions, independently of post detail edits.
 - services/compliance/submissions/media_read_status.py (13 lines) - Unread media recorded in a submission's saved compliance check.
@@ -212,10 +212,11 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/review_hierarchy_service.py (40 lines) - Review access inherited by Content Managers through the saved role hierarchy.
 - services/compliance/submissions/review_memory_service.py (233 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.
-- services/compliance/submissions/source_link_service.py (192 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
+- services/compliance/submissions/source_link_service.py (165 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
 - services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
+- services/compliance/submissions/submission_check_material.py (104 lines) - The post material used by full compliance and every source comparison.
 - services/compliance/submissions/submission_fields.py (23 lines) - Field shaping for submission summaries and draft type changes.
-- services/compliance/submissions/submission_service.py (2899 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2830 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.

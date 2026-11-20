@@ -7,11 +7,10 @@ from uuid import UUID
 
 from fastapi import HTTPException
 
-from models.compliance.compliance_model import ProvidedSource, SourceCheck
-from postgresql_db.database import execute, fetch_all
+from models.compliance.compliance_model import SourceCheck
+from postgresql_db.database import execute
 from services.ai.observability.ai_guardrails import screen_input
-from services.compliance.evaluation import citation_finder, source_check_service, source_fetch_service, source_passages
-from services.compliance.media import document_layout
+from services.compliance.evaluation import citation_finder, source_check_service, source_fetch_service, source_passages, source_post_checks
 
 
 def normalize_source_url(raw: str) -> str:
@@ -77,13 +76,16 @@ async def check_single_url(url: str, post_text: str) -> SourceCheck:
 
 async def compare_with_source(check: SourceCheck, post_text: str, label: str, source_text: str) -> SourceCheck:
     """Fill in a read source's claims: the post's claims compared with the source's text, through the safeguards."""
-    results, model = await source_check_service._compare(post_text, label, check.title, check.url, check.published, source_text)
+    results, model, incomplete = await source_post_checks.compare_parts(
+        post_text, label, check.title, check.url, check.published, source_text, source_check_service._compare)
     if results is None:
         check.message = "No AI model could read this source just now, so it hasn't been compared."
         return check
     check.model = model
     check.claims = await source_passages.checked_claims(results, source_text)
-    if not check.claims:
+    if incomplete:
+        check.message = "Some caption or image claims could not be compared with this source. Check again to finish."
+    elif not check.claims:
         check.message = "No claim in the post turned out to depend on this source."
     return check
 
@@ -126,7 +128,7 @@ async def check_submission_source_link(
     submission_id: UUID, url: str, user_id: UUID, image_text: Optional[str] = None,
 ) -> SourceCheck:
     """Quickly fetch one source URL and check whether it supports the post's current material. `image_text` is the
-    text of an image just scanned (it may not be attached to the post yet)."""
+    accepted for scan-call compatibility; only saved post material is assessed."""
     clean_url = normalize_source_url(url)
     material = await submission_material(submission_id, user_id, image_text)
     check = await check_single_url(clean_url, material)
@@ -154,38 +156,9 @@ async def check_submission_pasted_source(
 
 
 async def submission_material(submission_id: UUID, user_id: UUID, image_text: Optional[str] = None) -> str:
-    """Everything the post says, as one text: caption, script, documents, transcript and text read from its images."""
-    from services.compliance.submissions import submission_service
+    """Use full compliance's material; scan OCR discovers sources but does not replace saved post text."""
+    from services.compliance.submissions import submission_service, submission_check_material
 
     row = await submission_service._get_owned_row(submission_id, user_id, manager_can_read=True)
-    docs = await fetch_all(
-        """
-        SELECT kind, original_name, doc_text, doc_text_status, image_text, image_text_status, transcript, transcript_status
-        FROM content_submission_files
-        WHERE submission_id = $1 AND deleted_at IS NULL
-        ORDER BY created_at
-        """,
-        row["id"],
-    )
-    parts: List[str] = [submission_service._check_text(row)]
-    sources: List[ProvidedSource] = []
-    script = await submission_service.approved_script(row)
-    if script:
-        parts.append(f"Script:\n{script}")
-    for d in docs:
-        if d["kind"] in ("SCRIPT", "MAIN") and d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip():
-            if not (script and d["kind"] == "SCRIPT"):
-                parts.append(d["doc_text"])
-        elif d["kind"] == "MAIN" and d["transcript_status"] == "COMPLETED" and d["transcript"]:
-            raw_seg = d["transcript"]
-            segs = (json.loads(raw_seg) if isinstance(raw_seg, str) else raw_seg) or []
-            spoken = " ".join(str(s.get("text", "")) for s in segs).strip()
-            if spoken:
-                parts.append(spoken)
-        elif d["image_text_status"] == "COMPLETED" and (d["image_text"] or "").strip():
-            parts.append(d["image_text"])
-        elif d["kind"] == "SUPPORTING" and d["doc_text_status"] == "COMPLETED" and (d["doc_text"] or "").strip():
-            sources.append(ProvidedSource(name=d["original_name"], text=d["doc_text"]))
-    if image_text and image_text.strip() and image_text.strip() not in parts:
-        parts.append(f"Text in image:\n{image_text.strip()}")
-    return document_layout.plain_text("\n\n".join(p for p in parts if p and p.strip())) or row["title"]
+    material = await submission_check_material.load(row)
+    return material.text

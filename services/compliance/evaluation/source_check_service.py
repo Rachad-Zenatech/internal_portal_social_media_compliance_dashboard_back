@@ -57,7 +57,7 @@ from services.compliance.evaluation import source_identity
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v11-fixed-claim-inventory"
+PROMPT_VERSION = "source-v12-combined-post-inventory"
 VERSION = f"sources-2|{citation_finder.VERSION}|{PROMPT_VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 MODELS = without_retired([m.strip() for m in os.getenv(
