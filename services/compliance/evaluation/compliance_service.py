@@ -38,7 +38,7 @@ from models.compliance.submission_model import AUDIENCES, PLATFORMS, REGIONS, RU
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
-from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer, army_context_review
+from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer, army_context_review, branding
 from services.compliance.evaluation import context_evaluator
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
@@ -69,7 +69,7 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-18-army-context"
+SCOPE_VERSION = "scope-19-branding-exclusions"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
@@ -1229,6 +1229,7 @@ def plain_text_lines(text: str) -> List[str]:
 
 async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckResponse:
     """Screen content with scoped rules, contextual judgments, source checks and review penalties."""
+    req = req.model_copy(update={"text": branding.without_branding(req.text)})
     # Cashtags, hashtags, mentions and links, read before normalizing strips their symbols, and before the rules are
     # picked: a cashtag brings in the investor rules. CamelCase hashtags are added as words ("#CombatProven" ->
     # "combat proven") so phrase rules see them.
@@ -1325,6 +1326,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # The check is incomplete when a context rule couldn't be read, or the meaning check couldn't run at all.
     ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations)
     synthetic_media_disclosure.ensure_review(match_req, rules, violations)
+    violations[:] = [v for v in violations if not (v.flagged_terms and all(branding.is_branding(t) for t in v.flagged_terms))]
     breaches = [v for v in violations if v.status == "VIOLATION"]
     _count_overlaps_once(breaches, padded_text)
     _count_extra_claims(breaches, rules, padded_text)

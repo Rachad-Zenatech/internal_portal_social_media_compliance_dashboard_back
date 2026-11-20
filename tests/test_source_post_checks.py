@@ -15,10 +15,7 @@ class SourcePartChecks(unittest.IsolatedAsyncioTestCase):
     def test_image_capability_list_needs_evidence_without_a_source(self):
         post = "test\nText in image 1: ZENODRONE\nSupply Delivery\nCommunications Support"
         findings = coverage.unsourced_image_findings(post, [])
-        self.assertEqual([(f.rule_number, f.status, f.flagged_terms) for f in findings], [
-            ("Rule 18", "EVIDENCE_REQUIRED", ["Supply Delivery"]),
-            ("Rule 18", "EVIDENCE_REQUIRED", ["Communications Support"]),
-        ])
+        self.assertEqual(findings, [])
         source = SourceCheck(reference="Product page", kind="URL", where="source_links", status="READ")
         self.assertEqual(coverage.unsourced_image_findings(post, [source]), [])
 
@@ -81,26 +78,13 @@ class SourcePartChecks(unittest.IsolatedAsyncioTestCase):
 class StableImageCoverage(unittest.IsolatedAsyncioTestCase):
     LABELS = ["Search & Tracking", "Supply Delivery", "Communications Support", "Rescue Support", "Emergency Response"]
 
-    async def test_omitted_list_items_remain_visible_across_different_model_answers(self):
+    async def test_adjacent_labels_do_not_force_additional_claims(self):
         body = "Text in image 1:\n" + "\n".join(self.LABELS)
-        for chosen in (self.LABELS[:3], self.LABELS[3:], []):
-            answers = [sc._Result(claim=claim, where="image", verdict="NOT_FOUND", confidence=0.9) for claim in chosen]
-            compare = AsyncMock(side_effect=[(answers, "first-model"), ([], "fallback-model")])
-            with self.subTest(chosen=chosen):
-                claims, _, failed = await coverage.compare_parts(body, "source", None, None, None, "product page", compare)
-                self.assertEqual({c.claim for c in claims}, set(self.LABELS))
-                self.assertFalse(failed)
-                for claim in claims:
-                    if claim.claim not in chosen:
-                        self.assertEqual((claim.verdict, claim.confidence), ("UNCLEAR", 0))
-
-    async def test_each_missing_capability_is_requested_explicitly(self):
-        body = "Text in image 1:\n" + "\n".join(self.LABELS)
-        compare = AsyncMock(side_effect=[([], "first"), ([], "second")])
-        await coverage.compare_parts(body, "source", None, None, None, "source", compare)
-        targeted = compare.await_args_list[1].args[0]
-        for claim in self.LABELS:
-            self.assertIn("- " + claim, targeted)
+        compare = AsyncMock(return_value=([], "model"))
+        claims, _, failed = await coverage.compare_parts(body, "source", None, None, None, "source", compare)
+        self.assertEqual(claims, [])
+        compare.assert_awaited_once()
+        self.assertFalse(failed)
 
     def test_body_copy_and_logos_do_not_become_capability_list_items(self):
         from services.compliance.evaluation import source_image_claims as image
@@ -127,16 +111,6 @@ class StableImageCoverage(unittest.IsolatedAsyncioTestCase):
                            evidence="The aircraft can deliver supplies", confidence=0.95)
         checked = sc._to_claims([claim], "The aircraft can deliver supplies.")[0]
         self.assertEqual(checked.verdict, "SUPPORTED")
-
-    async def test_compound_claim_cannot_hide_an_unsupported_capability(self):
-        claim = sc._Result(claim="Drones offer supply delivery and communications support", where="image",
-                           verdict="SUPPORTED", evidence="Drones support rescue operations", confidence=0.95)
-        compare = AsyncMock(return_value=([claim], "model"))
-        claims, _, _ = await coverage.compare_parts(
-            "Text in image 1:\nSupply Delivery\nCommunications Support", "source", None, None, None,
-            "Drones support rescue operations", compare)
-        self.assertEqual(claims[0].verdict, "UNCLEAR")
-
 
     def test_lowercase_capability_lists_are_kept(self):
         from services.compliance.evaluation import source_image_claims as image

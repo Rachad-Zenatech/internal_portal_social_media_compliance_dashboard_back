@@ -56,6 +56,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
 - postgresql_db/schemas/setup_script_docs_schema.py (148 lines) - Script documents: scripts written in the platform from a template (not attached to a post), reviewed together by several reviewers at onc...
 - postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
+- postgresql_db/schemas/setup_source_claim_inventory_schema.py (14 lines) - Durable claim identification shared by workers and repeated source checks.
 - postgresql_db/schemas/setup_source_links_schema.py (14 lines) - Schema helper for submission source_links column.
 - postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
 - postgresql_db/schemas/setup_submissions_schema.py (295 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
@@ -114,10 +115,11 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/analytics/zenatech_financial_scrape.py (249 lines) - Financial & company public-sentiment scraping definitions for ZenaTech (NASDAQ: ZENA).
 - services/compliance/evaluation/army_context_review.py (38 lines) - Route Army mentions to Rule 4's AI review without treating a mention as a breach.
 - services/compliance/evaluation/brand_voice_service.py (708 lines) - Brand voice per brand, read from its brand manual.
+- services/compliance/evaluation/branding.py (37 lines) - Company names and the company's exchange/ticker label are identification, not claims.
 - services/compliance/evaluation/citation_finder.py (242 lines) - Citation finder: what a post says it got its claims from.
 - services/compliance/evaluation/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
 - services/compliance/evaluation/compliance_check_result.py (117 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
-- services/compliance/evaluation/compliance_service.py (1558 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+- services/compliance/evaluation/compliance_service.py (1560 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - services/compliance/evaluation/context_evaluator.py (402 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/evaluation/context_service.py (226 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/evaluation/defense_disclaimer.py (27 lines) - Military names and citations alone do not establish use of government visual material.
@@ -152,14 +154,15 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/shared_script_service.py (191 lines) - Shared documents for script pages.
 - services/compliance/evaluation/shared_script_sync.py (165 lines) - Keeping this portal in step with the Share Document server's script reviews.
 - services/compliance/evaluation/source_browser_fetch.py (96 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
-- services/compliance/evaluation/source_check_service.py (478 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+- services/compliance/evaluation/source_check_service.py (488 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_claim_checks.py (128 lines) - Safeguards on the model's claim-by-claim answer for a source.
+- services/compliance/evaluation/source_claim_inventory.py (81 lines) - Persist source-independent claims; source refreshes never invalidate this inventory.
 - services/compliance/evaluation/source_fetch_service.py (348 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - services/compliance/evaluation/source_findings.py (37 lines) - Stable source-finding identities and construction, independent of source retrieval.
 - services/compliance/evaluation/source_identity.py (56 lines) - Identify repeated source URLs without conflating different reports from one publisher.
-- services/compliance/evaluation/source_image_claims.py (81 lines) - Keep short capability lists visible, and require evidence about the specific capability.
+- services/compliance/evaluation/source_image_claims.py (82 lines) - Keep short capability lists visible, and require evidence about the specific capability.
 - services/compliance/evaluation/source_passages.py (263 lines) - Passages of a source: what the model reads of a long source, and where in the source each claim really is.
-- services/compliance/evaluation/source_post_checks.py (88 lines) - Compare each published part separately so caption claims cannot crowd out image claims.
+- services/compliance/evaluation/source_post_checks.py (44 lines) - Compare each published part separately so caption claims cannot crowd out image claims.
 - services/compliance/evaluation/source_recheck.py (36 lines) - Refresh source comparisons on request and keep a record of resolved findings.
 - services/compliance/evaluation/source_settings.py (86 lines) - Settings for checking a post's sources, none of them fixed in code.
 - services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
@@ -248,7 +251,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/core/lifecycle_background_service.py (61 lines) - Background work registered during the API application's lifespan.
 - services/shared/core/logging_service.py (124 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
 - services/shared/core/production_url_policy.py (29 lines) - Validation for browser-facing URLs supplied by deployment configuration.
-- services/shared/core/startup_service.py (71 lines) - Server startup helpers for schema updates and tracked background tasks.
+- services/shared/core/startup_service.py (72 lines) - Server startup helpers for schema updates and tracked background tasks.
 - services/shared/storage/s3_storage_service.py (166 lines) - AWS S3 storage helper (ported from administration backend) with local-cache hydration.
 - tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
 - tools/ai/chat_router.py (64 lines) - Streaming AI chat endpoint.

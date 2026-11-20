@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 # The schema setups run at startup (in this order), and what a failure of each is called in the log.
 SCHEMA_SETUPS = [
+    ("setup_source_claim_inventory_schema", "Source claim inventory schema setup"),
     ("setup_pbac_schema", "Schema verification note"),
     ("setup_social_media_schema", "Social media schema setup note"),
     ("setup_compliance_schema", "Compliance schema setup note"),

@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/compliance_service.py (1558 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/evaluation/compliance_service.py (1560 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def) L79
 - `_ai_switched_off` (def) L94 - The AI meaning check was turned off on purpose (not a failure).
 - `_ai_viability_enabled` (def) L99
@@ -50,16 +50,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_passage` (def) L1208 - The sentence a finding's wording sits in, and the sentences around it, for judging it in context.
 - `plain_text_lines` (def) L1226
 - `check_compliance` (def) L1230 - Screen content with scoped rules, contextual judgments, source checks and review penalties.
-- `flagged_tags` (def) L1340 - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
-- `_count_overlaps_once` (def) L1356 - When two rules flag the very same words (e.g.
-    - `spans` (def) L1359
-- `_charge_unsupported_claims` (def) L1376 - Give each claim that needs a source its small penalty.
-    - `claim` (def) L1382
-- `review_penalty` (def) L1407 - What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE).
-- `_charge_review_findings` (def) L1419 - Give each finding a person has to check its points by the model's confidence.
-- `_count_extra_claims` (def) L1438 - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
-- `rulebook_version` (def) L1464 - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
-- `_examples` (def) L1485 - (example, quoted) pairs from a rule's example text.
-- `self_test` (def) L1499 - Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable
-- `self_test_all` (def) L1530
-- `get_compliance_stats` (def) L1534 - Retrieve aggregate compliance metrics.
+- `flagged_tags` (def) L1342 - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
+- `_count_overlaps_once` (def) L1358 - When two rules flag the very same words (e.g.
+    - `spans` (def) L1361
+- `_charge_unsupported_claims` (def) L1378 - Give each claim that needs a source its small penalty.
+    - `claim` (def) L1384
+- `review_penalty` (def) L1409 - What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE).
+- `_charge_review_findings` (def) L1421 - Give each finding a person has to check its points by the model's confidence.
+- `_count_extra_claims` (def) L1440 - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
+- `rulebook_version` (def) L1466 - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
+- `_examples` (def) L1487 - (example, quoted) pairs from a rule's example text.
+- `self_test` (def) L1501 - Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable
+- `self_test_all` (def) L1532
+- `get_compliance_stats` (def) L1536 - Retrieve aggregate compliance metrics.
