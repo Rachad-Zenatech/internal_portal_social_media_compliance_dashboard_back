@@ -473,7 +473,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         context_picks=_context_picks(row), ai_generated_images=row.get("ai_generated_images", False),
         ai_generated_images_confirmed=image_provenance_service.is_confirmed(row),
         people_in_images=row.get("people_in_images", False), people_in_images_confirmed=bool(row.get("people_in_images_confirmed")),
-        people_in_images_detected=row.get("people_in_images_detected"), employee_in_images=row.get("employee_in_images", False), employee_in_images_confirmed=bool(row.get("employee_in_images_confirmed")),
+        people_in_images_detected=row.get("people_in_images_detected"), employee_in_images=row.get("employee_in_images", False), employee_in_images_confirmed=bool(row.get("employee_in_images_confirmed")), face_employee_flags=_json(row.get("face_employee_flags")) or {},
         platform_captions=_platform_captions(row),
         rule_sets=list(row["rule_sets"] or []),
         source_links=list(row.get("source_links") or []), source_link_checks=_json(row.get("source_link_checks")) or {},

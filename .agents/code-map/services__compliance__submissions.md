@@ -99,12 +99,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `open_critical_counts` (def) L422 - Per submission: critical (red) flags on its current version that nobody has dismissed.
 - `rule_stats` (def) L427 - How often each rule flagged a submitted version, and how often reviewers dismissed it.
 
-## services/compliance/submissions/image_provenance_service.py (73 lines) - Require an explicit Yes/No disclosure for attached post images.
-- `is_confirmed` (def) L13
-- `missing` (def) L19
-- `update_fields` (def) L23
-- `retry_image_read` (def) L42 - Queue an image's OCR and anonymous face read again, including a stalled attempt.
-- `schedule_missing_images` (def) L61 - Queue face/text reads for attached images that haven't completed face detection yet.
+## services/compliance/submissions/image_provenance_service.py (81 lines) - Require an explicit Yes/No disclosure for attached post images.
+- `is_confirmed` (def) L14
+- `missing` (def) L20
+- `update_fields` (def) L24
+- `retry_image_read` (def) L50 - Queue an image's OCR and anonymous face read again, including a stalled attempt.
+- `schedule_missing_images` (def) L69 - Queue face/text reads for attached images that haven't completed face detection yet.
 
 ## services/compliance/submissions/image_source_checks.py (107 lines) - Checking a post against more than one candidate source found for an image's citation.
 - `rank_by_authority` (def) L28 - The candidates without repeats, most authoritative first; the search's own order within each kind.

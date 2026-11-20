@@ -1,5 +1,6 @@
 """Require an explicit Yes/No disclosure for attached post images."""
 from datetime import datetime, timezone
+import json
 from uuid import UUID
 from fastapi import HTTPException
 from models.compliance.submission_model import SubmissionFile
@@ -36,6 +37,13 @@ def update_fields(row, payload):
     if employee_answer is not None:
         fields["employee_in_images"] = employee_answer
         fields["employee_in_images_confirmed"] = True
+    face_flags = payload.get("face_employee_flags")
+    if isinstance(face_flags, dict):
+        clean_flags = {str(k): bool(v) for k, v in face_flags.items()}
+        fields["face_employee_flags"] = json.dumps(clean_flags)
+        if employee_answer is None and clean_flags:
+            fields["employee_in_images"] = any(clean_flags.values())
+            fields["employee_in_images_confirmed"] = True
     return fields
 
 
