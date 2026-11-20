@@ -450,11 +450,10 @@ async def _clean_context_picks(picks: Dict[str, List[UUID]]) -> Dict[str, List[s
 
 async def _to_submission(row: Dict[str, Any]) -> Submission:
     files = await _list_files(row["id"])
+    await image_provenance_service.schedule_missing_images(files)
     return Submission(
-        id=row["id"],
-        reference_code=row["reference_code"],
-        title=row["title"],
-        content_type=row["content_type"],
+        id=row["id"], reference_code=row["reference_code"],
+        title=row["title"], content_type=row["content_type"],
         brand_code=row["brand_code"],
         brand_codes=brands_of(row),
         audience=row["audience"],

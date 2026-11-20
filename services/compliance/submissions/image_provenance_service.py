@@ -56,3 +56,17 @@ async def retry_image_read(submission_id: UUID, file_id: UUID, user_id: UUID) ->
         raise HTTPException(status_code=404, detail="Image file not found")
     image_text_service.schedule([file_id])
     return submission_service._file_out(submission_id, f)
+
+
+async def schedule_missing_images(files) -> None:
+    """Queue face/text reads for attached images that haven't completed face detection yet."""
+    from services.compliance.media import image_text_service
+
+    due = [
+        f["id"] for f in files
+        if image_text_service.is_image_file(f.get("kind", ""), f.get("mime_type") or "")
+        and (f.get("image_text_status") in (None, "PROCESSING")
+             or (f.get("image_text_status") == "COMPLETED" and (f.get("face_detection_version") or 0) < 1))
+    ]
+    if due:
+        await image_text_service.schedule_missing(due)
