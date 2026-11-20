@@ -61,6 +61,11 @@ def check_notes(req, scope, signals, implied_by, readers_by_audience) -> List[st
 
 def build_response(scope, rules, violations, breaches, unsupported, to_check, signals,
                    ai_unavailable, notes, source_checks, version) -> ComplianceCheckResponse:
+    # An unavailable check has no confidence estimate; keep it visible for manual review.
+    violations = [v for v in violations if not (
+        v.status == "NEEDS_REVIEW" and v.evaluation is not None
+        and v.evaluation.source != "UNAVAILABLE" and v.evaluation.confidence < 0.5
+    )]
     blocked = any(v.traffic_light == "RED" for v in breaches)
     needs_review = sum(1 for v in violations if v.status == "NEEDS_REVIEW")
     needs_evidence = sum(1 for v in violations if v.status == "EVIDENCE_REQUIRED")

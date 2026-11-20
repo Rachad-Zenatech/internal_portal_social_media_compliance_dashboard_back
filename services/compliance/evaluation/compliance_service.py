@@ -68,7 +68,7 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-15"
+SCOPE_VERSION = "scope-16"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
@@ -1226,10 +1226,7 @@ def plain_text_lines(text: str) -> List[str]:
 
 
 async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckResponse:
-    """Screen text against the active rules that apply to this content's rule sets, brand,
-    audience, region and platforms. A rule judged in context has its matches read by the contextual evaluator; rules the
-    wording missed but the vector store matches by meaning are added as things to check. Only violations take their
-    penalty off 100; any critical violation blocks publication and caps the score."""
+    """Screen content with scoped rules, contextual judgments, source checks and review penalties."""
     # Cashtags, hashtags, mentions and links, read before normalizing strips their symbols, and before the rules are
     # picked: a cashtag brings in the investor rules. CamelCase hashtags are added as words ("#CombatProven" ->
     # "combat proven") so phrase rules see them.

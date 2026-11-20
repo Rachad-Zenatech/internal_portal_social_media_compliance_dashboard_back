@@ -139,15 +139,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `result` (def) L70
 - `sanitize_caption_html` (def) L77 - The caption HTML with only safe formatting left.
 
-## services/compliance/media/image_finding_service.py (222 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
-- `normalized` (def) L31
-- `text_spans` (def) L35 - Whole-word occurrences in normalized OCR text, including text that wraps over lines.
-- `overlaps_flagged_text` (def) L43 - A returned line may include context on either side of the flagged words.
-- `region_from_box` (def) L50 - Reject off-image/empty coordinates; Gemini uses [top, left, bottom, right].
-- `_tesseract_binary` (def) L64 - Resolve the local OCR binary that can read the current runtime's temporary files.
-- `_ocr_word_boxes` (def) L79 - Return Tesseract word boxes in Gemini's 0--1000 coordinate system when available.
-- `_ocr_regions` (def) L115 - Find flagged phrases in OCR words and return one tight region per affected text line.
-- `locate_image_findings` (def) L142 - Locate flagged wording, including warnings that still need evidence.
+## services/compliance/media/image_finding_service.py (226 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+- `normalized` (def) L32
+- `text_spans` (def) L36 - Whole-word occurrences in normalized OCR text, including text that wraps over lines.
+- `overlaps_flagged_text` (def) L44 - A returned line may include context on either side of the flagged words.
+- `region_from_box` (def) L52 - Reject off-image/empty coordinates; Gemini uses [top, left, bottom, right].
+- `_tesseract_binary` (def) L66 - Resolve the local OCR binary that can read the current runtime's temporary files.
+- `_ocr_word_boxes` (def) L81 - Return Tesseract word boxes in Gemini's 0--1000 coordinate system when available.
+- `_ocr_regions` (def) L117 - Find flagged phrases in OCR words and return one tight region per affected text line.
+- `locate_image_findings` (def) L143 - Locate flagged wording, including warnings that still need evidence.
 
 ## services/compliance/media/image_text_service.py (242 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def) L65
@@ -184,14 +184,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `schedule` (def) L204 - Start background transcription for each video not already being transcribed by this process.
 - `schedule_missing` (def) L215 - Queue videos that were never transcribed, or whose previous attempt was abandoned.
 
-## services/compliance/media/video_finding_service.py (115 lines) - Locate exact flagged wording in video frames without inventing a visual region.
-- `_ffmpeg_binary` (def) L19 - Use the configured Windows executable from WSL when development mounts the drive.
-- `_ffmpeg_input_path` (def) L27 - Pass a Windows path to a Windows FFmpeg executable launched from WSL.
-- `_frame_bytes` (def) L35 - Read one PNG video frame to memory without creating temporary media files.
-- `_seconds` (def) L53
-- `locate_video_findings` (def) L61 - Attach tight OCR boxes to matching transcript moments in a video.
-- `visual_text_segments` (def) L93 - Read on-screen words from short videos when their audio transcript is unavailable.
-- `locate_media_findings` (def) L111 - Keep image and video localization beside the media-specific implementations.
+## services/compliance/media/video_finding_service.py (116 lines) - Locate exact flagged wording in video frames without inventing a visual region.
+- `_ffmpeg_binary` (def) L20 - Use the configured Windows executable from WSL when development mounts the drive.
+- `_ffmpeg_input_path` (def) L28 - Pass a Windows path to a Windows FFmpeg executable launched from WSL.
+- `_frame_bytes` (def) L36 - Read one PNG video frame to memory without creating temporary media files.
+- `_seconds` (def) L54
+- `locate_video_findings` (def) L62 - Attach tight OCR boxes to matching transcript moments in a video.
+- `visual_text_segments` (def) L94 - Read on-screen words from short videos when their audio transcript is unavailable.
+- `locate_media_findings` (def) L112 - Keep image and video localization beside the media-specific implementations.
 
 ## services/compliance/media/video_job_service.py (190 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
 - `create_video_job` (def) L57 - Initialize a new video processing background job.

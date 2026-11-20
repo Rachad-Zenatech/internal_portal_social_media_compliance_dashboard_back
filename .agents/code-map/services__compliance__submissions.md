@@ -31,9 +31,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_load_rules` (def) L178
 - `is_ceo_content` (def) L194 - Shaun's own thought leadership: posted through his account or checked against his rule set.
 
-## services/compliance/submissions/creator_dismissal_service.py (25 lines) - Creator dismissal requests that must follow a submission into review.
+## services/compliance/submissions/creator_dismissal_service.py (66 lines) - Creator dismissal requests that must follow a submission into review.
 - `carry_pending_requests` (def) L9 - Move draft requests to the review version created when the post is sent.
 - `repair_pending_review_requests` (def) L21 - Repair requests created before draft requests were carried into review.
+- `pending_send_score` (def) L27 - Potential routing score; no request changes the actual score or approves a flag.
+- `send_score` (def) L52 - Only this creator's pending requests on the current version can unlock review routing.
 
 ## services/compliance/submissions/delegation_service.py (214 lines) - Review delegation: a reviewer hands a post in review to someone else.
 - `extend` (def) L18 - Named final approvers plus whoever they delegated the post to (and on down the chain).
@@ -136,7 +138,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_active_scan_jobs` (def) L366 - Return any in-progress background image source scan jobs for this submission.
 - `get_scan_job` (def) L378 - Return the current status and result of a background image source scan job.
 
-## services/compliance/submissions/manual_check_service.py (133 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
+## services/compliance/submissions/manual_check_service.py (134 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
 - `saved_check` (def) L10
 - `allow_scriptless_video_compliance` (def) L15 - Permit local video fixtures to check their uploaded media without a script.
 - `timestamp` (def) L23
@@ -144,10 +146,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `may_finish_check` (def) L47
 - `require_current_check` (def) L52
 - `require_send_score` (def) L62
-- `analysis_details_missing` (def) L71
-- `readable_script` (def) L84
-- `require_sentiment_ready` (def) L94 - Video sentiment starts only after a real video is attached; scripts do not require it.
-- `require_compliance_ready` (def) L108 - Check the script while no actual video exists, including after script approval.
+- `analysis_details_missing` (def) L72
+- `readable_script` (def) L85
+- `require_sentiment_ready` (def) L95 - Video sentiment starts only after a real video is attached; scripts do not require it.
+- `require_compliance_ready` (def) L109 - Check the script while no actual video exists, including after script approval.
 
 ## services/compliance/submissions/media_freshness.py (39 lines) - Check freshness follows media revisions, independently of post detail edits.
 - `is_current` (def) L12
