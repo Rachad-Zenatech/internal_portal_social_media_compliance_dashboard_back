@@ -168,13 +168,13 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/caption_service.py (338 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
 - services/compliance/media/document_layout.py (433 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
 - services/compliance/media/document_text_service.py (245 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
-- services/compliance/media/face_detection_service.py (57 lines) - Local CPU face detection using OpenCV YuNet, returning anonymous [top, left, bottom, right] 0..1000 boxes.
+- services/compliance/media/face_detection_service.py (60 lines) - Local CPU face detection using OpenCV YuNet, returning anonymous [top, left, bottom, right] 0..1000 boxes.
 - services/compliance/media/file_mime_policy.py (60 lines) - Server-side MIME type and Content-Disposition policy for user-uploaded files.
 - services/compliance/media/hashtag_library.py (145 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - services/compliance/media/html_layout.py (123 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
 - services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
 - services/compliance/media/image_finding_service.py (226 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
-- services/compliance/media/image_text_service.py (249 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+- services/compliance/media/image_text_service.py (268 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - services/compliance/media/script_sources.py (48 lines) - Read optional sources from a script template without adding them to its spoken text.
 - services/compliance/media/transcription_service.py (258 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.

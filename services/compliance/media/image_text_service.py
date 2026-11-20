@@ -57,9 +57,9 @@ with text in the photo after the design's own text. Do not describe the image, t
 anything. Skip only text that is too blurred to read. If there is no readable text, return an empty string. Also say whether
 one or more real people are visibly present (a face, body, or person shown in a photo or illustration); do not identify anyone.
 For every visible face, return a tight square around the face only (chin to forehead, ear to ear — do not include the body or shoulders) as [top, left, bottom, right] in a 0-to-1000 coordinate grid. Do not
-name people or infer anything about them. Return an empty faces list when no face is visible."""
+name people or infer anything about them. Return an empty faces list when no face is visible. Also set ai_generated to true if the image (or people in it) appears AI-generated, CGI, or synthetic rather than a real photograph."""
 
-RESPONSE_SCHEMA = {"type": "OBJECT", "properties": {"text": {"type": "STRING"}, "person_detected": {"type": "BOOLEAN"}, "faces": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {"box": {"type": "ARRAY", "items": {"type": "INTEGER"}, "minItems": 4, "maxItems": 4}}, "required": ["box"]}}}, "required": ["text", "person_detected", "faces"]}
+RESPONSE_SCHEMA = {"type": "OBJECT", "properties": {"text": {"type": "STRING"}, "person_detected": {"type": "BOOLEAN"}, "ai_generated": {"type": "BOOLEAN"}, "faces": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {"box": {"type": "ARRAY", "items": {"type": "INTEGER"}, "minItems": 4, "maxItems": 4}}, "required": ["box"]}}}, "required": ["text", "person_detected", "ai_generated", "faces"]}
 
 
 def is_image_file(kind: str, mime_type: str) -> bool:
@@ -133,6 +133,23 @@ def _clean(text: str) -> str:
     return "\n".join(line for line in lines if line)[:MAX_TEXT_CHARS]
 
 
+def _has_ai_metadata(data: bytes) -> bool:
+    """Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures."""
+    import io
+    from PIL import Image
+    _AI_MARKERS = ("midjourney", "dall-e", "dall·e", "stable diffusion", "comfyui", "automatic1111", "adobe firefly", "imagen", "made with google ai", "ai_generated", "c2pa")
+    try:
+        with Image.open(io.BytesIO(data)) as img:
+            parts = [f"{k}={v}" for k, v in (img.info or {}).items() if isinstance(v, (str, bytes))]
+            exif = img.getexif()
+            if exif:
+                parts.extend(str(v) for v in exif.values() if isinstance(v, (str, bytes)))
+            blob = " ".join(p.decode("utf-8", "ignore") if isinstance(p, bytes) else p for p in parts).lower()
+            return any(m in blob for m in _AI_MARKERS)
+    except Exception:
+        return False
+
+
 def _face_boxes(faces: object) -> List[List[int]]:
     """Keep only valid, bounded face rectangles; these are anonymous locations, never identities."""
     boxes: List[List[int]] = []
@@ -171,12 +188,14 @@ async def read_file(file_id: UUID) -> None:
             if not path.is_file():
                 raise FileNotFoundError("The image file is missing from storage.")
             data, mime_type = await asyncio.to_thread(_image_bytes, path, row["mime_type"])
-            local_boxes = await asyncio.to_thread(face_detection_service.detect_faces, data)
+            ai_meta = await asyncio.to_thread(_has_ai_metadata, data)
+            local_boxes = None if ai_meta else await asyncio.to_thread(face_detection_service.detect_faces, data)
             response = await _generate(contents=[types.Part.from_bytes(data=data, mime_type=mime_type), PROMPT])
             result = json.loads(response.text or "{}")
             text = _clean(result.get("text", ""))
-            face_boxes = local_boxes if local_boxes else _face_boxes(result.get("faces"))
-            await _save(file_id, "COMPLETED", text=text, person_detected=bool(result.get("person_detected")) or bool(face_boxes), face_boxes=face_boxes)
+            is_ai = ai_meta or bool(result.get("ai_generated"))
+            face_boxes = [] if is_ai else (local_boxes if local_boxes else _face_boxes(result.get("faces")))
+            await _save(file_id, "COMPLETED", text=text, person_detected=False if is_ai else (bool(result.get("person_detected")) or bool(face_boxes)), face_boxes=face_boxes)
             try:
                 await get_pool().execute("""
                     UPDATE content_submissions s SET people_in_images_detected = (
