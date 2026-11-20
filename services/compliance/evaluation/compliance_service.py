@@ -38,7 +38,7 @@ from models.compliance.submission_model import AUDIENCES, PLATFORMS, REGIONS, RU
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
-from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer
+from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer, army_context_review
 from services.compliance.evaluation import context_evaluator
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
@@ -69,7 +69,7 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-17"
+SCOPE_VERSION = "scope-18-army-context"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
@@ -766,7 +766,7 @@ async def applicable_rules(req: ComplianceCheckRequest) -> List[ComplianceRule]:
     """Active rules whose scope matches the content (also used to pick sentiment-analysis guidelines). Pass the
     post's text to have a cashtag in it bring in the investor rules (see implied_audiences)."""
     scope = check_scope(req)
-    return [r for r in await list_compliance_rules(is_active=True) if _rule_applies(r, req, scope) or (req.ai_generated_images and r.rule_number == "Rule 9")]
+    return [r for r in await list_compliance_rules(is_active=True) if _rule_applies(r, req, scope) or army_context_review.applies(r, req.text) or (req.ai_generated_images and r.rule_number == "Rule 9")]
 
 
 # Points off per finding, and the most a post with a critical finding can score.
@@ -1299,7 +1299,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
 
     # Rules the wording missed but the post matches in meaning (vector store): things to check, never violations.
     # Claim checks carry their rule's number but don't stand in for the rule, so they don't take it off the list.
-    found = {v.rule_number for v in violations if v.rule_id not in claim_checks.CHECK_IDS}
+    found = {v.rule_number for v in violations if v.rule_id not in claim_checks.CHECK_IDS} | {r.rule_number for r in rules if army_context_review.applies(r, req.text)}
     _ai_incomplete.set(False)
     violations.extend(await _semantic_findings(match_req, rules, found, padded_text, disclaimer_padded))
 
@@ -1317,11 +1317,9 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     exceptions_of = {r.id: r.exception_terms for r in rules}
     for v in violations:
         v.passage, v.context = _passage(match_text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])
-    await context_evaluator.evaluate(
-        [context_evaluator.Candidate(v, rule, v.passage or "", v.context or "") for v, rule in contextual],
-        match_text,
-        brand=req.brand_code,
-    )
+    candidates = [context_evaluator.Candidate(v, rule, v.passage or "", v.context or "") for v, rule in contextual]
+    army_context_review.include(req, rules, violations, candidates)
+    await context_evaluator.evaluate(candidates, req.text, brand=req.brand_code)
     source_check_service.clear_supported(violations, source_result.checks)
     # The check is incomplete when a context rule couldn't be read, or the meaning check couldn't run at all.
     ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations)

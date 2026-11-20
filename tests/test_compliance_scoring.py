@@ -201,7 +201,8 @@ class PostSignalScoringTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_missing_dod_disclaimer_and_a_tag_count_once(self):
         disclaimer = "The appearance of U.S. Department of Defense visual information does not imply or constitute DOD endorsement."
         rules = [rule(rule_number="Rule 4", required_disclaimers=[disclaimer], disclaimer_triggers=["army"])]
-        result = await self.check(rules, "Official Army footage from the demo today. @USArmy")
+        with patch.object(cs.context_evaluator, "evaluate", AsyncMock()):
+            result = await self.check(rules, "Official Army footage from the demo today. @USArmy")
         self.assertEqual([v.rule_number for v in result.violations], ["Rule 4"])
 
     async def test_signals_and_notes_are_returned(self):
