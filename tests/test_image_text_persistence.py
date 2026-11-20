@@ -29,7 +29,7 @@ class ImageTextPersistenceTests(unittest.IsolatedAsyncioTestCase):
                     with patch.object(image_text_service, "get_pool", return_value=conn):
                         for status, text, error, version in (
                             ("FAILED", None, "model unavailable", 0),
-                            ("COMPLETED", "Image headline", None, 1),
+                            ("COMPLETED", "Image headline", None, 2),
                         ):
                             with self.subTest(status=status):
                                 await image_text_service._save(file_id, status, text=text, error=error)

@@ -56,7 +56,7 @@ on a licence plate or a T-shirt matters as much as the headline). Keep the readi
 with text in the photo after the design's own text. Do not describe the image, translate, correct or summarise
 anything. Skip only text that is too blurred to read. If there is no readable text, return an empty string. Also say whether
 one or more real people are visibly present (a face, body, or person shown in a photo or illustration); do not identify anyone.
-For every visible face, return its rectangle as [top, left, bottom, right] in a 0-to-1000 coordinate grid. Do not
+For every visible face, return a tight square around the face only (chin to forehead, ear to ear — do not include the body or shoulders) as [top, left, bottom, right] in a 0-to-1000 coordinate grid. Do not
 name people or infer anything about them. Return an empty faces list when no face is visible."""
 
 RESPONSE_SCHEMA = {"type": "OBJECT", "properties": {"text": {"type": "STRING"}, "person_detected": {"type": "BOOLEAN"}, "faces": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {"box": {"type": "ARRAY", "items": {"type": "INTEGER"}, "minItems": 4, "maxItems": 4}}, "required": ["box"]}}}, "required": ["text", "person_detected", "faces"]}
@@ -98,7 +98,7 @@ async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: O
         UPDATE content_submission_files
         SET image_text_status = $2::varchar, image_text = $3, image_text_error = $4, person_detected = $5,
             face_boxes = COALESCE($6::jsonb, face_boxes),
-            face_detection_version = CASE WHEN $2::varchar = 'COMPLETED' THEN 1 ELSE face_detection_version END,
+            face_detection_version = CASE WHEN $2::varchar = 'COMPLETED' THEN 2 ELSE face_detection_version END,
             image_text_updated_at = NOW()
         WHERE id = $1
         """,
@@ -239,7 +239,7 @@ async def schedule_missing(file_ids: List[UUID]) -> None:
         SELECT id FROM content_submission_files
         WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL AND kind = ANY($2::text[]) AND mime_type LIKE 'image/%'
           AND (image_text_status IS NULL
-               OR (face_detection_version < 1 AND image_text_status = 'COMPLETED')
+               OR (face_detection_version < 2 AND image_text_status = 'COMPLETED')
                OR (image_text_status = 'PROCESSING' AND image_text_updated_at < NOW() - INTERVAL '{STALE_MINUTES} minutes'))
         """,
         list(file_ids), list(IMAGE_KINDS),

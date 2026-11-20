@@ -74,7 +74,7 @@ async def schedule_missing_images(files) -> None:
         f["id"] for f in files
         if image_text_service.is_image_file(f.get("kind", ""), f.get("mime_type") or "")
         and (f.get("image_text_status") in (None, "PROCESSING")
-             or (f.get("image_text_status") == "COMPLETED" and (f.get("face_detection_version") or 0) < 1))
+             or (f.get("image_text_status") == "COMPLETED" and (f.get("face_detection_version") or 0) < 2))
     ]
     if due:
         await image_text_service.schedule_missing(due)
