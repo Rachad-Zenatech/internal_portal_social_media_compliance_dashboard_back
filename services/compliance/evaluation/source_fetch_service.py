@@ -87,7 +87,7 @@ def _forbidden(ip: ipaddress._BaseAddress) -> bool:
             or ip.is_unspecified or not ip.is_global)
 
 
-async def _check_destination(url: str) -> None:
+async def _check_destination(url: str) -> Optional[str]:
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https"):
         raise _Refused("Only web links (http or https) can be opened.")
@@ -106,12 +106,26 @@ async def _check_destination(url: str) -> None:
         infos = await asyncio.get_running_loop().getaddrinfo(host, port or (443 if parts.scheme == "https" else 80),
                                                               type=socket.SOCK_STREAM)
     except socket.gaierror:
-        raise _Refused("The address of this link can't be found.")
+        # Some publishers, including army.mil, serve only the canonical www host.
+        # Retry it only after the original bare host fails DNS, then apply the same
+        # public-address checks before permitting the request.
+        if host.startswith("www."):
+            raise _Refused("The address of this link can't be found.")
+        fallback_host = f"www.{host}"
+        try:
+            infos = await asyncio.get_running_loop().getaddrinfo(
+                fallback_host, port or (443 if parts.scheme == "https" else 80), type=socket.SOCK_STREAM,
+            )
+        except socket.gaierror:
+            raise _Refused("The address of this link can't be found.")
+        netloc = f"{fallback_host}{f':{port}' if port else ''}"
+        url = parts._replace(netloc=netloc).geturl()
     if not infos:
         raise _Refused("The address of this link can't be found.")
     for info in infos:
         if _forbidden(ipaddress.ip_address(info[4][0].split("%")[0])):
             raise _Refused("This link points to a private address, so it isn't opened.")
+    return url
 
 
 # --- Reading the page ------------------------------------------------------------------------------------------------
@@ -250,7 +264,9 @@ async def _download(url: str) -> Tuple[bytes, str, str]:
         headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml,application/pdf,text/plain;q=0.8"},
     ) as client:
         for _ in range(MAX_REDIRECTS + 1):
-            await _check_destination(current)
+            checked_url = await _check_destination(current)
+            if checked_url:
+                current = checked_url
             for attempt in range(CONNECT_TRIES):
                 try:
                     status, headers, body, request = await _get_once(client, current)

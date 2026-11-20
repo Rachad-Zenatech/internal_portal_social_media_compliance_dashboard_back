@@ -6,7 +6,7 @@
   },
   "files": {
     "models/compliance/submission_model.py": {
-      "max_lines": 628,
+      "max_lines": 627,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "postgresql_db/schemas/setup_compliance_schema.py": {
@@ -14,19 +14,19 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/analytics/conversation_evidence.py": {
-      "max_lines": 954,
+      "max_lines": 856,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/analytics/public_mood_service.py": {
-      "max_lines": 1002,
+      "max_lines": 957,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/brand_voice_service.py": {
-      "max_lines": 710,
+      "max_lines": 707,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/compliance_service.py": {
-      "max_lines": 1647,
+      "max_lines": 1559,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/script_batch_service.py": {
@@ -34,7 +34,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/script_review_service.py": {
-      "max_lines": 1063,
+      "max_lines": 1054,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/sentiment/jobs.py": {
@@ -42,15 +42,15 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
-      "max_lines": 2934,
+      "max_lines": 2932,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/notifications/rabbitmq_service.py": {
-      "max_lines": 520,
+      "max_lines": 519,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/shared/auth/oauth_connection_service.py": {
-      "max_lines": 607,
+      "max_lines": 598,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/shared/auth/rbac_service.py": {
@@ -76,19 +76,19 @@
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#_run_check": {
-      "max_lines": 131,
+      "max_lines": 128,
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#list_submissions": {
-      "max_lines": 137,
+      "max_lines": 135,
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#submit_for_review": {
-      "max_lines": 159,
+      "max_lines": 153,
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#update_submission": {
-      "max_lines": 141,
+      "max_lines": 137,
       "kind": "py_function"
     },
     "services/notifications/rabbitmq_hub_status.py#HubStatusMixin._build_hub_live_status": {

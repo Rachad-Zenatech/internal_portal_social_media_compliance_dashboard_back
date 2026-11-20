@@ -54,9 +54,12 @@ photo rather than the design: licence plates, signs, stickers, clothing, packagi
 vehicles, posters, graffiti and tattoos, even when it is small, in the background or at an angle (an offensive word
 on a licence plate or a T-shirt matters as much as the headline). Keep the reading order, one line per line of text,
 with text in the photo after the design's own text. Do not describe the image, translate, correct or summarise
-anything. Skip only text that is too blurred to read. If there is no readable text, return an empty string."""
+anything. Skip only text that is too blurred to read. If there is no readable text, return an empty string. Also say whether
+one or more real people are visibly present (a face, body, or person shown in a photo or illustration); do not identify anyone.
+For every visible face, return its rectangle as [top, left, bottom, right] in a 0-to-1000 coordinate grid. Do not
+name people or infer anything about them. Return an empty faces list when no face is visible."""
 
-RESPONSE_SCHEMA = {"type": "OBJECT", "properties": {"text": {"type": "STRING"}}, "required": ["text"]}
+RESPONSE_SCHEMA = {"type": "OBJECT", "properties": {"text": {"type": "STRING"}, "person_detected": {"type": "BOOLEAN"}, "faces": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {"box": {"type": "ARRAY", "items": {"type": "INTEGER"}, "minItems": 4, "maxItems": 4}}, "required": ["box"]}}}, "required": ["text", "person_detected", "faces"]}
 
 
 def is_image_file(kind: str, mime_type: str) -> bool:
@@ -89,14 +92,17 @@ async def _claim(file_id: UUID) -> Optional[dict]:
     )
 
 
-async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: Optional[str] = None) -> None:
+async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: Optional[str] = None, person_detected: Optional[bool] = None, face_boxes: Optional[List[List[int]]] = None) -> None:
     await get_pool().execute(
         """
         UPDATE content_submission_files
-        SET image_text_status = $2, image_text = $3, image_text_error = $4, image_text_updated_at = NOW()
+        SET image_text_status = $2, image_text = $3, image_text_error = $4, person_detected = $5,
+            face_boxes = COALESCE($6::jsonb, face_boxes),
+            face_detection_version = CASE WHEN $2 = 'COMPLETED' THEN 1 ELSE face_detection_version END,
+            image_text_updated_at = NOW()
         WHERE id = $1
         """,
-        file_id, status, text, error,
+        file_id, status, text, error, person_detected, json.dumps(face_boxes) if face_boxes is not None else None,
     )
 
 
@@ -127,6 +133,24 @@ def _clean(text: str) -> str:
     return "\n".join(line for line in lines if line)[:MAX_TEXT_CHARS]
 
 
+def _face_boxes(faces: object) -> List[List[int]]:
+    """Keep only valid, bounded face rectangles; these are anonymous locations, never identities."""
+    boxes: List[List[int]] = []
+    for face in faces if isinstance(faces, list) else []:
+        box = face.get("box") if isinstance(face, dict) else None
+        if not isinstance(box, list) or len(box) != 4:
+            continue
+        try:
+            top, left, bottom, right = [max(0, min(1000, int(value))) for value in box]
+        except (TypeError, ValueError):
+            continue
+        if bottom > top and right > left:
+            boxes.append([top, left, bottom, right])
+        if len(boxes) == 20:
+            break
+    return boxes
+
+
 async def read_file(file_id: UUID) -> None:
     """Read one image's text and save it, then re-check its submission if it's still open."""
     from services.compliance.analytics.sentiment_service import _image_bytes  # local imports: those modules import this one's callers
@@ -142,8 +166,19 @@ async def read_file(file_id: UUID) -> None:
                 raise FileNotFoundError("The image file is missing from storage.")
             data, mime_type = await asyncio.to_thread(_image_bytes, path, row["mime_type"])
             response = await _generate(contents=[types.Part.from_bytes(data=data, mime_type=mime_type), PROMPT])
-            text = _clean(json.loads(response.text or "{}").get("text", ""))
-            await _save(file_id, "COMPLETED", text=text)
+            result = json.loads(response.text or "{}")
+            text = _clean(result.get("text", ""))
+            face_boxes = _face_boxes(result.get("faces"))
+            await _save(file_id, "COMPLETED", text=text, person_detected=bool(result.get("person_detected")) or bool(face_boxes), face_boxes=face_boxes)
+            try:
+                await get_pool().execute("""
+                    UPDATE content_submissions s SET people_in_images_detected = (
+                        SELECT BOOL_OR(person_detected) FROM content_submission_files f
+                        WHERE f.submission_id = s.id AND f.deleted_at IS NULL AND f.person_detected IS NOT NULL
+                    ) WHERE s.id = (SELECT submission_id FROM content_submission_files WHERE id = $1)
+                """, file_id)
+            except Exception as e:
+                logger.warning("Couldn't refresh person detection for image %s: %s", file_id, e)
             logger.info("Read %d characters of text in image %s", len(text), file_id)
         except Exception as e:
             logger.warning("Couldn't read the text in image %s: %s", file_id, e)
@@ -198,6 +233,7 @@ async def schedule_missing(file_ids: List[UUID]) -> None:
         SELECT id FROM content_submission_files
         WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL AND kind = ANY($2::text[]) AND mime_type LIKE 'image/%'
           AND (image_text_status IS NULL
+               OR (face_detection_version < 1 AND image_text_status = 'COMPLETED')
                OR (image_text_status = 'PROCESSING' AND image_text_updated_at < NOW() - INTERVAL '{STALE_MINUTES} minutes'))
         """,
         list(file_ids), list(IMAGE_KINDS),

@@ -4,26 +4,26 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/analytics/post_queries.py (424 lines) - Searches built from what each draft actually says.
-- `_only_everyday_words` (def) L61 - True when the word is everyday words run together ("digitaltransformation") or hyphenated ("ai-powered").
-- `_trim` (def) L71 - The name without everyday words at its edges ("meet stacklens" -> "stacklens", "shaun test" -> "shaun").
-- `_is_subject` (def) L81 - A name worth searching for: more than one word (and not only everyday ones), or one distinctive word.
-- `_hashtag_phrase` (def) L91
-- `_in_order` (def) L95 - The phrases in the order they first appear in the text (a set has no order, and the first names matter most).
-- `queries_for_text` (def) L101 - {"queries": [...], "keywords": [...]} for one draft, from its own words.
-- `combine_body` (def) L123 - Everything the draft says besides its title and caption.
-- `today_window` (def) L136 - Start (inclusive) and end (exclusive) of today in APP_TIMEZONE, returned as UTC datetimes.
-- `_in_window` (def) L148
-- `today_reason_for_row` (def) L155 - Why a post belongs to 'what is getting posted today': scheduled_today > today_activity > None.
-- `_submission_sql` (def) L168
-- `_build_searches_from_rows` (def) L233
-- `active_draft_searches` (def) L264 - Active drafts plus posts scheduled/active today (today's posts prioritized first).
-- `today_post_searches` (def) L271 - Posts scheduled or worked on today that have searchable topics.
-- `list_today_post_candidates` (def) L278 - Read-only summary of today's posts (scheduled for today or created/edited today) without calling Gemini.
-- `write_file` (def) L306 - Hand the searches to the scraper process (it has no database connection) through a temporary file.
-- `read_file` (def) L316
-- `_post_meta` (def) L328
-- `topic_for_draft` (def) L340 - The listening topic a draft's searches become, matched back to that draft by its own keywords.
-- `context_topics_for_draft` (def) L358 - The wider topics around a draft's subject, one topic each: the public vibe about them, not coverage of this
-- `post_id_for_topic` (def) L386 - Extract the owning submission ID from a topic dict or external_id (`post-<id>` / `post-<id>-context-N`).
-- `assign_unique_per_post` (def) L400 - Deduplicate stories across topics *within each post* without letting one post steal stories from another.
+## services/compliance/analytics/post_queries.py (425 lines) - Searches built from what each draft actually says.
+- `_only_everyday_words` (def) L62 - True when the word is everyday words run together ("digitaltransformation") or hyphenated ("ai-powered").
+- `_trim` (def) L72 - The name without everyday words at its edges ("meet stacklens" -> "stacklens", "shaun test" -> "shaun").
+- `_is_subject` (def) L82 - A name worth searching for: more than one word (and not only everyday ones), or one distinctive word.
+- `_hashtag_phrase` (def) L92
+- `_in_order` (def) L96 - The phrases in the order they first appear in the text (a set has no order, and the first names matter most).
+- `queries_for_text` (def) L102 - {"queries": [...], "keywords": [...]} for one draft, from its own words.
+- `combine_body` (def) L124 - Everything the draft says besides its title and caption.
+- `today_window` (def) L137 - Start (inclusive) and end (exclusive) of today in APP_TIMEZONE, returned as UTC datetimes.
+- `_in_window` (def) L149
+- `today_reason_for_row` (def) L156 - Why a post belongs to 'what is getting posted today': scheduled_today > today_activity > None.
+- `_submission_sql` (def) L169
+- `_build_searches_from_rows` (def) L234
+- `active_draft_searches` (def) L265 - Posts already in workflow plus posts scheduled/active today (today's posts prioritized first).
+- `today_post_searches` (def) L272 - Posts scheduled or worked on today that have searchable topics.
+- `list_today_post_candidates` (def) L279 - Read-only summary of today's posts (scheduled for today or created/edited today) without calling Gemini.
+- `write_file` (def) L307 - Hand the searches to the scraper process (it has no database connection) through a temporary file.
+- `read_file` (def) L317
+- `_post_meta` (def) L329
+- `topic_for_draft` (def) L341 - The listening topic a draft's searches become, matched back to that draft by its own keywords.
+- `context_topics_for_draft` (def) L359 - The wider topics around a draft's subject, one topic each: the public vibe about them, not coverage of this
+- `post_id_for_topic` (def) L387 - Extract the owning submission ID from a topic dict or external_id (`post-<id>` / `post-<id>-context-N`).
+- `assign_unique_per_post` (def) L401 - Deduplicate stories across topics *within each post* without letting one post steal stories from another.

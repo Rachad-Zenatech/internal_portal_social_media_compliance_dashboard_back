@@ -21,8 +21,9 @@ from services.compliance.analytics.conversation_evidence import entities_split
 
 MAX_QUERIES_PER_DRAFT = 3
 MAX_DRAFTS = int(os.getenv("PUBLIC_MOOD_POST_SEARCH_MAX_DRAFTS", "15"))
-ACTIVE_STATUSES = ("DRAFT", "IN_REVIEW", "CHANGES_REQUESTED")
-ELIGIBLE_POST_STATUSES = ("APPROVED", "IN_REVIEW", "CHANGES_REQUESTED", "DRAFT")
+# Personal drafts are private work-in-progress and must never be sent to the Public Mood listener.
+ACTIVE_STATUSES = ("IN_REVIEW", "CHANGES_REQUESTED")
+ELIGIBLE_POST_STATUSES = ("APPROVED", "IN_REVIEW", "CHANGES_REQUESTED")
 TODAY_TRACK = "today_posts"
 FILE_ENV = "SCRAPE_POST_QUERIES_FILE"
 APP_TIMEZONE = os.getenv("APP_TIMEZONE", "America/New_York")
@@ -262,7 +263,7 @@ async def _build_searches_from_rows(rows: List[Any], *, allow_model: bool = True
 
 
 async def active_draft_searches() -> List[Dict[str, Any]]:
-    """Active drafts plus posts scheduled/active today (today's posts prioritized first)."""
+    """Posts already in workflow plus posts scheduled/active today (today's posts prioritized first)."""
     day_start, day_end = today_window()
     rows = await fetch_all(_submission_sql(today_only=False), list(ACTIVE_STATUSES), MAX_DRAFTS, day_start, day_end)
     return await _build_searches_from_rows(rows, allow_model=True, only_today=False)

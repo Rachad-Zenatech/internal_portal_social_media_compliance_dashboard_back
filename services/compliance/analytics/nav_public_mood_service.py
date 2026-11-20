@@ -186,6 +186,9 @@ async def get_nav_public_mood(refresh: bool = False, scrape_state: str = "idle")
             continue
 
         matched_today = _matches_today_post(ext, today_by_id)
+        # A previous scrape can still contain a private draft. Only display topics for posts that remain eligible.
+        if ft.get("scrape_track") == post_queries.TODAY_TRACK and not matched_today:
+            continue
         if matched_today or ft.get("scrape_track") == post_queries.TODAY_TRACK:
             meta = matched_today or ft.get("post_meta") or {}
             post_id = str((matched_today or {}).get("id") or meta.get("submission_id") or post_queries.post_id_for_topic(ext) or "") or None

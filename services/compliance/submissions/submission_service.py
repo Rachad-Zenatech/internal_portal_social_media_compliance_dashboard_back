@@ -225,6 +225,10 @@ def _file_out(submission_id: UUID, row: Dict[str, Any]) -> SubmissionFile:
         doc_text=row.get("doc_text"),
         doc_text_status=row.get("doc_text_status"),
         doc_text_error=row.get("doc_text_error"),
+        image_text_status=row.get("image_text_status"),
+        person_detected=row.get("person_detected"),
+        face_boxes=json.loads(row["face_boxes"]) if isinstance(row.get("face_boxes"), str) else row.get("face_boxes") or [],
+        face_detection_version=row.get("face_detection_version") or 0,
         source=row.get("source") or "UPLOAD",
         canva_design_id=row.get("canva_design_id"),
         canva_design_title=row.get("canva_design_title"),
@@ -398,6 +402,7 @@ async def _list_files(submission_id: UUID) -> List[Dict[str, Any]]:
         """
         SELECT id, kind, original_name, mime_type, size_bytes, created_at,
                transcript, transcript_status, transcript_error, doc_text, doc_text_status, doc_text_error,
+                image_text_status, person_detected, face_boxes, face_detection_version,
                source, canva_design_id, canva_design_title, canva_revision
         FROM content_submission_files
         WHERE submission_id = $1 AND deleted_at IS NULL
@@ -467,6 +472,8 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         caption_text=row["caption_text"],
         context_picks=_context_picks(row), ai_generated_images=row.get("ai_generated_images", False),
         ai_generated_images_confirmed=image_provenance_service.is_confirmed(row),
+        people_in_images=row.get("people_in_images", False), people_in_images_confirmed=bool(row.get("people_in_images_confirmed")),
+        people_in_images_detected=row.get("people_in_images_detected"), employee_in_images=row.get("employee_in_images", False), employee_in_images_confirmed=bool(row.get("employee_in_images_confirmed")),
         platform_captions=_platform_captions(row),
         rule_sets=list(row["rule_sets"] or []),
         source_links=list(row.get("source_links") or []), source_link_checks=_json(row.get("source_link_checks")) or {},
@@ -568,8 +575,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
     if scope == "all" and not (is_manager or is_reviewer):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only see your own content")
     rows = await fetch_all(
-        """
-        SELECT """ + manager_access_sql("$1") + """ AS manager_review_access, s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.brand_codes, s.platforms, s.status,
+        """SELECT """ + manager_access_sql("$1") + """ AS manager_review_access, s.id, s.reference_code, s.title, s.content_type, s.brand_code, s.brand_codes, s.platforms, s.status,
                s.current_version, s.publish_at, s.publish_after_changes, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
                s.due_at, s.due_kind, s.rule_sets, s.region, s.script_required, s.platform_captions,
                (EXISTS (SELECT 1 FROM content_submission_files sf WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL) OR EXISTS (SELECT 1 FROM content_script_versions sv WHERE sv.submission_id = s.id)) AS has_script,
@@ -743,9 +749,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         fields["content_type"] = payload["content_type"]
         # A draft switched to a video before it was ever sent goes through the script stage too.
         if payload["content_type"] == "VIDEO" and row["current_version"] == 0 and not row.get("script_required"): fields["script_required"] = True
-    brand_codes = payload.get("brand_codes")
-    if brand_codes is None and payload.get("brand_code"):
-        brand_codes = [payload["brand_code"]]
+    brand_codes = payload.get("brand_codes") if payload.get("brand_codes") is not None else ([payload["brand_code"]] if payload.get("brand_code") else None)
     if brand_codes is not None:
         brand_codes = list(dict.fromkeys(brand_codes))
         if len(brand_codes) > 1:
@@ -760,9 +764,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
             raise HTTPException(status_code=403, detail="You don't work on that brand")
         fields["brand_codes"] = brand_codes
         fields["brand_code"] = brand_codes[0] if brand_codes else None
-    audiences = payload.get("audiences")
-    if audiences is None and payload.get("audience"):
-        audiences = [payload["audience"]]
+    audiences = payload.get("audiences") if payload.get("audiences") is not None else ([payload["audience"]] if payload.get("audience") else None)
     if audiences is not None:
         audiences = list(dict.fromkeys(audiences))
         if any(a not in AUDIENCES for a in audiences):
@@ -1227,7 +1229,7 @@ async def remove_file(submission_id: UUID, file_id: UUID, user_id: UUID) -> None
             )
             if not name:
                 raise HTTPException(status_code=404, detail="File not found")
-            await conn.execute("UPDATE content_submissions SET content_edited_at = NOW() WHERE id = $1", submission_id)
+            await conn.execute("UPDATE content_submissions SET content_edited_at = NOW(), people_in_images_detected = (SELECT BOOL_OR(person_detected) FROM content_submission_files f WHERE f.submission_id = $1 AND f.deleted_at IS NULL AND f.person_detected IS NOT NULL) WHERE id = $1", submission_id)
             await _add_event(conn, submission_id, "FILE_REMOVED", f"Removed {name}", user_id, {"file_id": str(file_id)})
 
 
@@ -1367,11 +1369,9 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     visual_segments = await video_finding_service.visual_text_segments(video) if video and video["transcript_status"] == "FAILED" else []
     visual_text = " ".join(str(s["text"]) for s in visual_segments).strip()
     images = await fetch_all(
-        """
-        SELECT id, original_name, storage_path, mime_type, image_text, image_text_status, image_text_error FROM content_submission_files
-        WHERE submission_id = $1 AND kind = ANY($2::text[]) AND deleted_at IS NULL AND mime_type LIKE 'image/%'
-        ORDER BY (kind <> 'MAIN'), created_at
-        """,
+        "SELECT id, original_name, storage_path, mime_type, image_text, image_text_status, image_text_error FROM content_submission_files "
+        "WHERE submission_id = $1 AND kind = ANY($2::text[]) AND deleted_at IS NULL AND mime_type LIKE 'image/%' "
+        "ORDER BY (kind <> 'MAIN'), created_at",
         row["id"], list(image_text_service.IMAGE_KINDS),
     )
     await image_text_service.schedule_missing([i["id"] for i in images if i["image_text_status"] in (None, "PROCESSING")])
@@ -1668,11 +1668,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
         missing.append("account_id")
     stray = [a for a in accounts if row["platforms"] and not _account_covers(a, list(row["platforms"]))]
     if stray:
-        raise HTTPException(status_code=422, detail={
-            "message": "Some publishing accounts post to platforms that aren't selected: "
-                       + ", ".join(a.label for a in stray) + ".",
-            "missing": ["platforms"],
-        })
+        raise HTTPException(status_code=422, detail={"message": f"Some publishing accounts post to platforms that aren't selected: {', '.join(a.label for a in stray)}.", "missing": ["platforms"]})
     now = datetime.now(timezone.utc)
     if not publish_after_changes and row["publish_at"] and row["publish_at"] < now:
         missing.append("publish_at")
