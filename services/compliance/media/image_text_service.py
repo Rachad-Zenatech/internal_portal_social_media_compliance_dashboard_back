@@ -96,9 +96,9 @@ async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: O
     await get_pool().execute(
         """
         UPDATE content_submission_files
-        SET image_text_status = $2, image_text = $3, image_text_error = $4, person_detected = $5,
+        SET image_text_status = $2::varchar, image_text = $3, image_text_error = $4, person_detected = $5,
             face_boxes = COALESCE($6::jsonb, face_boxes),
-            face_detection_version = CASE WHEN $2 = 'COMPLETED' THEN 1 ELSE face_detection_version END,
+            face_detection_version = CASE WHEN $2::varchar = 'COMPLETED' THEN 1 ELSE face_detection_version END,
             image_text_updated_at = NOW()
         WHERE id = $1
         """,
