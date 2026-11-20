@@ -1471,7 +1471,7 @@ async def rulebook_version() -> Optional[str]:
     generation = rules_cache.generation
     row = await fetch_one("SELECT max(greatest(updated_at, coalesce(deleted_at, updated_at))) AS v FROM compliance_rules")
     rules = row["v"].isoformat() if row and row["v"] else "none"
-    version = f"{rules}|{claim_checks.VERSION}|{post_signals.VERSION}|{SCOPE_VERSION}|{context_evaluator.PROMPT_VERSION}|{HIGHLIGHT_VERSION}"
+    version = f"{rules}|{claim_checks.VERSION}|{post_signals.VERSION}|{SCOPE_VERSION}|{context_evaluator.PROMPT_VERSION}|{HIGHLIGHT_VERSION}|{source_check_service.VERSION}"
     await rules_cache.set_if_unchanged("version", version, generation, RULES_CACHE_TTL)
     return version
 

@@ -4,15 +4,15 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/citation_finder.py (230 lines) - Citation finder: what a post says it got its claims from.
-- `Citation` (class) L62
-- `_clean_link` (def) L74
-- `_host_and_path` (def) L81
-- `_article_like` (def) L89 - A path that names a page (an article, a report, a PDF), not a home page or a section front.
-- `_is_social` (def) L99
-- `_named_parts` (def) L103 - The sources in a "Source: ..." line: links and hashtags are taken out; several are split on ";".
-- `_continues` (def) L111 - Whether a line carries on the source line before it.
-- `without_citation_text` (def) L123 - Remove explicit source blocks before rule matching, while keeping them available for source checks.
-- `find` (def) L152 - The citations in this text, each once, in the order they appear, at most MAX_CITATIONS.
-    - `add` (def) L161
-- `describe` (def) L221 - Why a citation can't be checked as it stands, or None when it can.
+## services/compliance/evaluation/citation_finder.py (229 lines) - Citation finder: what a post says it got its claims from.
+- `Citation` (class) L63
+- `_clean_link` (def) L75
+- `_host_and_path` (def) L82
+- `_article_like` (def) L90 - A path that names a page (an article, a report, a PDF), not a home page or a section front.
+- `_is_social` (def) L100
+- `_named_parts` (def) L104 - Keep genuinely name-only credits; metadata accompanying a URL belongs to that URL.
+- `_continues` (def) L112 - Whether a line carries on the source line before it.
+- `without_citation_text` (def) L125 - Remove explicit source blocks before rule matching, while keeping them available for source checks.
+- `find` (def) L154 - The citations in this text, each once, in the order they appear, at most MAX_CITATIONS.
+    - `add` (def) L163
+- `describe` (def) L220 - Why a citation can't be checked as it stands, or None when it can.

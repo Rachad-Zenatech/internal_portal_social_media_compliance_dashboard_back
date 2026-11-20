@@ -257,10 +257,11 @@ class RunTests(unittest.TestCase):
         self.assertEqual(out.checks[0].claims, [])
         self.assertIn("No AI model", out.checks[0].message)
 
-    def test_a_link_written_in_the_caption_is_not_read(self):
-        out, fetch, _ = self.go("Read the full article here: https://www.zenatech.com/zenatech-unveils-stacklens-ai-powered-smart-safety-glasses/")
-        fetch.assert_not_called()
-        self.assertEqual(out.checks, [])
+    def test_a_complete_source_link_in_the_caption_is_read(self):
+        url = "https://www.zenatech.com/zenatech-unveils-stacklens-ai-powered-smart-safety-glasses/"
+        out, fetch, _ = self.go("Read the full article here: " + url)
+        fetch.assert_awaited_once_with(url)
+        self.assertEqual([(check.kind, check.status) for check in out.checks], [("URL", "READ")])
 
     def test_switched_off(self):
         with patch.object(sc, "ENABLED", False):

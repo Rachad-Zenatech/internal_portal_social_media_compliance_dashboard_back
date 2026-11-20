@@ -91,6 +91,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__source_claim_checks.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_fetch_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_findings.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__source_identity.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_image_claims.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_passages.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__source_post_checks.md | 1 | 1 KB |
