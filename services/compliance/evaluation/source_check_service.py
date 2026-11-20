@@ -30,7 +30,6 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
-from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -46,6 +45,10 @@ from services.compliance.evaluation import (
 # The safeguards on the model's answers live in their own module; these names stay importable from here.
 from services.compliance.evaluation.source_claim_checks import (  # noqa: F401
     SUPPORT_MIN_CONFIDENCE, _digits, _to_claims, evidence_overlap, missing_figures,
+)
+from services.compliance.evaluation.source_findings import (  # noqa: F401
+    CHECK_IDS, CONTRADICTED_ID, NOT_FOUND_ID, NOT_FOUND_TITLE, PENALTY_CONTRADICTED, UNCHECKED_ID,
+    claim_id, make_finding as _finding, source_label as _label,
 )
 from services.shared.core.cache_service import AsyncInMemoryCache
 from services.compliance.media import script_sources
@@ -67,26 +70,11 @@ MAX_POST_CHARS = int(os.getenv("SOURCE_CHECK_MAX_POST_CHARS", "12000"))
 MAX_CLAIMS = int(os.getenv("SOURCE_CHECK_MAX_CLAIMS", "12"))
 CACHE_TTL_SEC = int(os.getenv("SOURCE_CHECK_CACHE_TTL_SECONDS", str(24 * 3600)))
 
-NOT_FOUND_TITLE = "Claim not found in its source"
 # Rules about not disclosing non-public contract, pipeline or revenue data: what the company's own site (or an official
 # one) already publishes is public, so a claim it supports clears a hit on them.
 PUBLISHED_OK_RULES = {r.strip() for r in os.getenv("SOURCE_CLEARS_RULES", "Rule 6,Rule 25").split(",") if r.strip()}
-# Points a claim that contradicts its source costs: the same as any high-severity finding.
-PENALTY_CONTRADICTED = 20
 
 _cache = AsyncInMemoryCache(maxsize=1000)
-
-# Fixed ids, like the built-in claim checks', so a reviewer can dismiss these findings the same way.
-CONTRADICTED_ID = uuid5(NAMESPACE_URL, "zenatech-source-check:contradicted")
-NOT_FOUND_ID = uuid5(NAMESPACE_URL, "zenatech-source-check:not-found")
-UNCHECKED_ID = uuid5(NAMESPACE_URL, "zenatech-source-check:unchecked")
-CHECK_IDS = {CONTRADICTED_ID, NOT_FOUND_ID, UNCHECKED_ID}
-
-
-def claim_id(kind_id: UUID, claim: str) -> UUID:
-    """The id of one claim's finding: its kind's id and the claim's own wording. A finding is dismissed by its id, so
-    clearing one claim must not clear every other claim of that kind."""
-    return uuid5(kind_id, " ".join((claim or "").lower().split()))
 
 SYSTEM_PROMPT = """You check whether the source a post cites really backs up what the post says. You are given the post (its caption,
 plus any text read from its images, marked "Text in image") and ONE source the post cites, a web page or a document, as text.
@@ -378,24 +366,6 @@ async def run(
 
 
 # --- What the check does to the findings -----------------------------------------------------------------------------
-
-def _finding(rule_id: UUID, status: str, severity: str, title: str, claim: SourceClaim, check: SourceCheck,
-             explanation: str, remediation: str) -> ComplianceViolation:
-    return ComplianceViolation(
-        rule_id=claim_id(rule_id, claim.claim), rule_number="Rule 18", title=title, category="Source Check", severity=severity,
-        traffic_light="YELLOW", flagged_terms=[claim.claim], explanation=explanation, remediation_guidance=remediation,
-        penalty=PENALTY_CONTRADICTED if status == "VIOLATION" else 0, status=status,
-        evaluation=ContextEvaluation(
-            decision=status, matched_text=claim.claim, reasoning=claim.evidence or claim.note or "",
-            confidence=claim.confidence, recommended_action=claim.note, rule_decision=status, source="AI",
-            model=check.model,
-        ),
-    )
-
-
-def _label(check: SourceCheck) -> str:
-    return f"\"{check.title}\"" if check.title else check.reference
-
 
 def findings(checks: Sequence[SourceCheck]) -> List[ComplianceViolation]:
     """The findings the sources produce: claims that contradict their source cost points; claims the source doesn't

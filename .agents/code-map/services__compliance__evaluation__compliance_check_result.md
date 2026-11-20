@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/compliance_check_result.py (120 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
-- `review_recommendations` (def) L6
-- `check_notes` (def) L39
-- `build_response` (def) L62
+## services/compliance/evaluation/compliance_check_result.py (117 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
+- `review_recommendations` (def) L7
+- `check_notes` (def) L40
+- `build_response` (def) L63

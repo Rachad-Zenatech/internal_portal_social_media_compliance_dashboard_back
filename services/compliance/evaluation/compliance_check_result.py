@@ -1,6 +1,7 @@
 """Recommendations, scope notes and response assembly for a completed compliance check."""
 from typing import List
 from models.compliance.compliance_model import AddedRuleSet, CheckSignals, ComplianceCheckResponse, ManualReviewRule
+from services.compliance.evaluation.finding_visibility import is_visible
 
 
 def review_recommendations(blocked, breaches, needs_review, needs_evidence, to_check, rules) -> List[str]:
@@ -61,11 +62,7 @@ def check_notes(req, scope, signals, implied_by, readers_by_audience) -> List[st
 
 def build_response(scope, rules, violations, breaches, unsupported, to_check, signals,
                    ai_unavailable, notes, source_checks, version) -> ComplianceCheckResponse:
-    # An unavailable check has no confidence estimate; keep it visible for manual review.
-    violations = [v for v in violations if not (
-        v.status == "NEEDS_REVIEW" and v.evaluation is not None
-        and v.evaluation.source != "UNAVAILABLE" and v.evaluation.confidence < 0.5
-    )]
+    violations = [v for v in violations if is_visible(v)]
     blocked = any(v.traffic_light == "RED" for v in breaches)
     needs_review = sum(1 for v in violations if v.status == "NEEDS_REVIEW")
     needs_evidence = sum(1 for v in violations if v.status == "EVIDENCE_REQUIRED")
