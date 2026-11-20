@@ -62,21 +62,29 @@ class DefenseDisclaimerTests(unittest.TestCase):
 
 
 class DefenseDisclaimerPipelineTests(unittest.IsolatedAsyncioTestCase):
-    async def test_the_submitted_schematic_has_no_disclaimer_finding_or_deduction(self):
+    async def test_the_submitted_schematic_is_cleared_only_after_context_review(self):
         source_result = SimpleNamespace(ai_failed=False, checks=[])
+        async def clear(candidates, *args, **kwargs):
+            for candidate in candidates:
+                cs.context_evaluator._apply(candidate, cs.context_evaluator._Result(
+                    id="0", status="NO_VIOLATION", matched_text="Illustrative schematic, not assessed hardware.",
+                    reasoning="The full post describes a third-party assessment and an illustrative schematic.",
+                    confidence=0.95,
+                ), "test-model", False)
         with (
             patch.object(cs, "applicable_rules", AsyncMock(return_value=defense_rules())),
             patch.object(cs, "_semantic_findings", AsyncMock(return_value=[])),
             patch.object(cs.source_check_service, "run", AsyncMock(return_value=source_result)),
             patch.object(cs.source_post_checks, "unsourced_image_findings", return_value=[]),
-            patch.object(cs.context_evaluator, "evaluate", AsyncMock()) as evaluate,
+            patch.object(cs.context_evaluator, "evaluate", AsyncMock(side_effect=clear)) as evaluate,
             patch.object(cs, "rulebook_version", AsyncMock(return_value="test")),
         ):
             result = await cs.check_compliance(ComplianceCheckRequest(
                 text=EXAMPLE, audiences=["DEFENSE"], content_type="IMAGE",
             ))
-        self.assertEqual(evaluate.await_args.args[0], [])
-        self.assertEqual(result.violations, [])
+        self.assertEqual(len(evaluate.await_args.args[0]), 1)
+        self.assertEqual(result.violations[0].status, "CLEARED")
+        self.assertEqual(result.violations[0].evaluation.model, "test-model")
         self.assertEqual(result.score, 100)
         self.assertEqual(result.review_count, 0)
         self.assertFalse(result.blocked)

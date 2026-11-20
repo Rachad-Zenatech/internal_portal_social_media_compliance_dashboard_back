@@ -49,7 +49,7 @@ from services.shared.core.cache_service import AsyncInMemoryCache
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused.
-PROMPT_VERSION = "context-v5"
+PROMPT_VERSION = "context-v6-army-context"
 MODELS = without_retired([m.strip() for m in os.getenv(
     "CONTEXT_EVAL_MODELS",
     os.getenv("SENTIMENT_MODELS", "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite"),
@@ -95,6 +95,9 @@ How to judge:
 - The same word can be fine in one sentence and a breach in the next. Decide from the sentence, its subject and its
   framing, and from the rule's own guidance, never from the trigger word alone.
 - Use only the rule given for each item. Do not invent rules or apply others.
+- An Army mention is a request to review context, not proof of a breach. For Rule 4, examine the complete post:
+  distinguish source attribution and explicit denials from claims that the Army assessed, selected or endorsed the
+  company's product. Do not require a government-visual disclaimer merely because an agency is named.
 - For required-disclaimer findings, count an approved label or close wording visibly printed on the image or in the
   caption. A private creator declaration of AI use does not replace the rule's required public label.
   Still evaluate separate claims that generated imagery depicts a real operation or endorsement.
@@ -161,6 +164,8 @@ class Candidate:
     context: str
     # How reviewers decided similar wording under this rule (see finding_precedent_service).
     precedents: List[Dict[str, Any]] = field(default_factory=list)
+    trigger_only: bool = False
+    review_metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 def _get_client() -> genai.Client:
@@ -181,6 +186,7 @@ def _key(c: Candidate) -> str:
     raw = "|".join([
         PROMPT_VERSION, str(c.rule.id), c.rule.updated_at.isoformat(), c.finding.kind,
         ";".join(sorted(c.finding.flagged_terms)), _norm(c.passage), _norm(c.context),
+        json.dumps([c.trigger_only, c.review_metadata], sort_keys=True),
         # A new verdict changes the answer, so it changes the key.
         ",".join(f"{p['id']}:{p['verdict']}" for p in c.precedents),
     ])
@@ -190,7 +196,7 @@ def _key(c: Candidate) -> str:
 def _visible_test_claim(c: Candidate) -> bool:
     """A visible claim in a proposed image is still reviewable despite a fixture label beside it."""
     material = f"{c.passage}\n{c.context}"
-    return "text in image" in material.lower() and bool(_TEST_CONTENT_LABEL.search(material))
+    return not c.trigger_only and "text in image" in material.lower() and bool(_TEST_CONTENT_LABEL.search(material))
 
 
 def _item(i: int, c: Candidate) -> Dict[str, Any]:
@@ -206,13 +212,15 @@ def _item(i: int, c: Candidate) -> Dict[str, Any]:
             "exceptions": rule.exception_terms,
             "acceptable_examples": rule.allowed_examples,
             "unacceptable_examples": rule.prohibited_examples,
-            "required_disclaimers": rule.required_disclaimers if c.finding.kind == "MISSING_DISCLAIMER" else [],
+            "required_disclaimers": rule.required_disclaimers if c.trigger_only or c.finding.kind == "MISSING_DISCLAIMER" else [],
         },
-        "what_was_found": "wording the rule forbids" if c.finding.kind == "PROHIBITED_TERM"
-        else "wording that needs a disclaimer, with no disclaimer present",
+        "what_was_found": ("Army mention for contextual review; no breach established" if c.trigger_only else
+                           "wording the rule forbids" if c.finding.kind == "PROHIBITED_TERM" else
+                           "possible missing disclaimer; verify whether the rule actually requires it"),
         "trigger_phrases": c.finding.flagged_terms,
         "passage": c.passage,
         "context": c.context,
+        "submission_details": c.review_metadata,
         **({"past_reviewer_decisions": [_precedent(p) for p in c.precedents]} if c.precedents else {}),
     }
 
@@ -280,7 +288,7 @@ async def _judge(batch: List[Tuple[int, Candidate]], guard: Any) -> Tuple[Dict[i
 def _apply(c: Candidate, result: Optional[_Result], model: Optional[str], injected: bool) -> None:
     """Put the model's answer on the finding, through the safeguards."""
     f = c.finding
-    rule_decision = "VIOLATION"
+    rule_decision = f.status if c.trigger_only else "VIOLATION"
     if result is None or result.status not in STATUS_BY_MODEL:
         # It couldn't be read: a person checks it. The wording matched, so it isn't dropped; but a match that was never
         # read in context isn't proof of a breach either, so it costs nothing.
@@ -289,7 +297,7 @@ def _apply(c: Candidate, result: Optional[_Result], model: Optional[str], inject
             f"The wording matched ({quoted}) but it couldn't be read in context just now, because no model was "
             "available. A person needs to check whether the rule really applies."
         )
-        if str(c.rule.severity).upper() == "CRITICAL" or c.rule.traffic_light == "RED":
+        if not c.trigger_only and (str(c.rule.severity).upper() == "CRITICAL" or c.rule.traffic_light == "RED"):
             # A critical rule isn't let through because the AI is down: the match stays a violation, with its points and
             # its block, until it can be read (it's re-checked automatically) or a reviewer dismisses it.
             f.explanation = (
@@ -330,7 +338,7 @@ def _apply(c: Candidate, result: Optional[_Result], model: Optional[str], inject
         elif _visible_test_claim(c):
             status, source = "VIOLATION", "ADJUSTED"
             reasoning += " (A visible prohibited claim is still reviewed as part of the proposed image; its test label is not an exception.)"
-    if (str(c.rule.severity).upper() == "CRITICAL" or c.rule.traffic_light == "RED") and status in ("CLEARED", "NEEDS_REVIEW") and (
+    if not c.trigger_only and (str(c.rule.severity).upper() == "CRITICAL" or c.rule.traffic_light == "RED") and status in ("CLEARED", "NEEDS_REVIEW") and (
         source == "ADJUSTED" or result.confidence < CLEAR_MIN_CONFIDENCE
     ):
         # The same safeguards that stop an uncertain "cleared" apply to any answer short of "violation": a critical
@@ -345,6 +353,9 @@ def _apply(c: Candidate, result: Optional[_Result], model: Optional[str], inject
     f.status = status
     quoted = ", ".join(f'"{t}"' for t in f.flagged_terms[:4])
     if status == "VIOLATION":
+        if f.penalty == 0:
+            from services.compliance.evaluation.compliance_service import _penalty_and_light
+            f.penalty, f.traffic_light = _penalty_and_light(c.rule, f.kind)
         if reasoning and f.kind == "MISSING_DISCLAIMER":
             f.explanation = f"{reasoning} {f.explanation}"  # keep the wording of the disclaimer that's needed
         elif reasoning:

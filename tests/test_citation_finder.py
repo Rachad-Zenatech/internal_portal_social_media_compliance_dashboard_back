@@ -55,9 +55,9 @@ class TestLinks:
 
     def test_when_source_links_are_given_a_cut_short_link_in_the_caption_is_ignored(self):
         text = ("Read the full press release: https://www.zenatech.com/zenatechs-drone-as-a-service.../\n\n"
-                "Sources:\nhttps://www.zenatech.com/the-full-article-about-the-contracts/")
+                "Sources:\nhttps://www.zenatech.com/zenatechs-drone-as-a-service-contracts/")
         found = cf.find(text)
-        assert [(c.kind, c.reference) for c in found] == [("URL", "https://www.zenatech.com/the-full-article-about-the-contracts/")]
+        assert [(c.kind, c.reference) for c in found] == [("URL", "https://www.zenatech.com/zenatechs-drone-as-a-service-contracts/")]
         assert cf.describe(found[0]) is None
 
     def test_without_source_links_a_link_in_the_caption_still_counts(self):

@@ -19,9 +19,10 @@ from dataclasses import dataclass
 from typing import List, Literal, Optional, Tuple
 
 from services.compliance.analytics import post_signals
+from services.compliance.evaluation import source_identity
 
 # Bump when what counts as a citation changes.
-VERSION = "citations-1"
+VERSION = "citations-2-source-identity"
 
 # At most this many citations are followed per post: each costs a fetch and a model call.
 MAX_CITATIONS = 6
@@ -101,10 +102,10 @@ def _is_social(host: str) -> bool:
 
 
 def _named_parts(text: str, minimum_words: int = 2) -> List[str]:
-    """The sources in a "Source: ..." line: links and hashtags are taken out; several are split on ";"."""
-    text = post_signals.URL_PATTERN.sub(" ", text)
-    text = re.sub(r"(?<![\w#&])[#$][A-Za-z][\w]*", " ", text)
-    parts = [" ".join(p.split()).strip(" ,;:-–—|") for p in re.split(r";|\s\|\s", text)]
+    """Keep genuinely name-only credits; metadata accompanying a URL belongs to that URL."""
+    parts = [part for part in re.split(r";|\s\|\s", text) if not post_signals.URL_PATTERN.search(part)]
+    parts = [re.sub(r"(?<![\w#&])[#$][A-Za-z][\w]*", " ", part) for part in parts]
+    parts = [" ".join(part.split()).strip(" ,;:-\u2013\u2014|") for part in parts]
     return [p for p in parts if len(re.findall(r"[A-Za-z]{2,}", p)) >= minimum_words]
 
 
@@ -117,7 +118,8 @@ def _continues(previous: str, line: str) -> bool:
         return False
     if re.match(r"^\s*[#$@]", line) or _IMAGE_MARK.match(line) or _SOURCE_LINE.search(line):
         return False
-    return not post_signals.URL_PATTERN.search(line)
+    link = post_signals.URL_PATTERN.search(line)
+    return link is None or (not line[:link.start()].strip() and not line[link.end():].strip(" .;)"))
 
 
 def without_citation_text(text: str) -> str:
@@ -130,23 +132,36 @@ def without_citation_text(text: str) -> str:
     kept: List[str] = []
     under_heading = False
     for line in lines:
-        if _SOURCES_HEADING.match(line):
+        marker = _IMAGE_MARK.match(line)
+        prefix = line[:marker.end()] if marker else ""
+        content = line[marker.end():].lstrip() if marker else line.lstrip()
+        if marker:
+            under_heading = False
+        if _SOURCES_HEADING.match(content):
+            if prefix:
+                kept.append(prefix.rstrip())
             under_heading = True
             continue
         if under_heading:
-            if not line.strip():
+            if not content.strip():
                 under_heading = False
             else:
                 continue
-        match = _SOURCE_LINE.search(line)
+        match = _SOURCE_LINE.search(content)
         if match:
-            # A citation can follow a real sentence on the same line; retain only that real post copy.
-            before = line[:match.start()].rstrip()
+            before = (prefix + content[:match.start()]).rstrip()
             if before:
                 kept.append(before)
             continue
         kept.append(line)
     return "\n".join(kept)
+
+
+def is_reference_only(text: str) -> bool:
+    """A printed source credit identifies evidence; its URL/date is not a claim to substantiate."""
+    value = (text or "").strip().strip("\"'\u201c\u201d\u2018\u2019")
+    value = _IMAGE_MARK.sub("", value).strip()
+    return bool(value) and not without_citation_text(value).strip()
 
 
 def find(text: str, *, explicit_script: bool = False) -> List[Citation]:
@@ -159,7 +174,7 @@ def find(text: str, *, explicit_script: bool = False) -> List[Citation]:
     given: List[Citation] = []  # links under a "Sources:" heading: the author's own list (the "Source links" field)
 
     def add(c: Citation) -> None:
-        key = (c.kind, re.sub(r"\W+", "", c.reference.lower()))
+        key = (c.kind, source_identity.url_key(c.reference) if c.kind == "URL" else re.sub(r"\W+", "", c.reference.lower()))
         if key not in seen:
             seen.add(key)
             found.append(c)
@@ -211,11 +226,8 @@ def find(text: str, *, explicit_script: bool = False) -> List[Citation]:
             if under_heading:
                 given.append(citation)
 
-    # When the author listed the sources (the "Source links" field), those are the links to read: a link in the caption
-    # is usually the same one, often cut short ("zenatech.com/some-article...") and so unreadable.
-    if given:
-        found = [c for c in found if c.kind != "URL"] + [c for i, c in enumerate(given) if c not in given[:i]]
-    return found[:MAX_CITATIONS]
+    # A matching explicit link wins, while genuinely different inline sources remain independently checkable.
+    return source_identity.citations([*found, *given])[:MAX_CITATIONS]
 
 
 def describe(c: Citation) -> Optional[str]:
