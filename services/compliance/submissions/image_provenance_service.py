@@ -21,12 +21,13 @@ def missing(row):
 
 
 def update_fields(row, payload):
+    fields = {}
     answer = payload.get("ai_generated_images")
-    if answer is None:
-        return {}
-    fields = {} if row.get("ai_generated_images_confirmed") else {"ai_generated_images_confirmed": True}
-    if answer != bool(row.get("ai_generated_images")):
-        fields.update(ai_generated_images=answer, image_provenance_edited_at=datetime.now(timezone.utc))
+    if answer is not None:
+        if not row.get("ai_generated_images_confirmed"):
+            fields["ai_generated_images_confirmed"] = True
+        if answer != bool(row.get("ai_generated_images")):
+            fields.update(ai_generated_images=answer, image_provenance_edited_at=datetime.now(timezone.utc))
     people_answer = payload.get("people_in_images")
     if people_answer is not None:
         fields["people_in_images"] = people_answer
@@ -40,7 +41,7 @@ def update_fields(row, payload):
 
 async def retry_image_read(submission_id: UUID, file_id: UUID, user_id: UUID) -> SubmissionFile:
     """Queue an image's OCR and anonymous face read again, including a stalled attempt."""
-    from services.ai.core import image_text_service
+    from services.compliance.media import image_text_service
     from services.compliance.submissions import submission_service
 
     await submission_service._get_owned_row(submission_id, user_id)

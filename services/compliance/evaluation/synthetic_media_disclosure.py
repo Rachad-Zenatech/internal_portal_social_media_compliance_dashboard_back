@@ -1,6 +1,6 @@
 """Require evidence of synthetic media before adding an AI-image disclosure finding."""
 import re
-from models.compliance.compliance_model import ComplianceViolation
+from models.compliance.compliance_model import ComplianceViolation, ContextEvaluation
 
 SYNTHETIC_RULE = re.compile(r"\b(ai|synthetic|renders?|rendering)\b", re.I)
 _VISUAL = r"(?:images?|imagery|photos?|photographs?|pictures?|visuals?|videos?|footage|animations?|illustrations?|artwork|scenes?|visualizations?)"
@@ -12,6 +12,10 @@ _SYNTHETIC_VISUAL = re.compile(
     r"|\b(?:ai[ -]*images?(?!\s+(?:recognition|analysis|processing|classification|detection))|(?:3d |digital )?render(?:ing)? of|concept(?:ual)? visualization)\b", re.I,
 )
 _NEGATED = re.compile(r"\b(?:no|not|without|never)\s+(?:(?:an?|any|using)\s+)?$", re.I)
+_ILLUSTRATIVE_LABEL = re.compile(
+    r"\bimages?\s+(?:(?:is|are)\s+)?for\s+(?:illustration|illustrative)\s+purposes\s+only\b",
+    re.I,
+)
 
 
 def synthetic_evidence(text):
@@ -27,6 +31,32 @@ def _direct_breach(finding, rule, padded):
     return finding.kind == "PROHIBITED_TERM" and any(
         term in finding.flagged_terms and cs._hit(term, padded, rule.exception_terms or [], honor_negation=True)
         for term in rule.prohibited_terms
+    )
+
+
+def _approved_disclosure(labels, padded):
+    """Allow grammatical variants of an illustrative note only when the rule explicitly approves that note."""
+    from services.compliance.evaluation import compliance_service as cs
+    for label in labels:
+        if cs._disclaimer_present(label, padded):
+            return label
+        if _ILLUSTRATIVE_LABEL.fullmatch(cs._normalize(label)):
+            match = _ILLUSTRATIVE_LABEL.search(padded)
+            if match:
+                return match.group()
+    return None
+
+
+def _clear_disclosure(finding, label):
+    previous = finding.status
+    finding.status, finding.traffic_light = "CLEARED", "GREEN"
+    finding.penalty, finding.uncounted_penalty, finding.counted_with = 0, 0, None
+    finding.missing_disclaimers = []
+    finding.remediation_guidance = None
+    finding.explanation = "The published caption or image already carries an approved disclosure: " + label
+    finding.evaluation = ContextEvaluation(
+        decision="CLEARED", matched_text=label, reasoning=finding.explanation,
+        confidence=1, rule_decision=previous, source="ADJUSTED",
     )
 
 
@@ -47,7 +77,11 @@ def ensure_review(req, rules, findings):
     published = req.disclaimer_text if req.disclaimer_text is not None else text
     padded = f" {cs._normalize(published)} "
     for rule in synthetic_rules:
-        if any(cs._disclaimer_present(label, padded) for label in rule.required_disclaimers):
+        label = _approved_disclosure(rule.required_disclaimers, padded)
+        if label:
+            for finding in findings:
+                if finding.rule_id == rule.id and finding.kind == "MISSING_DISCLAIMER":
+                    _clear_disclosure(finding, label)
             continue
         existing = [finding for finding in findings if finding.rule_id == rule.id]
         if any(finding.status != "CLEARED" for finding in existing):

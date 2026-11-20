@@ -4,7 +4,9 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/synthetic_media_disclosure.py (67 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
-- `synthetic_evidence` (def) L17 - A statement about generated visuals, rather than AI-powered products or a sensitive topic.
-- `_direct_breach` (def) L25
-- `ensure_review` (def) L33 - Unknown provenance or the word military alone must not imply that an image was generated.
+## services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
+- `synthetic_evidence` (def) L21 - A statement about generated visuals, rather than AI-powered products or a sensitive topic.
+- `_direct_breach` (def) L29
+- `_approved_disclosure` (def) L37 - Allow grammatical variants of an illustrative note only when the rule explicitly approves that note.
+- `_clear_disclosure` (def) L50
+- `ensure_review` (def) L63 - Unknown provenance or the word military alone must not imply that an image was generated.

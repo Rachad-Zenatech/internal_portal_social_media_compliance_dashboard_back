@@ -42,7 +42,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
-      "max_lines": 2932,
+      "max_lines": 2900,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/notifications/rabbitmq_service.py": {
@@ -75,20 +75,16 @@
       "max_lines": 127,
       "kind": "py_function"
     },
-    "services/compliance/submissions/submission_service.py#_run_check": {
-      "max_lines": 128,
-      "kind": "py_function"
-    },
     "services/compliance/submissions/submission_service.py#list_submissions": {
-      "max_lines": 135,
+      "max_lines": 130,
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#submit_for_review": {
-      "max_lines": 153,
+      "max_lines": 146,
       "kind": "py_function"
     },
     "services/compliance/submissions/submission_service.py#update_submission": {
-      "max_lines": 137,
+      "max_lines": 128,
       "kind": "py_function"
     },
     "services/notifications/rabbitmq_hub_status.py#HubStatusMixin._build_hub_live_status": {

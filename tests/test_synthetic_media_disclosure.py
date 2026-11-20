@@ -100,7 +100,88 @@ class DisclosureTests(unittest.TestCase):
         self.assertEqual([f.status for f in findings], ["NEEDS_REVIEW"])
 
 
+class PublishedDisclosureTests(unittest.TestCase):
+    def test_sub_1186_extracted_note_matches_approved_illustrative_label(self):
+        r = synthetic_rule()
+        r.required_disclaimers.append("Image for illustrative purposes only")
+        for note in ("*Image is for illustration purposes only.", "Image is for illustrative purposes only.",
+                     "Images are for illustration purposes only."):
+            with self.subTest(note=note):
+                text = "ZENATECH DRONE AS A SERVICE NOVEMBER 10, 2025 NEWS TODAY! " + note
+                req = ComplianceCheckRequest(text=text, disclaimer_text=text,
+                                             content_parts=["imagery", "caption"], ai_generated_images=True)
+                finding = cs._evaluate_rule(r, " " + cs._normalize(AI_POST) + " ")
+                finding.status, finding.penalty = "NEEDS_REVIEW", 5
+                disclosure.ensure_review(req, [r], [finding])
+                self.assertEqual((finding.status, finding.penalty), ("CLEARED", 0))
+
+    def test_illustrative_note_still_must_be_approved_and_not_negated(self):
+        for labels, note in (([LABEL], "Image is for illustration purposes only."),
+                             (["Image for illustrative purposes only"], "Image is not for illustration purposes only.")):
+            with self.subTest(labels=labels, note=note):
+                r = synthetic_rule()
+                r.required_disclaimers = labels
+                req = ComplianceCheckRequest(text=note, content_parts=["imagery"], ai_generated_images=True)
+                findings = []
+                disclosure.ensure_review(req, [r], findings)
+                self.assertEqual([f.kind for f in findings], ["MISSING_DISCLAIMER"])
+
+    def test_approved_image_label_clears_existing_missing_disclaimer(self):
+        r = synthetic_rule()
+        alternate = "Simulation or rendering - not test footage."
+        r.required_disclaimers.append(alternate)
+        for label in (LABEL, LABEL.replace("a potential", "potential"), alternate):
+            with self.subTest(label=label):
+                req = ComplianceCheckRequest(text=POST + "\nText in image 1: " + label,
+                    disclaimer_text=POST + "\nText in image 1: " + label,
+                    content_parts=["imagery", "caption"], ai_generated_images=True)
+                finding = cs._evaluate_rule(r, " " + cs._normalize(AI_POST) + " ")
+                finding.status, finding.penalty = "NEEDS_REVIEW", 5
+                disclosure.ensure_review(req, [r], [finding])
+                self.assertEqual((finding.status, finding.penalty, finding.traffic_light), ("CLEARED", 0, "GREEN"))
+                self.assertEqual(finding.missing_disclaimers, [])
+                self.assertEqual(finding.evaluation.decision, "CLEARED")
+
+    def test_generic_ai_disclosure_does_not_override_required_labels(self):
+        r = synthetic_rule()
+        for label in ("AI-generated image", "This image was generated using AI.", "Image for illustrative purposes only."):
+            with self.subTest(label=label):
+                req = ComplianceCheckRequest(text=POST + " " + label, disclaimer_text=label,
+                                             content_parts=["imagery"], ai_generated_images=True)
+                findings = []
+                disclosure.ensure_review(req, [r], findings)
+                self.assertEqual([f.kind for f in findings], ["MISSING_DISCLAIMER"])
+
+    def test_approved_label_does_not_clear_deceptive_claim(self):
+        r = synthetic_rule()
+        r.prohibited_terms = ["fabricated telemetry"]
+        req = ComplianceCheckRequest(text="AI-generated image with fabricated telemetry. " + LABEL,
+                                     content_parts=["imagery"], ai_generated_images=True)
+        finding = cs._evaluate_rule(r, " " + cs._normalize(req.text) + " ")
+        disclosure.ensure_review(req, [r], [finding])
+        self.assertEqual(finding.status, "VIOLATION")
+        self.assertGreater(finding.penalty, 0)
+
+
 class RerunTests(unittest.IsolatedAsyncioTestCase):
+    async def test_approved_image_label_clears_stale_finding_without_deducting_points(self):
+        req = ComplianceCheckRequest(text=POST + "\nText in image 1: " + LABEL,
+                                     disclaimer_text=POST + "\nText in image 1: " + LABEL,
+                                     content_parts=["imagery", "caption"], ai_generated_images=True)
+        r = synthetic_rule()
+        stale_finding = cs._evaluate_rule(r, " " + cs._normalize(AI_POST) + " ")
+        stale_finding.status = "NEEDS_REVIEW"
+        with patch.object(cs, "applicable_rules", AsyncMock(return_value=[r])), \
+             patch.object(cs, "rulebook_version", AsyncMock(return_value="test-rules")), \
+             patch.object(cs, "_semantic_findings", AsyncMock(return_value=[stale_finding])), \
+             patch.object(cs.context_evaluator, "evaluate", AsyncMock()), \
+             patch.object(cs.source_check_service, "run", AsyncMock(return_value=SimpleNamespace(ai_failed=False, checks=[]))):
+            for _ in range(2):
+                result = await cs.check_compliance(req)
+                self.assertEqual(result.score, 100)
+                self.assertFalse(result.blocked)
+                self.assertEqual([(f.status, f.penalty) for f in result.violations if f.rule_id == r.id], [("CLEARED", 0)])
+
     async def test_declared_synthetic_media_reruns_keep_rule_nine(self):
         req = ComplianceCheckRequest(text=POST + " Synthetic military image.", content_parts=["imagery", "caption"])
         with patch.object(cs, "applicable_rules", AsyncMock(return_value=[synthetic_rule()])), \

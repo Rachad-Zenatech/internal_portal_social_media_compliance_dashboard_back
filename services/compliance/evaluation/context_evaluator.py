@@ -49,7 +49,7 @@ from services.shared.core.cache_service import AsyncInMemoryCache
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused.
-PROMPT_VERSION = "context-v3"
+PROMPT_VERSION = "context-v5"
 MODELS = without_retired([m.strip() for m in os.getenv(
     "CONTEXT_EVAL_MODELS",
     os.getenv("SENTIMENT_MODELS", "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite"),
@@ -95,6 +95,9 @@ How to judge:
 - The same word can be fine in one sentence and a breach in the next. Decide from the sentence, its subject and its
   framing, and from the rule's own guidance, never from the trigger word alone.
 - Use only the rule given for each item. Do not invent rules or apply others.
+- For required-disclaimer findings, count an approved label or close wording visibly printed on the image or in the
+  caption. A private creator declaration of AI use does not replace the rule's required public label.
+  Still evaluate separate claims that generated imagery depicts a real operation or endorsement.
 - Some items include past_reviewer_decisions: how this team's reviewers decided similar wording under the same rule
   (a confirmed flag, or a dismissed false alarm with a reason). Treat them as guidance on how the rule is read here,
   never as proof. Follow one only if the new passage is really the same kind of case, and still base your answer on the
