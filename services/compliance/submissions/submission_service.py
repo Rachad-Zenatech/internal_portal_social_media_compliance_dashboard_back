@@ -1300,10 +1300,10 @@ def _check_text(row: Dict[str, Any]) -> str:
 
 def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: bool,
                   sources: Sequence[ProvidedSource] = (), disclaimer_text: Optional[str] = None,
-                  source_script: Optional[str] = None) -> ComplianceCheckRequest:
+                  source_script: Optional[str] = None, visual_media=()) -> ComplianceCheckRequest:
     """The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
     documents attached as evidence for the source check."""
-    return ComplianceCheckRequest(
+    request = ComplianceCheckRequest(
         text=text,
         disclaimer_text=disclaimer_text,
         sources=list(sources),
@@ -1324,6 +1324,8 @@ def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: b
             or approval_path_service.is_ceo_content(row.get("rule_sets") or [], _accounts(row)),
         ),
     )
+    request._visual_media = list(visual_media)
+    return request
 
 
 def script_stage_on(row: Dict[str, Any]) -> bool:
@@ -1420,7 +1422,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     result = await check_compliance(
         check_request(row, text, has_video=bool(video), has_images=bool(images), sources=sources,
                       disclaimer_text=published,
-                      source_script=source_script or None)
+                      source_script=source_script or None, visual_media=[*images, *([video] if video else [])])
     )
     all_video_segments = [*segments, *visual_segments]
     await video_finding_service.locate_media_findings(images, video, all_video_segments, result.violations)

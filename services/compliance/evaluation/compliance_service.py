@@ -38,7 +38,7 @@ from models.compliance.submission_model import AUDIENCES, PLATFORMS, REGIONS, RU
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
-from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer, army_context_review
+from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer, army_context_review, visual_review
 from services.compliance.evaluation import context_evaluator, rule_set_policy
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
@@ -69,7 +69,7 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-18-army-context|brand-audience-1"
+SCOPE_VERSION = "scope-19-visual-review|brand-audience-1"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
@@ -1318,7 +1318,8 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     violations.extend(source_post_checks.unsourced_image_findings(req.text, source_result.checks, source_result.manifest))
     source_check_service.clear_supported(violations, source_result.checks)
     # The check is incomplete when a context rule couldn't be read, or the meaning check couldn't run at all.
-    ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations)
+    visual_checks = await visual_review.review(req, rules, violations)
+    ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations) or any(c["status"] == "UNAVAILABLE" for c in visual_checks)
     synthetic_media_disclosure.ensure_review(match_req, rules, violations)
     breaches = [v for v in violations if v.status == "VIOLATION"]
     _count_overlaps_once(breaches, padded_text)
@@ -1330,7 +1331,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         scope, rules, violations, breaches, unsupported, to_check, signals,
         ai_unavailable, notes, source_result.checks, await rulebook_version(),
     )
-    return response.model_copy(update={"claim_manifest": source_result.manifest})
+    return response.model_copy(update={"claim_manifest": source_result.manifest, "visual_checks": visual_checks})
 
 
 def flagged_tags(tags: Sequence[str], rules: List[ComplianceRule]) -> Dict[str, str]:

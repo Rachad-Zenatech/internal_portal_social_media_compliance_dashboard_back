@@ -5,7 +5,7 @@ Supports full CRUD ("build on it and remove") and live automated AI compliance s
 from datetime import datetime
 from typing import List, Literal, Optional
 from uuid import UUID
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 from .claim_manifest_model import ClaimManifest
 
 
@@ -123,6 +123,7 @@ class ProvidedSource(BaseModel):
 
 
 class ComplianceCheckRequest(BaseModel):
+    _visual_media: list[dict] = PrivateAttr(default_factory=list)
     text: str = Field(..., description="Script, caption, claim, transcript, or video description to evaluate")
     video_title: Optional[str] = None
     content_type: Optional[str] = Field("video_caption", description="Type: video_caption, script, social_post, imagery_concept")
@@ -210,6 +211,7 @@ class ImageFindingRegion(BaseModel):
 
 
 class ComplianceViolation(BaseModel):
+    visual_evidence: bool = False
     rule_id: UUID
     rule_number: str
     title: str
@@ -319,6 +321,7 @@ class AddedRuleSet(BaseModel):
 
 
 class ComplianceCheckResponse(BaseModel):
+    visual_checks: list[dict] = Field(default_factory=list)
     is_compliant: bool
     traffic_light: str = "GREEN"  # GREEN, YELLOW, RED
     score: int = 100  # 0 to 100
