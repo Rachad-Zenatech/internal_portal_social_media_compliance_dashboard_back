@@ -173,7 +173,8 @@ class NewsroomVisibilityTests(unittest.IsolatedAsyncioTestCase):
         made = check(nf.REFERENCE, [])
         claims = [claim("Revenue grew 60%", verdict, "Revenue grew 60%")
                   for verdict in ("SUPPORTED", "NOT_FOUND", "UNCLEAR")]
-        with patch.object(sc, "ENABLED", True), \
+        from models.compliance.claim_manifest_model import ClaimManifest
+        with patch.object(sc.claim_manifest, "get", AsyncMock(return_value=ClaimManifest(version="test", revision="test"))), patch.object(sc, "ENABLED", True), \
                 patch.object(nf, "material", AsyncMock(return_value=(made, ("Newsroom", "Revenue grew 60%")))), \
                 patch.object(sc.source_post_checks, "compare_parts", AsyncMock(return_value=([], "test-model", False))), \
                 patch.object(sc.source_passages, "checked_claims", AsyncMock(return_value=claims)):

@@ -1,6 +1,7 @@
 """Repeated source credits resolve to one source without hiding unrelated or unreadable reports."""
 import unittest
 from types import SimpleNamespace
+from models.compliance.claim_manifest_model import ClaimManifest
 from unittest.mock import AsyncMock, patch
 
 from services.compliance.evaluation import citation_finder as cf, source_identity as identity, source_check_service as sc
@@ -62,7 +63,7 @@ class SourceResolutionTests(unittest.IsolatedAsyncioTestCase):
         fetch = AsyncMock(side_effect=fetched) if callable(fetched) else AsyncMock(return_value=fetched or FetchedSource(
             url=URL, ok=True, status="OK", title="Soldiers, developers assess tethered drones", text="The report describes a two-week assessment of tethered drones.", content_hash="test"))
         compare = AsyncMock(return_value=([], "test-model", False))
-        with patch.object(sc, "ENABLED", True), \
+        with patch.object(sc.claim_manifest, "get", AsyncMock(return_value=ClaimManifest(version="test", revision="test"))), patch.object(sc, "ENABLED", True), \
              patch.object(sc.newsroom_facts, "material", AsyncMock(return_value=None)), \
              patch.object(sc.source_fetch_service, "fetch", fetch), \
              patch.object(sc.source_post_checks, "compare_parts", compare):

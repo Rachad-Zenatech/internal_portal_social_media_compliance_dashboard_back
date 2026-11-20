@@ -100,7 +100,7 @@ class ArmyPipelineTests(unittest.IsolatedAsyncioTestCase):
                 with (
                     patch.object(cs, "applicable_rules", AsyncMock(return_value=defense_rules())),
                     patch.object(cs, "_semantic_findings", AsyncMock(return_value=[])),
-                    patch.object(cs.source_check_service, "run", AsyncMock(return_value=SimpleNamespace(ai_failed=False, checks=[]))),
+                    patch.object(cs.source_check_service, "run", AsyncMock(return_value=SimpleNamespace(ai_failed=False, checks=[], manifest=None))),
                     patch.object(cs.source_post_checks, "unsourced_image_findings", return_value=[]),
                     patch.object(cs.synthetic_media_disclosure, "ensure_review"),
                     patch.object(cs, "rulebook_version", AsyncMock(return_value="test")),

@@ -52,13 +52,14 @@ from services.compliance.evaluation.source_findings import (  # noqa: F401
 )
 from services.shared.core.cache_service import AsyncInMemoryCache
 from services.compliance.media import script_sources
-from services.compliance.evaluation import source_identity
+from services.compliance.evaluation import source_identity, claim_manifest, claim_verification
+from models.compliance.claim_manifest_model import ClaimManifest
 
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v9-citations-are-metadata"
-VERSION = f"sources-2|{citation_finder.VERSION}|{PROMPT_VERSION}"
+PROMPT_VERSION = "source-v10-fixed-claim-inventory"
+VERSION = f"sources-3|{citation_finder.VERSION}|{PROMPT_VERSION}|{claim_manifest.VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 MODELS = without_retired([m.strip() for m in os.getenv(
     "SOURCE_CHECK_MODELS",
@@ -80,21 +81,19 @@ _cache = AsyncInMemoryCache(maxsize=1000)
 SYSTEM_PROMPT = """You check whether the source a post cites really backs up what the post says. You are given the post (its caption,
 plus any text read from its images, marked "Text in image") and ONE source the post cites, a web page or a document, as text.
 
-List each checkable factual claim about the source's subject, including claims it does NOT mention: figures, dates and deadlines, named organisations
-or people and what they did or said, a product's or project's status or stage, results, capabilities, who approved or
-certified what. Skip standalone names, logos, URLs, branding, and incidental booth or background signage. A product name
-or label that merely identifies an object is not a claim. Check actual capability lists and measurable statements, even
-without a full sentence. Skip opinions and calls to action. Return up to 12 factual claims, using UNCLEAR if needed.
+The post input is a fixed inventory, not a request to discover claims. Verify every supplied claim_id,
+using its exact wording, subject, scope and qualifications. Do not add, omit, strengthen or rewrite claims.
+Return one result per supplied ID, including UNCLEAR for an unrelated source. Ambiguous subject means UNCLEAR.
 
 For each claim return:
-- claim: the claim as the post states it, short, in the post's own words where you can.
+- claim_id: the supplied stable claim ID.
+- claim: the supplied exact wording, unchanged.
 - where: "caption", or "image" when it comes from the text read from an image.
 - verdict:
     SUPPORTED: the source says the same thing. The wording may differ (a different order, "October 2027" for "OCT 2027",
       "thirty" for "30", a figure rounded the way the post states it); what matters is the meaning, including the numbers,
       dates, scope and conditions.
-    CONTRADICTED: the source says something different (another figure, date, stage or scope), OR the post says more than the
-      source does: "available now" where the source says prototype, a result without the conditions the source attaches to
+    CONTRADICTED: the source says something different (another figure, date, stage or scope), OR affirmative source evidence establishes a narrower scope than the post: "available now" where the source says prototype, a result without the conditions the source attaches to
       it, "approved" where the source says submitted, a target stated as settled, a plan stated as done.
     NOT_FOUND: the source covers the subject but does not say this. A page about one product or example cannot disprove a broader claim merely by omitting other examples.
     UNCLEAR: multiple readings are plausible. Explain the distinction, such as revenue earned across eight projects
@@ -122,7 +121,8 @@ How to judge:
 
 
 class _Result(BaseModel):
-    claim: str
+    claim_id: Optional[str] = None
+    claim: str = ""
     where: str = "caption"
     verdict: str
     evidence: Optional[str] = None
@@ -143,6 +143,7 @@ RESPONSE_SCHEMA: Dict[str, Any] = {
             "items": {
                 "type": "OBJECT",
                 "properties": {
+                    "claim_id": {"type": "STRING"},
                     "claim": {"type": "STRING"},
                     "where": {"type": "STRING", "enum": ["caption", "image"]},
                     "verdict": {"type": "STRING", "enum": ["SUPPORTED", "CONTRADICTED", "NOT_FOUND", "UNCLEAR"]},
@@ -151,7 +152,7 @@ RESPONSE_SCHEMA: Dict[str, Any] = {
                     "note": {"type": "STRING", "nullable": True},
                     "confidence": {"type": "NUMBER"},
                 },
-                "required": ["claim", "verdict", "confidence"],
+                "required": ["claim_id", "verdict", "confidence"],
             },
         }
     },
@@ -161,6 +162,7 @@ RESPONSE_SCHEMA: Dict[str, Any] = {
 
 @dataclass
 class SourceCheckResult:
+    manifest: Optional[ClaimManifest] = None
     checks: List[SourceCheck] = field(default_factory=list)
     # A source was read but no model could compare it: the check is incomplete (like any other AI step that failed).
     ai_failed: bool = False
@@ -215,11 +217,13 @@ async def _ask(model: str, contents: str, guard: Any) -> _Response:
     raise ValueError(f"malformed answer: {last}")
 
 
-async def _compare(post_text: str, label: str, title: Optional[str], url: Optional[str], published: Optional[str],
+async def _compare_inventory(post_text: str, label: str, title: Optional[str], url: Optional[str], published: Optional[str],
                    source_text: str) -> Tuple[Optional[List[_Result]], Optional[str]]:
     """The model's claim-by-claim answer for one source (None when no model could give one), and the model's name."""
+    if len(post_text) > MAX_POST_CHARS:
+        return None, None
     key = hashlib.sha256("|".join([
-        PROMPT_VERSION, _post_key(post_text)[:MAX_POST_CHARS], hashlib.sha256(source_text.encode("utf-8")).hexdigest(),
+        PROMPT_VERSION, post_text, label, title or "", url or "", published or "", hashlib.sha256(source_text.encode("utf-8")).hexdigest(),
     ]).encode("utf-8")).hexdigest()
     hit = None if source_recheck.refresh.get() else await _cache.get(key)
     if hit:
@@ -231,9 +235,9 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
         head.append(f"Address: {url}")
     if published:
         head.append(f"Published: {published}")
-    shown = await source_passages.excerpt(post_text[:MAX_POST_CHARS], source_text)  # a long source: what matters of it
+    shown = await source_passages.excerpt(post_text, source_text)  # a long source: what matters of it
     contents = (
-        "Check the post's claims against this source.\n\n<post>\n" + post_text[:MAX_POST_CHARS] + "\n</post>\n\n<source>\n"
+        "Check the post's claims against this source.\n\n<post>\n" + post_text + "\n</post>\n\n<source>\n"
         + "\n".join(head) + "\n\n" + shown + "\n</source>"
     )
     guard = screen_input(contents)
@@ -251,6 +255,13 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
             await _cache.set(key, answer, CACHE_TTL_SEC)
             return answer
     return None, None
+
+
+async def _compare(post_text, label, title, url, published, source_text):
+    inventory = await claim_manifest.get(post_text)
+    results, model, incomplete = await claim_verification.compare(
+        inventory, (label, title, url, published, source_text), _compare_inventory)
+    return (None if incomplete else results), model
 
 
 # --- Which sources there are -----------------------------------------------------------------------------------------
@@ -302,6 +313,8 @@ async def run(
     result = SourceCheckResult()
     if not ENABLED or not (text or "").strip():
         return result
+    result.manifest = await claim_manifest.get(text)
+    result.ai_failed = not result.manifest.complete
     # Post Details owns image-source discovery; compliance still compares the full image text with saved links.
     citations = [c for c in citation_finder.find(text) if include_image_citations or c.where != "image"]
     docs = [d for d in provided if (d.text or "").strip()]
@@ -352,7 +365,7 @@ async def run(
     async def compare(check: SourceCheck, material: Tuple[str, str]) -> None:
         label, source_text = material
         results, model, incomplete = await source_post_checks.compare_parts(
-            text, label, check.title, check.url, check.published, source_text, _compare)
+            text, label, check.title, check.url, check.published, source_text, _compare_inventory, manifest=result.manifest)
         if incomplete and not newsroom_facts.is_newsroom(check):
             result.ai_failed = True
             check.message = ("No AI model could compare this source just now. Check again to finish." if results is None
@@ -378,9 +391,18 @@ def findings(checks: Sequence[SourceCheck]) -> List[ComplianceViolation]:
     """The findings the sources produce: claims that contradict their source cost points; claims the source doesn't
     settle, and sources that couldn't be checked, are for a person."""
     out: List[ComplianceViolation] = []
+    supported = {c.claim_id or c.claim.casefold() for check in checks for c in check.claims if c.verdict == "SUPPORTED"}
+    seen = set()
     for check in checks:
         newsroom = newsroom_facts.is_newsroom(check)
         for claim in check.claims:
+            identity = claim.claim_id or claim.claim.casefold()
+            if claim.verdict in {"NOT_FOUND", "UNCLEAR"} and identity in supported:
+                continue
+            key = (identity, claim.verdict)
+            if key in seen:
+                continue
+            seen.add(key)
             if claim.verdict == "CONTRADICTED" and newsroom:
                 # Not cited by the author, and a fact is a short summary of an older article: a person confirms, no points.
                 out.append(_finding(

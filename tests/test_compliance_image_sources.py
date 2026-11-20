@@ -1,5 +1,6 @@
 """Compliance uses saved source links without rediscovering image source credits."""
 import unittest
+from models.compliance.claim_manifest_model import ClaimManifest
 from unittest.mock import AsyncMock, patch
 
 from models.compliance.compliance_model import SourceCheck
@@ -16,6 +17,7 @@ class ComplianceImageSourceTests(unittest.IsolatedAsyncioTestCase):
             patch.object(sources, "ENABLED", True),
             patch.object(sources.newsroom_facts, "material", AsyncMock(return_value=None)),
             patch.object(sources, "_read_link", read),
+            patch.object(sources.claim_manifest, "get", AsyncMock(return_value=ClaimManifest(version="test", revision="test"))),
             patch.object(sources.source_post_checks, "compare_parts", compare),
         ):
             result = await sources.run(text, include_image_citations=include_image_citations)

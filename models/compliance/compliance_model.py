@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import List, Literal, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
+from .claim_manifest_model import ClaimManifest
 
 
 class ComplianceRuleBase(BaseModel):
@@ -272,6 +273,8 @@ class CheckSignals(BaseModel):
 class SourceClaim(BaseModel):
     """One claim the post makes, and whether the source it cites backs it up."""
     claim: str
+    claim_id: Optional[str] = None
+    clarification_needed: bool = False
     # SUPPORTED: the source says it. CONTRADICTED: the source says something different, or less. NOT_FOUND: the source
     # covers the subject but not this. UNCLEAR: could be read either way, so a person decides.
     verdict: Literal["SUPPORTED", "CONTRADICTED", "NOT_FOUND", "UNCLEAR"]
@@ -351,3 +354,4 @@ class ComplianceCheckResponse(BaseModel):
     signals: Optional[CheckSignals] = None
     # The sources the post cites, opened and compared with its claims. Empty when it cites none.
     source_checks: List[SourceCheck] = Field(default_factory=list)
+    claim_manifest: Optional[ClaimManifest] = None

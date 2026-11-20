@@ -4,8 +4,6 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_post_checks.py (88 lines) - Compare each published part separately so caption claims cannot crowd out image claims.
-- `parts` (def) L7
-- `unsourced_image_findings` (def) L19 - Surface source requirements for image capability lists even without a supplied source.
-- `complete_image_claims` (def) L39
-- `compare_parts` (def) L60 - Keep every part's findings and expose any part no model could compare.
+## services/compliance/evaluation/source_post_checks.py (33 lines) - Source comparison consumes the same full-post inventory across all published parts.
+- `unsourced_image_findings` (def) L6 - All extracted facts, including soft claims, stay visible when there is no usable evidence.
+- `compare_parts` (def) L30

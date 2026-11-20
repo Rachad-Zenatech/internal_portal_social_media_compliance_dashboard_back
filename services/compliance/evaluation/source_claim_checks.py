@@ -96,7 +96,7 @@ def _to_claims(results: Sequence[Any], source_text: str) -> List[SourceClaim]:
     """The model's answers, through the safeguards."""
     out: List[SourceClaim] = []
     for r in results:
-        if is_identifier(r.claim) or is_reference_only(r.claim):
+        if not getattr(r, "claim_id", None) and (is_identifier(r.claim) or is_reference_only(r.claim)):
             continue
         verdict = r.verdict if r.verdict in ("SUPPORTED", "CONTRADICTED", "NOT_FOUND", "UNCLEAR") else "UNCLEAR"
         note = (r.note or "").strip() or None
@@ -114,12 +114,12 @@ def _to_claims(results: Sequence[Any], source_text: str) -> List[SourceClaim]:
             elif evidence_overlap(evidence, source_text) < EVIDENCE_MIN_OVERLAP:
                 verdict = "UNCLEAR"
                 note = _add(note, "The evidence given couldn't be found in the source's text, so a person should confirm it.")
-        if verdict == "SUPPORTED" and r.where == "image" and not evidence_covers(r.claim, evidence or "", source_text):
+        if verdict == "SUPPORTED" and not getattr(r, "claim_id", None) and r.where == "image" and not evidence_covers(r.claim, evidence or "", source_text):
             verdict = "UNCLEAR"
             note = _add(note, "The evidence does not establish this specific capability, so a person should confirm it.")
         loc = (r.source_location or "").strip() or None
         out.append(SourceClaim(
-            claim=(r.claim or "").strip()[:400], verdict=verdict, where="image" if r.where == "image" else "caption",
+            claim=(r.claim or "").strip(), claim_id=getattr(r, "claim_id", None), clarification_needed=getattr(r, "clarification_needed", False), verdict=verdict, where="image" if r.where == "image" else "caption",
             evidence=evidence[:600] if evidence else None, source_location=loc[:240] if loc else None,
             note=note[:400] if note else None,
             confidence=round(r.confidence, 2),

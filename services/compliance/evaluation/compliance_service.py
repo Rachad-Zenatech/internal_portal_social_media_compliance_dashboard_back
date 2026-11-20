@@ -1252,6 +1252,8 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # Two rules can ask for the same disclaimer (e.g. Rules 4 and 13); a missing one is reported once.
     reported_disclaimers: set = set()
     for rule in rules:
+        if rule.rule_number == "Rule 18" and source_check_service.ENABLED:
+            continue  # The source-independent inventory owns substantiation discovery.
         v = _evaluate_rule(rule, padded_text, hashtag_keys, disclaimer_padded)
         if not v:
             continue
@@ -1264,15 +1266,14 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         if rule.evaluation_mode == "CONTEXT":
             contextual.append((v, rule))
 
-    # Built-in claim checks catch what exact phrases miss (money figures, forward-looking results, unnamed
-    # customers...). A forward-looking claim the rulebook already reported as missing its safe harbor counts once.
+    # Built-in checks for other rules remain; do not double count a safe-harbor warning.
     safe_harbor_reported = any(
         v.kind == "MISSING_DISCLAIMER" and any("forward looking" in _normalize(d) for d in v.missing_disclaimers)
         for v in violations
     )
     violations.extend(
         c for c in claim_checks.find_claims(match_text)
-        if not (safe_harbor_reported and c.rule_id == claim_checks.FORWARD_LOOKING_ID)
+        if (c.rule_number != "Rule 18" or not source_check_service.ENABLED) and not (safe_harbor_reported and c.rule_id == claim_checks.FORWARD_LOOKING_ID)
     )
     # Tagged government or military accounts and linked .gov / .mil sites (see post_signals). When the rulebook
     # already reported the missing "no endorsement" disclaimer (Rules 4 and 13), the fix is the same, so it counts once.
@@ -1297,21 +1298,17 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         if not (endorsement_reported and f.rule_id == post_signals.GOVERNMENT_REFERENCE_ID)
     )
 
-    # Rules the wording missed but the post matches in meaning (vector store): things to check, never violations.
-    # Claim checks carry their rule's number but don't stand in for the rule, so they don't take it off the list.
-    found = {v.rule_number for v in violations if v.rule_id not in claim_checks.CHECK_IDS} | {r.rule_number for r in rules if army_context_review.applies(r, req.text)}
+    # Rule 18 discovery is shared; other rules retain semantic candidate discovery.
+    found = ({"Rule 18"} if source_check_service.ENABLED else set()) | {v.rule_number for v in violations if v.rule_id not in claim_checks.CHECK_IDS} | {r.rule_number for r in rules if army_context_review.applies(r, req.text)}
     _ai_incomplete.set(False)
     violations.extend(await _semantic_findings(match_req, rules, found, padded_text, disclaimer_padded))
 
-    # The sources the post cites (links, "Source:" lines, attached documents) are opened and compared with its claims. A
-    # claim that contradicts its source costs points; one the source doesn't settle is for a person; one it supports
-    # clears that claim's "needs a source" cost, below. A source no model could compare leaves the check incomplete.
+    # Every source verifies the same saved inventory; unavailable comparisons leave the check incomplete.
     source_result = await source_check_service.run(
         req.text, req.sources, source_script=req.source_script, include_image_citations=False)
     if source_result.ai_failed:
         _ai_incomplete.set(True)
     violations.extend(source_check_service.findings(source_result.checks))
-    violations.extend(source_post_checks.unsourced_image_findings(req.text, source_result.checks))
 
     # A CONTEXT rule's match is only a candidate: a model reads it in its sentence and decides whether it's a violation,
     # something a person has to check, a claim that needs a source, or not a breach at all.
@@ -1321,6 +1318,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     candidates = [context_evaluator.Candidate(v, rule, v.passage or "", v.context or "") for v, rule in contextual]
     army_context_review.include(req, rules, violations, candidates)
     await context_evaluator.evaluate(candidates, req.text, brand=req.brand_code)
+    violations.extend(source_post_checks.unsourced_image_findings(req.text, source_result.checks, source_result.manifest))
     source_check_service.clear_supported(violations, source_result.checks)
     # The check is incomplete when a context rule couldn't be read, or the meaning check couldn't run at all.
     ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations)
@@ -1331,10 +1329,11 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     unsupported = _charge_unsupported_claims(violations)
     to_check = _charge_review_findings(violations, rules)
     notes = compliance_check_result.check_notes(req, scope, signals, IMPLIED_BY, _READERS)
-    return compliance_check_result.build_response(
+    response = compliance_check_result.build_response(
         scope, rules, violations, breaches, unsupported, to_check, signals,
         ai_unavailable, notes, source_result.checks, await rulebook_version(),
     )
+    return response.model_copy(update={"claim_manifest": source_result.manifest})
 
 
 def flagged_tags(tags: Sequence[str], rules: List[ComplianceRule]) -> Dict[str, str]:

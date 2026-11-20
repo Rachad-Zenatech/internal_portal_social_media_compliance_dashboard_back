@@ -148,9 +148,16 @@ class RunTests(unittest.TestCase):
         fetch = AsyncMock(return_value=fetched or sf.FetchedSource(
             url="u", ok=True, status="OK", title="ZenaTech Unveils Stacklens", text=PRESS_RELEASE, content_hash="h"))
         compare = AsyncMock(return_value=claims if claims is not None else answer())
-        with patch.object(sc, "ENABLED", True), \
+        async def comparison(*args, **kwargs):
+            results, model = await compare(*args[:6])
+            return results, model, results is None
+        from models.compliance.claim_manifest_model import ClaimManifest
+        saved = ClaimManifest(version="test", revision="test")
+        with patch.object(sc.claim_manifest, "get", AsyncMock(return_value=saved)), \
+                patch.object(sc.newsroom_facts, "material", AsyncMock(return_value=None)), \
+                patch.object(sc, "ENABLED", True), \
                 patch.object(sc.source_fetch_service, "fetch", new=fetch), \
-                patch.object(sc, "_compare", new=compare):
+                patch.object(sc.source_post_checks, "compare_parts", new=comparison):
             return run(sc.run(text, provided, source_script=source_script)), fetch, compare
 
     def test_nothing_cited_costs_nothing(self):

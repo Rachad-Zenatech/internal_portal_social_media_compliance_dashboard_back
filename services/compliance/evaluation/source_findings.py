@@ -21,14 +21,14 @@ def make_finding(rule_id: UUID, status: str, severity: str, title: str, claim: S
                  explanation: str, remediation: str) -> ComplianceViolation:
     # Missing source material produced no AI judgment; it is not a low-confidence answer or an AI outage.
     return ComplianceViolation(
-        rule_id=claim_id(rule_id, claim.claim), rule_number="Rule 18", title=title, category="Source Check", severity=severity,
+        rule_id=claim_id(rule_id, claim.claim_id or claim.claim), rule_number="Rule 18", title=title, category="Source Check", severity=severity,
         traffic_light="YELLOW", flagged_terms=[claim.claim], explanation=explanation, remediation_guidance=remediation,
         penalty=PENALTY_CONTRADICTED if status == "VIOLATION" else 0, status=status,
         evaluation=ContextEvaluation(
             decision=status, matched_text=claim.claim, reasoning=claim.evidence or claim.note or "",
             confidence=claim.confidence, recommended_action=claim.note, rule_decision=status, source="AI",
             model=check.model,
-        ) if check.status not in {"UNREADABLE", "NOT_PROVIDED"} else None,
+        ) if not claim.clarification_needed and check.status not in {"UNREADABLE", "NOT_PROVIDED"} else None,
     )
 
 

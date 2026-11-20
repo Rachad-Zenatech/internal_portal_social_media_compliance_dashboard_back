@@ -2,6 +2,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from tests.test_claim_inventory import manifest
 
 from services.compliance.evaluation import citation_finder as cf, source_post_checks as parts, source_check_service as sc
 
@@ -55,20 +56,22 @@ class ClaimComparisonInputs(unittest.IsolatedAsyncioTestCase):
     async def test_comparison_receives_claims_but_not_image_or_attached_citation_metadata(self):
         text = "Caption claim.\nText in image 1: The assessment lasted two weeks.\n" + CREDIT + "\n\nSources:\nhttps://army.mil/article/295038"
         compare = AsyncMock(return_value=([], "test-model"))
-        await parts.compare_parts(text, "Army article", "Report", "https://army.mil/article/295038", "2026-09-02", SOURCE, compare)
+        await parts.compare_parts(text, "Army article", "Report", "https://army.mil/article/295038", "2026-09-02", SOURCE, compare, manifest=manifest(text, ["factual", "factual", "citation", "citation", "citation"]))
         bodies = [call.args[0] for call in compare.await_args_list]
         self.assertTrue(any("two weeks" in body for body in bodies))
-        self.assertTrue(all("295038" not in body and "Source:" not in body for body in bodies))
+        import json
+        claims = [c for body in bodies for c in json.loads(body[body.index("{"):])["claims"]]
+        self.assertTrue(all("295038" not in c["wording"] and "Source:" not in c["wording"] for c in claims))
 
     async def test_citation_only_image_needs_no_claim_comparison(self):
         compare = AsyncMock()
-        claims, model, failed = await parts.compare_parts("Text in image 1: " + CREDIT, "Report", None, None, None, SOURCE, compare)
+        claims, model, failed = await parts.compare_parts("Text in image 1: " + CREDIT, "Report", None, None, None, SOURCE, compare, manifest=manifest("Text in image 1: " + CREDIT, ["citation"]))
         self.assertEqual(claims, [])
         self.assertFalse(failed)
         compare.assert_not_awaited()
 
     async def test_actual_model_failure_is_still_reported(self):
         compare = AsyncMock(return_value=(None, None))
-        claims, _, failed = await parts.compare_parts("The assessment lasted 99 weeks.", "Report", None, None, None, SOURCE, compare)
-        self.assertIsNone(claims)
+        claims, _, failed = await parts.compare_parts("The assessment lasted 99 weeks.", "Report", None, None, None, SOURCE, compare, manifest=manifest("The assessment lasted 99 weeks."))
+        self.assertEqual(claims[0].verdict, "UNCLEAR")
         self.assertTrue(failed)
