@@ -296,12 +296,14 @@ async def _read_link(citation: citation_finder.Citation, post_text: str) -> Tupl
 
 async def run(
     text: str, provided: Sequence[ProvidedSource] = (), *, source_script: Optional[str] = None,
+    include_image_citations: bool = True,
 ) -> SourceCheckResult:
     """Find the sources a post cites, read them, and compare the post's claims with each."""
     result = SourceCheckResult()
     if not ENABLED or not (text or "").strip():
         return result
-    citations = citation_finder.find(text)
+    # Post Details owns image-source discovery; compliance still compares the full image text with saved links.
+    citations = [c for c in citation_finder.find(text) if include_image_citations or c.where != "image"]
     docs = [d for d in provided if (d.text or "").strip()]
     newsroom = await newsroom_facts.material(text)  # the company's own published facts, as one more source
 

@@ -1306,7 +1306,8 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     # The sources the post cites (links, "Source:" lines, attached documents) are opened and compared with its claims. A
     # claim that contradicts its source costs points; one the source doesn't settle is for a person; one it supports
     # clears that claim's "needs a source" cost, below. A source no model could compare leaves the check incomplete.
-    source_result = await source_check_service.run(req.text, req.sources, source_script=req.source_script)
+    source_result = await source_check_service.run(
+        req.text, req.sources, source_script=req.source_script, include_image_citations=False)
     if source_result.ai_failed:
         _ai_incomplete.set(True)
     violations.extend(source_check_service.findings(source_result.checks))
