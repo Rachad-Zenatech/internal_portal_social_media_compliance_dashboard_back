@@ -18,7 +18,7 @@ class ScriptSourceTests(unittest.TestCase):
         self.assertEqual(wording, "Eight projects.")
         found = citation_finder.find(sources, explicit_script=True)
         self.assertEqual([(citation.kind, citation.reference) for citation in found],
-                         [("NAMED", "Reuters"), ("URL", URL)])
+                         [("URL", URL), ("NAMED", "Reuters")])
 
     def test_optional_template_placeholder_is_ignored(self):
         wording, sources = script_sources.split(
