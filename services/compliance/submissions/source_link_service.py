@@ -29,6 +29,20 @@ def normalize_source_url(raw: str) -> str:
     return url
 
 
+def normalize_scanned_source_url(raw: str) -> str:
+    """Use HTTPS and www for root domains discovered by an image scan."""
+    parsed = urlparse(normalize_source_url(raw))
+    labels = (parsed.hostname or "").split(".")
+    root_domain = len(labels) == 2 or (
+        len(labels) == 3 and len(labels[-1]) == 2
+        and labels[-2] in {"ac", "co", "com", "edu", "gov", "net", "org"}
+    )
+    netloc = parsed.netloc
+    if root_domain and not netloc.lower().startswith("www.") and not parsed.username:
+        netloc = "www." + netloc
+    return parsed._replace(scheme="https", netloc=netloc).geturl()
+
+
 def normalize_source_links(raw: Sequence[str]) -> List[str]:
     """Validate and deduplicate source URLs saved on a submission."""
     return list(dict.fromkeys(normalize_source_url(item) for item in raw if (item or "").strip()))

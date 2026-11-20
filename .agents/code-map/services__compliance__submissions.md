@@ -122,7 +122,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `find_source_urls_on_web` (def) L148 - Return candidate URLs via Gemini Google Search grounding, Search APIs, or Playwright + Google News RSS/Bing.
 - `find_source_url_on_web` (def) L181 - Return the top candidate URL for a named source.
 
-## services/compliance/submissions/image_source_service.py (388 lines) - Scan an image for source citations (URLs or named title + date references), locate the source on the web, and scrape/verify it.
+## services/compliance/submissions/image_source_service.py (390 lines) - Scan an image for source citations (URLs or named title + date references), locate the source on the web, and scrape/verify it.
 - `_tesseract_ocr` (def) L60 - Run local Tesseract OCR (matching admin's pdf_extraction_service) when pytesseract + binary are available.
 - `_read_image_text` (def) L83 - Read all visible text from an image using image_text_service's Gemini Vision setup.
 - `_extract_fallback_source` (def) L93 - Fallback Gemini Vision pass when pattern matching finds no explicit 'Source:' prefix.
@@ -132,11 +132,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_read_image` (def) L213 - (the image's text, its bytes, its type, whether there is an image at all).
 - `_find_citations` (def) L237
 - `_candidate_urls` (def) L249
-- `scan_image_and_check_source` (def) L257 - Scan an uploaded (or attached) image for source citations, find the source online, and check the image's claims
-- `_run_scan_job` (def) L302 - Execute image OCR, web search, and scraping in the background and record the job result.
-- `start_scan_job` (def) L333 - Queue image source scanning + web scraping as a background task so the request returns immediately.
-- `get_active_scan_jobs` (def) L366 - Return any in-progress background image source scan jobs for this submission.
-- `get_scan_job` (def) L378 - Return the current status and result of a background image source scan job.
+- `scan_image_and_check_source` (def) L259 - Scan an uploaded (or attached) image for source citations, find the source online, and check the image's claims
+- `_run_scan_job` (def) L304 - Execute image OCR, web search, and scraping in the background and record the job result.
+- `start_scan_job` (def) L335 - Queue image source scanning + web scraping as a background task so the request returns immediately.
+- `get_active_scan_jobs` (def) L368 - Return any in-progress background image source scan jobs for this submission.
+- `get_scan_job` (def) L380 - Return the current status and result of a background image source scan job.
 
 ## services/compliance/submissions/manual_check_service.py (142 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
 - `saved_check` (def) L10
@@ -214,17 +214,18 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `compute` (def) L20
     - `checked` (def) L26
 
-## services/compliance/submissions/source_link_service.py (178 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
+## services/compliance/submissions/source_link_service.py (192 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
 - `normalize_source_url` (def) L17 - Trim and validate a source URL, adding https:// when the creator omitted the scheme.
-- `normalize_source_links` (def) L32 - Validate and deduplicate source URLs saved on a submission.
-- `apply_update_fields` (def) L37 - Validate and copy rule_sets and source_links from a draft patch into SQL fields.
-- `with_source_links` (def) L48 - Append saved source_links to post text parts so full compliance checks read them.
-- `check_single_url` (def) L54 - Fetch one explicit URL and compare the post's material against it, including where in the source each claim appears.
-- `compare_with_source` (def) L64 - Fill in a read source's claims: the post's claims compared with the source's text, through the safeguards.
-- `save_source_link_check` (def) L77 - Persist an extracted/checked source result (and optionally its URL) on the submission row.
-- `check_submission_source_link` (def) L111 - Quickly fetch one source URL and check whether it supports the post's current material.
-- `check_submission_pasted_source` (def) L123 - Check the post's claims against an article pasted in whole, and say where in it each claim is found.
-- `submission_material` (def) L142 - Everything the post says, as one text: caption, script, documents, transcript and text read from its images.
+- `normalize_scanned_source_url` (def) L32 - Use HTTPS and www for root domains discovered by an image scan.
+- `normalize_source_links` (def) L46 - Validate and deduplicate source URLs saved on a submission.
+- `apply_update_fields` (def) L51 - Validate and copy rule_sets and source_links from a draft patch into SQL fields.
+- `with_source_links` (def) L62 - Append saved source_links to post text parts so full compliance checks read them.
+- `check_single_url` (def) L68 - Fetch one explicit URL and compare the post's material against it, including where in the source each claim appears.
+- `compare_with_source` (def) L78 - Fill in a read source's claims: the post's claims compared with the source's text, through the safeguards.
+- `save_source_link_check` (def) L91 - Persist an extracted/checked source result (and optionally its URL) on the submission row.
+- `check_submission_source_link` (def) L125 - Quickly fetch one source URL and check whether it supports the post's current material.
+- `check_submission_pasted_source` (def) L137 - Check the post's claims against an article pasted in whole, and say where in it each claim is found.
+- `submission_material` (def) L156 - Everything the post says, as one text: caption, script, documents, transcript and text read from its images.
 
 ## services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
 - `host_of` (def) L33

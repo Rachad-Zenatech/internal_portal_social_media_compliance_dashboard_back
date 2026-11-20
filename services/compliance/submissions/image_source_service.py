@@ -249,9 +249,11 @@ async def _find_citations(text: str, data: Optional[bytes], mime_type: str) -> L
 async def _candidate_urls(citations: List[ImageSourceCitation]) -> List[str]:
     url_citation = next((c for c in citations if c.kind == "URL"), None)
     if url_citation:
-        return [url_citation.reference]
-    named = next((c for c in citations if c.kind == "NAMED"), None)
-    return await find_source_urls_on_web(named.reference) if named else []
+        urls = [url_citation.reference]
+    else:
+        named = next((c for c in citations if c.kind == "NAMED"), None)
+        urls = await find_source_urls_on_web(named.reference) if named else []
+    return list(dict.fromkeys(source_link_service.normalize_scanned_source_url(url) for url in urls))
 
 
 async def scan_image_and_check_source(

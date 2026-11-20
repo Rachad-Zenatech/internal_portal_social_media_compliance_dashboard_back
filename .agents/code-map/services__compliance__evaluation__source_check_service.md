@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_check_service.py (471 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+## services/compliance/evaluation/source_check_service.py (473 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - `_Result` (class) L121
 - `_Response` (class) L131
 - `SourceCheckResult` (class) L160
@@ -17,9 +17,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_matches` (def) L264 - Whether an attached document looks like the one a "Source:" line names: most of the line's distinctive words appear
 - `_read_link` (def) L274 - The check for a cited link, and (label, text) for the model when it could be read.
 - `run` (def) L293 - Find the sources a post cites, read them, and compare the post's claims with each.
-    - `compare` (def) L345
-- `findings` (def) L370 - The findings the sources produce: claims that contradict their source cost points; claims the source doesn't
-- `charge_not_found` (def) L412 - A claim its source doesn't mention is unproven, like one that needs a source: each costs `points`, up to `room` in
-- `_tokens` (def) L425
-- `_same_claim` (def) L429 - Whether a supported claim is the one a "needs a source" finding is about.
-- `clear_supported` (def) L443 - A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place).
+    - `compare` (def) L347
+- `findings` (def) L372 - The findings the sources produce: claims that contradict their source cost points; claims the source doesn't
+- `charge_not_found` (def) L414 - A claim its source doesn't mention is unproven, like one that needs a source: each costs `points`, up to `room` in
+- `_tokens` (def) L427
+- `_same_claim` (def) L431 - Whether a supported claim is the one a "needs a source" finding is about.
+- `clear_supported` (def) L445 - A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place).
