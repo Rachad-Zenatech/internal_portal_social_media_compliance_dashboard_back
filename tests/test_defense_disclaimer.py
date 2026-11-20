@@ -63,7 +63,7 @@ class DefenseDisclaimerTests(unittest.TestCase):
 
 class DefenseDisclaimerPipelineTests(unittest.IsolatedAsyncioTestCase):
     async def test_the_submitted_schematic_is_cleared_only_after_context_review(self):
-        source_result = SimpleNamespace(ai_failed=False, checks=[])
+        source_result = SimpleNamespace(ai_failed=False, checks=[], manifest=None)
         async def clear(candidates, *args, **kwargs):
             for candidate in candidates:
                 cs.context_evaluator._apply(candidate, cs.context_evaluator._Result(

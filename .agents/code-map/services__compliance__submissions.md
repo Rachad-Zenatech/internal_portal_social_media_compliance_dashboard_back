@@ -215,18 +215,18 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `compute` (def) L20
     - `checked` (def) L26
 
-## services/compliance/submissions/source_link_service.py (165 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
-- `normalize_source_url` (def) L16 - Trim and validate a source URL, adding https:// when the creator omitted the scheme.
-- `normalize_scanned_source_url` (def) L31 - Use HTTPS and www for root domains discovered by an image scan.
-- `normalize_source_links` (def) L45 - Validate and deduplicate source URLs saved on a submission.
-- `apply_update_fields` (def) L50 - Validate and copy rule_sets and source_links from a draft patch into SQL fields.
-- `with_source_links` (def) L61 - Append saved source_links to post text parts so full compliance checks read them.
-- `check_single_url` (def) L67 - Fetch one explicit URL and compare the post's material against it, including where in the source each claim appears.
-- `compare_with_source` (def) L77 - Fill in a read source's claims: the post's claims compared with the source's text, through the safeguards.
-- `save_source_link_check` (def) L93 - Persist an extracted/checked source result (and optionally its URL) on the submission row.
-- `check_submission_source_link` (def) L127 - Quickly fetch one source URL and check whether it supports the post's current material.
-- `check_submission_pasted_source` (def) L139 - Check the post's claims against an article pasted in whole, and say where in it each claim is found.
-- `submission_material` (def) L158 - Use full compliance's material; scan OCR discovers sources but does not replace saved post text.
+## services/compliance/submissions/source_link_service.py (168 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
+- `normalize_source_url` (def) L17 - Trim and validate a source URL, adding https:// when the creator omitted the scheme.
+- `normalize_scanned_source_url` (def) L32 - Use HTTPS and www for root domains discovered by an image scan.
+- `normalize_source_links` (def) L46 - Validate and deduplicate source URLs saved on a submission.
+- `apply_update_fields` (def) L51 - Validate and copy rule_sets and source_links from a draft patch into SQL fields.
+- `with_source_links` (def) L64 - Append saved source_links to post text parts so full compliance checks read them.
+- `check_single_url` (def) L70 - Fetch one explicit URL and compare the post's material against it, including where in the source each claim appears.
+- `compare_with_source` (def) L80 - Fill in a read source's claims: the post's claims compared with the source's text, through the safeguards.
+- `save_source_link_check` (def) L96 - Persist an extracted/checked source result (and optionally its URL) on the submission row.
+- `check_submission_source_link` (def) L130 - Quickly fetch one source URL and check whether it supports the post's current material.
+- `check_submission_pasted_source` (def) L142 - Check the post's claims against an article pasted in whole, and say where in it each claim is found.
+- `submission_material` (def) L161 - Use full compliance's material; scan OCR discovers sources but does not replace saved post text.
 
 ## services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
 - `host_of` (def) L33
@@ -282,27 +282,27 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `list_submissions` (def) L568 - The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers.
 - `get_submission` (def) L699
 - `update_submission` (def) L733
-- `_script_with_reviewer` (def) L862 - A video post's script is with a reviewer, or being sent to them: the post is still a draft, but it has been sent
-- `_can_delete` (def) L874 - Only a draft that hasn't gone to a reviewer: not in review, not approved, and no script out with a reviewer.
-- `delete_draft` (def) L879 - Delete a draft.
-- `_safe_name` (def) L937
-- `add_file` (def) L943
-- `_require_script_stage_allows` (def) L995 - On a post with a script stage, the video waits for the approved script.
-- `_record_file` (def) L1003 - Save a stored file to the submission (an upload or a Canva export): replace the main file or script it
-- `_store_canva_export` (def) L1105 - Write a Canva export into the submission's storage and record it as the main file.
-- `import_from_canva` (def) L1131 - Export a Canva design and add it as the submission's main file, like an upload.
-- `reimport_from_canva` (def) L1143 - Bring in the latest revision of the Canva design the main file came from, replacing it.
-- `retranscribe` (def) L1170 - Generate the speech transcript again, e.g.
-- `remove_file` (def) L1197
-- `get_file_for_download` (def) L1223
-- `analysis_pending` (def) L1246 - Whether the post is still being analysed: its video transcript or the text in its images isn't read yet.
-- `reads_failed` (def) L1257 - What of the post couldn't be read (video, image or document), so its wording was never checked.
-- `ai_unavailable` (def) L1270 - Whether the AI couldn't read part of the post, so the check has no score to show.
-- `_unavailable_sql` (def) L1275
-- `_pending_sql` (def) L1279 - SQL for analysis_pending() on a stored check (older checks only have the two parts).
-- `_platform_captions` (def) L1288
-- `_check_text` (def) L1295
-- `check_request` (def) L1300 - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
+- `_script_with_reviewer` (def) L861 - A video post's script is with a reviewer, or being sent to them: the post is still a draft, but it has been sent
+- `_can_delete` (def) L873 - Only a draft that hasn't gone to a reviewer: not in review, not approved, and no script out with a reviewer.
+- `delete_draft` (def) L878 - Delete a draft.
+- `_safe_name` (def) L936
+- `add_file` (def) L942
+- `_require_script_stage_allows` (def) L994 - On a post with a script stage, the video waits for the approved script.
+- `_record_file` (def) L1002 - Save a stored file to the submission (an upload or a Canva export): replace the main file or script it
+- `_store_canva_export` (def) L1104 - Write a Canva export into the submission's storage and record it as the main file.
+- `import_from_canva` (def) L1130 - Export a Canva design and add it as the submission's main file, like an upload.
+- `reimport_from_canva` (def) L1142 - Bring in the latest revision of the Canva design the main file came from, replacing it.
+- `retranscribe` (def) L1169 - Generate the speech transcript again, e.g.
+- `remove_file` (def) L1196
+- `get_file_for_download` (def) L1222
+- `analysis_pending` (def) L1245 - Whether the post is still being analysed: its video transcript or the text in its images isn't read yet.
+- `reads_failed` (def) L1256 - What of the post couldn't be read (video, image or document), so its wording was never checked.
+- `ai_unavailable` (def) L1269 - Whether the AI couldn't read part of the post, so the check has no score to show.
+- `_unavailable_sql` (def) L1274
+- `_pending_sql` (def) L1278 - SQL for analysis_pending() on a stored check (older checks only have the two parts).
+- `_platform_captions` (def) L1287
+- `_check_text` (def) L1294
+- `check_request` (def) L1298 - The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
 - `script_stage_on` (def) L1328 - Video posts created since the script stage existed have their script approved before the video.
 - `approved_script` (def) L1333 - The approved script's text, when the post went through the script stage and it was approved.
 - `_run_check` (def) L1344 - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video

@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from models.compliance.compliance_model import SourceCheck
 from postgresql_db.database import execute
 from services.ai.observability.ai_guardrails import screen_input
+from services.compliance.evaluation import rule_set_policy
 from services.compliance.evaluation import citation_finder, source_check_service, source_fetch_service, source_passages, source_post_checks
 
 
@@ -47,7 +48,7 @@ def normalize_source_links(raw: Sequence[str]) -> List[str]:
     return list(dict.fromkeys(normalize_source_url(item) for item in raw if (item or "").strip()))
 
 
-def apply_update_fields(payload: Dict[str, Any], fields: Dict[str, Any], rule_sets: Sequence[str]) -> None:
+def apply_update_fields(payload: Dict[str, Any], fields: Dict[str, Any], rule_sets: Sequence[str], *, row=None) -> None:
     """Validate and copy rule_sets and source_links from a draft patch into SQL fields."""
     if payload.get("rule_sets") is not None:
         bad = [r for r in payload["rule_sets"] if r not in rule_sets]
@@ -56,6 +57,8 @@ def apply_update_fields(payload: Dict[str, Any], fields: Dict[str, Any], rule_se
         fields["rule_sets"] = list(dict.fromkeys(payload["rule_sets"]))
     if payload.get("source_links") is not None:
         fields["source_links"] = normalize_source_links(payload["source_links"])
+    if row is not None:
+        rule_set_policy.update_fields(row, fields)
 
 
 def with_source_links(row: Dict[str, Any], parts: Sequence[str]) -> List[str]:

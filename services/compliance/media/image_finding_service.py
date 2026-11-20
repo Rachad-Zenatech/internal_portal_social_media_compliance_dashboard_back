@@ -149,7 +149,8 @@ async def locate_image_findings(images, findings):
         if image["image_text_status"] != "COMPLETED":
             continue
         for finding in findings:
-            finding.image_regions[:] = [r for r in finding.image_regions if r.file_id != image["id"]]
+            if not finding.visual_evidence:
+                finding.image_regions[:] = [r for r in finding.image_regions if r.file_id != image["id"]]
         text = normalized(image["image_text"] or "")
         candidates = [f for f in findings if f.status != "CLEARED" and
                       any(text_spans(t, text) for t in highlight_terms(f))]

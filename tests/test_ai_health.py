@@ -77,6 +77,8 @@ class CheckWithoutTheAiTests(unittest.IsolatedAsyncioTestCase):
             patch.dict(os.environ, env, clear=False),
             patch.object(compliance_service, "applicable_rules", new=AsyncMock(return_value=[])),
             patch.object(compliance_service, "rulebook_version", new=AsyncMock(return_value=None)),
+            patch.object(compliance_service.source_check_service, "run", new=AsyncMock(
+                return_value=compliance_service.source_check_service.SourceCheckResult())),
         ):
             return await compliance_service.check_compliance(ComplianceCheckRequest(text="Reclaim up to 3,000 hours of work."))
 

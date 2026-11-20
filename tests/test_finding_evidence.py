@@ -17,7 +17,7 @@ def finding(matched="ARMY ASSESSMENT", passage="ARMY ASSESSMENT"):
     return SimpleNamespace(
         flagged_terms=["army"], passage=passage,
         evaluation=SimpleNamespace(matched_text=matched), status="NEEDS_REVIEW",
-        image_regions=[], exception_terms=[], penalty=18,
+        image_regions=[], exception_terms=[], penalty=18, visual_evidence=False,
     )
 
 

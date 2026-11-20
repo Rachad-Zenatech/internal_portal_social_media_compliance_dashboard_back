@@ -38,8 +38,8 @@ from models.compliance.submission_model import AUDIENCES, PLATFORMS, REGIONS, RU
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
-from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer, army_context_review, branding
-from services.compliance.evaluation import context_evaluator
+from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer, army_context_review, visual_review, branding
+from services.compliance.evaluation import context_evaluator, rule_set_policy
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
 from services.compliance.evaluation import source_check_service, source_post_checks, compliance_check_result
@@ -69,7 +69,7 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-19-branding-exclusions"
+SCOPE_VERSION = "scope-20-visual-branding|brand-audience-1"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
@@ -713,10 +713,9 @@ class CheckScope:
     implied_audiences: List[str]
     # What the content is made of (see parts_for). Empty when not known: every rule's "applies to" matches.
     content_parts: List[str]
-    # The rule sets checked: the chosen ones plus any the wording brings in. Empty when none are chosen: every rule
-    # set's rules run.
+    # Brand/audience policy always supplies the required sets, including Public Company Disclosure.
     rule_sets: List[str]
-    # Rule sets added because of what the post says, with the wording that did it.
+    # Required sets missing from the submitted selection, with the selection reasons.
     added_rule_sets: Dict[str, List[str]]
     # Every rule set the wording implies (added or not), with the wording: for telling the reviewer why.
     wording: Dict[str, List[str]]
@@ -725,18 +724,17 @@ class CheckScope:
 def check_scope(req: ComplianceCheckRequest, signals: Optional[post_signals.PostSignals] = None) -> CheckScope:
     """Who the content reaches and what it's made of, for picking the rules that apply to it."""
     signals = signals or post_signals.extract(req.text)
-    wording = implied_by_wording(req.text, signals)
+    rule_sets = rule_set_policy.resolve(req.brand_codes, req.audiences, req.rule_sets)
+    wording = {rs: terms for rs, terms in implied_by_wording(req.text, signals).items() if rs in rule_sets}
     implied = [i.audience for i in IMPLIED_BY if i.rule_set in wording and i.audience not in req.audiences]
-    # With no audience set every audience-limited rule already runs; adding one would narrow that. With several, a rule
-    # applies if it's for any of them.
     audiences = [*req.audiences, *implied] if req.audiences else []
-    # The same for rule sets: with none chosen every rule already runs, so nothing is added.
-    added = {rs: w for rs, w in wording.items() if req.rule_sets and rs not in req.rule_sets}
-    rule_sets = [*req.rule_sets, *added] if req.rule_sets else []
+    added = {rs: why for rs, why in rule_set_policy.reasons(req.brand_codes, req.audiences).items()
+             if rs not in req.rule_sets}
+    wording = {**added, **wording}
     if req.content_parts:
         parts = sorted({p.strip().lower() for p in req.content_parts if p and p.strip()})
     else:
-        parts = parts_for(req.content_type, is_ceo=CEO_BRAND in req.brand_codes or CEO_RULE_SET in req.rule_sets)
+        parts = parts_for(req.content_type, is_ceo=CEO_BRAND in req.brand_codes or CEO_RULE_SET in rule_sets)
     return CheckScope(audiences=audiences, implied_audiences=implied, content_parts=parts, rule_sets=rule_sets,
                       added_rule_sets=added, wording=wording)
 
@@ -763,10 +761,9 @@ def _rule_applies(rule: ComplianceRule, req: ComplianceCheckRequest, scope: Opti
 
 
 async def applicable_rules(req: ComplianceCheckRequest) -> List[ComplianceRule]:
-    """Active rules whose scope matches the content (also used to pick sentiment-analysis guidelines). Pass the
-    post's text to have a cashtag in it bring in the investor rules (see implied_audiences)."""
+    """Active rules matching the brand/audience policy and individual rule scopes, also used by sentiment."""
     scope = check_scope(req)
-    return [r for r in await list_compliance_rules(is_active=True) if _rule_applies(r, req, scope) or army_context_review.applies(r, req.text) or (req.ai_generated_images and r.rule_number == "Rule 9")]
+    return [r for r in await list_compliance_rules(is_active=True) if _rule_applies(r, req, scope)]
 
 
 # Points off per finding, and the most a post with a critical finding can score.
@@ -1324,7 +1321,8 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     await context_evaluator.evaluate(candidates, req.text, brand=req.brand_code)
     source_check_service.clear_supported(violations, source_result.checks)
     # The check is incomplete when a context rule couldn't be read, or the meaning check couldn't run at all.
-    ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations)
+    visual_checks = await visual_review.review(req, rules, violations)
+    ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations) or any(c["status"] == "UNAVAILABLE" for c in visual_checks)
     synthetic_media_disclosure.ensure_review(match_req, rules, violations)
     violations[:] = [v for v in violations if not (v.flagged_terms and all(branding.is_branding(t) for t in v.flagged_terms))]
     breaches = [v for v in violations if v.status == "VIOLATION"]
@@ -1333,10 +1331,12 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     unsupported = _charge_unsupported_claims(violations)
     to_check = _charge_review_findings(violations, rules)
     notes = compliance_check_result.check_notes(req, scope, signals, IMPLIED_BY, _READERS)
-    return compliance_check_result.build_response(
+    response = compliance_check_result.build_response(
         scope, rules, violations, breaches, unsupported, to_check, signals,
         ai_unavailable, notes, source_result.checks, await rulebook_version(),
     )
+    return response.model_copy(update={"visual_checks": visual_checks})
+
 
 
 def flagged_tags(tags: Sequence[str], rules: List[ComplianceRule]) -> Dict[str, str]:

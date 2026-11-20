@@ -749,8 +749,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         scope = await _brand_scope(user_id)
         if added and scope is not None and any(b not in scope for b in added):
             raise HTTPException(status_code=403, detail="You don't work on that brand")
-        fields["brand_codes"] = brand_codes
-        fields["brand_code"] = brand_codes[0] if brand_codes else None
+        fields.update(brand_codes=brand_codes, brand_code=brand_codes[0] if brand_codes else None)
     audiences = payload.get("audiences") if payload.get("audiences") is not None else ([payload["audience"]] if payload.get("audience") else None)
     if audiences is not None:
         audiences = list(dict.fromkeys(audiences))
@@ -796,7 +795,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
             raise HTTPException(status_code=422, detail="A platform caption is too long")
         # An empty caption means that platform uses the main one.
         fields["platform_captions"] = {p: c for p, c in captions.items() if c.strip()}
-    source_link_service.apply_update_fields(payload, fields, RULE_SETS)
+    source_link_service.apply_update_fields(payload, fields, RULE_SETS, row=row)
     if payload.get("reviewer_route") is not None:
         bad = [r for r in payload["reviewer_route"] if r not in REVIEWER_ROUTES]
         if bad:
@@ -1293,16 +1292,15 @@ def _platform_captions(row: Dict[str, Any]) -> Dict[str, str]:
 
 
 def _check_text(row: Dict[str, Any]) -> str:
-    # Every caption that will be posted is screened: the main one and each platform's own.
     return "\n\n".join(p for p in [row["title"], row["caption_text"], *_platform_captions(row).values()] if p and p.strip())
 
 
 def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: bool,
                   sources: Sequence[ProvidedSource] = (), disclaimer_text: Optional[str] = None,
-                  source_script: Optional[str] = None) -> ComplianceCheckRequest:
+                  source_script: Optional[str] = None, visual_media=()) -> ComplianceCheckRequest:
     """The rulebook check request for this submission's scope (rule sets, brand, audience, region, platforms), with the
     documents attached as evidence for the source check."""
-    return ComplianceCheckRequest(
+    request = ComplianceCheckRequest(
         text=text,
         disclaimer_text=disclaimer_text,
         sources=list(sources),
@@ -1323,6 +1321,8 @@ def check_request(row: Dict[str, Any], text: str, has_video: bool, has_images: b
             or approval_path_service.is_ceo_content(row.get("rule_sets") or [], _accounts(row)),
         ),
     )
+    request._visual_media = list(visual_media)
+    return request
 
 
 def script_stage_on(row: Dict[str, Any]) -> bool:
@@ -1352,7 +1352,7 @@ async def _run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     result = await check_compliance(
         check_request(row, material.text, has_video=bool(video), has_images=bool(images), sources=material.sources,
                       disclaimer_text=material.published,
-                      source_script=material.source_script or None)
+                      source_script=material.source_script or None, visual_media=[*images, *([video] if video else [])])
     )
     all_video_segments = [*segments, *visual_segments]
     await video_finding_service.locate_media_findings(images, video, all_video_segments, result.violations)
