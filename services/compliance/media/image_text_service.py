@@ -162,6 +162,7 @@ async def read_file(file_id: UUID) -> None:
         row = await _claim(file_id)
         if not row:
             return
+        local_boxes: Optional[List[List[int]]] = None
         try:
             path = (STORAGE_ROOT / row["storage_path"]).resolve()
             if STORAGE_ROOT not in path.parents:
@@ -188,7 +189,7 @@ async def read_file(file_id: UUID) -> None:
             logger.info("Read %d characters of text in image %s", len(text), file_id)
         except Exception as e:
             logger.warning("Couldn't read the text in image %s: %s", file_id, e)
-            await _save(file_id, "FAILED", error=str(e)[:500] or e.__class__.__name__)
+            await _save(file_id, "FAILED", error=str(e)[:500] or e.__class__.__name__, person_detected=bool(local_boxes) if local_boxes is not None else None, face_boxes=local_boxes)
     from services.compliance.submissions import submission_service
 
     await submission_service.recheck_after_image_text(file_id)
