@@ -58,7 +58,7 @@ from models.compliance.claim_manifest_model import ClaimManifest
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v10-fixed-claim-inventory"
+PROMPT_VERSION = "source-v12-fixed-inventory-branding"
 VERSION = f"sources-3|{citation_finder.VERSION}|{PROMPT_VERSION}|{claim_manifest.VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 MODELS = without_retired([m.strip() for m in os.getenv(
@@ -78,7 +78,9 @@ PUBLISHED_OK_RULES = {r.strip() for r in os.getenv("SOURCE_CLEARS_RULES", "Rule 
 
 _cache = AsyncInMemoryCache(maxsize=1000)
 
-SYSTEM_PROMPT = """You check whether the source a post cites really backs up what the post says. You are given the post (its caption,
+SYSTEM_PROMPT = """Company names, logos and the NASDAQ: ZENA listing/ticker identifier do not need a source. Never report them
+as claims. Factual statements about the company's products, revenue, results or capabilities still need evidence.
+You check whether the source a post cites really backs up what the post says. You are given the post (its caption,
 plus any text read from its images, marked "Text in image") and ONE source the post cites, a web page or a document, as text.
 
 The post input is a fixed inventory, not a request to discover claims. Verify every supplied claim_id,
@@ -190,15 +192,11 @@ def authority_of(url: str) -> str:
 
 # --- Reading one source ----------------------------------------------------------------------------------------------
 
-def _post_key(post_text: str) -> str:
-    return " ".join(re.sub(r"[\W_]+", " ", (post_text or "").lower()).split())
-
-
-async def _ask(model: str, contents: str, guard: Any) -> _Response:
+async def _ask(model: str, contents: str, guard: Any, *, system_prompt: str = SYSTEM_PROMPT) -> _Response:
     from google.genai import types
 
     config = types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
+        system_instruction=system_prompt,
         response_mime_type="application/json",
         response_schema=RESPONSE_SCHEMA,
         temperature=0,

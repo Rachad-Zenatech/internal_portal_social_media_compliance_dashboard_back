@@ -17,7 +17,7 @@ to find the right file.
 | .agents/code-map/models__notifications.md | 2 | 1 KB |
 | .agents/code-map/models__shared.md | 3 | 2 KB |
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |
-| .agents/code-map/postgresql_db__schemas.md | 23 | 6 KB |
+| .agents/code-map/postgresql_db__schemas.md | 24 | 6 KB |
 | .agents/code-map/scripts.md | 11 | 9 KB |
 | .agents/code-map/services__ai__core.md | 7 | 6 KB |
 | .agents/code-map/services__ai__observability.md | 5 | 4 KB |
@@ -50,6 +50,7 @@ to find the right file.
 | .agents/code-map/services__compliance__analytics__zenatech_financial_scrape.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__army_context_review.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__brand_voice_service.md | 1 | 2 KB |
+| .agents/code-map/services__compliance__evaluation__branding.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__citation_finder.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__claim_checks.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__claim_discovery.md | 1 | 1 KB |
@@ -95,6 +96,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__source_browser_fetch.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_check_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__source_claim_checks.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__source_claim_inventory.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_fetch_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_findings.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_identity.md | 1 | 1 KB |

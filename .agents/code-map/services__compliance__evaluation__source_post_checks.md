@@ -4,6 +4,6 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_post_checks.py (33 lines) - Source comparison consumes the same full-post inventory across all published parts.
-- `unsourced_image_findings` (def) L6 - All extracted facts, including soft claims, stay visible when there is no usable evidence.
-- `compare_parts` (def) L30
+## services/compliance/evaluation/source_post_checks.py (36 lines) - Source comparison consumes the same full-post inventory across all published parts.
+- `unsourced_image_findings` (def) L7 - All extracted facts, including soft claims, stay visible when there is no usable evidence.
+- `compare_parts` (def) L31

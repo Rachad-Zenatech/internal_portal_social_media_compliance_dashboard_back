@@ -1,6 +1,7 @@
 """Source comparison consumes the same full-post inventory across all published parts."""
 from models.compliance.compliance_model import ComplianceViolation
-from . import claim_manifest, claim_verification
+from . import claim_manifest, claim_verification, branding, citation_finder
+from .image_marks import without_image_marks
 
 
 def unsourced_image_findings(text, checks, manifest=None):
@@ -28,5 +29,7 @@ def unsourced_image_findings(text, checks, manifest=None):
 
 
 async def compare_parts(text, label, title, url, published, source_text, compare, *, manifest=None):
+    if not without_image_marks(branding.without_branding(citation_finder.without_citation_text(text))).strip():
+        return [], None, False
     inventory = manifest if manifest is not None else await claim_manifest.get(text)
     return await claim_verification.compare(inventory, (label, title, url, published, source_text), compare)

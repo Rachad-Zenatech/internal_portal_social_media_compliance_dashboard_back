@@ -7,10 +7,11 @@ from typing import List, Optional
 logger = logging.getLogger(__name__)
 
 _MODEL_PATH = Path(__file__).with_name("face_detection_yunet_2023mar.onnx")
-_SCORE_THRESHOLD = 0.6
+_SCORE_THRESHOLD = 0.78
 _NMS_THRESHOLD = 0.3
 _MAX_FACES = 20
 _MAX_SIDE = 1600
+_MIN_BOX_PX = 24
 
 
 def detect_faces(image_bytes: bytes) -> Optional[List[List[int]]]:
@@ -44,6 +45,8 @@ def detect_faces(image_bytes: bytes) -> Optional[List[List[int]]]:
     boxes: List[List[int]] = []
     for row in raw:
         x, y, bw, bh = float(row[0]), float(row[1]), float(row[2]), float(row[3])
+        if bw < _MIN_BOX_PX or bh < _MIN_BOX_PX or max(bw / bh, bh / bw) > 2.2:
+            continue
         top = max(0, min(1000, int(round(y / h * 1000))))
         left = max(0, min(1000, int(round(x / w * 1000))))
         bottom = max(0, min(1000, int(round((y + bh) / h * 1000))))

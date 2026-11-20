@@ -16,10 +16,11 @@ def words(text):
 
 def is_identifier(text):
     """A standalone website, handle, or brand mark makes no factual assertion."""
+    from .branding import is_branding
+
     text = (text or "").strip().strip(".,!?;:\u0022\u0027\u201c\u201d\u2018\u2019")
-    brand = re.sub(r"[^a-z0-9]", "", text.casefold())
     return (
-        brand in {"zenatech", "zenadrone", "zena", "zooffice", "zenastudios"}
+        is_branding(text)
         or URL_PATTERN.fullmatch(text) is not None
         or re.fullmatch(r"@[\w.]+", text) is not None
     )

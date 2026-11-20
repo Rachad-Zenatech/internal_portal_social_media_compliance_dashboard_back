@@ -45,7 +45,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## services/shared/core/production_url_policy.py (29 lines) - Validation for browser-facing URLs supplied by deployment configuration.
 - `validate_production_web_config` (def) L6 - Reject insecure or loopback browser URLs before a production server starts.
 
-## services/shared/core/startup_service.py (71 lines) - Server startup helpers for schema updates and tracked background tasks.
-- `run_schema_setups` (def) L32 - Apply schema changes once at a time across workers; fail startup if any setup fails.
-- `resume_reads` (def) L51 - Resume image, document and brand-manual reads interrupted by a restart.
-- `spawn_background` (def) L65 - Start a background task whose failure is logged, and keep it in `tasks` so shutdown can cancel it.
+## services/shared/core/startup_service.py (72 lines) - Server startup helpers for schema updates and tracked background tasks.
+- `run_schema_setups` (def) L33 - Apply schema changes once at a time across workers; fail startup if any setup fails.
+- `resume_reads` (def) L52 - Resume image, document and brand-manual reads interrupted by a restart.
+- `spawn_background` (def) L66 - Start a background task whose failure is logged, and keep it in `tasks` so shutdown can cancel it.
