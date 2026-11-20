@@ -5,8 +5,8 @@ The rule matcher lowercases text and turns punctuation into spaces, so "$ZENA" r
 
 - cashtags ($ZENA): the post talks about the company's stock, so investors are reading it;
 - hashtags: "#CombatProven" says "combat proven" just as loudly as the words do;
-- @mentions and links: tagging a government or military account, or linking to a .gov / .mil site, suggests the
-  government is associated with or endorses the post, which the rulebook forbids without a disclaimer.
+- @mentions identify government accounts for association checks; .gov / .mil links identify sources,
+  and do not by themselves imply endorsement or use of government imagery.
 
 This module pulls those out of the raw text. It's plain pattern matching: no AI quota, same answer every time.
 """
@@ -18,7 +18,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 # Bump when what's read or flagged here changes, so open content is re-checked on the next start (see
 # compliance_service.rulebook_version).
-VERSION = "signals-1"
+VERSION = "signals-2"
 
 # More than this reads as a hashtag wall (the most any platform suits; see hashtag_library.PLATFORM_MAX).
 MAX_HASHTAGS = 10
@@ -194,22 +194,21 @@ class SignalFinding:
 def findings(signals: PostSignals) -> List[SignalFinding]:
     """Rule-like findings from the signals. Reported like a rule's, with a fixed id so a reviewer can dismiss them."""
     out: List[SignalFinding] = []
-    # Tagging the DoD (or linking its site) with the "no endorsement" wording already in the post is what the
-    # rulebook asks for, so it isn't flagged again.
-    if signals.government_references and not signals.has_no_endorsement_wording:
-        refs = signals.government_references
+    # A source link is not an association claim. Keep account tags separate from cited domains.
+    refs = [ref for ref in signals.government_references if ref.startswith("@")]
+    if refs and not signals.has_no_endorsement_wording:
         out.append(SignalFinding(
             rule_id=GOVERNMENT_REFERENCE_ID,
             rule_number="Signal check 1",
-            title="Government or military account tagged, or site linked",
+            title="Government or military account tagged",
             category="Endorsement",
             severity="HIGH",
             traffic_light="YELLOW",
             flagged_terms=refs[:8],
-            explanation=f"Found: {', '.join(refs[:4])}. Tagging a government or military account, or linking to its "
-            "site, suggests it is associated with or endorses this post. Government and military visuals and "
+            explanation=f"Found: {', '.join(refs[:4])}. Tagging a government or military account "
+            "can suggest it is associated with or endorses this post. Government and military visuals and "
             "references may not imply endorsement.",
-            remediation="Remove the tag or link, or keep it with clearance and add: \"The appearance of U.S. "
+            remediation="Remove the tag, or keep it with clearance and add: \"The appearance of U.S. "
             "Department of Defense visual information does not imply or constitute DOD endorsement.\"",
             penalty=GOVERNMENT_REFERENCE_PENALTY,
         ))

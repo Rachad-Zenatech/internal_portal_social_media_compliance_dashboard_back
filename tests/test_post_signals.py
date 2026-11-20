@@ -77,6 +77,16 @@ class GovernmentTests(unittest.TestCase):
                 "information does not imply or constitute DOD endorsement.")
         self.assertEqual(ps.findings(ps.extract(text)), [])
 
+    def test_a_government_source_link_does_not_imply_endorsement(self):
+        for text in ["Source: U.S. Army / army.mil/article/295038", "Read the report at https://defense.gov/news"]:
+            signals = ps.extract(text)
+            self.assertTrue(signals.government_references)
+            self.assertEqual(ps.findings(signals), [])
+
+    def test_source_links_do_not_hide_an_account_tag(self):
+        found = ps.findings(ps.extract("Thanks @USArmy. Source: army.mil/article/295038"))
+        self.assertEqual(found[0].flagged_terms, ["@USArmy"])
+
     def test_not_only_is_not_a_disclaimer(self):
         self.assertTrue(ps.findings(ps.extract("Not only did @USArmy endorse it, they bought it.")))
 

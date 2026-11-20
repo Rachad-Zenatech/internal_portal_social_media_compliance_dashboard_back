@@ -38,7 +38,7 @@ from models.compliance.submission_model import AUDIENCES, PLATFORMS, REGIONS, RU
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
-from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure
+from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer
 from services.compliance.evaluation import context_evaluator
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
@@ -69,7 +69,7 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-16"
+SCOPE_VERSION = "scope-17"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
@@ -824,13 +824,13 @@ def _evaluate_rule(rule: ComplianceRule, padded_text: str,
     flagged = [t for t in rule.prohibited_terms
                if _hit(t, padded_text, exceptions, honor_negation=True) or _hashtag_hit(t, hashtag_keys, exceptions)]
 
-    # Required disclaimers: needed when one of the rule's trigger phrases appears (or always, if it has
-    # none). Any one of the listed disclaimers satisfies the rule.
+    # Military names alone do not establish that government visual material is being used.
     missing: List[str] = []
     triggered_by: List[str] = []
     if rule.required_disclaimers:
         triggered_by = [t for t in rule.disclaimer_triggers if found(t)]
-        needed = not rule.disclaimer_triggers or bool(triggered_by) or bool(flagged)
+        needed = (not rule.disclaimer_triggers or bool(triggered_by) or bool(flagged)) and (
+            bool(flagged) or defense_disclaimer.requires_visual_review(rule, padded_text))
         where = padded_text if disclaimer_padded is None else disclaimer_padded
         if needed and not any(_disclaimer_present(d, where) for d in rule.required_disclaimers):
             missing = list(rule.required_disclaimers)
@@ -1165,6 +1165,7 @@ CONTENT TO EVALUATE
         kind = sv.get("kind") if sv.get("kind") in ("PROHIBITED_TERM", "MISSING_DISCLAIMER") else "PROHIBITED_TERM"
         if kind == "MISSING_DISCLAIMER" and (
             not rule.required_disclaimers
+            or not defense_disclaimer.requires_visual_review(rule, padded_text)
             or any(_disclaimer_present(d, padded_text if disclaimer_padded is None else disclaimer_padded)
                    for d in rule.required_disclaimers)
         ):

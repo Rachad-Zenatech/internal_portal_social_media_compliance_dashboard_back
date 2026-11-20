@@ -23,6 +23,8 @@ class BaselineRuleTermTests(unittest.TestCase):
             rule = rule_from_seed(seed)
             with self.subTest(rule=rule.rule_number):
                 trigger = (rule.prohibited_terms or rule.disclaimer_triggers or [""])[0]
+                if rule.rule_number == "Rule 13":
+                    trigger = "Official DVIDS footage"  # A military name alone does not establish use of imagery.
                 finding = _evaluate_rule(rule, f" {_normalize(trigger)} ")
                 if rule.prohibited_terms or rule.required_disclaimers:
                     self.assertIsNotNone(finding)
