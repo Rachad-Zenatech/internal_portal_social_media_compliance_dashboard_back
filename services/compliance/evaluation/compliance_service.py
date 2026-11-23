@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 from services.compliance.evaluation.rule_examples import _QUOTED, _examples
+from services.compliance.evaluation import check_rule_capture
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
@@ -1238,6 +1239,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     signals = post_signals.extract(match_text)
     scope = check_scope(match_req, signals)
     rules = await applicable_rules(req)
+    check_rule_capture.remember(rules, req)
     padded_text = f" {_normalize(chr(10).join([without_image_marks(match_text), *signals.hashtag_phrases]))} "
     hashtag_keys = signals.hashtag_keys
     # Where a required disclaimer has to be: the published parts only, when the caller says which those are.

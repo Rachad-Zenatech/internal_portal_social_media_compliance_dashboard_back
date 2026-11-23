@@ -43,6 +43,8 @@ async def ensure_check_snapshots(conn) -> None:
 
         ALTER TABLE finding_verdicts ADD COLUMN IF NOT EXISTS finding_snapshot_id UUID
             REFERENCES compliance_finding_snapshots(id);
+        ALTER TABLE flag_reviews ADD COLUMN IF NOT EXISTS finding_snapshot_id UUID
+            REFERENCES compliance_finding_snapshots(id);
         ALTER TABLE creator_flag_dismissal_requests ADD COLUMN IF NOT EXISTS finding_snapshot_id UUID
             REFERENCES compliance_finding_snapshots(id);
     """)

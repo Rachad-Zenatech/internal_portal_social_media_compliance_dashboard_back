@@ -9,7 +9,7 @@ _rules: ContextVar[dict | None] = ContextVar("compliance_snapshot_rules", defaul
 
 @contextmanager
 def collecting():
-    captured = {}
+    captured = {"rules": {}}
     token = _rules.set(captured)
     try:
         yield captured
@@ -17,8 +17,9 @@ def collecting():
         _rules.reset(token)
 
 
-def remember(rules) -> None:
+def remember(rules, request) -> None:
     captured = _rules.get()
     if captured is not None:
+        captured["request"] = request.model_dump(mode="json")
         for rule in rules:
-            captured[str(rule.id)] = rule.model_dump(mode="json")
+            captured["rules"][str(rule.id)] = rule.model_dump(mode="json")

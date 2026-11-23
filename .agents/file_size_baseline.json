@@ -75,10 +75,6 @@
       "max_lines": 127,
       "kind": "py_function"
     },
-    "services/compliance/submissions/submission_service.py#update_submission": {
-      "max_lines": 127,
-      "kind": "py_function"
-    },
     "services/notifications/rabbitmq_hub_status.py#HubStatusMixin._build_hub_live_status": {
       "max_lines": 222,
       "kind": "py_function"

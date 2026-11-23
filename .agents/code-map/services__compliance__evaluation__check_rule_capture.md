@@ -4,6 +4,6 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/check_rule_capture.py (25 lines) - Capture the actual rule definitions used by a check, isolated per async task.
+## services/compliance/evaluation/check_rule_capture.py (26 lines) - Capture the actual rule definitions used by a check, isolated per async task.
 - `collecting` (def) L11
 - `remember` (def) L20
