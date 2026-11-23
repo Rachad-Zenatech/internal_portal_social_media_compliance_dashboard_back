@@ -26,9 +26,8 @@ from services.compliance.sentiment.config import (
     PROMPT_VERSION,
     SCHEDULE_CHECK_SEC,
     STALE_MINUTES,
-    _running,
     _semaphore,
-    _tasks,
+    _running,
 )
 from services.compliance.sentiment.input_builder import (
     _build_input,
@@ -40,6 +39,8 @@ from services.compliance.sentiment.input_builder import (
 )
 from services.compliance.sentiment.evidence import _norm, finding_id
 from services.compliance.sentiment.engine import analyse
+from services.compliance.sentiment.cancellation import run_cancellable
+from services.compliance.sentiment.background_tasks import start_tasks, _run as _run_background
 from services.compliance.sentiment.feedback import _feedback_map
 
 logger = logging.getLogger(__name__)
@@ -69,12 +70,12 @@ async def _finish(analysis_id: UUID, submission_id: UUID, actor: Optional[UUID],
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            await conn.execute(
+            outcome = await conn.execute(
                 """
                 UPDATE content_sentiment_analyses
                 SET status = $2::varchar, result = $3::jsonb, error = $4, model = $5, retry_at = $6, updated_at = NOW(),
                     completed_at = CASE WHEN $2::varchar = 'COMPLETED' THEN NOW() ELSE NULL END
-                WHERE id = $1
+                WHERE id = $1 AND status = 'PROCESSING'
                 """,
                 analysis_id,
                 "COMPLETED" if result else "FAILED",
@@ -83,7 +84,7 @@ async def _finish(analysis_id: UUID, submission_id: UUID, actor: Optional[UUID],
                 model,
                 retry_at,
             )
-            if result:
+            if result and outcome != "UPDATE 0":
                 label = result.overall_assessment.replace("_", " ").lower()
                 await conn.execute(
                     """
@@ -106,7 +107,7 @@ async def run_analysis(analysis_id: UUID) -> None:
         inp = _json(claimed["input"])
         model = _model_for(inp)
         try:
-            result = await analyse(inp, submission_id)
+            result = await run_cancellable(analysis_id, analyse(inp, submission_id))
             await _finish(analysis_id, submission_id, claimed["requested_by"], result, None, result.model_used or model)
             logger.info("Sentiment analysis %s: %s", analysis_id, result.overall_assessment)
         except QuotaExhausted as e:
@@ -118,24 +119,11 @@ async def run_analysis(analysis_id: UUID) -> None:
 
 
 async def _run(analysis_id: UUID) -> None:
-    try:
-        await run_analysis(analysis_id)
-    except Exception:
-        # Saving the outcome failed; the row stays claimed and resume_unfinished retries it once stale.
-        logger.exception("Sentiment analysis %s couldn't be saved", analysis_id)
-    finally:
-        _running.discard(analysis_id)
+    await _run_background(analysis_id, run_analysis)
 
 
 def schedule(analysis_ids: Iterable[UUID]) -> None:
-    """Start each analysis in the background unless this process is already running it."""
-    for analysis_id in analysis_ids:
-        if analysis_id in _running:
-            continue
-        _running.add(analysis_id)
-        task = asyncio.create_task(_run(analysis_id), name=f"sentiment-{analysis_id}")
-        _tasks.add(task)
-        task.add_done_callback(_tasks.discard)
+    start_tasks(analysis_ids, run_analysis)
 
 
 async def _queue_for(row: Dict[str, Any], trigger: str, requested_by: Optional[UUID],
@@ -169,11 +157,14 @@ async def _queue_for(row: Dict[str, Any], trigger: str, requested_by: Optional[U
         ON CONFLICT (id) DO UPDATE SET
             status = 'PENDING', content_hash = EXCLUDED.content_hash, input = EXCLUDED.input,
             error = NULL, updated_at = NOW()
+        WHERE content_sentiment_analyses.status = 'WAITING_TRANSCRIPT'
         RETURNING id
         """,
         analysis_id, row["id"], row["current_version"], trigger, content_hash,
         json.dumps(inp, default=str), PROMPT_VERSION, requested_by,
     )
+    if not saved:
+        return analysis_id
     schedule([saved["id"]])
     return saved["id"]
 
@@ -278,7 +269,7 @@ async def resume_unfinished(submission_id: UUID) -> None:
             )
         else:
             if r["status"] == "PROCESSING":
-                await fetch_one("UPDATE content_sentiment_analyses SET status = 'PENDING' WHERE id = $1 RETURNING id", r["id"])
+                await fetch_one("UPDATE content_sentiment_analyses SET status = 'PENDING' WHERE id = $1 AND status = 'PROCESSING' RETURNING id", r["id"])
             schedule([r["id"]])
 
 

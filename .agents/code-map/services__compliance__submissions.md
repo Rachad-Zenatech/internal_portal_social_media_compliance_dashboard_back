@@ -50,6 +50,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `delegation_count` (def) L195 - Delegated-to-me posts still waiting for a decision, for the sidebar badge.
 - `split_picked_reviewers` (def) L208 - (who stays on the post, who was newly picked).
 
+## services/compliance/submissions/disconnected_analysis.py (25 lines) - Cancel request-bound checks when their caller stops the request.
+- `run_until_disconnected` (def) L5
+    - `watch` (def) L10
+
 ## services/compliance/submissions/duplicate_service.py (237 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
 - `normalize_caption` (def) L43 - Captions compare without case or spacing differences.
 - `details_of` (def) L48 - The post's Submission Details values, as keys (brand codes, account ids, audience codes...).

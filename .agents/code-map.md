@@ -105,8 +105,8 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__synthetic_media_disclosure.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_review.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__media.md | 17 | 14 KB |
-| .agents/code-map/services__compliance__sentiment.md | 8 | 7 KB |
-| .agents/code-map/services__compliance__submissions.md | 28 | 29 KB |
+| .agents/code-map/services__compliance__sentiment.md | 10 | 8 KB |
+| .agents/code-map/services__compliance__submissions.md | 29 | 29 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |
 | .agents/code-map/services__notifications.md | 11 | 9 KB |
 | .agents/code-map/services__notifications__review_email.md | 7 | 2 KB |
@@ -115,7 +115,7 @@ to find the right file.
 | .agents/code-map/services__shared__storage.md | 1 | 1 KB |
 | .agents/code-map/tools__ai.md | 3 | 1 KB |
 | .agents/code-map/tools__compliance__analytics.md | 4 | 4 KB |
-| .agents/code-map/tools__compliance__submissions.md | 13 | 23 KB |
+| .agents/code-map/tools__compliance__submissions.md | 14 | 24 KB |
 | .agents/code-map/tools__microsoft_graph.md | 1 | 1 KB |
 | .agents/code-map/tools__notifications.md | 3 | 2 KB |
 | .agents/code-map/tools__shared__auth.md | 3 | 5 KB |

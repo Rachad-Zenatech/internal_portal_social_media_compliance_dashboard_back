@@ -6,6 +6,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 
 ## services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
 
+## services/compliance/sentiment/background_tasks.py (27 lines) - Own the lifecycle of sentiment background tasks independently of API requests.
+- `_run` (def) L10
+- `start_tasks` (def) L19
+
+## services/compliance/sentiment/cancellation.py (66 lines) - Persist manual stops and cancel sentiment work, including work on another API worker.
+- `run_cancellable` (def) L12 - Watch the persisted status while the AI request is running.
+    - `watch` (def) L16
+- `stop_analysis` (def) L36 - Only the owner or a super admin may stop a draft's analysis; completed results stay intact.
+
 ## services/compliance/sentiment/config.py (468 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
 - `_get_client` (def) L264
 - `_enum` (def) L274
@@ -66,31 +75,31 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_reference_context` (def) L351 - The Messaging Context section of the prompt, grouped by kind, saying plainly what's missing.
 - `suggested_context` (def) L374 - The Messaging Context the analysis would pick on its own for this post, by kind (what the picker suggests).
 
-## services/compliance/sentiment/jobs.py (540 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
-- `_claim` (def) L51 - Atomically move an analysis to PROCESSING unless another worker already has it.
-- `_finish` (def) L66
-- `run_analysis` (def) L100
-- `_run` (def) L120
-- `schedule` (def) L130 - Start each analysis in the background unless this process is already running it.
-- `_queue_for` (def) L141 - Create (or, for a waiting row, fill in) a PENDING analysis, reusing a matching earlier result.
-- `request_analysis` (def) L181 - Start an analysis of the submission's current content (or return the matching one already done or running).
-- `_request` (def) L202
-- `on_transcript_finished` (def) L228 - Called by the transcription job (completed or failed): start any analysis that was waiting for it.
-- `_resume_waiting` (def) L245
-- `resume_unfinished` (def) L254 - Restart work a restart may have interrupted: stale PENDING/PROCESSING rows, and waiting rows whose
-- `_result` (def) L285 - The stored result, with finding ids filled in for analyses saved before findings had them.
-- `_to_model` (def) L296
-- `context_entries` (def) L325 - The Messaging Context the analysis was given, with each entry's scope, date and source (flagged when it's over a
-- `_with_feedback` (def) L389
-- `get_analysis` (def) L401
-- `get_for_version` (def) L406 - The most recent analysis of one version, as it was (looking back, so never flagged stale).
-- `_same_finding` (def) L421 - Whether two runs flagged the same thing: the same id, or (wording rewritten slightly, or a visual described
-- `_with_comparison` (def) L435 - Attach how this analysis differs from the previous completed one of the same submission.
-- `get_latest` (def) L465 - The latest analysis remains current across detail edits, until its media changes.
-- `_analysis_row` (def) L484
-- `schedule_after_reset` (def) L497 - An analysis that failed on Gemini's daily limit runs again once the limit resets.
-- `promote_due` (def) L512 - Start scheduled analyses whose quota reset time has passed (all of them, or one submission's).
-- `scheduled_runs_loop` (def) L527 - Background loop (started with the app): runs scheduled analyses once Gemini's daily limit has reset.
+## services/compliance/sentiment/jobs.py (531 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
+- `_claim` (def) L52 - Atomically move an analysis to PROCESSING unless another worker already has it.
+- `_finish` (def) L67
+- `run_analysis` (def) L101
+- `_run` (def) L121
+- `schedule` (def) L125
+- `_queue_for` (def) L129 - Create (or, for a waiting row, fill in) a PENDING analysis, reusing a matching earlier result.
+- `request_analysis` (def) L172 - Start an analysis of the submission's current content (or return the matching one already done or running).
+- `_request` (def) L193
+- `on_transcript_finished` (def) L219 - Called by the transcription job (completed or failed): start any analysis that was waiting for it.
+- `_resume_waiting` (def) L236
+- `resume_unfinished` (def) L245 - Restart work a restart may have interrupted: stale PENDING/PROCESSING rows, and waiting rows whose
+- `_result` (def) L276 - The stored result, with finding ids filled in for analyses saved before findings had them.
+- `_to_model` (def) L287
+- `context_entries` (def) L316 - The Messaging Context the analysis was given, with each entry's scope, date and source (flagged when it's over a
+- `_with_feedback` (def) L380
+- `get_analysis` (def) L392
+- `get_for_version` (def) L397 - The most recent analysis of one version, as it was (looking back, so never flagged stale).
+- `_same_finding` (def) L412 - Whether two runs flagged the same thing: the same id, or (wording rewritten slightly, or a visual described
+- `_with_comparison` (def) L426 - Attach how this analysis differs from the previous completed one of the same submission.
+- `get_latest` (def) L456 - The latest analysis remains current across detail edits, until its media changes.
+- `_analysis_row` (def) L475
+- `schedule_after_reset` (def) L488 - An analysis that failed on Gemini's daily limit runs again once the limit resets.
+- `promote_due` (def) L503 - Start scheduled analyses whose quota reset time has passed (all of them, or one submission's).
+- `scheduled_runs_loop` (def) L518 - Background loop (started with the app): runs scheduled analyses once Gemini's daily limit has reset.
 
 ## services/compliance/sentiment/media.py (68 lines) - Video frames and attached images for sentiment findings.
 - `video_frame` (def) L18 - A JPEG of the analysed video at a moment (cached on disk), so a finding can show what was on screen.

@@ -188,17 +188,20 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/video_finding_service.py (116 lines) - Locate exact flagged wording in video frames without inventing a visual region.
 - services/compliance/media/video_job_service.py (190 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
 - services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
+- services/compliance/sentiment/background_tasks.py (27 lines) - Own the lifecycle of sentiment background tasks independently of API requests.
+- services/compliance/sentiment/cancellation.py (66 lines) - Persist manual stops and cancel sentiment work, including work on another API worker.
 - services/compliance/sentiment/config.py (468 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
 - services/compliance/sentiment/engine.py (314 lines) - Gemini execution and model failover chain for sentiment analysis.
 - services/compliance/sentiment/evidence.py (254 lines) - Verification of quotes and rule references in sentiment findings.
 - services/compliance/sentiment/feedback.py (146 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
 - services/compliance/sentiment/input_builder.py (394 lines) - Input building and prompt construction for sentiment analysis.
-- services/compliance/sentiment/jobs.py (540 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
+- services/compliance/sentiment/jobs.py (531 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - services/compliance/sentiment/media.py (68 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/submissions/analysis_progress_service.py (195 lines) - How long a post's rulebook check has left.
 - services/compliance/submissions/approval_path_service.py (197 lines) - Approval paths: who gives final approval for which content.
 - services/compliance/submissions/creator_dismissal_service.py (66 lines) - Creator dismissal requests that must follow a submission into review.
 - services/compliance/submissions/delegation_service.py (214 lines) - Review delegation: a reviewer hands a post in review to someone else.
+- services/compliance/submissions/disconnected_analysis.py (25 lines) - Cancel request-bound checks when their caller stops the request.
 - services/compliance/submissions/duplicate_service.py (237 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
 - services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
 - services/compliance/submissions/flag_review_service.py (456 lines) - Reviewers' calls on automated compliance flags.
@@ -268,6 +271,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/analytics/listening_router.py (281 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
 - tools/compliance/analytics/performance_router.py (45 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - tools/compliance/analytics/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
+- tools/compliance/submissions/analysis_cancellation_router.py (17 lines) - Manual cancellation of background post analyses.
 - tools/compliance/submissions/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.
 - tools/compliance/submissions/compliance_router.py (172 lines) - Compliance Rules & Governance Router Endpoints for managing ("build on it and remove") and checking compliance rules.
 - tools/compliance/submissions/context_router.py (129 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
@@ -275,12 +279,12 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - tools/compliance/submissions/script_directory_router.py (63 lines) - Script directory for the Share Document portal (app-to-app).
 - tools/compliance/submissions/script_doc_router.py (242 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
-- tools/compliance/submissions/script_review_router.py (145 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+- tools/compliance/submissions/script_review_router.py (146 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - tools/compliance/submissions/source_link_router.py (69 lines) - Router for quick AI checking of submission source links.
 - tools/compliance/submissions/source_trust_router.py (27 lines) - Router for people's calls on a post's sources (does a claim match the page? is the page a good source?) and the standing each source's si...
 - tools/compliance/submissions/submission_flag_router.py (74 lines) - Creator dismissal requests and reviewers' calls on compliance flags.
 - tools/compliance/submissions/submission_review_router.py (70 lines) - Review decisions, hand-offs and comments for content submissions.
-- tools/compliance/submissions/submission_router.py (495 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
+- tools/compliance/submissions/submission_router.py (501 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/notifications/message_hub_router.py (70 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
 - tools/notifications/notification_router.py (94 lines) - notification router (notifications)
