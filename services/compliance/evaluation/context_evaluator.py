@@ -25,6 +25,7 @@ guidance for how this team reads the rule, not proof: the safeguards above still
 them only when the new passage is really the same kind of case.
 """
 
+from services.ai.core import gemini_service, compliance_request_policy
 import asyncio
 import hashlib
 import json
@@ -261,12 +262,16 @@ async def _judge(batch: List[Tuple[int, Candidate]], guard: Any) -> Tuple[Dict[i
     remaining = list(batch)
     answers: Dict[int, _Result] = {}
     answered_by: Optional[str] = None
-    # Two passes over the models: a timeout or a busy model is often fine a few seconds later, and a finding that no model
-    # read is left for a person, so it is worth one more try.
+    models = compliance_request_policy.text_models(MODELS)
+    # Keep partial judgments, but do not immediately repeat known provider failures.
     for sweep in range(2):
+        if not any(gemini_service.model_is_available(model) for model in models):
+            break
         if sweep:
             await asyncio.sleep(RETRY_PAUSE_SEC)
-        for model in MODELS:
+        for model in models:
+            if not gemini_service.model_is_available(model):
+                continue
             try:
                 response = await _ask(model, [_item(i, c) for i, c in remaining], guard)
             except Exception as e:

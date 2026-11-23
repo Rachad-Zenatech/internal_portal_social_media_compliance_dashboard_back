@@ -41,8 +41,10 @@ def _model_failure_cooldown_seconds(error: Exception) -> int:
     message = f"{status_code} {error}".lower()
     if "404" in message or "not found" in message or "not available" in message:
         return 300
-    if "429" in message or "503" in message or "resource_exhausted" in message or "quota" in message:
+    if any(part in message for part in ("429", "500", "503", "504", "resource_exhausted", "quota", "high demand", "deadline")):
         return 60
+    if isinstance(error, TimeoutError) or "timeout" in type(error).__name__.lower() or "timed out" in message:
+        return 30
     return 0
 
 
@@ -107,7 +109,7 @@ def is_rotatable_model_error(e: Exception) -> bool:
         msg = str(e).lower()
         if any(k in msg for k in [
             "404", "not found", "no longer available", "not available",
-            "429", "503", "resource_exhausted", "quota exceeded",
+            "429", "500", "503", "504", "resource_exhausted", "quota exceeded",
             "too many requests", "unavailable", "high demand", "deadline_exceeded", "deadline expired", "timed out",
             "is not supported", "invalid model", "deprecated"
         ]):
@@ -121,7 +123,7 @@ def is_rotatable_model_error(e: Exception) -> bool:
     msg = str(e).lower()
     if any(k in msg for k in [
         "404", "not found", "no longer available", "not available",
-        "429", "503", "resource_exhausted", "quota exceeded",
+        "429", "500", "503", "504", "resource_exhausted", "quota exceeded",
         "too many requests", "unavailable", "high demand", "timed out",
         "is not supported", "invalid model", "deprecated"
     ]):

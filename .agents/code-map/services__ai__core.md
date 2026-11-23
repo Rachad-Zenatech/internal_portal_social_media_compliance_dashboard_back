@@ -16,15 +16,19 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_stream_round` (def) L136 - One model turn, streamed.
 - `stream` (def) L190 - The SSE events for a prepared chat.
 
-## services/ai/core/gemini_service.py (196 lines) - gemini service (ai core)
+## services/ai/core/compliance_request_policy.py (30 lines) - Bound compliance attempts and share outage knowledge without changing judgment prompts or coverage.
+- `configure` (def) L9
+- `text_models` (def) L27 - Text judgments may use every explicitly configured general fallback, including those used by rulebook checks.
+
+## services/ai/core/gemini_service.py (198 lines) - gemini service (ai core)
 - `_normalize_ai_model_name` (def) L10 - Normalizes a model name from the environment variable list
 - `_model_failure_cooldown_seconds` (def) L38 - Avoid retrying a model known to be unavailable while a request burst is in progress.
-- `model_is_available` (def) L49 - Return false while a short provider-failure cooldown for this model is active.
-- `record_model_failure` (def) L60
-- `without_retired` (def) L66 - The models that can still be called, in the same order.
-- `get_gemini_fallback_models` (def) L77 - Retrieves and normalizes the list of available Gemini models
-- `is_rotatable_model_error` (def) L97 - Determines if a given exception represents a rate limit, quota exhaustion,
-- `generate_content_with_fallback` (def) L135 - A robust wrapper around client.models.generate_content that automatically
+- `model_is_available` (def) L51 - Return false while a short provider-failure cooldown for this model is active.
+- `record_model_failure` (def) L62
+- `without_retired` (def) L68 - The models that can still be called, in the same order.
+- `get_gemini_fallback_models` (def) L79 - Retrieves and normalizes the list of available Gemini models
+- `is_rotatable_model_error` (def) L99 - Determines if a given exception represents a rate limit, quota exhaustion,
+- `generate_content_with_fallback` (def) L137 - A robust wrapper around client.models.generate_content that automatically
 
 ## services/ai/core/model_router.py (80 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
 - `Route` (class) L44

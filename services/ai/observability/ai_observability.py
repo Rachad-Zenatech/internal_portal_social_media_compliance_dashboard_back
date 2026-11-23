@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Optional, Tuple
 from uuid import UUID
 
+from services.ai.core import gemini_service, compliance_request_policy
 from postgresql_db.database import get_pool
 from services.ai.observability.ai_guardrails import GuardResult, redact_pii
 from services.shared.core.logging_service import request_id_ctx
@@ -285,6 +286,10 @@ async def generate(client: Any, *, model: str, contents: Any, config: Any = None
                    **attributes: Any) -> Any:
     """client.models.generate_content in a thread, traced and prompt-logged. Errors are recorded and re-raised.
     guard, when given, is the screening verdict of the untrusted text in the request, recorded with the call."""
+    compliance = feature in compliance_request_policy.FEATURES
+    if compliance and not gemini_service.model_is_available(model):
+        raise RuntimeError(f"Model {model} is temporarily unavailable after a recent provider failure")
+    config = compliance_request_policy.configure(feature, config)
     prompt, attachments = describe_contents(contents, getattr(config, "system_instruction", None))
     if guard is not None:
         attributes.update(guard_verdict=guard.verdict, guard_score=guard.score, guard_categories=guard.categories)
@@ -301,6 +306,8 @@ async def generate(client: Any, *, model: str, contents: Any, config: Any = None
         try:
             response = await asyncio.to_thread(client.models.generate_content, model=model, contents=contents, config=config)
         except Exception as e:
+            if compliance:
+                gemini_service.record_model_failure(model, e)
             s.attributes["error_kind"] = classify_error(e)
             _notify_attempt({"event": "attempt", "id": attempt_id, "status": "FAILED", "model": model, "feature": feature,
                              "error_kind": s.attributes["error_kind"], "error": str(e)[:160],
