@@ -10,12 +10,13 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ApproverOption` (class) L26
 - `ApprovalPathOptions` (class) L34
 
-## models/compliance/brand_voice_model.py (59 lines) - Brand voice per brand: the brand manual (PDF) and what was read from it (voice, colours, typefaces, logo).
+## models/compliance/brand_voice_model.py (68 lines) - Brand voice per brand: the brand manual (PDF) and what was read from it (voice, colours, typefaces, logo).
 - `BrandColor` (class) L13
 - `PaletteRow` (class) L19 - A row of colour swatches in the manual (e.g.
 - `BrandTypeface` (class) L26
 - `BrandVoiceIn` (class) L32 - What a person can change by hand after (or instead of) reading the manual.
 - `BrandVoice` (class) L43
+- `BrandManualSection` (class) L61 - A PDF page under its printed heading; text is never summarised or cut off.
 
 ## models/compliance/canva_model.py (41 lines) - Canva Integration Models Connecting a Canva account, picking a design and importing (or reimporting) its export into a submission.
 - `CanvaConnection` (class) L14

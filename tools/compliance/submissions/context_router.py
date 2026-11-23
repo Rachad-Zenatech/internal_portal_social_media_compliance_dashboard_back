@@ -3,11 +3,11 @@
 from typing import Annotated, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, Path, Query, UploadFile, status
+from fastapi.responses import FileResponse, Response
 from services.compliance.media.file_mime_policy import safe_disposition_type
 
-from models.compliance.brand_voice_model import BrandVoice, BrandVoiceIn
+from models.compliance.brand_voice_model import BrandVoice, BrandVoiceIn, BrandManualSection
 from models.compliance.context_model import (
     ContextEntry,
     ContextEntryIn,
@@ -16,6 +16,7 @@ from models.compliance.context_model import (
     PolicyWatch,
 )
 from services.compliance.evaluation import brand_voice_service as voices
+from services.compliance.evaluation import brand_manual_sections as manual_sections
 from services.compliance.evaluation import context_service as svc
 from services.compliance.evaluation import newsroom_sync_service as newsroom
 from services.compliance.evaluation import policy_watch_service as policy_watch
@@ -111,6 +112,17 @@ async def download_brand_manual(brand_code: str, user_id: CurrentUser):
 async def brand_logo(brand_code: str, user_id: CurrentUser):
     path, mime, _ = await voices.file_path(brand_code, "logo")
     return FileResponse(path, media_type=mime, content_disposition_type=safe_disposition_type(mime))
+
+
+@router.get("/brand-voices/{brand_code}/manual/sections", response_model=List[BrandManualSection])
+async def brand_manual_sections(brand_code: str, user_id: CurrentUser):
+    return await manual_sections.sections(brand_code, user_id)
+
+
+@router.get("/brand-voices/{brand_code}/manual/pages/{page}")
+async def brand_manual_page(brand_code: str, user_id: CurrentUser, page: int = Path(..., ge=1)):
+    data = await manual_sections.page_image(brand_code, page, user_id)
+    return Response(data, media_type="image/png", headers={"Cache-Control": "private, max-age=300"})
 
 
 @router.post("", response_model=ContextEntry, status_code=status.HTTP_201_CREATED)
