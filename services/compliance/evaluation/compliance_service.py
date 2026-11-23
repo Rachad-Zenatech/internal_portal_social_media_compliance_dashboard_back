@@ -1291,9 +1291,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     _ai_incomplete.set(False)
     violations.extend(await _semantic_findings(match_req, rules, found, padded_text, disclaimer_padded))
 
-    # The sources the post cites (links, "Source:" lines, attached documents) are opened and compared with its claims. A
-    # claim that contradicts its source costs points; one the source doesn't settle is for a person; one it supports
-    # clears that claim's "needs a source" cost, below. A source no model could compare leaves the check incomplete.
+    # Compare the fixed claim inventory with available sources; retain partial findings when coverage is incomplete.
     source_result = await source_check_service.run(
         req.text, req.sources, source_script=req.source_script, include_image_citations=False)
     if source_result.ai_failed:
@@ -1306,6 +1304,8 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     exceptions_of = {r.id: r.exception_terms for r in rules}
     for v in violations:
         v.passage, v.context = _passage(match_text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])
+        if v.category == "Source Check" and v.flagged_terms:
+            v.passage = v.flagged_terms[0]  # Keep each grounded claim distinct, including wrapped image text.
     candidates = [context_evaluator.Candidate(v, rule, v.passage or "", v.context or "") for v, rule in contextual]
     army_context_review.include(req, rules, violations, candidates)
     await context_evaluator.evaluate(candidates, req.text, brand=req.brand_code)

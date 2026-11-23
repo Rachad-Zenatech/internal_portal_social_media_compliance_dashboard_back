@@ -23,6 +23,13 @@ When the rule explicitly prohibits visible wording, its clearly readable presenc
 apply any stated exceptions. Never guess unreadable lettering: report NEEDS_REVIEW when it is ambiguous.
 Rule 29: inspect weapons, targeting, injury, death, violence and self-harm imagery in context. A drone,
 radar or defensive system alone is not proof of violent content. Apply the actual rule's exceptions.
+Neutral non-graphic reporting of contested airspace, electronic-warfare conditions, threat detection,
+test ranges or scheduled test events is CLEARED when no prohibited content is shown or promoted.
+Do not mark technical testing or figurative 'fight back' as violence merely because it is defense-related.
+A Rule 29 NEEDS_REVIEW assessment must identify a specific observed prohibited-content cue and explain
+what is ambiguous. If the evidence says there are no weapons, harm or violence and only technical
+reporting, clear the rule rather than raising a general rulebook-review warning. Continue to flag
+actual prohibited weapons, threats, graphic harm and glorification under the supplied policy.
 For videos inspect the supplied video, and report the time in seconds for any observed issue.
 Use VIOLATION only for a clearly visible policy breach established in context, with confidence >=0.85.
 Use NEEDS_REVIEW for ambiguous imagery or required external verification (clearance, permission,

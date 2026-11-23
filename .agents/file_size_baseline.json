@@ -56,10 +56,6 @@
     "services/shared/auth/rbac_service.py": {
       "max_lines": 701,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
-    },
-    "tests/test_mood_learning_pipeline.py": {
-      "max_lines": 673,
-      "reason": "Over the limit when the check was introduced; split it when you next work on it."
     }
   },
   "blocks": {

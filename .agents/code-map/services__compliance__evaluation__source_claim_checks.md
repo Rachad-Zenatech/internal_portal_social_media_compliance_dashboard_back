@@ -4,10 +4,11 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_claim_checks.py (128 lines) - Safeguards on the model's claim-by-claim answer for a source.
-- `_digits` (def) L37 - Text with figures in one form: no thousands commas, and the common number words as digits.
-- `missing_figures` (def) L43 - Figures and years in the claim that the source's text never mentions (in digits or as words).
-- `_stems` (def) L65 - Distinctive words, cut to their first five letters so "establish" matches "establishment".
-- `evidence_overlap` (def) L71 - Share of the evidence's distinctive words that the source's text contains (1.0 when too short to judge).
-- `_add` (def) L91
-- `_to_claims` (def) L95 - The model's answers, through the safeguards.
+## services/compliance/evaluation/source_claim_checks.py (137 lines) - Ground source support and contradiction judgments; uncertainty remains for review.
+- `_digits` (def) L34 - Text with figures in one form: no thousands commas, and the common number words as digits.
+- `missing_figures` (def) L40 - Figures and years in the claim that the source's text never mentions (in digits or as words).
+- `_stems` (def) L62 - Distinctive words, cut to their first five letters so "establish" matches "establishment".
+- `evidence_overlap` (def) L68 - Share of the evidence's distinctive words that the source's text contains (1.0 when too short to judge).
+- `_add` (def) L88
+- `grounded_conflict` (def) L92 - A contradiction penalty needs a specific, confident conflict grounded in the source itself.
+- `_to_claims` (def) L100 - The model's answers, through the safeguards.

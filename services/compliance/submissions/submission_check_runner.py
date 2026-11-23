@@ -31,6 +31,7 @@ async def run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     check = {
         **result.model_dump(mode="json"),
         "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checked_source_links": subs.submission_source_state.snapshot(row),
         "checked_media_edited_at": str(row["media_edited_at"]) if row.get("media_edited_at") else None,
         "includes_transcript": bool(segments),
         "includes_visual_text": bool(visual_segments),

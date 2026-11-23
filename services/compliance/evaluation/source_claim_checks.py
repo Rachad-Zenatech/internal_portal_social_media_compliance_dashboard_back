@@ -1,10 +1,6 @@
-"""Safeguards on the model's claim-by-claim answer for a source. They only ever move SUPPORTED towards UNCLEAR ("a person
-should confirm"), never the other way:
-
-- the claim's figures and years have to appear in the source's text;
-- the evidence the model gives has to be found in the source's text (most of its distinctive words), so a quote the
-  model made up doesn't pass as support;
-- SUPPORTED needs evidence and enough confidence.
+"""Ground source support and contradiction judgments; uncertainty remains for review.
+Figures, real source evidence and confidence protect support decisions. A contradiction
+penalty additionally requires a confident, explicit conflict grounded in a source quote.
 """
 
 import os
@@ -15,6 +11,7 @@ from models.compliance.compliance_model import SourceClaim
 from .source_image_claims import evidence_covers, is_identifier
 from .citation_finder import is_reference_only
 
+CONTRADICTION_MIN_CONFIDENCE = float(os.getenv("SOURCE_CHECK_CONTRADICTION_MIN_CONFIDENCE", "0.85"))
 SUPPORT_MIN_CONFIDENCE = float(os.getenv("SOURCE_CHECK_MIN_CONFIDENCE", "0.7"))
 # Share of the evidence's distinctive words the source's text must contain.
 EVIDENCE_MIN_OVERLAP = float(os.getenv("SOURCE_CHECK_EVIDENCE_OVERLAP", "0.6"))
@@ -92,6 +89,14 @@ def _add(note: Any, extra: str) -> str:
     return (note + " " if note else "") + extra
 
 
+def grounded_conflict(result, evidence, source_text):
+    """A contradiction penalty needs a specific, confident conflict grounded in the source itself."""
+    quote = " ".join((evidence or "").strip().strip(chr(34) + chr(39) + chr(0x201c) + chr(0x201d)).split()).casefold()
+    return (getattr(result, "contradiction_kind", None) in {"EXPLICIT_CONFLICT", "MATERIAL_OVERSTATEMENT"}
+            and result.confidence >= CONTRADICTION_MIN_CONFIDENCE
+            and bool(quote) and quote in " ".join(source_text.split()).casefold())
+
+
 def _to_claims(results: Sequence[Any], source_text: str) -> List[SourceClaim]:
     """The model's answers, through the safeguards."""
     out: List[SourceClaim] = []
@@ -101,8 +106,12 @@ def _to_claims(results: Sequence[Any], source_text: str) -> List[SourceClaim]:
         verdict = r.verdict if r.verdict in ("SUPPORTED", "CONTRADICTED", "NOT_FOUND", "UNCLEAR") else "UNCLEAR"
         note = (r.note or "").strip() or None
         evidence = (r.evidence or "").strip() or None
-        if verdict == "CONTRADICTED" and note and _SOURCE_OMISSION.fullmatch(note):
-            verdict = "NOT_FOUND"
+        if verdict == "CONTRADICTED":
+            if getattr(r, "contradiction_kind", None) == "NOT_STATED" or (note and _SOURCE_OMISSION.fullmatch(note)):
+                verdict = "NOT_FOUND"
+            elif not grounded_conflict(r, evidence, source_text):
+                verdict = "UNCLEAR"
+                note = _add(note, "A confident conflict was not established by a direct source passage; a reviewer should confirm.")
         if verdict == "SUPPORTED":
             lacking = missing_figures(r.claim, source_text)
             if not evidence or r.confidence < SUPPORT_MIN_CONFIDENCE:

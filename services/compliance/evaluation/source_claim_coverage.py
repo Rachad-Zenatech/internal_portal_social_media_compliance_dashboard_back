@@ -54,4 +54,5 @@ async def complete(result, inventory, text, ask, models, limit):
     if inventory is None:
         result.ai_failed = True
         return
+    result.ai_failed = result.ai_failed or not getattr(inventory, "complete", True)
     result.unbacked = missing_findings(inventory, result.checks)

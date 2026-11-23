@@ -48,7 +48,8 @@ def answer(*claims):
 
 
 def result(claim, verdict, evidence="the source says so", confidence=0.9, where="caption", note=None):
-    return sc._Result(claim=claim, verdict=verdict, evidence=evidence, confidence=confidence, where=where, note=note)
+    return sc._Result(claim=claim, verdict=verdict, evidence=evidence, confidence=confidence, where=where, note=note,
+                      contradiction_kind="EXPLICIT_CONFLICT" if verdict == "CONTRADICTED" else "NONE")
 
 
 class FiguresTests(unittest.TestCase):
@@ -123,7 +124,7 @@ class SafeguardTests(unittest.TestCase):
         self.assertIn("2028", out[0].note)
 
     def test_a_contradiction_is_kept_as_it_is(self):
-        out = sc._to_claims([result("pilots are underway", "CONTRADICTED", note="The source says 2027.")], PRESS_RELEASE)
+        out = sc._to_claims([result("pilots are underway", "CONTRADICTED", evidence="customer pilots expected to begin in 2027", note="The source says 2027.")], PRESS_RELEASE)
         self.assertEqual(out[0].verdict, "CONTRADICTED")
 
     def test_an_unknown_verdict_is_unclear(self):
@@ -177,7 +178,7 @@ class RunTests(unittest.TestCase):
         url = "https://www.zenatech.com/zenatech-unveils-stacklens-ai/"
         script = f"Customer pilots are expected to begin in 2027.\nSource: {url}"
         out, fetch, compare = self.go(video_claim, source_script=script, claims=answer(
-            result("Customer pilots are underway", "CONTRADICTED", evidence="pilots are expected to begin in 2027"),
+            result("Customer pilots are underway", "CONTRADICTED", evidence="customer pilots expected to begin in 2027"),
         ))
         fetch.assert_awaited_once_with(url)
         self.assertEqual(out.checks[0].where, "script")
@@ -186,7 +187,7 @@ class RunTests(unittest.TestCase):
 
     def test_a_claim_that_overstates_its_source_is_a_finding_that_costs_points(self):
         out, _, _ = self.go(CAPTION.replace("expected to begin in 2027", "are underway"), claims=answer(
-            result("customer pilots are underway", "CONTRADICTED", evidence="pilots are expected to begin in 2027",
+            result("customer pilots are underway", "CONTRADICTED", evidence="customer pilots expected to begin in 2027",
                    note="The source says pilots are expected to begin in 2027, not that they are underway."),
         ))
         found = sc.findings(out.checks)
@@ -282,7 +283,7 @@ class ClearingTests(unittest.TestCase):
 
     def test_a_supported_claim_clears_its_needs_a_source_finding(self):
         v = finding(["60%"], passage="Counting time fell by 60% in our March test.")
-        self.assertEqual(sc.clear_supported([v], self.checks("counting time fell by 60%")), 1)
+        self.assertEqual(sc.clear_supported([v], self.checks("Counting time fell by 60% in our March test.")), 1)
         self.assertEqual((v.status, v.penalty), ("CLEARED", 0))
         self.assertIn("The release", v.explanation)
         self.assertEqual(v.evaluation.decision, "CLEARED")

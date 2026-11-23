@@ -4,7 +4,9 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_claim_inventory.py (101 lines) - Persist source-independent claims; source refreshes never invalidate this inventory.
-- `get` (def) L39 - Return the committed inventory, including empty inventories, or None on AI failure.
-- `extract` (def) L57 - Only save successful, grounded identification; never cache an AI failure as empty.
-- `reconcile` (def) L90 - Reject added/reworded answers, preserve omissions as unresolved, and keep inventory order.
+## services/compliance/evaluation/source_claim_inventory.py (127 lines) - Persist source-independent claims; source refreshes never invalidate this inventory.
+- `ClaimBatch` (class) L52 - Grounded claims with explicit incomplete coverage; partial inventories are never committed.
+    - `__init__` (def) L54
+- `get` (def) L59 - Return the committed inventory, including empty inventories, or None on AI failure.
+- `extract` (def) L77 - Only save successful, grounded identification; never cache an AI failure as empty.
+- `reconcile` (def) L113 - Ground formatting-only changes; reject reworded answers, preserve omissions and inventory order.

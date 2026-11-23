@@ -10,6 +10,8 @@ import json
 import logging
 from postgresql_db.database import get_pool, close_pool
 from postgresql_db.schemas.baseline_context_guidance import CONTEXTUAL_BASELINE as _CONTEXTUAL_BASELINE
+from postgresql_db.schemas.baseline_guidance_upgrades import upgrade_rule29
+from postgresql_db.schemas.compliance_rule_tables import create_rule_tables
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -930,10 +932,7 @@ async def _add_baseline_terms(conn) -> None:
         )
 
 
-# How an earlier baseline guidance began, so a rule still carrying it (never edited in the Rulebook) is brought up to date.
-_EARLIER_GUIDANCE_STARTS = {
-    "Rule 9": "Decide whether the passage presents AI-generated, simulated or concept imagery as real. VIOLATION:",
-}
+_EARLIER_GUIDANCE_STARTS = {"Rule 9": "Decide whether the passage presents AI-generated, simulated or concept imagery as real. VIOLATION:"}
 
 
 async def _mark_contextual_rules(conn) -> None:
@@ -957,6 +956,8 @@ async def _mark_contextual_rules(conn) -> None:
                 number, guidance, earlier,
             )
 
+    await upgrade_rule29(conn)
+
 
 async def setup(reset: bool = False):
     """Create the tables and add any missing baseline rules.
@@ -969,61 +970,7 @@ async def setup(reset: bool = False):
     async with pool.acquire() as conn:
         logger.info("Setting up compliance_rulebooks and compliance_rules schema...")
 
-        await conn.execute("""
-            -- Compliance Rulebooks Table
-            CREATE TABLE IF NOT EXISTS compliance_rulebooks (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                title VARCHAR(255) NOT NULL,
-                version VARCHAR(50) NOT NULL,
-                effective_date VARCHAR(50) NOT NULL,
-                description TEXT,
-                source_document VARCHAR(255),
-                is_active BOOLEAN DEFAULT true NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-            );
-
-            -- Compliance Rules Table
-            CREATE TABLE IF NOT EXISTS compliance_rules (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                rulebook_id UUID REFERENCES compliance_rulebooks(id) ON DELETE SET NULL,
-                rule_number VARCHAR(50) NOT NULL,
-                category VARCHAR(100) NOT NULL,
-                title VARCHAR(255) NOT NULL,
-                summary TEXT NOT NULL,
-                severity VARCHAR(50) DEFAULT 'HIGH' NOT NULL,
-                traffic_light VARCHAR(20) DEFAULT 'YELLOW' NOT NULL,
-                prohibited_terms TEXT[] DEFAULT '{}'::text[],
-                required_disclaimers TEXT[] DEFAULT '{}'::text[],
-                allowed_examples TEXT,
-                prohibited_examples TEXT,
-                remediation_guidance TEXT,
-                applies_to TEXT[] DEFAULT '{"video", "imagery", "caption", "ceo_post"}'::text[],
-                is_active BOOLEAN DEFAULT true NOT NULL,
-                is_custom BOOLEAN DEFAULT false NOT NULL,
-                sort_order INT DEFAULT 0,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-                created_by UUID REFERENCES users(id) ON DELETE SET NULL,
-                updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
-                CONSTRAINT compliance_rules_rule_number_unique UNIQUE (rule_number)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_compliance_rules_category ON compliance_rules(category);
-            CREATE INDEX IF NOT EXISTS idx_compliance_rules_severity ON compliance_rules(severity);
-            CREATE INDEX IF NOT EXISTS idx_compliance_rules_traffic_light ON compliance_rules(traffic_light);
-            CREATE INDEX IF NOT EXISTS idx_compliance_rules_is_active ON compliance_rules(is_active);
-
-            -- Soft delete, so removed baseline rules aren't re-seeded and history still resolves
-            ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
-            -- Phrases that make a rule's required disclaimer necessary (empty: always needed)
-            ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS disclaimer_triggers TEXT[] DEFAULT '{}'::text[];
-            -- Phrases that cancel a match inside them (e.g. "not combat proven")
-            ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS exception_terms TEXT[] DEFAULT '{}'::text[];
-            -- RULE: a match is a finding. CONTEXT: a match is a candidate the AI judges from the surrounding wording
-            ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS evaluation_mode VARCHAR(10) NOT NULL DEFAULT 'RULE';
-            ALTER TABLE compliance_rules ADD COLUMN IF NOT EXISTS evaluation_guidance TEXT;
-        """)
+        await create_rule_tables(conn)
         await _mark_contextual_rules(conn)
 
         # Scope columns. They're added without a default so the first run can tell which rows still

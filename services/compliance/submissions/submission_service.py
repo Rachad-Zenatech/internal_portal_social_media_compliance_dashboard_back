@@ -57,7 +57,7 @@ from models.compliance.submission_model import (
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.core.audit_service import log_audit_event
 from services.ai.observability import ai_observability, ai_usage_service
-from services.compliance.submissions import approval_path_service, source_link_service, submission_check_material
+from services.compliance.submissions import approval_path_service, source_link_service, submission_check_material, submission_source_state
 from services.notifications.submission_notifications import notify_submission as _notify
 from services.compliance.submissions import delegation_service
 from services.compliance.submissions.review_hierarchy_service import (
@@ -637,7 +637,7 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
     saved = _json(row["latest_check"]) or {}
     if saved:
         current = await compliance_rulebook_version()
-        sub.check_outdated = bool(current) and saved.get("rulebook_version") != current
+        sub.check_outdated = (bool(current) and saved.get("rulebook_version") != current) or submission_source_state.sources_changed(row, saved)
     if analysis_pending(saved):
         sub.analysis_progress = (await analysis_progress_service.for_submissions([row["id"]])).get(row["id"])
     sub.created_by = row["created_by"]
@@ -729,14 +729,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
         if any(r not in allowed for r in picked):
             raise HTTPException(status_code=422, detail="Some of those people can't review content on this brand")
         fields["reviewer_ids"] = kept + picked
-    for name in data.clear_fields:
-        fields[name] = None
-        if name == "account_id":
-            fields["account_ids"] = []
-        if name == "audience":
-            fields["audiences"] = []
-        if name == "brand_code":
-            fields["brand_codes"] = []
+    submission_fields.apply_clear_fields(fields, data.clear_fields)
 
     if not fields:
         return await _to_submission(row)
@@ -1294,7 +1287,6 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
     # Duplicates are settled before the compliance check, not when the post is sent: a true duplicate is refused here,
     # and a repost for another date is confirmed here (sending still refuses a duplicate made by later edits).
     duplicates = await _require_not_duplicate(row, confirm_repost)
-    # Which models answered is kept with the result, so it can be shown later and not only while the check runs.
     attempts: Dict[str, Dict[str, Any]] = {}
     outer = ai_observability.attempt_listener.get()
     started = time.perf_counter()

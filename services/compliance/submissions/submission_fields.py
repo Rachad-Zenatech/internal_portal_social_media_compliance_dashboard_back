@@ -20,3 +20,15 @@ def editable_type_fields(row, payload):
         if payload["content_type"] == "VIDEO" and row["current_version"] == 0 and not row.get("script_required"):
             fields["script_required"] = True
     return fields
+
+
+def apply_clear_fields(fields, clear_fields):
+    """Clear scalar selections together with their plural representations."""
+    for name in clear_fields:
+        fields[name] = None
+        if name == "account_id":
+            fields["account_ids"] = []
+        if name == "audience":
+            fields["audiences"] = []
+        if name == "brand_code":
+            fields["brand_codes"] = []

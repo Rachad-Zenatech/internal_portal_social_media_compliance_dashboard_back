@@ -8,6 +8,38 @@ from services.compliance.evaluation import source_check_service as sc
 
 
 class ClaimInventoryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_invalid_excerpt_keeps_valid_claims_and_marks_partial(self):
+        ask = AsyncMock(return_value=sc._Response(claims=[
+            sc._Result(claim="Range is 30 km", verdict="UNCLEAR"),
+            sc._Result(claim="Range is 300 km", verdict="UNCLEAR")]))
+        found = await inventory.extract("Text in image 1: Range is 30 km", ask, ["model"], 12)
+        self.assertEqual(found, [{"claim": "Range is 30 km", "where": "image"}])
+        self.assertFalse(found.complete)
+
+    async def test_partial_inventory_is_not_committed_as_complete(self):
+        partial = inventory.ClaimBatch([{"claim": "Range is 30 km", "where": "image"}], complete=False)
+        with patch.object(inventory.db, "fetch_one", AsyncMock(return_value=None)), \
+             patch.object(inventory.db, "execute", AsyncMock()) as write:
+            result = await inventory.get("Text in image 1: Range is 30 km", AsyncMock(return_value=partial))
+        self.assertIs(result, partial)
+        write.assert_not_awaited()
+
+    async def test_next_model_can_complete_a_partial_extraction(self):
+        valid = sc._Result(claim="Range is 30 km", verdict="UNCLEAR")
+        ask = AsyncMock(side_effect=[sc._Response(claims=[valid,
+            sc._Result(claim="Invented claim", verdict="UNCLEAR")]), sc._Response(claims=[valid])])
+        result = await inventory.extract("Range is 30 km", ask, ["first", "second"], 12)
+        self.assertEqual(result, [{"claim": "Range is 30 km", "where": "caption"}])
+        self.assertTrue(getattr(result, "complete", True))
+        self.assertEqual(ask.await_count, 2)
+
+    def test_verification_preserves_partial_coverage_even_when_all_known_claims_are_supported(self):
+        partial = inventory.ClaimBatch([{"claim": "Range is 30 km", "where": "image"}], complete=False)
+        result = inventory.reconcile(partial, [sc._Result(
+            claim="Range is 30 km", where="image", verdict="SUPPORTED", confidence=1)], sc._Result)
+        self.assertEqual(result[0].verdict, "SUPPORTED")
+        self.assertFalse(result.complete)
+
     async def test_saved_empty_inventory_is_reused_without_extraction(self):
         extract = AsyncMock()
         with patch.object(inventory.db, "fetch_one", AsyncMock(return_value={"claims": "[]"})):

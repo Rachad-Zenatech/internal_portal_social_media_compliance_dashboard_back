@@ -26,4 +26,4 @@ async def compare_parts(text, label, title, url, published, source_text, compare
     if not IMAGE_MARK.sub("", body).strip():
         return [], None, False
     claims, model = await compare(body, label, title, url, published, source_text)
-    return claims, model, claims is None
+    return claims, model, claims is None or not getattr(claims, "complete", True)

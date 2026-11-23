@@ -54,6 +54,25 @@ class ClaimCoverageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([finding.passage for finding in result.unbacked], CLAIMS)
         self.assertTrue(all(f.status == "EVIDENCE_REQUIRED" for f in result.unbacked))
 
+    async def test_partial_inventory_keeps_evidence_findings_and_marks_review_incomplete(self):
+        result = sc.SourceCheckResult()
+        partial = inventory.ClaimBatch([{"claim": CLAIMS[0], "where": "image"}], complete=False)
+        await coverage.complete(result, partial, POST, None, [], 12)
+        self.assertTrue(result.ai_failed)
+        self.assertEqual([f.passage for f in result.unbacked], CLAIMS[:1])
+
+    async def test_partial_newsroom_extraction_is_not_mistaken_for_a_clean_empty_result(self):
+        newsroom = SourceCheck(reference="Newsroom", kind="URL", where="newsroom", status="READ")
+        partial = inventory.ClaimBatch([sc._Result(claim=CLAIMS[0], where="image", verdict="NOT_FOUND")], complete=False)
+        with (
+            patch.object(sc.newsroom_facts, "material", AsyncMock(return_value=(newsroom, ("Newsroom", "No cooler evidence.")))),
+            patch.object(sc, "_compare", AsyncMock(return_value=(partial, "test-model"))),
+            patch.object(sc.source_passages, "EMBED_ENABLED", False),
+        ):
+            result = await sc.run(POST, include_image_citations=False)
+        self.assertTrue(result.ai_failed)
+        self.assertEqual([f.passage for f in result.unbacked], CLAIMS[:1])
+
     async def test_inventory_failure_marks_incomplete_instead_of_clean(self):
         result = sc.SourceCheckResult()
         with patch.object(coverage, "identify", AsyncMock(return_value=None)):
@@ -91,8 +110,10 @@ class ClaimCoverageTests(unittest.IsolatedAsyncioTestCase):
             patch.object(sc, "run", AsyncMock(return_value=source_result)),
             patch.object(cs, "rulebook_version", AsyncMock(return_value="test")),
         ):
-            result = await cs.check_compliance(ComplianceCheckRequest(text=POST))
+            result = await cs.check_compliance(ComplianceCheckRequest(
+                text=POST.replace("during transport", "during\ntransport").replace("demanding environments", "demanding\nenvironments")))
         self.assertFalse(result.ai_unavailable)
         self.assertEqual(result.score, 100 - cs.EVIDENCE_CAP)
         self.assertEqual(result.evidence_count, len(CLAIMS))
+        self.assertEqual([f.passage for f in result.violations], CLAIMS)
         self.assertFalse(result.is_compliant)

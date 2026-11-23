@@ -4,11 +4,17 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## postgresql_db/schemas/baseline_context_guidance.py (94 lines) - Contextual review guidance applied to baseline compliance rules during schema setup.
+## postgresql_db/schemas/baseline_context_guidance.py (99 lines) - Contextual review guidance applied to baseline compliance rules during schema setup.
+
+## postgresql_db/schemas/baseline_guidance_upgrades.py (22 lines) - Upgrade untouched baseline guidance without overwriting operator edits or custom rules.
+- `upgrade_rule29` (def) L16
 
 ## postgresql_db/schemas/check_snapshots_schema.py (93 lines) - Immutable inputs, results and human feedback for future compliance learning.
 - `ensure_check_snapshots` (def) L4
 - `_protect_history` (def) L70
+
+## postgresql_db/schemas/compliance_rule_tables.py (60 lines) - Create compliance rule tables and their backward-compatible columns.
+- `create_rule_tables` (def) L4
 
 ## postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (19 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
 - `ensure_creator_flag_dismissal_requests` (def) L4
@@ -32,13 +38,13 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_ai_usage_schema.py (17 lines) - Usage records for AI rate limits; created after the submission tables exist.
 - `ensure_ai_usage_events` (def) L4
 
-## postgresql_db/schemas/setup_compliance_schema.py (1160 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
-- `_base_rules_json` (def) L833
-- `_add_baseline_guidance` (def) L906
-- `_add_baseline_terms` (def) L917
-- `_mark_contextual_rules` (def) L939
-- `setup` (def) L961 - Create the tables and add any missing baseline rules.
-- `_main` (def) L1149
+## postgresql_db/schemas/setup_compliance_schema.py (1107 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
+- `_base_rules_json` (def) L835
+- `_add_baseline_guidance` (def) L908
+- `_add_baseline_terms` (def) L919
+- `_mark_contextual_rules` (def) L938
+- `setup` (def) L962 - Create the tables and add any missing baseline rules.
+- `_main` (def) L1096
 
 ## postgresql_db/schemas/setup_context_schema.py (458 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
 - `_seed_starter_entries` (def) L431 - The starter entries, added once each (by their key); what people edit or turn off is left alone.
@@ -79,7 +85,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `setup` (def) L13
 - `_main` (def) L119
 
-## postgresql_db/schemas/setup_source_claim_inventory_schema.py (14 lines) - Durable claim identification shared by workers and repeated source checks.
+## postgresql_db/schemas/setup_source_claim_inventory_schema.py (19 lines) - Durable claim identification shared by workers and repeated source checks.
 - `setup` (def) L5
 
 ## postgresql_db/schemas/setup_source_links_schema.py (14 lines) - Schema helper for submission source_links column.
