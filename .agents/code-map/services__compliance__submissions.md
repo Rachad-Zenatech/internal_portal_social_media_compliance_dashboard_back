@@ -31,20 +31,21 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_load_rules` (def) L178
 - `is_ceo_content` (def) L194 - Shaun's own thought leadership: posted through his account or checked against his rule set.
 
-## services/compliance/submissions/check_snapshot_feedback.py (118 lines) - Bind human labels to immutable findings, rejecting feedback after a racing recheck.
+## services/compliance/submissions/check_snapshot_feedback.py (120 lines) - Bind human labels to immutable findings, rejecting feedback after a racing recheck.
 - `decoded` (def) L9
 - `select_finding` (def) L13
 - `validate_link` (def) L26
-- `record` (def) L52
-- `save_verdict` (def) L67
-- `save_request` (def) L89
-- `remove_verdict` (def) L107
+- `record` (def) L54
+- `save_verdict` (def) L69
+- `save_request` (def) L91
+- `remove_verdict` (def) L109
 
-## services/compliance/submissions/check_snapshot_service.py (94 lines) - Freeze check-time inputs and results; live scores remain owned by their existing services.
+## services/compliance/submissions/check_snapshot_service.py (108 lines) - Freeze check-time inputs and results; live scores remain owned by their existing services.
 - `frozen` (def) L19 - Take a detached JSON copy before an awaited model call can outlive edits.
 - `inputs` (def) L24
 - `prepare` (def) L40 - Give every run and finding its own identity, including two findings for one rule.
-- `save` (def) L65 - Save before returning IDs to callers.
+- `save` (def) L66 - Save before returning IDs to callers.
+- `link_to_post` (def) L97 - Bind a pre-post script check when its result is adopted by a real post.
 
 ## services/compliance/submissions/creator_dismissal_service.py (66 lines) - Creator dismissal requests that must follow a submission into review.
 - `carry_pending_requests` (def) L9 - Move draft requests to the review version created when the post is sent.

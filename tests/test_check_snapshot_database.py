@@ -203,3 +203,35 @@ class SnapshotDatabaseTests(unittest.IsolatedAsyncioTestCase):
             events = await conn.fetch("SELECT verdict FROM compliance_feedback_events ORDER BY event_sequence")
             self.assertEqual([e["verdict"] for e in events], ["OVER_FLAGGED", "RETRACTED"])
             self.assertEqual(await conn.fetchval("SELECT latest_check->>'score' FROM content_submissions"), "75")
+
+    async def test_pre_post_script_snapshot_is_linked_when_adopted(self):
+        from services.compliance.evaluation.script_review_persistence import _adopt_check
+
+        details = {k: v for k, v in self.post.items() if k not in ("id", "current_version")}
+        self.check = await snapshots.save(details, self.evaluated, self.captured, self.original)
+        async with self.pool.acquire() as conn:
+            await conn.execute("UPDATE content_submissions SET latest_check=$2::jsonb WHERE id=$1",
+                               self.post_id, json.dumps(self.check))
+        # A pointer alone cannot claim that an unrelated post owns this finding.
+        with self.assertRaises(Exception) as raised:
+            await self.verdict("CORRECT")
+        self.assertEqual(getattr(raised.exception, "status_code", None), 409)
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await _adopt_check(conn.execute, self.post_id, self.check)
+                await _adopt_check(conn.execute, self.post_id, self.check)
+            self.assertEqual(await conn.fetchval("SELECT count(*) FROM compliance_check_post_links"), 1)
+            saved = await conn.fetchrow("SELECT submission_id, post_details FROM compliance_check_snapshots WHERE id=$1",
+                                       UUID(self.check["check_snapshot_id"]))
+            self.assertIsNone(saved["submission_id"])
+            self.assertNotIn("id", json.loads(saved["post_details"]))
+            with self.assertRaises(asyncpg.PostgresError):
+                await conn.execute("UPDATE compliance_check_post_links SET submission_version=99")
+        await self.verdict("CORRECT")
+
+    async def test_zero_finding_checks_keep_all_evaluated_rule_definitions(self):
+        check = await snapshots.save(self.post, self.evaluated, self.captured, {"score": 100, "violations": []})
+        async with self.pool.acquire() as conn:
+            evaluated = json.loads(await conn.fetchval("SELECT evaluated_input FROM compliance_check_snapshots WHERE id=$1",
+                                                       UUID(check["check_snapshot_id"])))
+            self.assertEqual(evaluated["rules"], self.captured["rules"])

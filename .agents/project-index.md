@@ -39,7 +39,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/database.py (260 lines) - Optional dotenv import for loading .env and local overrides during development
 - postgresql_db/schema_metadata.py (331 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - postgresql_db/schemas/baseline_context_guidance.py (94 lines) - Contextual review guidance applied to baseline compliance rules during schema setup.
-- postgresql_db/schemas/check_snapshots_schema.py (77 lines) - Immutable inputs, results and human feedback for future compliance learning.
+- postgresql_db/schemas/check_snapshots_schema.py (90 lines) - Immutable inputs, results and human feedback for future compliance learning.
 - postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (19 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/pbac_seed.py (204 lines) - Default navigation, permission groups, roles and initial administrators.
@@ -147,7 +147,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_match.py (153 lines) - Script vs video.
 - services/compliance/evaluation/script_queue_service.py (32 lines) - Queue membership shared by script lists and their tab counts.
 - services/compliance/evaluation/script_review_details.py (18 lines) - Read-only details of a script already sent for review.
-- services/compliance/evaluation/script_review_persistence.py (42 lines) - Script-stage version persistence and locking, shared by uploaded-script send paths.
+- services/compliance/evaluation/script_review_persistence.py (44 lines) - Script-stage version persistence and locking, shared by uploaded-script send paths.
 - services/compliance/evaluation/script_review_service.py (1055 lines) - Script stage of a video post.
 - services/compliance/evaluation/script_split.py (121 lines) - Splitting one document into the scripts it holds.
 - services/compliance/evaluation/script_submission_content.py (29 lines) - Lossless line/table conversion for scripts submitted through Create Post.
@@ -198,8 +198,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/sentiment/media.py (68 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/submissions/analysis_progress_service.py (195 lines) - How long a post's rulebook check has left.
 - services/compliance/submissions/approval_path_service.py (197 lines) - Approval paths: who gives final approval for which content.
-- services/compliance/submissions/check_snapshot_feedback.py (118 lines) - Bind human labels to immutable findings, rejecting feedback after a racing recheck.
-- services/compliance/submissions/check_snapshot_service.py (94 lines) - Freeze check-time inputs and results; live scores remain owned by their existing services.
+- services/compliance/submissions/check_snapshot_feedback.py (120 lines) - Bind human labels to immutable findings, rejecting feedback after a racing recheck.
+- services/compliance/submissions/check_snapshot_service.py (108 lines) - Freeze check-time inputs and results; live scores remain owned by their existing services.
 - services/compliance/submissions/creator_dismissal_service.py (66 lines) - Creator dismissal requests that must follow a submission into review.
 - services/compliance/submissions/delegation_service.py (214 lines) - Review delegation: a reviewer hands a post in review to someone else.
 - services/compliance/submissions/duplicate_service.py (237 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.

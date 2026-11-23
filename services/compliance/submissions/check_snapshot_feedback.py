@@ -37,12 +37,14 @@ async def validate_link(conn, submission_id, version, rule_id, finding):
     ).get("check_snapshot_id") != finding.get("check_snapshot_id"):
         raise HTTPException(status_code=409, detail="This check changed. Refresh its findings before reviewing.")
     saved = await conn.fetchrow(
-        """SELECT f.finding, f.rule_id, c.submission_id, c.id AS check_id
+        """SELECT f.finding, f.rule_id, c.submission_id, c.id AS check_id,
+                  EXISTS (SELECT 1 FROM compliance_check_post_links p
+                          WHERE p.check_snapshot_id=c.id AND p.submission_id=$2) AS linked
            FROM compliance_finding_snapshots f
            JOIN compliance_check_snapshots c ON c.id=f.check_snapshot_id WHERE f.id=$1""",
-        UUID(str(finding_id)),
+        UUID(str(finding_id)), submission_id,
     )
-    if not saved or saved["submission_id"] != submission_id or str(saved["rule_id"]) != str(rule_id) or (
+    if not saved or (saved["submission_id"] != submission_id and not saved.get("linked")) or str(saved["rule_id"]) != str(rule_id) or (
         str(saved["check_id"]) != finding.get("check_snapshot_id") or decoded(saved["finding"]) != finding
     ):
         raise HTTPException(status_code=409, detail="This finding does not match its saved check. Run the check again.")

@@ -5,7 +5,7 @@ async def ensure_check_snapshots(conn) -> None:
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS compliance_check_snapshots (
             id UUID PRIMARY KEY,
-            submission_id UUID NOT NULL,
+            submission_id UUID,
             submission_version INT NOT NULL,
             captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             schema_version INT NOT NULL DEFAULT 1,
@@ -27,6 +27,16 @@ async def ensure_check_snapshots(conn) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_finding_snapshots_check
             ON compliance_finding_snapshots(check_snapshot_id);
+        CREATE TABLE IF NOT EXISTS compliance_check_post_links (
+            check_snapshot_id UUID NOT NULL REFERENCES compliance_check_snapshots(id),
+            submission_id UUID NOT NULL,
+            submission_version INT NOT NULL,
+            linked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (check_snapshot_id, submission_id, submission_version)
+        );
+        CREATE INDEX IF NOT EXISTS idx_check_post_links_post
+            ON compliance_check_post_links(submission_id);
+        ALTER TABLE compliance_check_snapshots ALTER COLUMN submission_id DROP NOT NULL;
         CREATE TABLE IF NOT EXISTS compliance_feedback_events (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             event_sequence BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
@@ -41,6 +51,8 @@ async def ensure_check_snapshots(conn) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_feedback_events_finding
             ON compliance_feedback_events(finding_snapshot_id, decided_at);
+        ALTER TABLE compliance_feedback_events ADD COLUMN IF NOT EXISTS
+            event_sequence BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE;
 
         ALTER TABLE finding_verdicts ADD COLUMN IF NOT EXISTS finding_snapshot_id UUID
             REFERENCES compliance_finding_snapshots(id);
@@ -63,7 +75,8 @@ async def _protect_history(conn) -> None:
         END;
         $$ LANGUAGE plpgsql;
     """)
-    for table in ("compliance_check_snapshots", "compliance_finding_snapshots", "compliance_feedback_events"):
+    for table in ("compliance_check_snapshots", "compliance_finding_snapshots", "compliance_feedback_events",
+                  "compliance_check_post_links"):
         await conn.execute(f"""
             DO $$ BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_trigger

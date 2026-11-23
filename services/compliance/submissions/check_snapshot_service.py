@@ -45,6 +45,7 @@ def prepare(post, evaluated, captured, check):
     evaluated = frozen(evaluated)
     evaluated["effective_request"] = captured.get("request")
     rules = frozen(captured.get("rules", {}))
+    evaluated["rules"] = rules
     findings = []
     for ordinal, finding in enumerate(check.get("violations") or []):
         finding_id = uuid4()
@@ -76,7 +77,7 @@ async def save(post, evaluated, captured, check):
                 """INSERT INTO compliance_check_snapshots
                    (id, submission_id, submission_version, input_sha256, post_details, evaluated_input, check_result)
                    VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb)""",
-                snapshot_id, UUID(post["id"]), post.get("current_version", 0), digest,
+                snapshot_id, UUID(post["id"]) if post.get("id") else None, post.get("current_version", 0), digest,
                 json.dumps(post), json.dumps(evaluated), json.dumps(check),
             )
             if findings:
@@ -91,3 +92,16 @@ async def save(post, evaluated, captured, check):
                     [json.dumps(f[4]) for f in findings],
                 )
     return check
+
+
+async def link_to_post(run, submission_id, check):
+    """Bind a pre-post script check when its result is adopted by a real post."""
+    if not check.get("check_snapshot_id"):
+        return
+    await run(
+        """INSERT INTO compliance_check_post_links (check_snapshot_id, submission_id, submission_version)
+           SELECT c.id, s.id, s.current_version FROM compliance_check_snapshots c
+           JOIN content_submissions s ON s.id=$1 WHERE c.id=$2
+           ON CONFLICT DO NOTHING""",
+        submission_id, UUID(str(check["check_snapshot_id"])),
+    )
