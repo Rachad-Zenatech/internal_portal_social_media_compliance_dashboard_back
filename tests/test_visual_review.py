@@ -67,6 +67,7 @@ async def test_no_ocr_keyword_needed_and_post_context_reaches_model():
     assert (f.rule_number, f.penalty, f.status) == ("Rule 11", 35, "VIOLATION")
     assert f.evaluation.confidence == .96 and f.evaluation.model == "vision-test"
     assert f.flagged_terms == [] and f.image_regions[0].file_id == req._visual_media[0]["id"]
+    assert generate.await_args.kwargs["models"] == vr.MODELS
     assert coverage[0]["status"] == "COMPLETED" and len(coverage[0]["assessments"]) == 5
     prompt = generate.call_args.args[0][1]
     assert req.text in prompt and '"audiences": ["DEFENSE"]' in prompt

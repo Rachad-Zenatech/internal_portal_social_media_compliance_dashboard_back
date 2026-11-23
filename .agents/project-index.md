@@ -168,7 +168,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_recheck.py (36 lines) - Refresh source comparisons on request and keep a record of resolved findings.
 - services/compliance/evaluation/source_settings.py (86 lines) - Settings for checking a post's sources, none of them fixed in code.
 - services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
-- services/compliance/evaluation/visual_review.py (164 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
+- services/compliance/evaluation/visual_review.py (170 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
 - services/compliance/media/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
 - services/compliance/media/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
 - services/compliance/media/caption_service.py (338 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.

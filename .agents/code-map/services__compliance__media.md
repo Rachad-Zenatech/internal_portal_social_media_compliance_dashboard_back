@@ -157,7 +157,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_get_client` (def) L69
 - `_claim` (def) L79 - Atomically mark an image as being read unless another worker already is.
 - `_save` (def) L95
-- `_generate` (def) L109 - Ask the first model in MODELS that answers; quota, rate-limit and unavailable-model errors move on to the next.
+- `_generate` (def) L109 - Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
 - `_clean` (def) L131
 - `_has_ai_metadata` (def) L136 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
 - `_face_boxes` (def) L153 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.

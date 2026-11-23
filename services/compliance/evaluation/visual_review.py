@@ -3,18 +3,24 @@ import asyncio
 import json
 import logging
 import math
+import os
 from contextlib import asynccontextmanager
 
 from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 
 from models.compliance.compliance_model import ComplianceViolation, ContextEvaluation
+from services.compliance.evaluation import context_evaluator
 from services.compliance.evaluation.visual_review_prompt import PROMPT, RULE_NUMBERS, SCHEMA
 from services.compliance.media import image_text_service
 from services.compliance.media.image_finding_service import region_from_box
 
 logger = logging.getLogger(__name__)
 MAX_VIDEO_BYTES = 18 * 1024 * 1024
+# Visual rule judgments need the complete compliance chain, not the smaller OCR-only list.
+MODELS = [m.strip() for m in os.getenv(
+    "VISUAL_COMPLIANCE_MODELS", ",".join(context_evaluator.MODELS)
+).split(",") if m.strip()]
 
 
 class Assessment(BaseModel):
@@ -148,7 +154,7 @@ async def review(req, rules, findings):
             async with image_text_service._semaphore, _asset_part(asset) as part:
                 response = await image_text_service._generate(
                     [part, PROMPT + json.dumps(payload, ensure_ascii=False)],
-                    feature="VISUAL_COMPLIANCE", response_schema=SCHEMA)
+                    feature="VISUAL_COMPLIANCE", response_schema=SCHEMA, models=MODELS)
             assessments = _parse(response, selected)
             model = getattr(response, "model_version", None)
             by_number = {r.rule_number: r for r in selected}
