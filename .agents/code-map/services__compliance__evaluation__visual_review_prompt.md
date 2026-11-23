@@ -4,4 +4,4 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/visual_review_prompt.py (53 lines) - Visual compliance instructions; the active database rule remains the policy authority.
+## services/compliance/evaluation/visual_review_prompt.py (60 lines) - Visual compliance instructions; the active database rule remains the policy authority.

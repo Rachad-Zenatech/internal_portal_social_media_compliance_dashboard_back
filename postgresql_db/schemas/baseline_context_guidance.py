@@ -31,13 +31,18 @@ CONTEXTUAL_BASELINE = {
     ),
 
     "Rule 29": (
-        "Decide whether the passage shows or promotes death, killing, violence, terrorism, weapons or self-harm. "
-        "VIOLATION: violent, threatening or graphic wording or imagery (a slogan like 'KILL' or 'DEATH' on a vehicle, "
-        "clothing or sign; a weapon shown or named as part of the post; joking about killing, death or suicide). "
-        "NEEDS_REVIEW: a defense or security post that names threats, weapons or terrorism factually (for example "
-        "'detects threats before they reach the base'), since the wording has to be checked against the defense "
-        "rulebook. NO_VIOLATION: an ordinary figure of speech or a technical term ('killer app', 'kill switch', "
-        "'battery is dead', 'deadline'), or a news or safety context that doesn't glorify harm."
+        'Decide whether the passage shows or promotes death, killing, violence, terrorism, weapons or '
+        'self-harm. VIOLATION: actual prohibited violent, threatening or graphic wording or imagery, a weapon '
+        'shown or promoted as part of the post, or slogans, jokes or celebrations of killing, death or '
+        'self-harm. NO_VIOLATION: neutral, non-graphic defense/security reporting, technical testing, threat '
+        'detection, contested airspace, electronic-warfare conditions, test ranges or scheduled test events '
+        "when no prohibited content is shown or promoted. Words such as 'threat', 'contested', 'warfare' or "
+        "figurative 'fight back' do not alone establish violent content. Ordinary figures of speech and "
+        "technical terms ('killer app', 'kill switch', 'battery is dead', 'deadline') also clear in context. "
+        'NEEDS_REVIEW: identify a specific observed weapon, threatening/graphic act, or other prohibited cue '
+        'whose meaning is genuinely ambiguous. Do not request review merely because the subject is defense, a '
+        'conflict is mentioned factually, or another rule may need substantiation. These exceptions do not '
+        'clear actual prohibited weapon imagery, threats, glorification of harm or graphic content.'
     ),
     "Rule 4": (
         "Decide whether the post actually uses cleared U.S. Department of Defense visual information, a service's seal, "

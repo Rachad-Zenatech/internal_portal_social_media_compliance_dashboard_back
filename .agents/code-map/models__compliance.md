@@ -119,18 +119,19 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## models/compliance/review_score_model.py (10 lines) - Effective review score fields shared by submission and review queue responses.
 - `ReviewScoreFields` (class) L6
 
-## models/compliance/script_batch_model.py (132 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
+## models/compliance/script_batch_model.py (139 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - `BatchDetails` (class) L13 - What every post made from the batch shares.
-- `BatchUpdate` (class) L27
-- `BatchItemCreate` (class) L34
-- `BatchItemUpdate` (class) L39
-- `BatchItem` (class) L46
-- `Batch` (class) L68
-- `BatchSummary` (class) L92
-- `ItemDecision` (class) L106
-- `BatchReviewRequest` (class) L113
-- `ItemResult` (class) L120
-- `BatchReviewResult` (class) L129
+    - `_resolve_rule_sets` (def) L27
+- `BatchUpdate` (class) L34
+- `BatchItemCreate` (class) L41
+- `BatchItemUpdate` (class) L46
+- `BatchItem` (class) L53
+- `Batch` (class) L75
+- `BatchSummary` (class) L99
+- `ItemDecision` (class) L113
+- `BatchReviewRequest` (class) L120
+- `ItemResult` (class) L127
+- `BatchReviewResult` (class) L136
 
 ## models/compliance/script_doc_model.py (239 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - `TemplateRow` (class) L18

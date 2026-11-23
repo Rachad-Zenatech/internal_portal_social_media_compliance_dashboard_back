@@ -22,7 +22,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
 - models/compliance/public_mood_model.py (381 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - models/compliance/review_score_model.py (10 lines) - Effective review score fields shared by submission and review queue responses.
-- models/compliance/script_batch_model.py (132 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
+- models/compliance/script_batch_model.py (139 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - models/compliance/script_doc_model.py (239 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
 - models/compliance/script_review_model.py (236 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
@@ -38,14 +38,16 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/shared/test_login_model.py (10 lines) - Only the existing dummy review accounts support local test sign-in.
 - postgresql_db/database.py (260 lines) - Optional dotenv import for loading .env and local overrides during development
 - postgresql_db/schema_metadata.py (331 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
-- postgresql_db/schemas/baseline_context_guidance.py (94 lines) - Contextual review guidance applied to baseline compliance rules during schema setup.
+- postgresql_db/schemas/baseline_context_guidance.py (99 lines) - Contextual review guidance applied to baseline compliance rules during schema setup.
+- postgresql_db/schemas/baseline_guidance_upgrades.py (22 lines) - Upgrade untouched baseline guidance without overwriting operator edits or custom rules.
+- postgresql_db/schemas/compliance_rule_tables.py (60 lines) - Create compliance rule tables and their backward-compatible columns.
 - postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (19 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/pbac_seed.py (204 lines) - Default navigation, permission groups, roles and initial administrators.
 - postgresql_db/schemas/roles_schema.py (28 lines) - Role hierarchy and audit columns for new and existing databases.
 - postgresql_db/schemas/setup_ai_observability_schema.py (83 lines) - AI observability and caching: trace spans for every AI step (model calls, embeddings, retrieval, tool calls, guard checks, cache lookups)...
 - postgresql_db/schemas/setup_ai_usage_schema.py (17 lines) - Usage records for AI rate limits; created after the submission tables exist.
-- postgresql_db/schemas/setup_compliance_schema.py (1160 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
+- postgresql_db/schemas/setup_compliance_schema.py (1107 lines) - Setup Compliance Rulebooks and Rules Schema Creates compliance_rulebooks and compliance_rules tables.
 - postgresql_db/schemas/setup_context_schema.py (456 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
 - postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
 - postgresql_db/schemas/setup_listening_schema.py (217 lines) - Public mood: topics from the social listening source (Sprout Social, mocked for now), dated snapshots of how people feel about each one, ...
@@ -177,7 +179,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_verdict_models.py (43 lines) - Structured claim comparison answers shared by source review and its durable cache.
 - services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
 - services/compliance/evaluation/visual_review.py (195 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
-- services/compliance/evaluation/visual_review_prompt.py (53 lines) - Visual compliance instructions; the active database rule remains the policy authority.
+- services/compliance/evaluation/visual_review_prompt.py (60 lines) - Visual compliance instructions; the active database rule remains the policy authority.
 - services/compliance/media/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
 - services/compliance/media/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
 - services/compliance/media/caption_service.py (338 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.

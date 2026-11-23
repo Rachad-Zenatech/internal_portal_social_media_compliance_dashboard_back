@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 BatchStatus = Literal["DRAFT", "PROCESSING", "IN_REVIEW", "CHANGES_REQUESTED", "DONE"]
 ItemStatus = Literal["DRAFT", "IN_REVIEW", "CHANGES_REQUESTED", "APPROVED"]
@@ -22,6 +22,13 @@ class BatchDetails(BaseModel):
     approval_needed_by: Optional[datetime] = None
     # The reviewers to send the batch to; empty sends it to every reviewer on its brand.
     reviewer_ids: Optional[List[UUID]] = Field(None, max_length=50)
+
+    @model_validator(mode="after")
+    def _resolve_rule_sets(self):
+        from services.compliance.evaluation.rule_set_policy import resolve
+
+        self.rule_sets = resolve(self.brand_codes or [], self.audiences or [], self.rule_sets or [])
+        return self
 
 
 class BatchUpdate(BaseModel):
