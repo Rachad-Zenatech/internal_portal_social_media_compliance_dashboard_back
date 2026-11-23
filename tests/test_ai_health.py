@@ -58,6 +58,7 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(classify_error(FakeError("429 RESOURCE_EXHAUSTED. Quota exceeded", 429)), "QUOTA")
         self.assertEqual(classify_error(FakeError("models/x is no longer available", 404)), "MODEL")
         self.assertEqual(classify_error(FakeError("503 UNAVAILABLE", 503)), "BUSY")
+        self.assertEqual(classify_error(FakeError("Manually set deadline 9s is too short. Minimum allowed deadline is 10s.", 400)), "OTHER")
         self.assertEqual(classify_error(TimeoutError("read timed out")), "BUSY")
         self.assertEqual(classify_error(ValueError("odd")), "OTHER")
 

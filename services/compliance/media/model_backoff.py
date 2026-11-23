@@ -11,6 +11,8 @@ from services.ai.core.gemini_service import is_rotatable_model_error
 
 logger = logging.getLogger(__name__)
 TRANSIENT_CODES = {500, 502, 503, 504}
+# Gemini rejects manually supplied deadlines below ten seconds with INVALID_ARGUMENT.
+MIN_TIMEOUT_SEC = 10.
 
 
 def error_code(error):
@@ -36,6 +38,8 @@ def fallback_failure(error):
     code = error_code(error)
     if code in (401, 403):
         return False
+    if code == 400 and "deadline" in str(error).lower():
+        return False
     if code in (400, 404, 429):
         return True
     return (transient_failure(error) or is_rotatable_model_error(error)
@@ -58,16 +62,16 @@ async def generate(models, request, *, timeout_sec, retry_rounds=2, retry_budget
         if round_number:
             remaining = deadline - time.monotonic()
             delay = min(5., 2 ** (round_number - 1) + random.uniform(0., .25))
-            if remaining <= delay:
+            if remaining - delay < MIN_TIMEOUT_SEC:
                 break
             logger.info("Media models busy; retry round %s in %.2fs", round_number, delay)
             await asyncio.sleep(delay)
         retry = []
         for model in pending:
-            timeout = timeout_sec
+            timeout = max(MIN_TIMEOUT_SEC, timeout_sec)
             if round_number:
                 remaining = deadline - time.monotonic()
-                if remaining <= 0:
+                if remaining < MIN_TIMEOUT_SEC:
                     break
                 timeout = min(timeout, remaining)
             try:

@@ -28,7 +28,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `summarize` (def) L63 - rows: the AI calls in the window, newest first, each with status, kind (the failure kind) and started_at.
 - `status` (def) L85
 
-## services/ai/observability/ai_observability.py (410 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+## services/ai/observability/ai_observability.py (412 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - `_env_int` (def) L40
 - `Span` (class) L56
 - `_get_queue` (def) L72
@@ -46,12 +46,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `response_text` (def) L217
 - `log_prompt` (def) L225
 - `classify_error` (def) L250 - What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
-- `_notify_attempt` (def) L273
-- `generate` (def) L283 - client.models.generate_content in a thread, traced and prompt-logged.
-- `_write` (def) L349
-- `_apply_retention` (def) L362
-- `flush` (def) L374 - Write whatever is still queued (on shutdown, before the pool closes).
-- `writer_loop` (def) L387 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
+- `_notify_attempt` (def) L275
+- `generate` (def) L285 - client.models.generate_content in a thread, traced and prompt-logged.
+- `_write` (def) L351
+- `_apply_retention` (def) L364
+- `flush` (def) L376 - Write whatever is still queued (on shutdown, before the pool closes).
+- `writer_loop` (def) L389 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
 
 ## services/ai/observability/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - `_attrs` (def) L9

@@ -74,15 +74,40 @@ class MediaModelBackoffTests(unittest.IsolatedAsyncioTestCase):
         async def attempt(model, timeout, number):
             if number == 1:
                 raise ModelError(503)
-            self.assertEqual(timeout, 3.)
+            self.assertEqual(timeout, 13.)
             self.clock += timeout
             raise TimeoutError()
 
         request = AsyncMock(side_effect=attempt)
         with self.assertRaises(RuntimeError):
-            await model_backoff.generate(["a", "b"], request, timeout_sec=60, retry_budget_sec=4)
+            await model_backoff.generate(["a", "b"], request, timeout_sec=60, retry_budget_sec=14)
         self.assertEqual(request.await_count, 3)
-        self.assertEqual(self.clock, 4.)
+        self.assertEqual(self.clock, 14.)
+
+    async def test_no_retry_is_sent_with_less_than_the_provider_minimum_remaining(self):
+        async def attempt(model, timeout, number):
+            self.assertGreaterEqual(timeout, 10.)
+            if number == 2:
+                self.clock += 7. if model == "a" else 1.
+            raise ModelError(503)
+
+        request = AsyncMock(side_effect=attempt)
+        with self.assertRaises(RuntimeError):
+            await model_backoff.generate(["a", "b"], request, timeout_sec=60, retry_budget_sec=20)
+        self.assertEqual(request.await_count, 4)
+        self.sleep.assert_awaited_once_with(1.)
+
+    async def test_short_configured_timeout_is_raised_to_provider_minimum(self):
+        request = AsyncMock(return_value="success")
+        await model_backoff.generate(["a"], request, timeout_sec=2)
+        self.assertEqual(request.await_args.args[1], 10.)
+
+    async def test_invalid_deadline_is_not_treated_as_transient_overload(self):
+        request = AsyncMock(side_effect=ModelError(400, "Manually set deadline 9s is too short"))
+        with self.assertRaises(ModelError):
+            await model_backoff.generate(["a", "b"], request, timeout_sec=60)
+        self.assertEqual(request.await_count, 1)
+        self.sleep.assert_not_awaited()
 
     async def test_retry_can_be_disabled_or_skipped_when_budget_is_too_small(self):
         for options in ({"retry_rounds": 0}, {"retry_budget_sec": .5}):

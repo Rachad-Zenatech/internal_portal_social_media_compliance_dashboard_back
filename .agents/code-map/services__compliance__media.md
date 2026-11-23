@@ -168,11 +168,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `resume_interrupted` (def) L236 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
 - `schedule_missing` (def) L253 - Read the images among these that were never read, or whose read was abandoned (e.g.
 
-## services/compliance/media/model_backoff.py (87 lines) - Bounded retries for transient media-model outages after the normal fallback pass.
-- `error_code` (def) L16
-- `transient_failure` (def) L28
-- `fallback_failure` (def) L35
-- `generate` (def) L45 - Try all models immediately, then back off only for temporary server failures.
+## services/compliance/media/model_backoff.py (91 lines) - Bounded retries for transient media-model outages after the normal fallback pass.
+- `error_code` (def) L18
+- `transient_failure` (def) L30
+- `fallback_failure` (def) L37
+- `generate` (def) L49 - Try all models immediately, then back off only for temporary server failures.
 
 ## services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - `node` (def) L12

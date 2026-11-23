@@ -258,6 +258,8 @@ def classify_error(e: BaseException) -> str:
         return "QUOTA"
     if code == 404 or any(k in msg for k in ("no longer available", "not found", "is not supported", "invalid model")):
         return "MODEL"
+    if code == 400:
+        return "OTHER"
     if code in (500, 503, 504) or any(k in msg for k in ("unavailable", "high demand", "deadline", "timeout", "timed out")) or "timeout" in type(e).__name__.lower():
         return "BUSY"
     return "OTHER"
