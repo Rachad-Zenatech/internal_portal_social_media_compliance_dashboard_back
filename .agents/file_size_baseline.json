@@ -75,14 +75,6 @@
       "max_lines": 127,
       "kind": "py_function"
     },
-    "services/compliance/submissions/submission_service.py#list_submissions": {
-      "max_lines": 129,
-      "kind": "py_function"
-    },
-    "services/compliance/submissions/submission_service.py#submit_for_review": {
-      "max_lines": 145,
-      "kind": "py_function"
-    },
     "services/compliance/submissions/submission_service.py#update_submission": {
       "max_lines": 127,
       "kind": "py_function"

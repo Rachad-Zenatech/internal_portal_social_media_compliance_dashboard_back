@@ -12,6 +12,7 @@ import os
 import re
 from dataclasses import dataclass
 from functools import lru_cache
+from services.compliance.evaluation.rule_examples import _QUOTED, _examples
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
@@ -1480,23 +1481,6 @@ async def rulebook_version() -> Optional[str]:
 # ---------------------------------------------------------------------------
 # Rule self-tests: every rule checked against its own examples
 # ---------------------------------------------------------------------------
-
-_QUOTED = re.compile(r'"([^"]{4,})"|\u201c([^\u201d]{4,})\u201d')
-
-
-def _examples(text: Optional[str], unquoted: bool) -> List[Tuple[str, bool]]:
-    """(example, quoted) pairs from a rule's example text. Quoted examples are actual wording. Unquoted text is
-    used too when `unquoted` (split at semicolons), since "not acceptable" examples are usually wording; it may
-    describe imagery instead, which the result says."""
-    if not text or not text.strip():
-        return []
-    quoted = [q.strip() for a, b in _QUOTED.findall(text) for q in [a or b] if q.strip()]
-    if quoted:
-        return [(q, True) for q in quoted]
-    if not unquoted:
-        return []
-    return [(p.strip(), False) for p in text.split(";") if len(p.strip()) >= 4]
-
 
 def self_test(rule: ComplianceRule) -> RuleSelfTest:
     """Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable"
