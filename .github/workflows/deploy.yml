@@ -64,7 +64,7 @@ jobs:
       # are needed. A failing test fails the build.
       - name: Run Pytest
         run: |
-          if [ -d "tests" ]; then pytest -q; else echo "No tests found, skipping pytest"; fi
+          if [ -d "tests" ]; then python -m pytest -q tests; else echo "No tests found, skipping pytest"; fi
 
       # Input screening, PII redaction, model routing and cache checks against labelled cases (offline, no external AI calls).
       - name: AI safety eval
