@@ -62,6 +62,9 @@ def check_notes(req, scope, signals, implied_by, readers_by_audience) -> List[st
 
 def build_response(scope, rules, violations, breaches, unsupported, to_check, signals,
                    ai_unavailable, notes, source_checks, version) -> ComplianceCheckResponse:
+    # An unfinished review cannot establish a score or a list of breached rules.
+    if ai_unavailable:
+        violations, breaches, unsupported, to_check = [], [], [], []
     violations = [v for v in violations if is_visible(v)]
     blocked = any(v.traffic_light == "RED" for v in breaches)
     needs_review = sum(1 for v in violations if v.status == "NEEDS_REVIEW")
@@ -70,11 +73,12 @@ def build_response(scope, rules, violations, breaches, unsupported, to_check, si
     open_warnings = needs_review + needs_evidence
     # GREEN means nothing needs a look. Any open finding makes it at least YELLOW, so the light, the score and
     # "compliant" always agree; a cleared trigger doesn't count.
-    overall_traffic_light = "RED" if blocked else "YELLOW" if (breaches or open_warnings) else "GREEN"
+    overall_traffic_light = "RED" if blocked else "YELLOW" if (ai_unavailable or breaches or open_warnings) else "GREEN"
     raw_score = max(0, 100 - sum(v.penalty for v in (*breaches, *unsupported, *to_check)))
     score = raw_score  # a critical rule blocks the post (red) but doesn't cap the score: it is what the points add up to
 
-    recommendations = review_recommendations(blocked, breaches, needs_review, needs_evidence, to_check, rules)
+    recommendations = (["The AI review could not complete. Run the check again when the service is available."]
+                       if ai_unavailable else review_recommendations(blocked, breaches, needs_review, needs_evidence, to_check, rules))
 
     # Rules with nothing to look for in text (no phrases, no disclaimers) still apply; say so instead of letting a
     # clean score suggest they passed.
@@ -88,7 +92,7 @@ def build_response(scope, rules, violations, breaches, unsupported, to_check, si
         content_parts=scope.content_parts,
         added_rule_sets=[AddedRuleSet(rule_set=rs, because=w) for rs, w in scope.added_rule_sets.items()],
         manual_review_rules=manual,
-        is_compliant=not breaches and not open_warnings,
+        is_compliant=not ai_unavailable and not breaches and not open_warnings,
         traffic_light=overall_traffic_light,
         score=score,
         raw_score=raw_score,

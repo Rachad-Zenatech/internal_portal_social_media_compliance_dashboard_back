@@ -118,8 +118,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/branding.py (37 lines) - Company names and the company's exchange/ticker label are identification, not claims.
 - services/compliance/evaluation/citation_finder.py (242 lines) - Citation finder: what a post says it got its claims from.
 - services/compliance/evaluation/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
-- services/compliance/evaluation/compliance_check_result.py (117 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
-- services/compliance/evaluation/compliance_service.py (1544 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+- services/compliance/evaluation/compliance_check_result.py (121 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
+- services/compliance/evaluation/compliance_service.py (1543 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - services/compliance/evaluation/context_evaluator.py (402 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/evaluation/context_service.py (226 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/evaluation/defense_disclaimer.py (27 lines) - Military names and citations alone do not establish use of government visual material.
@@ -168,7 +168,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_recheck.py (36 lines) - Refresh source comparisons on request and keep a record of resolved findings.
 - services/compliance/evaluation/source_settings.py (86 lines) - Settings for checking a post's sources, none of them fixed in code.
 - services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
-- services/compliance/evaluation/visual_review.py (170 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
+- services/compliance/evaluation/visual_review.py (164 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
 - services/compliance/media/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
 - services/compliance/media/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
 - services/compliance/media/caption_service.py (338 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.

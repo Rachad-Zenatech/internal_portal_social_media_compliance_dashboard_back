@@ -159,11 +159,5 @@ async def review(req, rules, findings):
         except Exception:
             logger.warning("Visual compliance review unavailable for %s", asset["id"], exc_info=True)
             entry["message"] = "Visual review could not complete. Check again or request manual visual review."
-            for rule in selected:
-                a = Assessment(rule_number=rule.rule_number, status="NEEDS_REVIEW", confidence=0.,
-                               evidence="", reasoning=entry["message"], box=[], start_sec=0., end_sec=0.)
-                finding = _finding(asset, rule, a, None)
-                finding.evaluation.source = "UNAVAILABLE"
-                _merge(findings, finding)
         coverage.append(entry)
     return coverage

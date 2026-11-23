@@ -66,11 +66,10 @@ CONTENT_PARTS = ("video", "imagery", "caption", "ceo_post")
 RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # Bump when how rules are picked or matched changes, so open content is re-checked on the next start.
 # 3: near-match disclaimers must be together; any finding is at least YELLOW.
-# 4: investor and defense wording brings in the Public Company Disclosure and ZenaDrone Defense rule sets.
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-20-visual-branding|brand-audience-1"
+SCOPE_VERSION = "scope-21-unavailable-without-findings|brand-audience-1"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
