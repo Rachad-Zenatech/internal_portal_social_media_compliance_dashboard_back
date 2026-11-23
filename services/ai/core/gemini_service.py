@@ -82,12 +82,8 @@ def get_gemini_fallback_models() -> List[str]:
     """
     models_str = os.getenv("GEMINI_AVAILABLE_MODELS", "gemini-3.1-flash-lite,gemini-3.1-pro-preview")
     raw_models = [_normalize_ai_model_name(m) for m in models_str.split(",") if m.strip()]
-
-    # Filter out deprecated models that are no longer available in the Google GenAI API
     models = [m for m in raw_models if m not in DEPRECATED_MODELS]
     priority_order = ["gemini-3.1-flash-lite", "gemini-3.1-pro-preview"]
-    # Proven models go first, but only ones the env lists: a model the key has no quota for (e.g. 3.1 Pro on the
-    # free tier) must not be added, or every fallback chain ends with a call that can only fail.
     ordered = [m for m in priority_order if m in models]
     for m in models:
         if m not in ordered:
@@ -99,6 +95,15 @@ def is_rotatable_model_error(e: Exception) -> bool:
     Determines if a given exception represents a rate limit, quota exhaustion,
     temporary service spike, or deprecated/unavailable model (404 / 503 / 429).
     """
+    try:
+        from botocore.exceptions import ClientError
+        if isinstance(e, ClientError):
+            code = e.response.get("Error", {}).get("Code", "")
+            if code in ("ThrottlingException", "ModelNotReadyException", "TooManyRequestsException", "ServiceUnavailableException"):
+                return True
+    except ImportError:
+        pass
+
     if isinstance(e, errors.APIError):
         code = getattr(e, "code", getattr(e, "status", None))
         if code in (400, 404, 429, 503, 504):
@@ -149,6 +154,12 @@ async def generate_content_with_fallback(
     """
     from services.ai.observability import ai_observability
     from services.ai.core import model_router
+    from services.ai.core.bedrock_service import get_bedrock_client
+
+    # Replace with Bedrock client (Gemini client commented out for now):
+    # if is_bedrock_enabled() and (client is None or "Bedrock" not in type(client).__name__):
+    #     client = get_bedrock_client()
+    client = get_bedrock_client()
 
     prompt, attachments = ai_observability.describe_contents(contents)
     route = model_router.route(feature, prompt_chars=len(prompt), attachments=attachments)
@@ -161,7 +172,7 @@ async def generate_content_with_fallback(
         raise RuntimeError("All configured Gemini models are temporarily unavailable; retry shortly.")
 
     for i, model_name in enumerate(available_models):
-        logger.info(f"Attempting Gemini model: {model_name}")
+        logger.info(f"Attempting Bedrock model: {model_name}")
 
         try:
             response = await ai_observability.generate(
@@ -177,7 +188,7 @@ async def generate_content_with_fallback(
             )
 
             if i > 0:
-                logger.info(f"Gemini fallback succeeded with model: {model_name}")
+                logger.info(f"AI fallback succeeded with model: {model_name}")
 
             return response
 
@@ -185,11 +196,11 @@ async def generate_content_with_fallback(
             last_exception = e
             if is_rotatable_model_error(e):
                 record_model_failure(model_name, e)
-                logger.warning(f"Gemini model {model_name} unavailable or quota exceeded ({e}). Moving to next model.")
+                logger.warning(f"AI model {model_name} unavailable or quota exceeded ({e}). Moving to next model.")
                 continue
             else:
                 # Non-rotatable fatal error, re-raise immediately
                 raise e
 
-    logger.error("All Gemini models are unavailable or out of quota")
-    raise RuntimeError("All Gemini models are unavailable or out of quota") from last_exception
+    logger.error("All Bedrock models are unavailable or out of quota")
+    raise RuntimeError("All Bedrock models are unavailable or out of quota") from last_exception

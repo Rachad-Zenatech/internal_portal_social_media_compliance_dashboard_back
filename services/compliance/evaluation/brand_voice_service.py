@@ -447,18 +447,17 @@ rendered as images, top to bottom) and any embedded IMAGES. Fill in every field:
   number) and logo_box, a tight box [ymin, xmin, ymax, xmax] on a 0-1000 scale within that section image, around the
   full logo (symbol and wordmark) and nothing else. Prefer the full-colour version on a white or light background
   when there are several. If the logo is instead one of the numbered IMAGES, give logo_image.
-- logo_notes: the logo rules it states (clear space, minimum size, misuse); and the versions it shows and the
-  backgrounds each is for (e.g. "white on dark backgrounds, blue on white, charcoal on light grey").
+- logo_notes: the logo rules it states and backgrounds each is for.
 Base everything on this manual. Don't make up facts about the company."""
 
 
-def _get_client() -> genai.Client:
+def _get_client() -> Any:
     global _client
     if _client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY is not set")
-        _client = genai.Client(api_key=api_key)
+        from services.ai.core.bedrock_service import get_ai_client
+        _client = get_ai_client()
+    if not _client:
+        raise RuntimeError("AI key is not set")
     return _client
 
 

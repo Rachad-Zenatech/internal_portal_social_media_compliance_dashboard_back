@@ -51,8 +51,10 @@ CANDIDATES = 2000  # newest live entries compared per lookup
 
 
 def is_enabled() -> bool:
-    return (os.getenv("AI_SEMANTIC_CACHE_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
-            and bool(os.getenv("GEMINI_API_KEY")))
+    # Gemini semantic cache (commented out for now until embedding model is mapped):
+    # return (os.getenv("AI_SEMANTIC_CACHE_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+    #         and bool(os.getenv("GEMINI_API_KEY")))
+    return False
 
 
 @dataclass

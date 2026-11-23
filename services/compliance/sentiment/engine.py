@@ -63,23 +63,24 @@ async def _upload_video(client: genai.Client, file_id: str) -> Optional[types.Fi
         logger.warning("Video %s for sentiment analysis is missing from storage", file_id)
         return None
     uploaded = None
-    try:
-        uploaded = await asyncio.to_thread(
-            client.files.upload, file=str(path), config=types.UploadFileConfig(mime_type=row["mime_type"])
-        )
-        waited = 0
-        while uploaded.state and uploaded.state.name == "PROCESSING" and waited < VIDEO_READY_TIMEOUT_SEC:
-            await asyncio.sleep(3)
-            waited += 3
-            uploaded = await asyncio.to_thread(client.files.get, name=uploaded.name)
-        if uploaded.state and uploaded.state.name != "ACTIVE":
-            raise RuntimeError(f"video is {uploaded.state.name.lower()} after {waited}s")
-        return uploaded
-    except Exception as e:
-        logger.warning("Couldn't attach video %s to sentiment analysis: %s", file_id, e)
-        if uploaded:
-            await _delete_upload(client, uploaded)
-        return None
+    # Gemini video upload (commented out for now; Bedrock evaluates content directly):
+    # try:
+    #     uploaded = await asyncio.to_thread(
+    #         client.files.upload, file=str(path), config=types.UploadFileConfig(mime_type=row["mime_type"])
+    #     )
+    #     waited = 0
+    #     while uploaded.state and uploaded.state.name == "PROCESSING" and waited < VIDEO_READY_TIMEOUT_SEC:
+    #         await asyncio.sleep(3)
+    #         waited += 3
+    #         uploaded = await asyncio.to_thread(client.files.get, name=uploaded.name)
+    #     if uploaded.state and uploaded.state.name != "ACTIVE":
+    #         raise RuntimeError(f"video is {uploaded.state.name.lower()} after {waited}s")
+    #     return uploaded
+    # except Exception as e:
+    #     logger.warning("Couldn't attach video %s to sentiment analysis: %s", file_id, e)
+    #     if uploaded:
+    #         await _delete_upload(client, uploaded)
+    return None
 
 
 async def _delete_upload(client: genai.Client, uploaded: types.File) -> None:
@@ -307,6 +308,6 @@ async def _generate_with(client: genai.Client, model: str, inp: Dict[str, Any], 
     if last_error is not None and is_rotatable_model_error(last_error):
         # Still overloaded or rate-limited after every retry: let the next model take over.
         raise ModelUnavailable(model, "was too busy") from last_error
-    raise RuntimeError(f"Gemini didn't return a valid assessment: {last_error}")
+    raise RuntimeError(f"AI model didn't return a valid assessment: {last_error}")
 
 

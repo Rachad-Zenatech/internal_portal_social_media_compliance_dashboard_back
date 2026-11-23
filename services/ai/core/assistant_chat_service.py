@@ -53,13 +53,13 @@ BLOCKED_MESSAGE = (
     "Rephrase it as a question about the rulebook, brand guidelines or the portal."
 )
 
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 
-
-def _get_client() -> Optional[genai.Client]:
+def _get_client() -> Optional[Any]:
     global _client
-    if _client is None and os.getenv("GEMINI_API_KEY"):
-        _client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    if _client is None:
+        from services.ai.core.bedrock_service import get_ai_client
+        _client = get_ai_client()
     return _client
 
 
@@ -146,7 +146,8 @@ async def _stream_round(client: genai.Client, models: List[str], contents: List[
         text: List[str] = []
         usage = None
         started = time.perf_counter()
-        async with span("model", "gemini.generate_content_stream", model=model, feature=FEATURE, round=round_no,
+        call_name = "bedrock.generate_content_stream" if (model.startswith("us.") or "claude" in model) else "gemini.generate_content_stream"
+        async with span("model", call_name, model=model, feature=FEATURE, round=round_no,
                         attempt=attempt, prompt_chars=len(prompt)) as s:
             try:
                 stream = await client.aio.models.generate_content_stream(model=model, contents=contents, config=config)
@@ -201,7 +202,7 @@ async def stream(prepared: PreparedChat) -> AsyncIterator[str]:
         return
     client = _get_client()
     if client is None:
-        yield _sse({"type": "error", "message": "GEMINI_API_KEY is not configured."})
+        yield _sse({"type": "error", "message": "AI is not configured."})
         return
 
     contents = _contents(prepared)

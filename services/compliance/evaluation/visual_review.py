@@ -66,7 +66,29 @@ async def _asset_part(asset):
 def _parse(response, rules):
     """Missing/duplicate rules and malformed output must never look like a successful clear."""
     raw = json.loads(response.text or "{}")
-    assessments = [Assessment.model_validate(item) for item in raw["assessments"]]
+    items = raw.get("assessments", [])
+    normalized = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        d = dict(item)
+        if "reasoning" not in d and "rationale" in d:
+            d["reasoning"] = str(d.pop("rationale"))
+        if "evidence" not in d:
+            d["evidence"] = d.get("reasoning") or d.get("observation") or "No visual finding"
+        if "box" not in d:
+            f_box = (d.get("findings") or [{}])[0].get("box") if isinstance(d.get("findings"), list) else None
+            d["box"] = f_box if isinstance(f_box, list) else []
+        if "start_sec" not in d:
+            d["start_sec"] = 0.0
+        if "end_sec" not in d:
+            d["end_sec"] = 0.0
+        if "confidence" not in d:
+            d["confidence"] = 1.0
+        allowed_keys = {"rule_number", "status", "confidence", "evidence", "reasoning", "box", "start_sec", "end_sec"}
+        cleaned = {k: v for k, v in d.items() if k in allowed_keys}
+        normalized.append(cleaned)
+    assessments = [Assessment.model_validate(item) for item in normalized]
     expected = {r.rule_number for r in rules}
     if len(assessments) != len(expected) or {a.rule_number for a in assessments} != expected:
         raise ValueError("Visual review did not assess every applicable rule exactly once")

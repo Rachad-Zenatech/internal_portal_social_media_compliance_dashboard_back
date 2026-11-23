@@ -116,11 +116,12 @@ async def _ask_gemini(text: str) -> Dict[str, Any]:
     from google.genai import types
     from services.ai.core.gemini_service import generate_content_with_fallback
 
-    key = os.getenv("GEMINI_API_KEY")
-    if not key:
-        raise RuntimeError("GEMINI_API_KEY isn't configured")
+    from services.ai.core.bedrock_service import get_ai_client
+    client = get_ai_client()
+    if not client:
+        raise RuntimeError("AI isn't configured")
     config = types.GenerateContentConfig(response_mime_type="application/json", response_schema=SCHEMA, temperature=0)
-    response = await generate_content_with_fallback(genai.Client(api_key=key), PROMPT + text[:5000], config,
+    response = await generate_content_with_fallback(client, PROMPT + text[:5000], config,
                                                      feature="PUBLIC_MOOD_QUERY", submission_id=None)
     return json.loads(response.text or "{}")
 
@@ -150,14 +151,14 @@ async def plan_for_text(title: str, caption: str, body: str, allow_model: bool =
     if cached:
         return {**cached, "source": cached.get("source", "gemini") + " (saved)"}
     if not allow_model:
-        return rules_plan(title, caption, body, "No saved Gemini plan for this text yet; the plain rules were used.")
+        return rules_plan(title, caption, body, "No saved AI plan for this text yet; the plain rules were used.")
     try:
         plan = validate(await _ask_gemini(text), text)
     except Exception as exc:  # quota, key, network, malformed: fall back, and say so
-        logger.warning("Search planning with Gemini failed (%s); using the plain rules", str(exc)[:200])
-        return rules_plan(title, caption, body, f"Gemini could not be used ({str(exc)[:120]}); the plain rules were used.")
+        logger.warning("Search planning with AI failed (%s); using the plain rules", str(exc)[:200])
+        return rules_plan(title, caption, body, f"AI could not be used ({str(exc)[:120]}); the plain rules were used.")
     if not plan["queries"] and not plan["contexts"]:
-        return rules_plan(title, caption, body, "Gemini gave nothing the post's text supports; the plain rules were used.")
+        return rules_plan(title, caption, body, "AI gave nothing the post's text supports; the plain rules were used.")
     plan.update(source="gemini", note="", anchors=plan["organisations"], keywords=[*plan["organisations"], *(t for c in plan["contexts"] for t in c["terms"])])
     try:
         await _set_state("post_plan:" + text_hash(text), json.dumps(plan))

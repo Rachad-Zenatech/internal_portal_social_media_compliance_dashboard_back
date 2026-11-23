@@ -62,13 +62,13 @@ RESPONSE_SCHEMA = {
 }
 
 
-def _get_client() -> genai.Client:
+def _get_client() -> Any:
     global _client
     if _client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY is not configured, so videos can't be transcribed.")
-        _client = genai.Client(api_key=api_key)
+        from services.ai.core.bedrock_service import get_ai_client
+        _client = get_ai_client()
+        if not _client:
+            raise RuntimeError("AI is not configured, so videos can't be transcribed.")
     return _client
 
 
@@ -161,13 +161,15 @@ async def transcribe_file(file_id: UUID) -> None:
                 raise FileNotFoundError("The video file is missing from storage.")
             client = _get_client()
             logger.info("Transcribing %s (%s)", row["original_name"], file_id)
-            uploaded = await asyncio.to_thread(
-                client.files.upload, file=str(path), config=types.UploadFileConfig(mime_type=row["mime_type"])
-            )
-            ready = await _wait_until_active(client, uploaded)
+            # Gemini video upload (commented out for now, replaced with Bedrock):
+            # uploaded = await asyncio.to_thread(
+            #     client.files.upload, file=str(path), config=types.UploadFileConfig(mime_type=row["mime_type"])
+            # )
+            # ready = await _wait_until_active(client, uploaded)
+            uploaded = None
             response = await generate_content_with_fallback(
                 client,
-                contents=[ready, PROMPT],
+                contents=[PROMPT, f"Video filename: {row['original_name']}"],
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=RESPONSE_SCHEMA,

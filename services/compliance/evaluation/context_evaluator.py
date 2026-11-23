@@ -50,10 +50,13 @@ logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused.
 PROMPT_VERSION = "context-v6-army-context"
-MODELS = without_retired([m.strip() for m in os.getenv(
-    "CONTEXT_EVAL_MODELS",
-    os.getenv("SENTIMENT_MODELS", "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite"),
-).split(",") if m.strip()])
+# Gemini models (commented out for now, replaced with Bedrock):
+# MODELS = without_retired([m.strip() for m in os.getenv(
+#     "CONTEXT_EVAL_MODELS",
+#     os.getenv("SENTIMENT_MODELS", "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite"),
+# ).split(",") if m.strip()])
+from services.ai.core.bedrock_service import get_bedrock_profile_id
+MODELS = [get_bedrock_profile_id()] if get_bedrock_profile_id() else []
 TIMEOUT_SEC = int(os.getenv("CONTEXT_EVAL_TIMEOUT_SEC", "40"))
 # Pause before the second pass over the models when none could answer the first time.
 RETRY_PAUSE_SEC = float(os.getenv("CONTEXT_EVAL_RETRY_PAUSE_SEC", "3"))
@@ -168,13 +171,13 @@ class Candidate:
     review_metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-def _get_client() -> genai.Client:
+def _get_client() -> Any:
     global _client
     if _client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY is not configured")
-        _client = genai.Client(api_key=api_key)
+        from services.ai.core.bedrock_service import get_ai_client
+        _client = get_ai_client()
+        if not _client:
+            raise RuntimeError("AI is not configured")
     return _client
 
 
