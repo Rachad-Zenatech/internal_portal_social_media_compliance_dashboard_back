@@ -52,7 +52,7 @@ def enabled() -> bool:
 
 def tier_models(tier: str) -> List[str]:
     raw = os.getenv(f"AI_ROUTE_TIER_{tier}", _TIER_DEFAULTS[tier])
-    return [m.strip().lower() for m in raw.split(",") if m.strip()]
+    return without_retired([m.strip().lower() for m in raw.split(",") if m.strip()])
 
 
 def base_tier(feature: str) -> str:

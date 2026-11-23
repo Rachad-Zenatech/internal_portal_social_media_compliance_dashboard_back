@@ -62,9 +62,7 @@ def check_notes(req, scope, signals, implied_by, readers_by_audience) -> List[st
 
 def build_response(scope, rules, violations, breaches, unsupported, to_check, signals,
                    ai_unavailable, notes, source_checks, version) -> ComplianceCheckResponse:
-    # An unfinished review cannot establish a score or a list of breached rules.
-    if ai_unavailable:
-        violations, breaches, unsupported, to_check = [], [], [], []
+    # Keep completed findings. ai_unavailable withholds final approval, not evidence already found.
     violations = [v for v in violations if is_visible(v)]
     blocked = any(v.traffic_light == "RED" for v in breaches)
     needs_review = sum(1 for v in violations if v.status == "NEEDS_REVIEW")

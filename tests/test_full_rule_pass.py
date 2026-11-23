@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -21,7 +22,7 @@ TEXT = "ZenaDrone's swarm system autonomously guards every border."
 
 
 class FullRulePassTests(unittest.IsolatedAsyncioTestCase):
-    async def run_pass(self, vector_rules, answer, full=True):
+    async def run_pass(self, vector_rules, answer, full=None):
         seen = {}
 
         async def fake_generate(client, prompt, config, feature=None, **_):
@@ -35,6 +36,8 @@ class FullRulePassTests(unittest.IsolatedAsyncioTestCase):
             patch.object(cs, "generate_content_with_fallback", new=fake_generate),
             patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}),
         ):
+            if full is None:
+                os.environ.pop("COMPLIANCE_FULL_RULE_PASS", None)
             found = await cs._semantic_findings(ComplianceCheckRequest(text=TEXT), RULES, set(), cs._normalize(TEXT))
         return found, seen.get("prompt")
 
@@ -74,6 +77,35 @@ class FullRulePassTests(unittest.IsolatedAsyncioTestCase):
         _, prompt = await self.run_pass([], [])
         self.assertIn("soft claims", prompt)
         self.assertIn("superlative", prompt)
+
+    async def test_default_full_pass_reuses_identical_completed_findings(self):
+        generate = AsyncMock(return_value=type("Resp", (), {"text": '{"semantic_violations": []}'})())
+        await cs._ai_check_cache.clear()
+        with (
+            patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
+            patch.object(cs, "_vector_context_for_check", AsyncMock(return_value=([], []))),
+            patch.object(cs, "generate_content_with_fallback", generate),
+        ):
+            os.environ.pop("COMPLIANCE_FULL_RULE_PASS", None)
+            for _ in range(2):
+                await cs._semantic_findings(ComplianceCheckRequest(text=TEXT), RULES, set(), cs._normalize(TEXT))
+        self.assertEqual(generate.await_count, 1)
+        self.assertEqual(generate.call_args.kwargs["feature"], "COMPLIANCE_CHECK")
+
+    async def test_rule_guidance_change_invalidates_the_completed_result(self):
+        generate = AsyncMock(return_value=type("Resp", (), {"text": '{"semantic_violations": []}'})())
+        await cs._ai_check_cache.clear()
+        selected = [r.model_copy(deep=True) for r in RULES]
+        with (
+            patch.dict(os.environ, {"GEMINI_API_KEY": "test-key", "COMPLIANCE_FULL_RULE_PASS": "always"}),
+            patch.object(cs, "_vector_context_for_check", AsyncMock(return_value=([], []))),
+            patch.object(cs, "generate_content_with_fallback", generate),
+        ):
+            await cs._semantic_findings(ComplianceCheckRequest(text=TEXT), selected, set(), cs._normalize(TEXT))
+            selected[0].evaluation_guidance = "Updated contextual policy"
+            await cs._semantic_findings(ComplianceCheckRequest(text=TEXT), selected, set(), cs._normalize(TEXT))
+        self.assertEqual(generate.await_count, 2)
+
 
 
 if __name__ == "__main__":

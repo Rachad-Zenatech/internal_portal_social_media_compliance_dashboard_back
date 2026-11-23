@@ -76,6 +76,7 @@ class ClaimInventoryTests(unittest.IsolatedAsyncioTestCase):
             sc._Result(claim="A different claim", verdict="SUPPORTED", confidence=1)]))
         with patch.object(inventory.db, "fetch_one", AsyncMock(return_value={"claims": saved})), \
              patch.object(inventory, "extract", AsyncMock()) as extract, \
+             patch.object(sc, "MODELS", ["test-model"]), \
              patch.object(sc, "_ask", ask), \
              patch.object(sc.source_passages, "excerpt", AsyncMock(return_value="Source evidence")):
             token = sc.source_recheck.refresh.set(True)

@@ -141,7 +141,7 @@ async def _access(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], user_id:
     approver = editor and can_review and not own and status == "IN_REVIEW"
     deciding = manager and not own and status in IN_REVIEW_STATES
     can_edit = sup or (is_creator and status in EDITING) or (editor and status == "IN_REVIEW") or (manager and not own and status in IN_REVIEW_STATES)
-    can_note = sup or can_edit or bool(mine and status in IN_REVIEW_STATES) or (is_creator and status != "DRAFT") or (manager and status != "DRAFT")
+    can_note = True
     if is_creator:
         role = "CREATOR"
     elif manager:

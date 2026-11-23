@@ -175,6 +175,7 @@ FindingStatus = Literal["VIOLATION", "NEEDS_REVIEW", "EVIDENCE_REQUIRED", "CLEAR
 class ContextEvaluation(BaseModel):
     """How the AI read a rule's trigger in context, kept beside the finding so the decision can be audited."""
     decision: FindingStatus
+    model_decision: Optional[Literal["VIOLATION", "NEEDS_REVIEW", "EVIDENCE_REQUIRED", "NO_VIOLATION"]] = None
     # The passage the decision is about, exactly as it appears in the content.
     matched_text: Optional[str] = None
     # Who or what the statement is about (e.g. "a 1942 patent, not ZenaDrone").
@@ -218,6 +219,7 @@ class ComplianceViolation(BaseModel):
     severity: str
     traffic_light: str
     flagged_terms: List[str]
+    image_file_ids: List[UUID] = Field(default_factory=list)
     image_regions: List[ImageFindingRegion] = Field(default_factory=list)
     explanation: str
     remediation_guidance: Optional[str] = None

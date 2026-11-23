@@ -3,18 +3,24 @@ import asyncio
 import json
 import logging
 import math
+import os
 from contextlib import asynccontextmanager
 
 from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 
 from models.compliance.compliance_model import ComplianceViolation, ContextEvaluation
+from services.compliance.evaluation import context_evaluator
 from services.compliance.evaluation.visual_review_prompt import PROMPT, RULE_NUMBERS, SCHEMA
 from services.compliance.media import image_text_service
 from services.compliance.media.image_finding_service import region_from_box
 
 logger = logging.getLogger(__name__)
 MAX_VIDEO_BYTES = 18 * 1024 * 1024
+# Visual rule judgments need the complete compliance chain, not the smaller OCR-only list.
+MODELS = [m.strip() for m in os.getenv(
+    "VISUAL_COMPLIANCE_MODELS", ",".join(context_evaluator.MODELS)
+).split(",") if m.strip()]
 
 
 class Assessment(BaseModel):
@@ -123,7 +129,8 @@ def _finding(asset, rule, assessment, model):
     return ComplianceViolation(
         rule_id=rule.id, rule_number=rule.rule_number, title=rule.title, category=rule.category,
         severity=rule.severity, traffic_light=light if status == "VIOLATION" else "YELLOW",
-        flagged_terms=[], image_regions=[region] if region and status != "CLEARED" else [], visual_evidence=True,
+        flagged_terms=[], image_file_ids=[] if video else [asset["id"]],
+        image_regions=[region] if region and status != "CLEARED" else [], visual_evidence=True,
         explanation=reason, remediation_guidance=rule.remediation_guidance,
         penalty=penalty if status == "VIOLATION" else 0, status=status,
         passage=a.evidence, context=reason,
@@ -144,10 +151,12 @@ def _merge(findings, finding):
     ranks = {"CLEARED": 0, "NEEDS_REVIEW": 1, "EVIDENCE_REQUIRED": 1, "VIOLATION": 2}
     strength = lambda f: (ranks[f.status], f.evaluation.confidence if f.evaluation else 1.)
     if strength(finding) > strength(existing):
+        finding.image_file_ids.extend(file_id for file_id in existing.image_file_ids if file_id not in finding.image_file_ids)
         finding.image_regions.extend(r for r in existing.image_regions if r not in finding.image_regions)
         finding.explanation += "\n" + existing.explanation
         findings[findings.index(existing)] = finding
     elif finding.status != "CLEARED":
+        existing.image_file_ids.extend(file_id for file_id in finding.image_file_ids if file_id not in existing.image_file_ids)
         existing.visual_evidence = True
         existing.image_regions.extend(r for r in finding.image_regions if r not in existing.image_regions)
         existing.explanation += "\n" + finding.explanation
@@ -170,7 +179,7 @@ async def review(req, rules, findings):
             async with image_text_service._semaphore, _asset_part(asset) as part:
                 response = await image_text_service._generate(
                     [part, PROMPT + json.dumps(payload, ensure_ascii=False)],
-                    feature="VISUAL_COMPLIANCE", response_schema=SCHEMA)
+                    feature="VISUAL_COMPLIANCE", response_schema=SCHEMA, models=MODELS)
             assessments = _parse(response, selected)
             model = getattr(response, "model_version", None)
             by_number = {r.rule_number: r for r in selected}

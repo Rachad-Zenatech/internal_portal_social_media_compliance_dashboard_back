@@ -109,9 +109,9 @@ async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: O
     )
 
 
-async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None) -> object:
-    """Ask the first model in MODELS that answers; quota, rate-limit and unavailable-model errors move on to the next.
-    Also used to read PDF scripts (see document_text_service), with its own feature label."""
+async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None, *, models=None) -> object:
+    """Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
+    PDF scripts and visual compliance reuse the traced calls with their own feature labels."""
     config = types.GenerateContentConfig(
         response_mime_type="application/json", response_schema=response_schema or RESPONSE_SCHEMA, temperature=0,
         # A request stuck behind "high demand" moves on to the next model instead of hanging.
@@ -119,7 +119,7 @@ async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None)
     )
     client = _get_client()
     last_error: Optional[Exception] = None
-    for model in MODELS:
+    for model in dict.fromkeys(without_retired(models if models is not None else MODELS)):
         try:
             return await ai_observability.generate(client, model=model, contents=contents, config=config, feature=feature)
         except Exception as e:

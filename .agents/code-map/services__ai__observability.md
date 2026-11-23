@@ -28,30 +28,30 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `summarize` (def) L66 - rows: the AI calls in the window, newest first, each with status, kind (the failure kind) and started_at.
 - `status` (def) L89
 
-## services/ai/observability/ai_observability.py (411 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
-- `_env_int` (def) L40
-- `Span` (class) L56
-- `_get_queue` (def) L72
-- `_enqueue` (def) L79
-- `current_span` (def) L90
-- `current_trace_id` (def) L94
-- `within` (def) L100 - Continue a trace started elsewhere (e.g.
-- `_user_id` (def) L112
-- `span` (def) L122 - Time a unit of AI work.
-- `describe_contents` (def) L150 - Readable text of a Gemini request (attachments become placeholders) and how many attachments it has.
-    - `part_text` (def) L155
-- `_clip` (def) L198
-- `int_or_none` (def) L207
-- `token_counts` (def) L211
-- `response_text` (def) L217
-- `log_prompt` (def) L225
-- `classify_error` (def) L250 - What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
-- `_notify_attempt` (def) L273
-- `generate` (def) L283 - client.models.generate_content in a thread, traced and prompt-logged.
-- `_write` (def) L350
-- `_apply_retention` (def) L363
-- `flush` (def) L375 - Write whatever is still queued (on shutdown, before the pool closes).
-- `writer_loop` (def) L388 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
+## services/ai/observability/ai_observability.py (418 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+- `_env_int` (def) L41
+- `Span` (class) L57
+- `_get_queue` (def) L73
+- `_enqueue` (def) L80
+- `current_span` (def) L91
+- `current_trace_id` (def) L95
+- `within` (def) L101 - Continue a trace started elsewhere (e.g.
+- `_user_id` (def) L113
+- `span` (def) L123 - Time a unit of AI work.
+- `describe_contents` (def) L151 - Readable text of a Gemini request (attachments become placeholders) and how many attachments it has.
+    - `part_text` (def) L156
+- `_clip` (def) L199
+- `int_or_none` (def) L208
+- `token_counts` (def) L212
+- `response_text` (def) L218
+- `log_prompt` (def) L226
+- `classify_error` (def) L251 - What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
+- `_notify_attempt` (def) L274
+- `generate` (def) L284 - client.models.generate_content in a thread, traced and prompt-logged.
+- `_write` (def) L357
+- `_apply_retention` (def) L370
+- `flush` (def) L382 - Write whatever is still queued (on shutdown, before the pool closes).
+- `writer_loop` (def) L395 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
 
 ## services/ai/observability/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - `_attrs` (def) L9
