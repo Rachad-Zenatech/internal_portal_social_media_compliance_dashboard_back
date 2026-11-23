@@ -152,20 +152,27 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_ocr_regions` (def) L117 - Find flagged phrases in OCR words and return one tight region per affected text line.
 - `locate_image_findings` (def) L143 - Locate flagged wording, including warnings that still need evidence.
 
-## services/compliance/media/image_text_service.py (268 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
-- `is_image_file` (def) L65
-- `_get_client` (def) L69
-- `_claim` (def) L79 - Atomically mark an image as being read unless another worker already is.
-- `_save` (def) L95
-- `_generate` (def) L109 - Ask the first model in MODELS that answers; quota, rate-limit and unavailable-model errors move on to the next.
-- `_clean` (def) L131
-- `_has_ai_metadata` (def) L136 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
-- `_face_boxes` (def) L153 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
-- `read_file` (def) L171 - Read one image's text and save it, then re-check its submission if it's still open.
-- `_run` (def) L217
-- `schedule` (def) L224 - Read each image in the background, unless this process is already reading it.
-- `resume_interrupted` (def) L235 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
-- `schedule_missing` (def) L252 - Read the images among these that were never read, or whose read was abandoned (e.g.
+## services/compliance/media/image_text_service.py (269 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+- `is_image_file` (def) L67
+- `_get_client` (def) L71
+- `_claim` (def) L81 - Atomically mark an image as being read unless another worker already is.
+- `_save` (def) L97
+- `_generate` (def) L111 - Try model fallbacks, then use bounded backoff for transient service failures.
+    - `request` (def) L120
+- `_clean` (def) L132
+- `_has_ai_metadata` (def) L137 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
+- `_face_boxes` (def) L154 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
+- `read_file` (def) L172 - Read one image's text and save it, then re-check its submission if it's still open.
+- `_run` (def) L218
+- `schedule` (def) L225 - Read each image in the background, unless this process is already reading it.
+- `resume_interrupted` (def) L236 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
+- `schedule_missing` (def) L253 - Read the images among these that were never read, or whose read was abandoned (e.g.
+
+## services/compliance/media/model_backoff.py (87 lines) - Bounded retries for transient media-model outages after the normal fallback pass.
+- `error_code` (def) L16
+- `transient_failure` (def) L28
+- `fallback_failure` (def) L35
+- `generate` (def) L45 - Try all models immediately, then back off only for temporary server failures.
 
 ## services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - `node` (def) L12

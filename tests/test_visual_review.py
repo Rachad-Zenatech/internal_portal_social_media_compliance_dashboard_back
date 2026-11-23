@@ -13,6 +13,7 @@ from models.compliance.compliance_model import ComplianceCheckRequest
 from postgresql_db.schemas.setup_compliance_schema import BASE_RULES
 from services.compliance.evaluation import compliance_service as cs, visual_review as vr
 from services.compliance.media import image_finding_service as locations
+from services.compliance.media import model_backoff
 from tests.test_baseline_rule_terms import rule_from_seed
 
 
@@ -78,6 +79,29 @@ def test_each_visual_rule_uses_its_normal_penalty(number):
     rule = next(r for r in rules() if r.rule_number == number)
     f = vr._finding(asset(), rule, vr.Assessment(**assessment(number)), "vision-test")
     assert (f.penalty, f.traffic_light) == cs._penalty_and_light(rule)
+
+
+@async_test
+async def test_busy_models_recover_without_marking_visual_review_unavailable():
+    req = ComplianceCheckRequest(text="Industry commentary", audiences=["DEFENSE"])
+    req._visual_media = [asset()]
+    findings = []
+    generate = AsyncMock(side_effect=[RuntimeError("503 UNAVAILABLE"), RuntimeError("503 UNAVAILABLE"), answer()])
+    with (
+        patch.object(vr, "_asset_part", attached),
+        patch.object(vr.image_text_service, "_get_client", return_value=object()),
+        patch.object(vr.image_text_service, "MODELS", ["primary", "fallback"]),
+        patch.object(vr.image_text_service, "RETRY_ROUNDS", 2),
+        patch.object(vr.image_text_service, "RETRY_BUDGET_SEC", 20.),
+        patch.object(vr.image_text_service.ai_observability, "generate", generate),
+        patch.object(model_backoff.asyncio, "sleep", AsyncMock()) as sleep,
+    ):
+        coverage = await vr.review(req, rules(), findings)
+    assert coverage[0]["status"] == "COMPLETED"
+    assert len(findings) == 1 and findings[0].penalty == 35
+    assert findings[0].evaluation.source != "UNAVAILABLE"
+    assert generate.await_count == 3
+    sleep.assert_awaited_once()
 
 
 @pytest.mark.parametrize("changes", [{"confidence": .8}, {"box": []}, {"evidence": ""}, {"box": [0., 0., 1001., 1001.]}])

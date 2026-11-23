@@ -15,13 +15,13 @@ import os
 from typing import Iterable, List, Optional, Set
 from uuid import UUID
 
-import httpx
 from google import genai
 from google.genai import types
 
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.observability import ai_observability
-from services.ai.core.gemini_service import is_rotatable_model_error, without_retired
+from services.ai.core.gemini_service import without_retired
+from services.compliance.media import model_backoff
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,8 @@ MODELS = without_retired([m.strip() for m in os.getenv(
 ).split(",") if m.strip()])
 # The most one read may take before the next model is tried.
 TIMEOUT_SEC = int(os.getenv("IMAGE_TEXT_TIMEOUT_SEC", "60"))
+RETRY_ROUNDS = int(os.getenv("IMAGE_TEXT_RETRY_ROUNDS", "2"))
+RETRY_BUDGET_SEC = float(os.getenv("IMAGE_TEXT_RETRY_BUDGET_SEC", "20"))
 
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 _running: Set[UUID] = set()
@@ -107,25 +109,24 @@ async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: O
 
 
 async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None) -> object:
-    """Ask the first model in MODELS that answers; quota, rate-limit and unavailable-model errors move on to the next.
-    Also used to read PDF scripts (see document_text_service), with its own feature label."""
+    """Try model fallbacks, then use bounded backoff for transient service failures.
+    Shared by visual compliance, image OCR and PDF reads, with each caller's feature label."""
     config = types.GenerateContentConfig(
         response_mime_type="application/json", response_schema=response_schema or RESPONSE_SCHEMA, temperature=0,
         # A request stuck behind "high demand" moves on to the next model instead of hanging.
-        http_options=types.HttpOptions(timeout=TIMEOUT_SEC * 1000),
+        http_options=types.HttpOptions(timeout=TIMEOUT_SEC * 1000, retry_options=types.HttpRetryOptions(attempts=1)),
     )
     client = _get_client()
-    last_error: Optional[Exception] = None
-    for model in MODELS:
-        try:
-            return await ai_observability.generate(client, model=model, contents=contents, config=config, feature=feature)
-        except Exception as e:
-            timed_out = isinstance(e, (httpx.TimeoutException, TimeoutError)) or "timed out" in str(e).lower()
-            if not timed_out and not is_rotatable_model_error(e):
-                raise
-            logger.info("Image text: %s unavailable (%s), trying the next model", model, str(e)[:120])
-            last_error = e
-    raise RuntimeError(f"No image-text model is available right now: {last_error}")
+    async def request(model, timeout, attempt):
+        options = config.http_options.model_copy(update={"timeout": max(1, int(timeout * 1000))})
+        return await ai_observability.generate(
+            client, model=model, contents=contents, config=config.model_copy(update={"http_options": options}),
+            feature=feature, attempt=attempt,
+        )
+
+    return await model_backoff.generate(
+        MODELS, request, timeout_sec=TIMEOUT_SEC, retry_rounds=RETRY_ROUNDS, retry_budget_sec=RETRY_BUDGET_SEC,
+    )
 
 
 def _clean(text: str) -> str:
