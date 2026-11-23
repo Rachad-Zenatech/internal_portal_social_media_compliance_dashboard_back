@@ -39,6 +39,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/database.py (260 lines) - Optional dotenv import for loading .env and local overrides during development
 - postgresql_db/schema_metadata.py (331 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - postgresql_db/schemas/baseline_context_guidance.py (94 lines) - Contextual review guidance applied to baseline compliance rules during schema setup.
+- postgresql_db/schemas/check_snapshots_schema.py (74 lines) - Immutable inputs, results and human feedback for future compliance learning.
 - postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (19 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/pbac_seed.py (204 lines) - Default navigation, permission groups, roles and initial administrators.
@@ -59,7 +60,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_source_claim_inventory_schema.py (14 lines) - Durable claim identification shared by workers and repeated source checks.
 - postgresql_db/schemas/setup_source_links_schema.py (14 lines) - Schema helper for submission source_links column.
 - postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
-- postgresql_db/schemas/setup_submissions_schema.py (295 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+- postgresql_db/schemas/setup_submissions_schema.py (297 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - postgresql_db/schemas/submission_tables_schema.py (471 lines) - Submission table definitions, grouped by the feature records they store.
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
@@ -116,6 +117,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/army_context_review.py (38 lines) - Route Army mentions to Rule 4's AI review without treating a mention as a breach.
 - services/compliance/evaluation/brand_voice_service.py (708 lines) - Brand voice per brand, read from its brand manual.
 - services/compliance/evaluation/branding.py (37 lines) - Company names and the company's exchange/ticker label are identification, not claims.
+- services/compliance/evaluation/check_rule_capture.py (25 lines) - Capture the actual rule definitions used by a check, isolated per async task.
 - services/compliance/evaluation/citation_finder.py (242 lines) - Citation finder: what a post says it got its claims from.
 - services/compliance/evaluation/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
 - services/compliance/evaluation/compliance_check_result.py (117 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
