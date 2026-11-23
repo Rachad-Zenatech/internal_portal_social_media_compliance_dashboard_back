@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/compliance_service.py (1542 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/evaluation/compliance_service.py (1541 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def) L79
 - `_ai_switched_off` (def) L92 - The AI meaning check was turned off on purpose (not a failure).
 - `_ai_viability_enabled` (def) L97
@@ -44,21 +44,21 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `found` (def) L816
 - `_sentences` (def) L884 - The post's sentences worth searching on: long enough to say something, each once, in order, at most `limit`.
 - `_vector_context_for_check` (def) L898 - Query the MongoDB Atlas vector store for:
-- `_full_rule_mode` (def) L1002 - off (default): the trigger phrases and the sentence-by-sentence search pick what the AI reads; auto: also read the post
-- `_looks_like_claims` (def) L1030
-- `_semantic_findings` (def) L1037 - Rules the exact wording missed but the vector store says the post is close to in meaning, confirmed by Gemini.
-- `_passage` (def) L1204 - The sentence a finding's wording sits in, and the sentences around it, for judging it in context.
-- `plain_text_lines` (def) L1222
-- `check_compliance` (def) L1226 - Screen content with scoped rules, contextual judgments, source checks and review penalties.
-- `flagged_tags` (def) L1341 - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
-- `_count_overlaps_once` (def) L1357 - When two rules flag the very same words (e.g.
-    - `spans` (def) L1360
-- `_charge_unsupported_claims` (def) L1377 - Give each claim that needs a source its small penalty.
-    - `claim` (def) L1383
-- `review_penalty` (def) L1408 - What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE).
-- `_charge_review_findings` (def) L1420 - Give each finding a person has to check its points by the model's confidence.
-- `_count_extra_claims` (def) L1439 - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
-- `rulebook_version` (def) L1465 - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
-- `self_test` (def) L1483 - Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable
-- `self_test_all` (def) L1514
-- `get_compliance_stats` (def) L1518 - Retrieve aggregate compliance metrics.
+- `_full_rule_mode` (def) L1002 - always (default): review every post; auto: add a full pass for claims; off: use search-selected rules.
+- `_looks_like_claims` (def) L1029
+- `_semantic_findings` (def) L1036 - Rules the exact wording missed but the vector store says the post is close to in meaning, confirmed by Gemini.
+- `_passage` (def) L1203 - The sentence a finding's wording sits in, and the sentences around it, for judging it in context.
+- `plain_text_lines` (def) L1221
+- `check_compliance` (def) L1225 - Screen content with scoped rules, contextual judgments, source checks and review penalties.
+- `flagged_tags` (def) L1340 - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
+- `_count_overlaps_once` (def) L1356 - When two rules flag the very same words (e.g.
+    - `spans` (def) L1359
+- `_charge_unsupported_claims` (def) L1376 - Give each claim that needs a source its small penalty.
+    - `claim` (def) L1382
+- `review_penalty` (def) L1407 - What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE).
+- `_charge_review_findings` (def) L1419 - Give each finding a person has to check its points by the model's confidence.
+- `_count_extra_claims` (def) L1438 - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
+- `rulebook_version` (def) L1464 - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
+- `self_test` (def) L1482 - Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable
+- `self_test_all` (def) L1513
+- `get_compliance_stats` (def) L1517 - Retrieve aggregate compliance metrics.

@@ -69,7 +69,7 @@ RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-21-unavailable-without-findings|brand-audience-1"
+SCOPE_VERSION = "scope-23-real-vectors-preserve-findings|brand-audience-1"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
@@ -1000,10 +1000,9 @@ _SEMANTIC_SCHEMA: Dict[str, Any] = {
 # find it, and a post the search found nothing for would otherwise never be read at all. Turn it off to go back to the
 # search's picks only (fewer AI calls).
 def _full_rule_mode() -> str:
-    """off (default): the trigger phrases and the sentence-by-sentence search pick what the AI reads; auto: also read the post
-    against every rule when it reads like it makes claims; always: every post. The extra pass costs one AI call per post
-    and, on the test posts, added little over the phrases and the search."""
-    raw = os.getenv("COMPLIANCE_FULL_RULE_PASS", "off").strip().lower()
+    """always (default): review every post; auto: add a full pass for claims; off: use search-selected rules.
+    Exact-content caching preserves repeatability; explicit overrides retain selective modes."""
+    raw = os.getenv("COMPLIANCE_FULL_RULE_PASS", "always").strip().lower()
     if raw in {"1", "true", "yes", "on", "always"}:
         return "always"
     if raw == "auto":
@@ -1071,7 +1070,7 @@ async def _semantic_findings(
         "text": (req.text or "").strip(),
         "brand": req.brand_codes,
         "audience": req.audiences,
-        "rules": sorted(by_number),
+        "rules": [r.model_dump(mode="json") for r in sorted(semantic_rules, key=lambda r: r.rule_number)],
         "notes": vector_notes,
     }
     cache_key = "ai_semantic:" + hashlib.sha256(json.dumps(cache_payload, sort_keys=True).encode("utf-8")).hexdigest()
@@ -1308,10 +1307,10 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     if source_result.ai_failed:
         _ai_incomplete.set(True)
     violations.extend(source_check_service.findings(source_result.checks))
+    violations.extend(getattr(source_result, "unbacked", []))
     violations.extend(source_post_checks.unsourced_image_findings(req.text, source_result.checks))
 
-    # A CONTEXT rule's match is only a candidate: a model reads it in its sentence and decides whether it's a violation,
-    # something a person has to check, a claim that needs a source, or not a breach at all.
+    # Contextual matches are candidates until the evaluator has read their framing.
     exceptions_of = {r.id: r.exception_terms for r in rules}
     for v in violations:
         v.passage, v.context = _passage(match_text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])

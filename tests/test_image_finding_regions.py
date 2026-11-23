@@ -99,6 +99,25 @@ class Localization(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((flag.image_regions[0].x, flag.image_regions[0].y,
                           flag.image_regions[0].w, flag.image_regions[0].h), (0.2, 0.5, 0.5, 0.1))
 
+    async def test_empty_full_image_response_recovers_highlight_from_enlarged_sections(self):
+        flag = finding(status="VIOLATION", terms=["mafia"])
+        zoom = AsyncMock(return_value=[{"finding": 0, "text": "MAFIA", "box": [400, 116, 416, 155]}])
+        with patch.object(regions.image_finding_zoom, "locate", zoom):
+            await self.run_localization([flag], image_text="FLEXFRIDGE MAFIA")
+        zoom.assert_awaited_once()
+        self.assertEqual(len(flag.image_regions), 1)
+        self.assertAlmostEqual(flag.image_regions[0].x, .116)
+        self.assertAlmostEqual(flag.image_regions[0].y, .4)
+        self.assertEqual(flag.status, "VIOLATION")
+
+    async def test_enlarged_sections_still_cannot_highlight_unrelated_words(self):
+        flag = finding(terms=["mafia"])
+        with patch.object(regions.image_finding_zoom, "locate", AsyncMock(return_value=[
+            {"finding": 0, "text": "FLEXFRIDGE", "box": [100, 100, 120, 200]},
+        ])):
+            await self.run_localization([flag], image_text="FLEXFRIDGE MAFIA")
+        self.assertEqual(flag.image_regions, [])
+
     async def test_multiline_phrase_can_have_multiple_boxes(self):
         flag = finding(terms=["Project Agincourt Pathway to the Autonomous Warfare Command"])
         response = {"regions": [
@@ -151,10 +170,11 @@ class Localization(unittest.IsolatedAsyncioTestCase):
     async def test_model_failure_preserves_the_rule_finding(self):
         flag = finding(status="VIOLATION")
         with self.assertLogs(regions.logger, level="WARNING"):
-            await self.run_localization([flag], failure=RuntimeError("model unavailable"))
+            image, _ = await self.run_localization([flag], failure=RuntimeError("model unavailable"))
         self.assertEqual(flag.status, "VIOLATION")
         self.assertEqual(flag.flagged_terms, ["Project Agincourt"])
         self.assertEqual(flag.image_regions, [])
+        self.assertEqual(flag.image_file_ids, [image["id"]])
 
 
 if __name__ == "__main__":

@@ -129,7 +129,8 @@ def _finding(asset, rule, assessment, model):
     return ComplianceViolation(
         rule_id=rule.id, rule_number=rule.rule_number, title=rule.title, category=rule.category,
         severity=rule.severity, traffic_light=light if status == "VIOLATION" else "YELLOW",
-        flagged_terms=[], image_regions=[region] if region and status != "CLEARED" else [], visual_evidence=True,
+        flagged_terms=[], image_file_ids=[] if video else [asset["id"]],
+        image_regions=[region] if region and status != "CLEARED" else [], visual_evidence=True,
         explanation=reason, remediation_guidance=rule.remediation_guidance,
         penalty=penalty if status == "VIOLATION" else 0, status=status,
         passage=a.evidence, context=reason,
@@ -150,10 +151,12 @@ def _merge(findings, finding):
     ranks = {"CLEARED": 0, "NEEDS_REVIEW": 1, "EVIDENCE_REQUIRED": 1, "VIOLATION": 2}
     strength = lambda f: (ranks[f.status], f.evaluation.confidence if f.evaluation else 1.)
     if strength(finding) > strength(existing):
+        finding.image_file_ids.extend(file_id for file_id in existing.image_file_ids if file_id not in finding.image_file_ids)
         finding.image_regions.extend(r for r in existing.image_regions if r not in finding.image_regions)
         finding.explanation += "\n" + existing.explanation
         findings[findings.index(existing)] = finding
     elif finding.status != "CLEARED":
+        existing.image_file_ids.extend(file_id for file_id in finding.image_file_ids if file_id not in existing.image_file_ids)
         existing.visual_evidence = True
         existing.image_regions.extend(r for r in finding.image_regions if r not in existing.image_regions)
         existing.explanation += "\n" + finding.explanation

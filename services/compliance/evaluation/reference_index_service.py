@@ -63,6 +63,7 @@ async def sync_all() -> Dict[str, int]:
     gone = [f"{r['kind']}:{r['id']}" for r in contexts if r["deleted_at"] is not None or not r["is_active"]]
     gone += [f"{RULE_KIND}:{r['id']}" for r in rules if r["deleted_at"] is not None or not r["is_active"]]
     result = await store.upsert(live)
+    await store.ensure_index()  # New model spaces get a separate index; never drop the old one.
     result["removed"] = await store.delete(gone)
     return result
 

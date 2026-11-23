@@ -1,9 +1,9 @@
 """Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on
 (brand voice, company facts, platform norms, audience profiles and, later, past review decisions).
 
-Same setup as the Finance portal: MONGODB_URI, the shared `zenatech_ai` database, Gemini embeddings
-(`gemini-embedding-2`) and an Atlas `vector_index`. This project keeps its documents in its own collection, so it
-never reads or changes other portals' data.
+Uses MONGODB_URI and the shared `zenatech_ai` database. Bedrock uses real Titan embeddings
+and a model/dimension-specific field and index, so old zero vectors and Gemini vectors cannot be mixed.
+This project keeps its documents in its own collection and never changes other portals' data.
 
 Off until MONGODB_URI is set: is_enabled() is False, search() returns nothing and writes are skipped, so nothing
 that uses it can fail because the vector store isn't configured.
@@ -16,7 +16,7 @@ Document shape (one per piece of reference material):
     meta        anything else the caller needs back with a match (e.g. a review's decision and notes); kept up to
                 date on every upsert, even when the text (and so the embedding) is unchanged
     content_hash  skips re-embedding text that hasn't changed
-    embedding   the Gemini embedding vector
+    embedding   legacy Gemini vector; Bedrock vectors have a versioned embedding_<identity> field
 """
 
 import asyncio
@@ -56,10 +56,13 @@ def collection_name() -> str:
 
 
 def index_name() -> str:
-    return _setting("VECTOR_INDEX_NAME", "vector_index")
+    return _setting("VECTOR_INDEX_NAME", "vector_index") + ("_" + _embedding_path() if _uses_bedrock() else "")
 
 
 def embedding_model() -> str:
+    if _uses_bedrock():
+        from services.ai.core.bedrock_embeddings import model_id
+        return model_id()
     return _setting("VECTOR_EMBEDDING_MODEL", "gemini-embedding-2")
 
 
@@ -88,17 +91,21 @@ def _collection():
     return named_collection(collection_name())
 
 
+def _uses_bedrock():
+    from services.ai.core.bedrock_service import is_bedrock_enabled
+    return is_bedrock_enabled()
+
+
+def _embedding_path():
+    from services.ai.core.bedrock_embeddings import vector_path
+    return vector_path() if _uses_bedrock() else "embedding"
+
+
 def _gemini_client() -> Any:
-    # Gemini client (commented out for now, replaced with Bedrock):
-    # global _gemini
-    # if _gemini is None:
-    #     api_key = os.getenv("GEMINI_API_KEY")
-    #     if not api_key:
-    #         raise RuntimeError("GEMINI_API_KEY is not configured, so text can't be embedded.")
-    #     _gemini = genai.Client(api_key=api_key)
-    # return _gemini
-    from services.ai.core.bedrock_service import get_bedrock_client
-    return get_bedrock_client()
+    global _gemini
+    if _gemini is None:
+        _gemini = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    return _gemini
 
 
 # Once Gemini says the embedding quota is used up, embedding calls are skipped until it should be back, instead of
@@ -123,7 +130,11 @@ def note_embedding_error(error: Exception) -> None:
     least EMBEDDING_DAILY_QUOTA_PAUSE_SECONDS (it won't come back within minutes)."""
     global _embed_paused_until
     text = str(error)
-    if "429" not in text and "RESOURCE_EXHAUSTED" not in text:
+    if "AccessDeniedException" in text:
+        _embed_paused_until = max(_embed_paused_until, time.time() + 300)
+        logger.warning("Embedding access denied; pausing calls for 300s. Grant InvokeModel for the embedding model.")
+        return
+    if not any(code in text for code in ("429", "RESOURCE_EXHAUSTED", "ThrottlingException", "ServiceQuotaExceededException")):
         return
     m = re.search(r"'retryDelay': '([0-9.]+)s'", text) or re.search(r"retry in ([0-9.]+)s", text)
     wait = float(m.group(1)) if m else 60.0
@@ -132,30 +143,30 @@ def note_embedding_error(error: Exception) -> None:
     # Wall-clock time, not monotonic: Docker's VM is suspended while the computer sleeps, and a monotonic clock would
     # not count those hours, so a pause until the daily quota resets would outlast the reset.
     _embed_paused_until = max(_embed_paused_until, time.time() + wait)
-    logger.warning("Gemini embedding quota reached; skipping embeddings for %.0fs", wait)
+    logger.warning("Embedding quota reached; skipping embeddings for %.0fs", wait)
 
 
 async def embed(texts: List[str]) -> List[List[float]]:
-    """Embeddings for the texts, in order, batched to keep requests few."""
-    # Gemini embedding (commented out for now; returns placeholder vector until Bedrock embedding is configured):
-    # vectors: List[List[float]] = []
-    # client = _gemini_client()
-    # for start in range(0, len(texts), EMBED_BATCH):
-    #     batch = texts[start:start + EMBED_BATCH]
-    #     contents = [types.Content(parts=[types.Part(text=t)]) for t in batch]
-    #     check_embedding_quota()
-    #     async with span("embedding", "gemini.embed_content", model=embedding_model(), texts=len(batch),
-    #                     chars=sum(len(t) for t in batch)):
-    #         try:
-    #             res = await client.aio.models.embed_content(model=embedding_model(), contents=contents)
-    #         except Exception as e:
-    #             note_embedding_error(e)
-    #             raise
-    #     vectors += [list(e.values or []) for e in res.embeddings or []]
-    # if len(vectors) != len(texts):
-    #     raise RuntimeError(f"Expected {len(texts)} embeddings, got {len(vectors)}")
-    # return vectors
-    return [[0.0] * 256 for _ in texts]
+    """Return real vectors or fail explicitly; placeholders must never count as retrieval."""
+    if not texts:
+        return []
+    check_embedding_quota()
+    try:
+        async with span("embedding", "vector_store.embed", model=embedding_model(), texts=len(texts)):
+            if _uses_bedrock():
+                from services.ai.core.bedrock_embeddings import embed as bedrock_embed
+                return await bedrock_embed(texts)
+            vectors = []
+            for start in range(0, len(texts), EMBED_BATCH):
+                contents = [types.Content(parts=[types.Part(text=t)]) for t in texts[start:start + EMBED_BATCH]]
+                res = await _gemini_client().aio.models.embed_content(model=embedding_model(), contents=contents)
+                vectors.extend(list(e.values or []) for e in res.embeddings or [])
+            if len(vectors) != len(texts) or any(not v or not any(v) for v in vectors):
+                raise RuntimeError("Embedding provider returned missing or zero vectors")
+            return vectors
+    except Exception as error:
+        note_embedding_error(error)
+        raise
 
 
 def _scope(values: Optional[Iterable[str]]) -> List[str]:
@@ -165,7 +176,7 @@ def _scope(values: Optional[Iterable[str]]) -> List[str]:
 
 
 def _hash(text: str, title: str) -> str:
-    return hashlib.sha256(f"{embedding_model()}\n{title}\n{text}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"real-vectors-2:{embedding_model()}:{_embedding_path()}\n{title}\n{text}".encode("utf-8")).hexdigest()
 
 
 @dataclass
@@ -211,7 +222,7 @@ async def upsert(docs: List[VectorDoc]) -> Dict[str, int]:
             "meta": d.meta, "updated_at": now,
         }
         if d.doc_id in vectors:
-            fields.update(content_hash=hashes[d.doc_id], embedding=vectors[d.doc_id], embedding_model=embedding_model())
+            fields.update(content_hash=hashes[d.doc_id], embedding_model=embedding_model(), **{_embedding_path(): vectors[d.doc_id]})
         ops.append(UpdateOne({"_id": d.doc_id}, {"$set": fields}, upsert=True))
     await collection.bulk_write(ops, ordered=False)
     if any(d.kind not in NOT_REFERENCE_KINDS for d in changed):
@@ -264,7 +275,7 @@ async def search(
     """The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
     (or to all of them). Returns [] when the store is off or anything goes wrong, so callers can always go ahead."""
     collection = _collection()
-    if collection is None or not query.strip() or not os.getenv("GEMINI_API_KEY"):
+    if collection is None or not query.strip():
         return []
     filters: List[Dict[str, Any]] = []
     if kinds:
@@ -279,7 +290,7 @@ async def search(
         async with span("retrieval", "vector_store.search", kinds=kinds, limit=limit, min_score=min_score) as s:
             query_vector = (await embed([query]))[0]
             stage: Dict[str, Any] = {
-                "index": index_name(), "path": "embedding", "queryVector": query_vector,
+                "index": index_name(), "path": _embedding_path(), "queryVector": query_vector,
                 "numCandidates": max(50, limit * 10), "limit": limit,
             }
             if filters:
@@ -312,7 +323,7 @@ async def ensure_index() -> Dict[str, Any]:
     dimensions = len((await embed(["dimension probe"]))[0])
     definition = {
         "fields": [
-            {"type": "vector", "path": "embedding", "numDimensions": dimensions, "similarity": "cosine"},
+            {"type": "vector", "path": _embedding_path(), "numDimensions": dimensions, "similarity": "cosine"},
             *({"type": "filter", "path": p} for p in FILTER_PATHS),
         ]
     }

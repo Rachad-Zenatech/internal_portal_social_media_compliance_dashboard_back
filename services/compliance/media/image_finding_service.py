@@ -13,7 +13,7 @@ from google.genai import types
 
 from models.compliance.compliance_model import ImageFindingRegion
 from services.compliance.evaluation.finding_evidence import highlight_terms
-from services.compliance.media import image_text_service
+from services.compliance.media import image_finding_zoom, image_text_service
 
 logger = logging.getLogger(__name__)
 MAX_FALLBACK_REGION_AREA = 0.75
@@ -159,6 +159,9 @@ async def locate_image_findings(images, findings):
                     sum(f.status != "CLEARED" for f in findings), len(candidates))
         if not candidates:
             continue
+        for finding in candidates:
+            if image["id"] not in finding.image_file_ids:
+                finding.image_file_ids.append(image["id"])
         try:
             path = (STORAGE_ROOT / image["storage_path"]).resolve()
             if STORAGE_ROOT not in path.parents or not path.is_file():
@@ -197,25 +200,12 @@ async def locate_image_findings(images, findings):
             if not isinstance(regions, list):
                 logger.warning("Image localization: file=%s model response has no region list", image["id"])
                 continue
-            accepted = 0
-            for item in regions:
-                if not isinstance(item, dict):
-                    continue
-                index = item.get("finding")
-                if type(index) is not int or not 0 <= index < len(unmatched):
-                    continue
-                finding = unmatched[index]
-                if not isinstance(item.get("text"), str):
-                    continue
-                visible = normalized(item["text"])
-                if not overlaps_flagged_text(visible, text, highlight_terms(finding)):
-                    continue
-                region = region_from_box(image["id"], item.get("box"))
-                # A fallback vision model occasionally outlines the creative instead of its words.
-                # Preserve the finding, but do not present that misleading region to a reviewer.
-                if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in finding.image_regions:
-                    finding.image_regions.append(region)
-                    accepted += 1
+            accepted = _attach_regions(image["id"], text, unmatched, regions)
+            missing = {n for n, f in enumerate(unmatched) if not any(r.file_id == image["id"] for r in f.image_regions)}
+            if missing:
+                enlarged = await image_finding_zoom.locate(data, prompt, SCHEMA)
+                enlarged = [item for item in enlarged if type(item.get("finding")) is int and item["finding"] in missing]
+                accepted += _attach_regions(image["id"], text, unmatched, enlarged)
             logger.info("Image localization: file=%s model_regions=%d accepted_regions=%d",
                         image["id"], len(regions), accepted)
             if not accepted:
@@ -224,3 +214,21 @@ async def locate_image_findings(images, findings):
         except Exception:
             # Localization must never lose a valid check or fabricate a highlight.
             logger.warning("Could not locate compliance findings in image %s", image["id"], exc_info=True)
+
+
+def _attach_regions(file_id, text, findings, items):
+    accepted = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        index = item.get("finding")
+        if type(index) is not int or not 0 <= index < len(findings) or not isinstance(item.get("text"), str):
+            continue
+        finding = findings[index]
+        if not overlaps_flagged_text(normalized(item["text"]), text, highlight_terms(finding)):
+            continue
+        region = region_from_box(file_id, item.get("box"))
+        if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in finding.image_regions:
+            finding.image_regions.append(region)
+            accepted += 1
+    return accepted

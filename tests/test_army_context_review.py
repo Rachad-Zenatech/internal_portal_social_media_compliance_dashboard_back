@@ -18,6 +18,18 @@ Source: U.S. Army / army.mil/article/295038
 
 
 class ArmyRoutingTests(unittest.IsolatedAsyncioTestCase):
+    def test_uncertain_clearance_keeps_review_without_marking_the_disclosure(self):
+        from services.compliance.evaluation.finding_evidence import highlight_terms
+        candidate = self.candidate()
+        ce._apply(candidate, ce._Result(id="0", status="NO_VIOLATION", confidence=0.7,
+            matched_text="Conceptual illustration. Not assessed hardware.",
+            reasoning="The disclosure distinguishes the illustration from evaluated hardware."), "test-model", False)
+        finding = candidate.finding
+        self.assertEqual(finding.status, "NEEDS_REVIEW")
+        self.assertEqual(finding.evaluation.model_decision, "NO_VIOLATION")
+        self.assertEqual(finding.penalty, 0)
+        self.assertEqual(highlight_terms(finding), [])
+
     async def test_army_in_any_part_reaches_active_rule4_within_defense_scope(self):
         rule = defense_rules()[0]
         rule.rule_sets = ["ZenaDrone Defense"]

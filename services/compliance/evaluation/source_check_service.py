@@ -40,7 +40,7 @@ from services.ai.observability import ai_observability
 from services.ai.observability.ai_guardrails import screen_input
 from services.ai.core.gemini_service import is_rotatable_model_error, without_retired, model_is_available
 from services.compliance.evaluation import (
-    source_claim_inventory, citation_finder, context_evaluator, newsroom_facts, source_fetch_service, source_passages, source_settings, source_post_checks, source_recheck,
+    source_claim_coverage, source_claim_inventory, citation_finder, context_evaluator, newsroom_facts, source_fetch_service, source_passages, source_settings, source_post_checks, source_recheck,
 )
 # The safeguards on the model's answers live in their own module; these names stay importable from here.
 from services.compliance.evaluation.source_claim_checks import (  # noqa: F401
@@ -57,7 +57,7 @@ from services.compliance.evaluation import source_identity
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v12-combined-post-inventory"
+PROMPT_VERSION = "source-v13-independent-claim-coverage"
 VERSION = f"sources-2|{citation_finder.VERSION}|{PROMPT_VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 # Gemini models (commented out for now, replaced with Bedrock):
@@ -167,6 +167,7 @@ class SourceCheckResult:
     checks: List[SourceCheck] = field(default_factory=list)
     # A source was read but no model could compare it: the check is incomplete (like any other AI step that failed).
     ai_failed: bool = False
+    unbacked: List[ComplianceViolation] = field(default_factory=list)
 
 
 # --- Who published it ------------------------------------------------------------------------------------------------
@@ -221,12 +222,7 @@ async def _ask(model: str, contents: str, guard: Any, *, system_prompt: str = SY
 async def _compare(post_text: str, label: str, title: Optional[str], url: Optional[str], published: Optional[str],
                    source_text: str) -> Tuple[Optional[List[_Result]], Optional[str]]:
     """The model's claim-by-claim answer for one source (None when no model could give one), and the model's name."""
-    try:
-        inventory = await source_claim_inventory.get(
-            post_text, lambda: source_claim_inventory.extract(post_text, _ask, MODELS, MAX_CLAIMS))
-    except Exception:
-        logger.exception("Could not load or save the post claim inventory")
-        return None, None
+    inventory = await source_claim_coverage.identify(post_text, _ask, MODELS, MAX_CLAIMS)
     if inventory is None:
         return None, None
     if not inventory:
@@ -366,7 +362,10 @@ async def run(
     if newsroom:
         reading.append((newsroom[0], newsroom[1]))
 
+    inventory = None
+
     async def compare(check: SourceCheck, material: Tuple[str, str]) -> None:
+        nonlocal inventory
         label, source_text = material
         results, model, incomplete = await source_post_checks.compare_parts(
             text, label, check.title, check.url, check.published, source_text, _compare)
@@ -376,6 +375,8 @@ async def run(
                              else "Some caption or image claims could not be compared with this source. Check again to finish.")
         if results is None:
             return
+        if inventory is None:
+            inventory = [{"claim": claim.claim, "where": claim.where} for claim in results]
         check.model = model
         check.claims = await source_passages.checked_claims(results, source_text)
         if newsroom_facts.is_newsroom(check):
@@ -386,6 +387,7 @@ async def run(
     await asyncio.gather(*(compare(check, material) for check, material in reading if material))
     # The newsroom only shows when it said something about the post's claims.
     result.checks = newsroom_facts.visible_checks([check for check, _ in reading])
+    await source_claim_coverage.complete(result, inventory, text, _ask, MODELS, MAX_CLAIMS)
     return result
 
 

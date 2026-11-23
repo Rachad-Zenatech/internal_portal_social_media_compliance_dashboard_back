@@ -16,6 +16,13 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_stream_round` (def) L136 - One model turn, streamed.
 - `stream` (def) L191 - The SSE events for a prepared chat.
 
+## services/ai/core/bedrock_embeddings.py (52 lines) - Real Titan embeddings, isolated from chat inference profiles and old vector spaces.
+- `model_id` (def) L11
+- `dimensions` (def) L15
+- `vector_path` (def) L22
+- `_embed_one` (def) L27
+- `embed` (def) L43
+
 ## services/ai/core/bedrock_service.py (373 lines) - AWS Bedrock AI Service Adapter.
 - `is_bedrock_enabled` (def) L20 - Return True if AWS Bedrock credentials and profile ID are configured.
 - `get_bedrock_profile_id` (def) L27
@@ -104,31 +111,33 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `store` (def) L172 - Cache an answer for the question of an earlier lookup.
 - `clear` (def) L196 - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
-## services/ai/core/vector_store_service.py (345 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+## services/ai/core/vector_store_service.py (356 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
 - `_setting` (def) L46
 - `database_name` (def) L50
 - `collection_name` (def) L54
 - `index_name` (def) L58
 - `embedding_model` (def) L62
-- `is_enabled` (def) L66
-- `named_collection` (def) L74 - Another collection in the same database, over the same connection, or None when MONGODB_URI isn't set.
-- `_collection` (def) L86 - The project's collection, or None when MONGODB_URI isn't set.
-- `_gemini_client` (def) L91
-- `EmbeddingQuotaExhausted` (class) L110 - The embedding quota is used up; raised without calling Gemini while the pause lasts.
-- `check_embedding_quota` (def) L114 - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
-- `note_embedding_error` (def) L121 - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
-- `embed` (def) L138 - Embeddings for the texts, in order, batched to keep requests few.
-- `_scope` (def) L161 - An empty scope means every value.
-- `_hash` (def) L167
-- `VectorDoc` (class) L172
-    - `doc_id` (def) L183
-- `upsert` (def) L187 - Add or update documents.
-- `delete` (def) L222
-- `delete_kind_except` (def) L232 - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
-- `_reference_changed` (def) L244 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
-- `search` (def) L254 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
-- `ensure_index` (def) L301 - Create the Atlas vector search index on the collection if it doesn't exist.
-- `status` (def) L326 - Whether the store is configured and reachable, and what's in it (no credentials).
+- `is_enabled` (def) L69
+- `named_collection` (def) L77 - Another collection in the same database, over the same connection, or None when MONGODB_URI isn't set.
+- `_collection` (def) L89 - The project's collection, or None when MONGODB_URI isn't set.
+- `_uses_bedrock` (def) L94
+- `_embedding_path` (def) L99
+- `_gemini_client` (def) L104
+- `EmbeddingQuotaExhausted` (class) L117 - The embedding quota is used up; raised without calling Gemini while the pause lasts.
+- `check_embedding_quota` (def) L121 - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
+- `note_embedding_error` (def) L128 - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
+- `embed` (def) L149 - Return real vectors or fail explicitly; placeholders must never count as retrieval.
+- `_scope` (def) L172 - An empty scope means every value.
+- `_hash` (def) L178
+- `VectorDoc` (class) L183
+    - `doc_id` (def) L194
+- `upsert` (def) L198 - Add or update documents.
+- `delete` (def) L233
+- `delete_kind_except` (def) L243 - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
+- `_reference_changed` (def) L255 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
+- `search` (def) L265 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
+- `ensure_index` (def) L312 - Create the Atlas vector search index on the collection if it doesn't exist.
+- `status` (def) L337 - Whether the store is configured and reachable, and what's in it (no credentials).
 
 ## services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - `collection_name` (def) L36
