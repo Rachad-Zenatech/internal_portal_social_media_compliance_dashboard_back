@@ -31,6 +31,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_load_rules` (def) L178
 - `is_ceo_content` (def) L194 - Shaun's own thought leadership: posted through his account or checked against his rule set.
 
+## services/compliance/submissions/check_snapshot_feedback.py (118 lines) - Bind human labels to immutable findings, rejecting feedback after a racing recheck.
+- `decoded` (def) L9
+- `select_finding` (def) L13
+- `validate_link` (def) L26
+- `record` (def) L52
+- `save_verdict` (def) L67
+- `save_request` (def) L89
+- `remove_verdict` (def) L107
+
 ## services/compliance/submissions/check_snapshot_service.py (94 lines) - Freeze check-time inputs and results; live scores remain owned by their existing services.
 - `frozen` (def) L19 - Take a detached JSON copy before an awaited model call can outlive edits.
 - `inputs` (def) L24
@@ -81,29 +90,29 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `remember_all_in_background` (def) L118 - Startup: index verdicts given while the vector store was off or the server was down.
 - `similar` (def) L128 - Past verdicts on this rule for wording like `text`, closest first, as {score, verdict, reason, note, passage}.
 
-## services/compliance/submissions/flag_review_service.py (456 lines) - Reviewers' calls on automated compliance flags.
+## services/compliance/submissions/flag_review_service.py (444 lines) - Reviewers' calls on automated compliance flags.
 - `_json` (def) L36
 - `_out` (def) L40
-- `_creator_request_out` (def) L60
-- `creator_requests_for` (def) L70
-- `request_dismissal` (def) L80
-- `approve_creator_request` (def) L103
-- `reject_creator_request` (def) L114 - Decline the request and use the normal review decision to return the post for changes.
-- `list_for` (def) L149
-- `_reviewable` (def) L157 - The submission, if this user may make calls on its flags now: a reviewer, while it's in review.
-- `dismiss` (def) L171
-- `_save_verdict` (def) L218 - Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag.
-- `undo` (def) L240
-- `_verdict_out` (def) L265
-- `verdicts_for` (def) L279 - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
-- `confirm` (def) L290 - A reviewer says a flag is right.
-- `unconfirm` (def) L324
-- `score_after_dismissals` (def) L338 - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
-- `ApprovalStanding` (class) L361
-    - `score_too_low` (def) L371
-- `approval_standing` (def) L375 - Per submission, what stands between its current version and approval: open critical flags and the score
-- `open_critical_counts` (def) L422 - Per submission: critical (red) flags on its current version that nobody has dismissed.
-- `rule_stats` (def) L427 - How often each rule flagged a submitted version, and how often reviewers dismissed it.
+- `_creator_request_out` (def) L61
+- `creator_requests_for` (def) L72
+- `request_dismissal` (def) L82
+- `approve_creator_request` (def) L100
+- `reject_creator_request` (def) L111 - Decline the request and use the normal review decision to return the post for changes.
+- `list_for` (def) L146
+- `_reviewable` (def) L154 - The submission, if this user may make calls on its flags now: a reviewer, while it's in review.
+- `dismiss` (def) L168
+- `_save_verdict` (def) L217 - Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag.
+- `undo` (def) L225
+- `_verdict_out` (def) L251
+- `verdicts_for` (def) L266 - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
+- `confirm` (def) L277 - A reviewer says a flag is right.
+- `unconfirm` (def) L311
+- `score_after_dismissals` (def) L326 - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
+- `ApprovalStanding` (class) L349
+    - `score_too_low` (def) L359
+- `approval_standing` (def) L363 - Per submission, what stands between its current version and approval: open critical flags and the score
+- `open_critical_counts` (def) L410 - Per submission: critical (red) flags on its current version that nobody has dismissed.
+- `rule_stats` (def) L415 - How often each rule flagged a submitted version, and how often reviewers dismissed it.
 
 ## services/compliance/submissions/image_provenance_service.py (81 lines) - Require an explicit Yes/No disclosure for attached post images.
 - `is_confirmed` (def) L14

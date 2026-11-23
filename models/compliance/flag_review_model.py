@@ -19,11 +19,13 @@ REASON_LABELS = {
 
 
 class FlagDismissRequest(BaseModel):
+    finding_snapshot_id: Optional[UUID] = None
     reason: FlagDismissReason
     note: Optional[str] = Field(None, max_length=500)
 
 
 class FlagReview(BaseModel):
+    finding_snapshot_id: Optional[UUID] = None
     rule_id: UUID
     rule_number: str
     version_number: int
@@ -51,12 +53,14 @@ FindingVerdictKind = Literal["CORRECT", "OVER_FLAGGED"]
 
 
 class FlagConfirmRequest(BaseModel):
+    finding_snapshot_id: Optional[UUID] = None
     note: Optional[str] = Field(None, max_length=500)
 
 
 class FindingVerdict(BaseModel):
     """A reviewer's call on a finding, kept as a labelled example: the flag was right, or it was a false alarm."""
     rule_id: UUID
+    finding_snapshot_id: Optional[UUID] = None
     rule_number: str
     version_number: int
     verdict: FindingVerdictKind

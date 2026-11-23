@@ -27,7 +27,7 @@ from models.compliance.flag_review_model import (
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.core.audit_service import log_audit_event
-from services.compliance.submissions import finding_precedent_service
+from services.compliance.submissions import finding_precedent_service, check_snapshot_feedback
 
 # The least rulebook score (counting only flags nobody has dismissed) content needs to be approved.
 MIN_APPROVAL_SCORE = max(90, int(os.getenv("MIN_APPROVAL_SCORE", "90")))
@@ -39,6 +39,7 @@ def _json(value: Any) -> Any:
 
 def _out(r: Dict[str, Any]) -> FlagReview:
     return FlagReview(
+        finding_snapshot_id=r.get("finding_snapshot_id"),
         rule_id=r["rule_id"], rule_number=r["rule_number"], version_number=r["version_number"],
         flagged_terms=list(r["flagged_terms"] or []), traffic_light=r["traffic_light"], reason=r["reason"],
         reason_label=REASON_LABELS.get(r["reason"], r["reason"]), note=r["note"],
@@ -59,6 +60,7 @@ _CREATOR_REQUEST_SELECT = """
 
 def _creator_request_out(r: Dict[str, Any]) -> CreatorFlagDismissalRequest:
     return CreatorFlagDismissalRequest(
+        finding_snapshot_id=r.get("finding_snapshot_id"),
         rule_id=r["rule_id"], rule_number=r["rule_number"], version_number=r["version_number"],
         flagged_terms=list(r["flagged_terms"] or []), traffic_light=r["traffic_light"], reason=r["reason"],
         reason_label=REASON_LABELS.get(r["reason"], r["reason"]), note=r["note"],
@@ -83,29 +85,24 @@ async def request_dismissal(submission_id: UUID, rule_id: UUID, user_id: UUID, r
     if row["created_by"] != user_id:
         raise HTTPException(status_code=403, detail="Only the creator can request a flag dismissal")
     check = _json(row["latest_check"]) or {}
-    finding = next((v for v in check.get("violations") or [] if str(v.get("rule_id")) == str(rule_id)), None)
+    finding = check_snapshot_feedback.select_finding(check, rule_id, req.finding_snapshot_id)
     if not finding:
         raise HTTPException(status_code=404, detail="That rule is not flagged on this version")
     note = (req.note or "").strip() or None
     if req.reason in {"OTHER", "EVIDENCE_ON_FILE"} and not note:
         raise HTTPException(status_code=422, detail="Add a note explaining the requested dismissal")
     async with get_pool().acquire() as conn:
-        await conn.execute(
-            """INSERT INTO creator_flag_dismissal_requests (submission_id, version_number, rule_id, rule_number, flagged_terms, traffic_light, reason, note, requested_by)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (submission_id, version_number, rule_id) DO UPDATE SET
-               reason=EXCLUDED.reason, note=EXCLUDED.note, requested_by=EXCLUDED.requested_by, requested_at=NOW(), status='PENDING'""",
-            submission_id, row["current_version"], rule_id, finding.get("rule_number"), list(finding.get("flagged_terms") or []), finding.get("traffic_light") or "YELLOW", req.reason, note, user_id,
-        )
+        await check_snapshot_feedback.save_request(conn, row, rule_id, finding, req, note, user_id)
     saved = await fetch_one(_CREATOR_REQUEST_SELECT + " WHERE r.submission_id=$1 AND r.version_number=$2 AND r.rule_id=$3", submission_id, row["current_version"], rule_id)
     return _creator_request_out(saved)
 
 
 async def approve_creator_request(submission_id: UUID, rule_id: UUID, user_id: UUID) -> FlagReview:
     row = await _reviewable(submission_id, user_id)
-    request = await fetch_one("SELECT reason, note FROM creator_flag_dismissal_requests WHERE submission_id=$1 AND version_number=$2 AND rule_id=$3 AND status='PENDING'", submission_id, row["current_version"], rule_id)
+    request = await fetch_one("SELECT reason, note, finding_snapshot_id FROM creator_flag_dismissal_requests WHERE submission_id=$1 AND version_number=$2 AND rule_id=$3 AND status='PENDING'", submission_id, row["current_version"], rule_id)
     if not request:
         raise HTTPException(status_code=404, detail="No pending creator dismissal request for this flag")
-    review = await dismiss(submission_id, rule_id, user_id, FlagDismissRequest(reason=request["reason"], note=request["note"]))
+    review = await dismiss(submission_id, rule_id, user_id, FlagDismissRequest(reason=request["reason"], note=request["note"], finding_snapshot_id=request.get("finding_snapshot_id")))
     async with get_pool().acquire() as conn:
         await conn.execute("UPDATE creator_flag_dismissal_requests SET status='APPROVED' WHERE submission_id=$1 AND version_number=$2 AND rule_id=$3", submission_id, row["current_version"], rule_id)
     return review
@@ -171,7 +168,7 @@ async def _reviewable(submission_id: UUID, user_id: UUID) -> Dict[str, Any]:
 async def dismiss(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagDismissRequest) -> FlagReview:
     row = await _reviewable(submission_id, user_id)
     check = _json(row["latest_check"]) or {}
-    v = next((v for v in check.get("violations") or [] if str(v.get("rule_id")) == str(rule_id)), None)
+    v = check_snapshot_feedback.select_finding(check, rule_id, req.finding_snapshot_id)
     if not v:
         raise HTTPException(status_code=404, detail="That rule isn't flagged on the version in review")
     note = (req.note or "").strip() or None
@@ -185,13 +182,15 @@ async def dismiss(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagDi
             await conn.execute(
                 """
                 INSERT INTO flag_reviews
-                    (submission_id, version_number, rule_id, rule_number, flagged_terms, traffic_light, reason, note, decided_by)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    (submission_id, version_number, rule_id, rule_number, flagged_terms, traffic_light, reason, note, decided_by, finding_snapshot_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 ON CONFLICT (submission_id, version_number, rule_id) DO UPDATE SET
-                    reason = EXCLUDED.reason, note = EXCLUDED.note, decided_by = EXCLUDED.decided_by, decided_at = NOW()
+                    reason = EXCLUDED.reason, note = EXCLUDED.note, decided_by = EXCLUDED.decided_by, decided_at = NOW(),
+                    finding_snapshot_id = EXCLUDED.finding_snapshot_id
                 """,
                 submission_id, row["current_version"], rule_id, v.get("rule_number"), list(v.get("flagged_terms") or []),
                 v.get("traffic_light") or "YELLOW", req.reason, note, user_id,
+                UUID(v["finding_snapshot_id"]) if v.get("finding_snapshot_id") else None,
             )
             # "The evidence is on file" means the flag was right to ask, so it's kept as a correct flag, not a false alarm.
             verdict = "CORRECT" if req.reason == "EVIDENCE_ON_FILE" else "OVER_FLAGGED"
@@ -218,38 +217,25 @@ async def dismiss(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagDi
 async def _save_verdict(conn, submission_id: UUID, version: int, rule_id: UUID, finding: Dict[str, Any], verdict: str,
                         reason: Optional[str], note: Optional[str], user_id: UUID) -> UUID:
     """Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag."""
-    evaluation = finding.get("evaluation") or {}
-    return await conn.fetchval(
-        """
-        INSERT INTO finding_verdicts
-            (submission_id, version_number, rule_id, rule_number, verdict, reason, note, passage, context,
-             flagged_terms, finding_status, ai_decision, decided_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        ON CONFLICT (submission_id, version_number, rule_id) DO UPDATE SET
-            verdict = EXCLUDED.verdict, reason = EXCLUDED.reason, note = EXCLUDED.note, passage = EXCLUDED.passage,
-            context = EXCLUDED.context, flagged_terms = EXCLUDED.flagged_terms, finding_status = EXCLUDED.finding_status,
-            ai_decision = EXCLUDED.ai_decision, decided_by = EXCLUDED.decided_by, decided_at = NOW()
-        RETURNING id
-        """,
-        submission_id, version, rule_id, finding.get("rule_number"), verdict, reason, note, finding.get("passage"),
-        finding.get("context"), list(finding.get("flagged_terms") or []), finding.get("status") or "VIOLATION",
-        evaluation.get("decision"), user_id,
+    return await check_snapshot_feedback.save_verdict(
+        conn, submission_id, version, rule_id, finding, verdict, reason, note, user_id,
     )
 
 
 async def undo(submission_id: UUID, rule_id: UUID, user_id: UUID) -> None:
     row = await _reviewable(submission_id, user_id)
-    removed = await fetch_one(
-        "DELETE FROM flag_reviews WHERE submission_id = $1 AND version_number = $2 AND rule_id = $3 RETURNING rule_number",
-        submission_id, row["current_version"], rule_id,
-    )
-    if not removed:
-        raise HTTPException(status_code=404, detail="That flag isn't dismissed")
-    gone = await fetch_one(
-        "DELETE FROM finding_verdicts WHERE submission_id = $1 AND version_number = $2 AND rule_id = $3 "
-        "AND verdict = 'OVER_FLAGGED' RETURNING id",
-        submission_id, row["current_version"], rule_id,
-    )
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            removed = await conn.fetchrow(
+                "DELETE FROM flag_reviews WHERE submission_id = $1 AND version_number = $2 AND rule_id = $3 RETURNING rule_number",
+                submission_id, row["current_version"], rule_id,
+            )
+            if not removed:
+                raise HTTPException(status_code=404, detail="That flag isn't dismissed")
+            gone = await check_snapshot_feedback.remove_verdict(
+                conn, submission_id, row["current_version"], rule_id, "OVER_FLAGGED", user_id,
+            )
     if gone:
         finding_precedent_service.forget_soon(gone["id"])
     pool = get_pool()
@@ -264,6 +250,7 @@ async def undo(submission_id: UUID, rule_id: UUID, user_id: UUID) -> None:
 
 def _verdict_out(r: Dict[str, Any]) -> FindingVerdict:
     return FindingVerdict(
+        finding_snapshot_id=r.get("finding_snapshot_id"),
         rule_id=r["rule_id"], rule_number=r["rule_number"], version_number=r["version_number"], verdict=r["verdict"],
         reason=r["reason"], reason_label=REASON_LABELS.get(r["reason"]) if r["reason"] else None, note=r["note"],
         decided_by_name=r.get("decided_by_name"), decided_at=r["decided_at"],
@@ -292,7 +279,7 @@ async def confirm(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagCo
     score or the flag changes."""
     row = await _reviewable(submission_id, user_id)
     check = _json(row["latest_check"]) or {}
-    v = next((v for v in check.get("violations") or [] if str(v.get("rule_id")) == str(rule_id)), None)
+    v = check_snapshot_feedback.select_finding(check, rule_id, req.finding_snapshot_id)
     if not v:
         raise HTTPException(status_code=404, detail="That rule isn't flagged on the version in review")
     if await fetch_one(
@@ -323,11 +310,12 @@ async def confirm(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagCo
 
 async def unconfirm(submission_id: UUID, rule_id: UUID, user_id: UUID) -> None:
     row = await _reviewable(submission_id, user_id)
-    gone = await fetch_one(
-        "DELETE FROM finding_verdicts WHERE submission_id = $1 AND version_number = $2 AND rule_id = $3 "
-        "AND verdict = 'CORRECT' RETURNING id, rule_number",
-        submission_id, row["current_version"], rule_id,
-    )
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            gone = await check_snapshot_feedback.remove_verdict(
+                conn, submission_id, row["current_version"], rule_id, "CORRECT", user_id,
+            )
     if not gone:
         raise HTTPException(status_code=404, detail="That flag isn't marked as right")
     finding_precedent_service.forget_soon(gone["id"])

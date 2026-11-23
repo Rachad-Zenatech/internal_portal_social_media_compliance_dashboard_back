@@ -198,12 +198,13 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/sentiment/media.py (68 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/submissions/analysis_progress_service.py (195 lines) - How long a post's rulebook check has left.
 - services/compliance/submissions/approval_path_service.py (197 lines) - Approval paths: who gives final approval for which content.
+- services/compliance/submissions/check_snapshot_feedback.py (118 lines) - Bind human labels to immutable findings, rejecting feedback after a racing recheck.
 - services/compliance/submissions/check_snapshot_service.py (94 lines) - Freeze check-time inputs and results; live scores remain owned by their existing services.
 - services/compliance/submissions/creator_dismissal_service.py (66 lines) - Creator dismissal requests that must follow a submission into review.
 - services/compliance/submissions/delegation_service.py (214 lines) - Review delegation: a reviewer hands a post in review to someone else.
 - services/compliance/submissions/duplicate_service.py (237 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
 - services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
-- services/compliance/submissions/flag_review_service.py (456 lines) - Reviewers' calls on automated compliance flags.
+- services/compliance/submissions/flag_review_service.py (444 lines) - Reviewers' calls on automated compliance flags.
 - services/compliance/submissions/image_provenance_service.py (81 lines) - Require an explicit Yes/No disclosure for attached post images.
 - services/compliance/submissions/image_source_checks.py (102 lines) - Find candidate sources while keeping each source's compliance verdict separate.
 - services/compliance/submissions/image_source_search.py (185 lines) - Find a cited source on the web: Gemini Google Search grounding first, then search APIs (Serper or Google CSE) when configured, then the s...
