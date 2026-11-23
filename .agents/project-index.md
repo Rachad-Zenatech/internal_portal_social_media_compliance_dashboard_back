@@ -39,7 +39,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/database.py (260 lines) - Optional dotenv import for loading .env and local overrides during development
 - postgresql_db/schema_metadata.py (331 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - postgresql_db/schemas/baseline_context_guidance.py (94 lines) - Contextual review guidance applied to baseline compliance rules during schema setup.
-- postgresql_db/schemas/check_snapshots_schema.py (76 lines) - Immutable inputs, results and human feedback for future compliance learning.
+- postgresql_db/schemas/check_snapshots_schema.py (77 lines) - Immutable inputs, results and human feedback for future compliance learning.
 - postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (19 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/pbac_seed.py (204 lines) - Default navigation, permission groups, roles and initial administrators.

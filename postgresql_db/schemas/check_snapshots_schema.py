@@ -29,6 +29,7 @@ async def ensure_check_snapshots(conn) -> None:
             ON compliance_finding_snapshots(check_snapshot_id);
         CREATE TABLE IF NOT EXISTS compliance_feedback_events (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            event_sequence BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
             finding_snapshot_id UUID NOT NULL REFERENCES compliance_finding_snapshots(id),
             submission_version INT NOT NULL,
             verdict TEXT NOT NULL CHECK (verdict IN ('CORRECT', 'OVER_FLAGGED', 'RETRACTED')),

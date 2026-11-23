@@ -67,6 +67,7 @@ class ScriptSourceIntegration(unittest.IsolatedAsyncioTestCase):
         from services.compliance.evaluation import script_review_service as scripts
 
         with patch.object(scripts.subs, "check_request") as request, \
+             patch("services.compliance.evaluation.script_compliance_check.check_snapshot_service.save", AsyncMock(return_value={})), \
              patch("services.compliance.evaluation.script_compliance_check.check_compliance", AsyncMock(return_value=SimpleNamespace(model_dump=lambda **_: {}, ai_unavailable=False))):
             await scripts.check_text({"title": "Project update"}, "Eight projects.\n" + FOOTER)
         self.assertEqual(request.call_args.args[1], "Project update\n\nEight projects.")
