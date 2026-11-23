@@ -4,11 +4,11 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/reference_index_service.py (102 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
+## services/compliance/evaluation/reference_index_service.py (103 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
 - `_lines` (def) L27
 - `_context_doc` (def) L31
 - `_rule_doc` (def) L41
 - `sync_all` (def) L56
-- `sync_soon` (def) L70 - Re-sync in the background after a change (a change made while a sync is running triggers one more).
-    - `run` (def) L77
-- `search` (def) L93
+- `sync_soon` (def) L71 - Re-sync in the background after a change (a change made while a sync is running triggers one more).
+    - `run` (def) L78
+- `search` (def) L94

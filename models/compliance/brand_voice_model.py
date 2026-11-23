@@ -56,3 +56,12 @@ class BrandVoice(BrandVoiceIn):
     updated_by_name: Optional[str] = None
     # The viewer may upload a manual or edit this brand's voice.
     can_edit: bool = False
+
+
+class BrandManualSection(BaseModel):
+    """A PDF page under its printed heading; text is never summarised or cut off."""
+    page: int
+    title: str
+    text: str
+    width: float
+    height: float

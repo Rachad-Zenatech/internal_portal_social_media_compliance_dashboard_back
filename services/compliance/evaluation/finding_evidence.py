@@ -1,7 +1,7 @@
 """Use a finding's judged evidence consistently across image, video and text locations."""
 import re
 
-VERSION = "highlight-evidence-1"
+VERSION = "highlight-evidence-3-clearance-quotes"
 
 
 def _value(item, key, default=None):
@@ -18,7 +18,10 @@ def _clean(text):
 
 def highlight_terms(finding):
     """Prefer the judged passage; never fall back to its generic trigger in another location."""
-    matched = _clean(_value(_value(finding, "evaluation"), "matched_text"))
+    evaluation = _value(finding, "evaluation")
+    if _value(evaluation, "source") == "ADJUSTED" and _value(evaluation, "model_decision") == "NO_VIOLATION":
+        return []  # The quote supports clearance, not the finding retained by a safeguard.
+    matched = _clean(_value(evaluation, "matched_text"))
     passage = _clean(_value(finding, "passage"))
     passage = passage if len(passage) <= 400 else ""
     terms = _value(finding, "flagged_terms", []) or []

@@ -67,10 +67,42 @@ async def test_no_ocr_keyword_needed_and_post_context_reaches_model():
     assert (f.rule_number, f.penalty, f.status) == ("Rule 11", 35, "VIOLATION")
     assert f.evaluation.confidence == .96 and f.evaluation.model == "vision-test"
     assert f.flagged_terms == [] and f.image_regions[0].file_id == req._visual_media[0]["id"]
-    assert coverage[0]["status"] == "COMPLETED" and len(coverage[0]["assessments"]) == 5
+    assert generate.await_args.kwargs["models"] == vr.MODELS
+    assert coverage[0]["status"] == "COMPLETED" and len(coverage[0]["assessments"]) == len(rules())
     prompt = generate.call_args.args[0][1]
     assert req.text in prompt and '"audiences": ["DEFENSE"]' in prompt
     assert all(r.summary in prompt for r in rules())
+
+
+@async_test
+async def test_crime_word_on_plate_is_reviewed_when_extracted_text_missed_it():
+    req = ComplianceCheckRequest(text="Cold storage wherever the mission goes.")
+    req._visual_media = [asset()]
+    response = answer(**{
+        "Rule 11": {"status": "CLEARED", "evidence": "", "box": []},
+        "Rule 28": {"status": "VIOLATION", "evidence": "MAFIA is readable on the rear licence plate",
+                    "reasoning": "The rule prohibits crime references on vehicle plates.", "box": [100, 200, 300, 400]},
+    })
+    findings = []
+    with patch.object(vr, "_asset_part", attached), patch.object(vr.image_text_service, "_generate", AsyncMock(return_value=response)):
+        coverage = await vr.review(req, rules(), findings)
+    assert coverage[0]["status"] == "COMPLETED"
+    assert [(f.rule_number, f.status, f.penalty) for f in findings] == [("Rule 28", "VIOLATION", 20)]
+    assert findings[0].visual_evidence and findings[0].image_regions
+    assert findings[0].image_file_ids == [req._visual_media[0]["id"]]
+
+
+@async_test
+async def test_omitted_crime_rule_makes_visual_coverage_unavailable():
+    req = ComplianceCheckRequest(text="Cold storage")
+    req._visual_media = [asset()]
+    response = answer()
+    payload = json.loads(response.text)
+    payload["assessments"] = [a for a in payload["assessments"] if a["rule_number"] != "Rule 28"]
+    response.text = json.dumps(payload)
+    with patch.object(vr, "_asset_part", attached), patch.object(vr.image_text_service, "_generate", AsyncMock(return_value=response)):
+        coverage = await vr.review(req, rules(), [])
+    assert coverage[0]["status"] == "UNAVAILABLE"
 
 
 @pytest.mark.parametrize("number", sorted(vr.RULE_NUMBERS))
@@ -199,10 +231,10 @@ async def test_visual_result_changes_the_saved_compliance_score_and_coverage(fai
     ):
         result = await cs.check_compliance(req)
     assert result.ai_unavailable is unavailable
-    assert result.score == (100 if unavailable else 65)
-    assert result.blocked is (not unavailable)
+    assert result.score == (100 if failure == "quota" else 65)
+    assert result.blocked is (failure != "quota")
     assert not result.is_compliant
-    if unavailable:
+    if failure == "quota":
         assert result.violations == []
         assert (result.violations_count, result.review_count, result.evidence_count) == (0, 0, 0)
         assert result.traffic_light == "YELLOW"
@@ -214,7 +246,7 @@ async def test_visual_result_changes_the_saved_compliance_score_and_coverage(fai
 
 
 @async_test
-async def test_source_outage_hides_partial_breaches_and_image_disclosure_penalties():
+async def test_source_outage_preserves_completed_findings_and_disclosure_penalties():
     req = ComplianceCheckRequest(text="Product illustration", audiences=["DEFENSE"],
                                  content_parts=["imagery"], ai_generated_images=True)
     selected = rules() + [rule_from_seed(seed) for seed in BASE_RULES if seed["rule_number"] == "Rule 9"]
@@ -229,10 +261,9 @@ async def test_source_outage_hides_partial_breaches_and_image_disclosure_penalti
     ):
         result = await cs.check_compliance(req)
     assert result.ai_unavailable and not result.is_compliant
-    assert result.violations == [] and not result.blocked
-    assert (result.violations_count, result.review_count, result.evidence_count, result.cleared_count) == (0, 0, 0, 0)
-    assert result.score == result.raw_score == 100
-    assert result.traffic_light == "YELLOW"
+    assert {v.rule_number for v in result.violations} == {"Rule 11", "Rule 9"}
+    assert result.score == result.raw_score < 100
+    assert result.traffic_light != "GREEN"
     assert "could not complete" in result.recommendations[0]
 
 

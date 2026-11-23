@@ -25,6 +25,7 @@ guidance for how this team reads the rule, not proof: the safeguards above still
 them only when the new passage is really the same kind of case.
 """
 
+from services.ai.core import gemini_service, compliance_request_policy
 import asyncio
 import hashlib
 import json
@@ -49,7 +50,7 @@ from services.shared.core.cache_service import AsyncInMemoryCache
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused.
-PROMPT_VERSION = "context-v6-army-context"
+PROMPT_VERSION = "context-v8-evidence-role"
 # Gemini models (commented out for now, replaced with Bedrock):
 # MODELS = without_retired([m.strip() for m in os.getenv(
 #     "CONTEXT_EVAL_MODELS",
@@ -101,6 +102,14 @@ How to judge:
 - An Army mention is a request to review context, not proof of a breach. For Rule 4, examine the complete post:
   distinguish source attribution and explicit denials from claims that the Army assessed, selected or endorsed the
   company's product. Do not require a government-visual disclaimer merely because an agency is named.
+  Require affirmative evidence of an endorsement implication: quote the actual company/product relationship claim,
+  or identify a specific relevant government visual cue supplied in the evidence. Company branding plus a government
+  source citation is not sufficient, especially when the post explicitly denies evaluation or endorsement and labels
+  the visual as conceptual/not assessed hardware. In that case return NO_VIOLATION unless another passage contradicts
+  the denial or specific government imagery independently triggers the rule. A disclosure does not excuse a separate
+  affirmative endorsement claim. Do not invent spatial relationships from flattened image text.
+  Unverified source details, assessment dates or whose equipment an article discusses belong to substantiation
+  review (Rule 18); they do not establish Rule 4 without an affirmative endorsement implication in the post.
 - For required-disclaimer findings, count an approved label or close wording visibly printed on the image or in the
   caption. A private creator declaration of AI use does not replace the rule's required public label.
   Still evaluate separate claims that generated imagery depicts a real operation or endorsement.
@@ -264,12 +273,16 @@ async def _judge(batch: List[Tuple[int, Candidate]], guard: Any) -> Tuple[Dict[i
     remaining = list(batch)
     answers: Dict[int, _Result] = {}
     answered_by: Optional[str] = None
-    # Two passes over the models: a timeout or a busy model is often fine a few seconds later, and a finding that no model
-    # read is left for a person, so it is worth one more try.
+    models = compliance_request_policy.text_models(MODELS)
+    # Keep partial judgments, but do not immediately repeat known provider failures.
     for sweep in range(2):
+        if not any(gemini_service.model_is_available(model) for model in models):
+            break
         if sweep:
             await asyncio.sleep(RETRY_PAUSE_SEC)
-        for model in MODELS:
+        for model in models:
+            if not gemini_service.model_is_available(model):
+                continue
             try:
                 response = await _ask(model, [_item(i, c) for i, c in remaining], guard)
             except Exception as e:
@@ -349,7 +362,7 @@ def _apply(c: Candidate, result: Optional[_Result], model: Optional[str], inject
         status, source = "VIOLATION", "ADJUSTED"
         reasoning += " (A critical rule isn't let go on an answer this uncertain, so it stays a violation until a person dismisses it.)"
     f.evaluation = ContextEvaluation(
-        decision=status, matched_text=matched, subject=(result.subject or None), reasoning=reasoning,
+        decision=status, model_decision=result.status, matched_text=matched, subject=(result.subject or None), reasoning=reasoning,
         confidence=round(result.confidence, 2), recommended_action=(result.recommended_action or None),
         rule_decision=rule_decision, source=source, model=model,
     )

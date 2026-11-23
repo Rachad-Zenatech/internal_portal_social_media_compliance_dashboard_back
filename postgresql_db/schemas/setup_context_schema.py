@@ -5,6 +5,7 @@ import json
 import logging
 
 from postgresql_db.database import get_pool
+from postgresql_db.schemas.zenatech_brand_guideline import ZENATECH_GUIDELINE_ENTRIES
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ BRAND_MANUAL = "ZenaTech Brand Manual"
 
 # Starter entries. Each is seeded only if its key has never existed, so edits (and removals) stick.
 SEED_ENTRIES = [
+    *ZENATECH_GUIDELINE_ENTRIES,
     # ---- Brand voice: thought leadership accounts (from the ZenaTech Brand Manual) ----
     # The manual is a visual identity guide (colours, typefaces, logo); its words are kept as written, and the
     # voice entry comes from the Defense Thought Leadership Rulebook's voice standard.
@@ -426,7 +428,7 @@ _SCHEMA_SQL = """
 """
 
 
-async def _seed_starter_entries(conn) -> None:
+async def _seed_starter_entries(conn, entries=None) -> None:
     """The starter entries, added once each (by their key); what people edit or turn off is left alone."""
     await conn.execute(
         """
@@ -443,7 +445,7 @@ async def _seed_starter_entries(conn) -> None:
         )
         ON CONFLICT (seed_key) DO NOTHING
         """,
-        json.dumps(SEED_ENTRIES),
+        json.dumps(SEED_ENTRIES if entries is None else entries),
     )
 
 

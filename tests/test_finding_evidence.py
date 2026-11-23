@@ -17,7 +17,7 @@ def finding(matched="ARMY ASSESSMENT", passage="ARMY ASSESSMENT"):
     return SimpleNamespace(
         flagged_terms=["army"], passage=passage,
         evaluation=SimpleNamespace(matched_text=matched), status="NEEDS_REVIEW",
-        image_regions=[], exception_terms=[], penalty=18, visual_evidence=False,
+        image_regions=[], image_file_ids=[], exception_terms=[], penalty=18, visual_evidence=False,
     )
 
 
@@ -63,6 +63,15 @@ class EvidenceTerms(unittest.TestCase):
 
 
 class ImageEvidenceLocalization(unittest.IsolatedAsyncioTestCase):
+    async def test_uncertain_clearance_discards_old_disclosure_box_without_relocalizing(self):
+        flag = finding("Illustrative schematic, not assessed hardware.", "ARMY")
+        flag.evaluation.source = "ADJUSTED"
+        flag.evaluation.model_decision = "NO_VIOLATION"
+        generated = await self.localize(flag, [], {"regions": []})
+        generated.assert_not_awaited()
+        self.assertEqual(flag.image_regions, [])
+        self.assertEqual(flag.status, "NEEDS_REVIEW")
+
     async def localize(self, flag, words, response):
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, "image.jpg").write_bytes(b"image")

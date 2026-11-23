@@ -142,7 +142,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `result` (def) L70
 - `sanitize_caption_html` (def) L77 - The caption HTML with only safe formatting left.
 
-## services/compliance/media/image_finding_service.py (227 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+## services/compliance/media/image_finding_service.py (235 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - `normalized` (def) L32
 - `text_spans` (def) L36 - Whole-word occurrences in normalized OCR text, including text that wraps over lines.
 - `overlaps_flagged_text` (def) L44 - A returned line may include context on either side of the flagged words.
@@ -151,13 +151,20 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_ocr_word_boxes` (def) L81 - Return Tesseract word boxes in Gemini's 0--1000 coordinate system when available.
 - `_ocr_regions` (def) L117 - Find flagged phrases in OCR words and return one tight region per affected text line.
 - `locate_image_findings` (def) L143 - Locate flagged wording, including warnings that still need evidence.
+- `_attach_regions` (def) L219
+
+## services/compliance/media/image_finding_zoom.py (82 lines) - Recover small-text locations from enlarged sections; map boxes back to the original image.
+- `sections` (def) L15
+- `original_box` (def) L36
+- `locate` (def) L55
+    - `read` (def) L62
 
 ## services/compliance/media/image_text_service.py (271 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def) L68
 - `_get_client` (def) L72
 - `_claim` (def) L82 - Atomically mark an image as being read unless another worker already is.
 - `_save` (def) L98
-- `_generate` (def) L112 - Ask the first model in MODELS that answers; quota, rate-limit and unavailable-model errors move on to the next.
+- `_generate` (def) L112 - Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
 - `_clean` (def) L134
 - `_has_ai_metadata` (def) L139 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
 - `_face_boxes` (def) L156 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.

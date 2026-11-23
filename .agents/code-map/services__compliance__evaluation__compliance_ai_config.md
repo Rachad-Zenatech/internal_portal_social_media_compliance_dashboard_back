@@ -4,5 +4,5 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/compliance_ai_config.py (16 lines) - Configuration for the optional full rulebook model pass.
-- `_full_rule_mode` (def) L6 - off (default): the trigger phrases and the sentence-by-sentence search pick what the AI reads; auto: also read the post
+## services/compliance/evaluation/compliance_ai_config.py (15 lines) - Configuration for the full rulebook model pass.
+- `_full_rule_mode` (def) L6 - always (default): review every post; auto: add a full pass for claims; off: use search-selected rules.
