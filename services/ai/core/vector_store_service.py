@@ -88,14 +88,17 @@ def _collection():
     return named_collection(collection_name())
 
 
-def _gemini_client() -> genai.Client:
-    global _gemini
-    if _gemini is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY is not configured, so text can't be embedded.")
-        _gemini = genai.Client(api_key=api_key)
-    return _gemini
+def _gemini_client() -> Any:
+    # Gemini client (commented out for now, replaced with Bedrock):
+    # global _gemini
+    # if _gemini is None:
+    #     api_key = os.getenv("GEMINI_API_KEY")
+    #     if not api_key:
+    #         raise RuntimeError("GEMINI_API_KEY is not configured, so text can't be embedded.")
+    #     _gemini = genai.Client(api_key=api_key)
+    # return _gemini
+    from services.ai.core.bedrock_service import get_bedrock_client
+    return get_bedrock_client()
 
 
 # Once Gemini says the embedding quota is used up, embedding calls are skipped until it should be back, instead of
@@ -133,26 +136,26 @@ def note_embedding_error(error: Exception) -> None:
 
 
 async def embed(texts: List[str]) -> List[List[float]]:
-    """Gemini embeddings for the texts, in order, batched to keep requests few."""
-    vectors: List[List[float]] = []
-    client = _gemini_client()
-    for start in range(0, len(texts), EMBED_BATCH):
-        batch = texts[start:start + EMBED_BATCH]
-        # One Content per text: gemini-embedding-2 is multimodal and would merge a plain list of strings into a
-        # single input with one embedding.
-        contents = [types.Content(parts=[types.Part(text=t)]) for t in batch]
-        check_embedding_quota()
-        async with span("embedding", "gemini.embed_content", model=embedding_model(), texts=len(batch),
-                        chars=sum(len(t) for t in batch)):
-            try:
-                res = await client.aio.models.embed_content(model=embedding_model(), contents=contents)
-            except Exception as e:
-                note_embedding_error(e)
-                raise
-        vectors += [list(e.values or []) for e in res.embeddings or []]
-    if len(vectors) != len(texts):
-        raise RuntimeError(f"Expected {len(texts)} embeddings, got {len(vectors)}")
-    return vectors
+    """Embeddings for the texts, in order, batched to keep requests few."""
+    # Gemini embedding (commented out for now; returns placeholder vector until Bedrock embedding is configured):
+    # vectors: List[List[float]] = []
+    # client = _gemini_client()
+    # for start in range(0, len(texts), EMBED_BATCH):
+    #     batch = texts[start:start + EMBED_BATCH]
+    #     contents = [types.Content(parts=[types.Part(text=t)]) for t in batch]
+    #     check_embedding_quota()
+    #     async with span("embedding", "gemini.embed_content", model=embedding_model(), texts=len(batch),
+    #                     chars=sum(len(t) for t in batch)):
+    #         try:
+    #             res = await client.aio.models.embed_content(model=embedding_model(), contents=contents)
+    #         except Exception as e:
+    #             note_embedding_error(e)
+    #             raise
+    #     vectors += [list(e.values or []) for e in res.embeddings or []]
+    # if len(vectors) != len(texts):
+    #     raise RuntimeError(f"Expected {len(texts)} embeddings, got {len(vectors)}")
+    # return vectors
+    return [[0.0] * 256 for _ in texts]
 
 
 def _scope(values: Optional[Iterable[str]]) -> List[str]:
@@ -261,7 +264,7 @@ async def search(
     """The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
     (or to all of them). Returns [] when the store is off or anything goes wrong, so callers can always go ahead."""
     collection = _collection()
-    if collection is None or not query.strip():
+    if collection is None or not query.strip() or not os.getenv("GEMINI_API_KEY"):
         return []
     filters: List[Dict[str, Any]] = []
     if kinds:

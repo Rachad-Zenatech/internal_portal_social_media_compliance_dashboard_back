@@ -1153,6 +1153,11 @@ async def get_file_for_download(submission_id: UUID, file_id: UUID, user_id: UUI
     if STORAGE_ROOT not in path.parents:
         raise HTTPException(status_code=404, detail="File not found")
     if not path.is_file():
+        legacy_path = (Path(".data/submission_files") / f["storage_path"]).resolve()
+        if legacy_path.is_file():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(legacy_path, path)
+    if not path.is_file():
         await asyncio.to_thread(ensure_local_file, path, "submissions", f["storage_path"])
     if not path.is_file():
         raise HTTPException(status_code=404, detail="File not found")

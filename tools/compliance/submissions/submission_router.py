@@ -8,7 +8,7 @@ import logging
 from typing import Annotated, Dict, List, Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
 
 from models.compliance.canva_model import CanvaImportRequest, CanvaReimportRequest
@@ -36,6 +36,8 @@ from services.ai.observability import ai_observability, ai_usage_service
 from services.compliance.submissions import delegation_service, duplicate_service, image_provenance_service
 from services.compliance.media.file_mime_policy import safe_disposition_type
 from services.compliance.media import caption_service
+from services.compliance.submissions.disconnected_analysis import run_until_disconnected
+from tools.compliance.submissions.analysis_cancellation_router import router as analysis_cancellation_router
 from services.compliance.analytics import conversation_evidence, conversation_feedback, public_mood_service
 from services.compliance.analytics import sentiment_service
 from services.compliance.submissions import submission_service as svc
@@ -74,6 +76,7 @@ router = APIRouter(prefix="/submissions", tags=["Content Submissions"])
 router.include_router(review_queue_router)
 router.include_router(submission_flag_router)
 router.include_router(submission_review_router)
+router.include_router(analysis_cancellation_router)
 
 CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 
@@ -217,7 +220,7 @@ async def run_initial_check(submission_id: UUID, user_id: CurrentUser, body: Opt
 
 
 @router.post("/{submission_id}/check/stream")
-async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser, body: Optional[SubmitRequest] = None):
+async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser, request: Request, body: Optional[SubmitRequest] = None):
     """The same check as /check, streamed as newline-delimited JSON so the page can show its progress: an
     {"event": "attempt"} line as each AI model call starts and ends (fallbacks included), then {"event": "done",
     "submission": ...} with the saved result, or {"event": "failed", "status": ..., "detail": ...}."""
@@ -233,15 +236,18 @@ async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser, bo
     async def work() -> None:
         ai_observability.attempt_listener.set(listen)
         try:
-            sub = await svc.run_initial_check(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost), refresh_sources=bool(body and body.refresh_sources))
+            sub = await run_until_disconnected(request, svc.run_initial_check(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost), refresh_sources=bool(body and body.refresh_sources)))
             queue.put_nowait({"event": "done", "submission": sub.model_dump(mode="json")})
+        except asyncio.CancelledError:
+            queue.put_nowait({"event": "failed", "status": 499, "detail": "Compliance check stopped"})
+            raise
         except HTTPException as e:
             queue.put_nowait({"event": "failed", "status": e.status_code, "detail": e.detail})
         except Exception:
             logger.exception("Streamed compliance check failed for %s", submission_id)
             queue.put_nowait({"event": "failed", "status": 500, "detail": "The compliance check couldn't run"})
 
-    # Runs to the end and saves its result even if the page goes away mid-check.
+    # Navigation keeps the request alive; Stop aborts the connection and cancels its work.
     task = asyncio.create_task(work(), name=f"check-stream-{submission_id}")
 
     async def lines():
@@ -253,8 +259,8 @@ async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser, bo
                     break
         finally:
             open_["value"] = False
-            if task.done() and not task.cancelled():
-                task.exception()  # already handled inside work(); read so asyncio doesn't warn
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     return StreamingResponse(lines(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache"})
 

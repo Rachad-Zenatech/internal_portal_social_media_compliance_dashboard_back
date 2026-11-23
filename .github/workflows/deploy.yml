@@ -60,13 +60,13 @@ jobs:
         run: |
           ruff check . --ignore E501 --statistics || true
 
-      # Unit tests (unittest style): the database and Gemini are mocked, so no services
+      # Unit tests (unittest style): the database and AI services are mocked, so no services
       # are needed. A failing test fails the build.
       - name: Run Pytest
         run: |
           pytest -q
 
-      # Input screening, PII redaction, model routing and cache checks against labelled cases (offline, no Gemini).
+      # Input screening, PII redaction, model routing and cache checks against labelled cases (offline, no external AI calls).
       - name: AI safety eval
         run: |
           python scripts/ai_safety_eval.py
@@ -167,6 +167,9 @@ jobs:
           FALLBACK_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || secrets.SECRET_ACCESS_KEY }}
           FALLBACK_AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION || 'ca-central-1' }}
           FALLBACK_AWS_SECURITY_GROUP_ID: ${{ secrets.AWS_SECURITY_GROUP_ID || vars.AWS_SECURITY_GROUP_ID }}
+          FALLBACK_AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}
+          FALLBACK_AWS_PROFILE_ID: ${{ secrets.AWS_PROFILE_ID || vars.AWS_PROFILE_ID }}
+          FALLBACK_AWS_AI_REGION: ${{ secrets.AWS_AI_REGION || vars.AWS_AI_REGION }}
           FALLBACK_EC2_HOST: ${{ secrets.EC2_HOST }}
           FALLBACK_EC2_USER: ${{ secrets.EC2_USER || vars.EC2_USER || 'ec2-user' }}
           FALLBACK_EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
@@ -232,6 +235,10 @@ jobs:
           # This covers DB pools, OAuth/cookies, AI routes, MongoDB, RabbitMQ, shared scripts and uploads.
           prod_env = {k: v for k, v in vals.items() if k not in deploy_only}
           prod_env.setdefault("APP_ENV", "production")
+
+          for fallback_key in ("AWS_BEARER_TOKEN_BEDROCK", "AWS_PROFILE_ID", "AWS_AI_REGION"):
+              if fallback_key not in prod_env and os.environ.get(f"FALLBACK_{fallback_key}"):
+                  prod_env[fallback_key] = os.environ[f"FALLBACK_{fallback_key}"]
 
           Path(".env.production").write_text("\n".join(f"{k}={v}" for k, v in prod_env.items()) + "\n", encoding="utf-8")
           Path(".env.production").chmod(0o600)

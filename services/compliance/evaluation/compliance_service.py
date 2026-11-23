@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from services.compliance.evaluation.rule_examples import _QUOTED, _examples
 from services.compliance.evaluation import check_rule_capture
+from services.compliance.evaluation.compliance_ai_config import _full_rule_mode
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
@@ -67,24 +68,21 @@ CONTENT_PARTS = ("video", "imagery", "caption", "ceo_post")
 RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # Bump when how rules are picked or matched changes, so open content is re-checked on the next start.
 # 3: near-match disclaimers must be together; any finding is at least YELLOW.
-# 4: investor and defense wording brings in the Public Company Disclosure and ZenaDrone Defense rule sets.
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-20-visual-branding|brand-audience-1"
+SCOPE_VERSION = "scope-21-unavailable-without-findings|brand-audience-1"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
 _gemini_client: Optional[genai.Client] = None
 
 
-def _get_gemini_client() -> Optional[genai.Client]:
+def _get_gemini_client() -> Optional[Any]:
     global _gemini_client
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return None
     if _gemini_client is None:
-        _gemini_client = genai.Client(api_key=api_key)
+        from services.ai.core.bedrock_service import get_ai_client
+        _gemini_client = get_ai_client()
     return _gemini_client
 
 
@@ -99,9 +97,10 @@ def _ai_switched_off() -> bool:
 
 
 def _ai_viability_enabled() -> bool:
+    from services.ai.core.bedrock_service import has_ai_key
     return (
         os.getenv("COMPLIANCE_AI_VIABILITY_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
-        and bool(os.getenv("GEMINI_API_KEY", "").strip())
+        and has_ai_key()
     )
 
 
@@ -1002,18 +1001,6 @@ _SEMANTIC_SCHEMA: Dict[str, Any] = {
 # ("best in class", "reduces errors", "guards every border") often sits too far from any rule's wording for the search to
 # find it, and a post the search found nothing for would otherwise never be read at all. Turn it off to go back to the
 # search's picks only (fewer AI calls).
-def _full_rule_mode() -> str:
-    """off (default): the trigger phrases and the sentence-by-sentence search pick what the AI reads; auto: also read the post
-    against every rule when it reads like it makes claims; always: every post. The extra pass costs one AI call per post
-    and, on the test posts, added little over the phrases and the search."""
-    raw = os.getenv("COMPLIANCE_FULL_RULE_PASS", "off").strip().lower()
-    if raw in {"1", "true", "yes", "on", "always"}:
-        return "always"
-    if raw == "auto":
-        return "auto"
-    return "off"
-
-
 # The most rules put in front of the AI at once, the search's picks first.
 FULL_RULE_PASS_MAX = int(os.getenv("COMPLIANCE_FULL_RULE_PASS_MAX", "40"))
 

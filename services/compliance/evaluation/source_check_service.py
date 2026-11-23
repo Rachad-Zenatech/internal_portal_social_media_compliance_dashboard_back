@@ -60,10 +60,13 @@ logger = logging.getLogger(__name__)
 PROMPT_VERSION = "source-v12-combined-post-inventory"
 VERSION = f"sources-2|{citation_finder.VERSION}|{PROMPT_VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
-MODELS = without_retired([m.strip() for m in os.getenv(
-    "SOURCE_CHECK_MODELS",
-    "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite",
-).split(",") if m.strip()])
+# Gemini models (commented out for now, replaced with Bedrock):
+# MODELS = without_retired([m.strip() for m in os.getenv(
+#     "SOURCE_CHECK_MODELS",
+#     "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite",
+# ).split(",") if m.strip()])
+from services.ai.core.bedrock_service import get_bedrock_profile_id
+MODELS = [get_bedrock_profile_id()] if get_bedrock_profile_id() else []
 TIMEOUT_SEC = int(os.getenv("SOURCE_CHECK_TIMEOUT_SEC", "45"))
 RETRY_PAUSE_SEC = context_evaluator.RETRY_PAUSE_SEC
 # What a model is given of the post, at most.

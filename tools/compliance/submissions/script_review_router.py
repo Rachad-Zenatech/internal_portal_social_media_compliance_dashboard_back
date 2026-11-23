@@ -5,7 +5,7 @@ The script stage of video posts: send the script, review and edit it, accept the
 from typing import Annotated, Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from models.compliance.script_review_model import (
     FlagFixRequest,
@@ -24,6 +24,7 @@ from models.compliance.script_review_model import (
 )
 from models.compliance.script_queue_model import ScriptQueueSummary
 from services.compliance.evaluation import script_queue_service
+from services.compliance.submissions.disconnected_analysis import run_until_disconnected
 from services.compliance.evaluation import script_review_service as svc
 from services.shared.auth.auth_service import get_current_user_id_dependency
 
@@ -99,10 +100,10 @@ async def revise_script(submission_id: UUID, req: ScriptReviseRequest, user_id: 
 
 
 @router.post("/{submission_id}/script/precheck", response_model=ScriptStage)
-async def precheck_script(submission_id: UUID, user_id: CurrentUser, body: Optional[ScriptSubmitRequest] = None):
+async def precheck_script(submission_id: UUID, user_id: CurrentUser, body: Optional[ScriptSubmitRequest] = None, request: Request = None):
     """Creator: check the uploaded script against the rulebook before sending it (the result is kept). Duplicates are
     checked first: 409 DUPLICATE_SCRIPT, or 409 REPOST_CONFIRM until confirm_repost is sent."""
-    return await svc.precheck(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost))
+    return await run_until_disconnected(request, svc.precheck(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost)))
 
 
 @router.post("/{submission_id}/script/check", response_model=Dict[str, Any])
