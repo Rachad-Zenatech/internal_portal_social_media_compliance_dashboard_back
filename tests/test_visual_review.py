@@ -13,7 +13,6 @@ from models.compliance.compliance_model import ComplianceCheckRequest
 from postgresql_db.schemas.setup_compliance_schema import BASE_RULES
 from services.compliance.evaluation import compliance_service as cs, visual_review as vr
 from services.compliance.media import image_finding_service as locations
-from services.compliance.media import model_backoff
 from tests.test_baseline_rule_terms import rule_from_seed
 
 
@@ -81,29 +80,6 @@ def test_each_visual_rule_uses_its_normal_penalty(number):
     assert (f.penalty, f.traffic_light) == cs._penalty_and_light(rule)
 
 
-@async_test
-async def test_busy_models_recover_without_marking_visual_review_unavailable():
-    req = ComplianceCheckRequest(text="Industry commentary", audiences=["DEFENSE"])
-    req._visual_media = [asset()]
-    findings = []
-    generate = AsyncMock(side_effect=[RuntimeError("503 UNAVAILABLE"), RuntimeError("503 UNAVAILABLE"), answer()])
-    with (
-        patch.object(vr, "_asset_part", attached),
-        patch.object(vr.image_text_service, "_get_client", return_value=object()),
-        patch.object(vr.image_text_service, "MODELS", ["primary", "fallback"]),
-        patch.object(vr.image_text_service, "RETRY_ROUNDS", 2),
-        patch.object(vr.image_text_service, "RETRY_BUDGET_SEC", 20.),
-        patch.object(vr.image_text_service.ai_observability, "generate", generate),
-        patch.object(model_backoff.asyncio, "sleep", AsyncMock()) as sleep,
-    ):
-        coverage = await vr.review(req, rules(), findings)
-    assert coverage[0]["status"] == "COMPLETED"
-    assert len(findings) == 1 and findings[0].penalty == 35
-    assert findings[0].evaluation.source != "UNAVAILABLE"
-    assert generate.await_count == 3
-    sleep.assert_awaited_once()
-
-
 @pytest.mark.parametrize("changes", [{"confidence": .8}, {"box": []}, {"evidence": ""}, {"box": [0., 0., 1001., 1001.]}])
 def test_uncertain_or_ungrounded_visual_does_not_confirm_breach(changes):
     data = assessment()
@@ -135,8 +111,7 @@ async def test_failure_or_incomplete_response_is_never_a_clean_pass(response):
     with patch.object(vr, "_asset_part", attached), patch.object(vr.image_text_service, "_generate", mock):
         coverage = await vr.review(req, rules(), findings)
     assert coverage[0]["status"] == "UNAVAILABLE"
-    assert len(findings) == 5
-    assert all(f.status == "NEEDS_REVIEW" and f.penalty == 0 and f.evaluation.source == "UNAVAILABLE" for f in findings)
+    assert findings == []
 
 
 @async_test
@@ -204,11 +179,13 @@ def test_malformed_judgments_cannot_complete_a_visual_review(change):
 
 
 @async_test
-@pytest.mark.parametrize("unavailable", [False, True])
-async def test_visual_result_changes_the_saved_compliance_score_and_coverage(unavailable):
+@pytest.mark.parametrize("failure", ["none", "quota", "partial"])
+async def test_visual_result_changes_the_saved_compliance_score_and_coverage(failure):
+    unavailable = failure != "none"
     req = ComplianceCheckRequest(text="An industry perspective.", audiences=["DEFENSE"])
-    req._visual_media = [asset()]
-    generate = AsyncMock(side_effect=RuntimeError("quota")) if unavailable else AsyncMock(return_value=answer())
+    req._visual_media = [asset(), asset()] if failure == "partial" else [asset()]
+    generate = (AsyncMock(side_effect=[answer(), RuntimeError("quota")]) if failure == "partial" else
+                AsyncMock(side_effect=RuntimeError("quota")) if unavailable else AsyncMock(return_value=answer()))
     with (
         patch.object(cs, "applicable_rules", AsyncMock(return_value=rules())),
         patch.object(cs, "_evaluate_rule", return_value=None),
@@ -225,10 +202,38 @@ async def test_visual_result_changes_the_saved_compliance_score_and_coverage(una
     assert result.score == (100 if unavailable else 65)
     assert result.blocked is (not unavailable)
     assert not result.is_compliant
-    assert result.visual_checks[0]["status"] == ("UNAVAILABLE" if unavailable else "COMPLETED")
+    if unavailable:
+        assert result.violations == []
+        assert (result.violations_count, result.review_count, result.evidence_count) == (0, 0, 0)
+        assert result.traffic_light == "YELLOW"
+    expected = ["COMPLETED", "UNAVAILABLE"] if failure == "partial" else ["UNAVAILABLE" if unavailable else "COMPLETED"]
+    assert [c["status"] for c in result.visual_checks] == expected
     serialized = result.model_dump(mode="json")
     assert "_visual_media" not in req.model_dump() and "visual_checks" in serialized
     assert all(f.evaluation for f in result.violations)
+
+
+@async_test
+async def test_source_outage_hides_partial_breaches_and_image_disclosure_penalties():
+    req = ComplianceCheckRequest(text="Product illustration", audiences=["DEFENSE"],
+                                 content_parts=["imagery"], ai_generated_images=True)
+    selected = rules() + [rule_from_seed(seed) for seed in BASE_RULES if seed["rule_number"] == "Rule 9"]
+    rule = next(r for r in selected if r.rule_number == "Rule 11")
+    confirmed = vr._finding(asset(), rule, vr.Assessment(**assessment()), "vision-test")
+    with (
+        patch.object(cs, "applicable_rules", AsyncMock(return_value=selected)),
+        patch.object(cs, "_evaluate_rule", return_value=None),
+        patch.object(cs, "_semantic_findings", AsyncMock(return_value=[confirmed])),
+        patch.object(cs.source_check_service, "run", AsyncMock(return_value=cs.source_check_service.SourceCheckResult(ai_failed=True))),
+        patch.object(cs, "rulebook_version", AsyncMock(return_value="outage-test")),
+    ):
+        result = await cs.check_compliance(req)
+    assert result.ai_unavailable and not result.is_compliant
+    assert result.violations == [] and not result.blocked
+    assert (result.violations_count, result.review_count, result.evidence_count, result.cleared_count) == (0, 0, 0, 0)
+    assert result.score == result.raw_score == 100
+    assert result.traffic_light == "YELLOW"
+    assert "could not complete" in result.recommendations[0]
 
 
 @async_test

@@ -66,24 +66,21 @@ CONTENT_PARTS = ("video", "imagery", "caption", "ceo_post")
 RULES_CACHE_TTL = int(os.getenv("RULES_CACHE_TTL_SECONDS", "300"))
 # Bump when how rules are picked or matched changes, so open content is re-checked on the next start.
 # 3: near-match disclaimers must be together; any finding is at least YELLOW.
-# 4: investor and defense wording brings in the Public Company Disclosure and ZenaDrone Defense rule sets.
 # 5: AI + vector store check that adds semantic rule matches.
 # 6: findings carry a status (violation, needs review, evidence required, cleared); only violations cost points. Rules
 #    judged in context are read by the contextual evaluator, and semantic matches are things to check, not violations.
-SCOPE_VERSION = "scope-20-visual-branding|brand-audience-1"
+SCOPE_VERSION = "scope-21-unavailable-without-findings|brand-audience-1"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
 _gemini_client: Optional[genai.Client] = None
 
 
-def _get_gemini_client() -> Optional[genai.Client]:
+def _get_gemini_client() -> Optional[Any]:
     global _gemini_client
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return None
     if _gemini_client is None:
-        _gemini_client = genai.Client(api_key=api_key)
+        from services.ai.core.bedrock_service import get_ai_client
+        _gemini_client = get_ai_client()
     return _gemini_client
 
 
@@ -98,9 +95,10 @@ def _ai_switched_off() -> bool:
 
 
 def _ai_viability_enabled() -> bool:
+    from services.ai.core.bedrock_service import has_ai_key
     return (
         os.getenv("COMPLIANCE_AI_VIABILITY_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
-        and bool(os.getenv("GEMINI_API_KEY", "").strip())
+        and has_ai_key()
     )
 
 

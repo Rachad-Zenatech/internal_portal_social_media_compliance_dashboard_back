@@ -258,8 +258,6 @@ def classify_error(e: BaseException) -> str:
         return "QUOTA"
     if code == 404 or any(k in msg for k in ("no longer available", "not found", "is not supported", "invalid model")):
         return "MODEL"
-    if code == 400:
-        return "OTHER"
     if code in (500, 503, 504) or any(k in msg for k in ("unavailable", "high demand", "deadline", "timeout", "timed out")) or "timeout" in type(e).__name__.lower():
         return "BUSY"
     return "OTHER"
@@ -294,7 +292,8 @@ async def generate(client: Any, *, model: str, contents: Any, config: Any = None
         "feature": feature, "model": model, "prompt": prompt, "submission_id": submission_id,
         "guard_verdict": guard.verdict if guard else None, "guard_categories": guard.categories if guard else None,
     }
-    async with span("model", "gemini.generate_content", model=model, feature=feature,
+    call_name = "bedrock.generate_content" if (model.startswith("us.") or "claude" in model or "bedrock" in str(client).lower()) else "gemini.generate_content"
+    async with span("model", call_name, model=model, feature=feature,
                     prompt_chars=len(prompt), attachments=attachments, **attributes) as s:
         started = time.perf_counter()
         attempt_id = uuid.uuid4().hex

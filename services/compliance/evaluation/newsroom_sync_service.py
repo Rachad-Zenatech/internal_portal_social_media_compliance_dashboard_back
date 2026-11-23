@@ -73,13 +73,13 @@ RESPONSE_SCHEMA: Dict[str, Any] = {
 }
 
 
-def _get_client() -> genai.Client:
+def _get_client() -> Any:
     global _client
     if _client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY is not configured, so the newsroom can't be read.")
-        _client = genai.Client(api_key=api_key)
+        from services.ai.core.bedrock_service import get_ai_client
+        _client = get_ai_client()
+        if not _client:
+            raise RuntimeError("AI is not configured, so the newsroom can't be read.")
     return _client
 
 

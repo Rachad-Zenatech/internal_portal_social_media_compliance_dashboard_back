@@ -4,12 +4,12 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/analytics/post_query_plan.py (167 lines) - The searches for one draft: what its own subject is, and what the wider topic around it is.
+## services/compliance/analytics/post_query_plan.py (168 lines) - The searches for one draft: what its own subject is, and what the wider topic around it is.
 - `_norm` (def) L70
 - `text_hash` (def) L74
 - `validate` (def) L78 - Keep only what the post's own text supports.
 - `rules_plan` (def) L108
 - `_ask_gemini` (def) L114
-- `contexts_of` (def) L128 - The wider topics of a plan: [{topic, queries, terms}].
-- `read_cached` (def) L138
-- `plan_for_text` (def) L146 - The plan for a draft: from the saved one if its text hasn't changed, else from Gemini, else from the rules.
+- `contexts_of` (def) L129 - The wider topics of a plan: [{topic, queries, terms}].
+- `read_cached` (def) L139
+- `plan_for_text` (def) L147 - The plan for a draft: from the saved one if its text hasn't changed, else from Gemini, else from the rules.

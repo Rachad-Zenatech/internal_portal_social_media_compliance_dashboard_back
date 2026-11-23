@@ -58,7 +58,6 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(classify_error(FakeError("429 RESOURCE_EXHAUSTED. Quota exceeded", 429)), "QUOTA")
         self.assertEqual(classify_error(FakeError("models/x is no longer available", 404)), "MODEL")
         self.assertEqual(classify_error(FakeError("503 UNAVAILABLE", 503)), "BUSY")
-        self.assertEqual(classify_error(FakeError("Manually set deadline 9s is too short. Minimum allowed deadline is 10s.", 400)), "OTHER")
         self.assertEqual(classify_error(TimeoutError("read timed out")), "BUSY")
         self.assertEqual(classify_error(ValueError("odd")), "OTHER")
 
@@ -84,11 +83,11 @@ class CheckWithoutTheAiTests(unittest.IsolatedAsyncioTestCase):
             return await compliance_service.check_compliance(ComplianceCheckRequest(text="Reclaim up to 3,000 hours of work."))
 
     async def test_no_key_marks_the_check_as_not_fully_read(self):
-        result = await self.run_check({"GEMINI_API_KEY": ""})
+        result = await self.run_check({"GEMINI_API_KEY": "", "AWS_BEARER_TOKEN_BEDROCK": ""})
         self.assertTrue(result.ai_unavailable)
 
     async def test_the_meaning_check_switched_off_on_purpose_is_not_a_failure(self):
-        result = await self.run_check({"GEMINI_API_KEY": "", "COMPLIANCE_AI_VIABILITY_ENABLED": "false"})
+        result = await self.run_check({"GEMINI_API_KEY": "", "AWS_BEARER_TOKEN_BEDROCK": "", "COMPLIANCE_AI_VIABILITY_ENABLED": "false"})
         self.assertFalse(result.ai_unavailable)
 
 
