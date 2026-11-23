@@ -38,7 +38,7 @@ from models.compliance.compliance_model import (
 )
 from services.ai.observability import ai_observability
 from services.ai.observability.ai_guardrails import screen_input
-from services.ai.core.gemini_service import is_rotatable_model_error, without_retired
+from services.ai.core.gemini_service import is_rotatable_model_error, without_retired, model_is_available
 from services.compliance.evaluation import (
     source_claim_inventory, citation_finder, context_evaluator, newsroom_facts, source_fetch_service, source_passages, source_settings, source_post_checks, source_recheck,
 )
@@ -251,9 +251,13 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
     )
     guard = screen_input(contents)
     for sweep in range(2):
+        if not any(model_is_available(model) for model in MODELS):
+            break
         if sweep:
             await asyncio.sleep(RETRY_PAUSE_SEC)
         for model in MODELS:
+            if not model_is_available(model):
+                continue
             try:
                 response = await _ask(model, contents, guard)
             except Exception as e:

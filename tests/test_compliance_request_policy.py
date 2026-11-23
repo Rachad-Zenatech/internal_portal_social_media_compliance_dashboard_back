@@ -108,14 +108,35 @@ class ComplianceRequestPolicyTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_source_comparison_remains_incomplete_when_all_models_are_cooling_down(self):
         from services.compliance.evaluation import source_check_service as source
-        gemini._model_cooldowns["busy-source"] = time.monotonic() + 60
         inventory = [{"claim": "Original factual passage", "where": "caption"}]
-        with patch.object(source, "MODELS", ["busy-source"]), \
+        for model_name in ("busy-source", "bedrock-test-profile"):
+            with self.subTest(model=model_name):
+                gemini._model_cooldowns[model_name] = time.monotonic() + 60
+                with patch.object(source, "MODELS", [model_name]), \
+                     patch.object(source.source_claim_inventory, "get", AsyncMock(return_value=inventory)), \
+                     patch.object(source.source_passages, "excerpt", AsyncMock(return_value="Mock report")), \
+                     patch.object(source._cache, "get", AsyncMock(return_value=None)), \
+                     patch.object(source, "_ask", AsyncMock()) as ask, \
+                     patch.object(source.asyncio, "sleep", AsyncMock()) as sleep:
+                    claims, model = await source._compare("Original factual passage", "report", None, None, None, "Mock report")
+                self.assertIsNone(claims)
+                self.assertIsNone(model)
+                ask.assert_not_awaited()
+                sleep.assert_not_awaited()
+
+    async def test_source_comparison_skips_cooled_profile_and_uses_available_profile(self):
+        from services.compliance.evaluation import source_check_service as source
+        gemini._model_cooldowns["busy-profile"] = time.monotonic() + 60
+        inventory = [{"claim": "Original factual passage", "where": "caption"}]
+        expected = source._Result(**inventory[0], verdict="SUPPORTED", evidence="Mock report", confidence=.95)
+        ask = AsyncMock(return_value=source._Response(claims=[expected]))
+        with patch.object(source, "MODELS", ["busy-profile", "available-profile"]), \
              patch.object(source.source_claim_inventory, "get", AsyncMock(return_value=inventory)), \
              patch.object(source.source_passages, "excerpt", AsyncMock(return_value="Mock report")), \
              patch.object(source._cache, "get", AsyncMock(return_value=None)), \
-             patch.object(source, "_ask", AsyncMock()) as ask:
+             patch.object(source._cache, "set", AsyncMock()), patch.object(source, "_ask", ask):
             claims, model = await source._compare("Original factual passage", "report", None, None, None, "Mock report")
-        self.assertIsNone(claims)
-        self.assertIsNone(model)
-        ask.assert_not_awaited()
+        self.assertEqual(claims, [expected])
+        self.assertEqual(model, "available-profile")
+        ask.assert_awaited_once()
+        self.assertEqual(ask.await_args.args[0], "available-profile")
