@@ -36,9 +36,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `setup` (def) L961 - Create the tables and add any missing baseline rules.
 - `_main` (def) L1149
 
-## postgresql_db/schemas/setup_context_schema.py (456 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
-- `_seed_starter_entries` (def) L429 - The starter entries, added once each (by their key); what people edit or turn off is left alone.
-- `setup` (def) L450
+## postgresql_db/schemas/setup_context_schema.py (458 lines) - Messaging Context: reference material the analysis is given (brand voice, facts, platform norms, audience profiles).
+- `_seed_starter_entries` (def) L431 - The starter entries, added once each (by their key); what people edit or turn off is left alone.
+- `setup` (def) L452
 
 ## postgresql_db/schemas/setup_graph_sync_schema.py (54 lines) - setup graph sync schema (schemas)
 - `setup` (def) L10
@@ -106,3 +106,5 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_create_comments_and_delegations` (def) L345
 - `_create_sentiment_records` (def) L397
 - `setup_submission_tables` (def) L460 - The original DDL batch remains atomic across the feature-specific statements.
+
+## postgresql_db/schemas/zenatech_brand_guideline.py (88 lines) - ZenaTech brand references transcribed from ZenaTech_Guideline.pdf (eight-page quick guide).

@@ -13,11 +13,11 @@ to find the right file.
 | .agents/code-map/mcp_tools.md | 3 | 1 KB |
 | .agents/code-map/mcp_tools__compliance.md | 1 | 1 KB |
 | .agents/code-map/mcp_tools__shared.md | 1 | 1 KB |
-| .agents/code-map/models__compliance.md | 21 | 16 KB |
+| .agents/code-map/models__compliance.md | 21 | 17 KB |
 | .agents/code-map/models__notifications.md | 2 | 1 KB |
 | .agents/code-map/models__shared.md | 3 | 2 KB |
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |
-| .agents/code-map/postgresql_db__schemas.md | 24 | 6 KB |
+| .agents/code-map/postgresql_db__schemas.md | 25 | 6 KB |
 | .agents/code-map/scripts.md | 11 | 9 KB |
 | .agents/code-map/services__ai__core.md | 10 | 9 KB |
 | .agents/code-map/services__ai__observability.md | 5 | 4 KB |
@@ -49,6 +49,7 @@ to find the right file.
 | .agents/code-map/services__compliance__analytics__sentiment_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__analytics__zenatech_financial_scrape.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__army_context_review.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__brand_manual_sections.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__brand_voice_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__branding.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__citation_finder.md | 1 | 1 KB |
