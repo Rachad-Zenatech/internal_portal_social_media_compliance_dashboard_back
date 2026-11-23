@@ -67,13 +67,17 @@ VIDEO_READY_TIMEOUT_SEC = 300
 # Models to analyse with, in order of preference. Gemini's free tier gives each model its own small daily allowance
 # (and Pro models none), so when one's allowance is used up, or a model has been retired, the next one does the
 # analysis instead of the run failing; the result records which model it was. SENTIMENT_MODEL, if set, goes first.
-_PREFERRED = os.getenv("SENTIMENT_MODEL", "").strip()
-MODEL_CHAIN: List[str] = without_retired(list(dict.fromkeys(
-    ([_PREFERRED] if _PREFERRED else [])
-    + [m.strip() for m in os.getenv("SENTIMENT_MODELS", "gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.8-flash").split(",")
-       if m.strip()]
-)))
-MODEL = MODEL_CHAIN[0]
+# Gemini model chain (commented out for now, replaced with Bedrock):
+# _PREFERRED = os.getenv("SENTIMENT_MODEL", "").strip()
+# MODEL_CHAIN: List[str] = without_retired(list(dict.fromkeys(
+#     ([_PREFERRED] if _PREFERRED else [])
+#     + [m.strip() for m in os.getenv("SENTIMENT_MODELS", "gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.8-flash").split(",")
+#        if m.strip()]
+# )))
+from services.ai.core.bedrock_service import get_bedrock_profile_id
+_profile = get_bedrock_profile_id()
+MODEL_CHAIN: List[str] = [_profile] if _profile else []
+MODEL = MODEL_CHAIN[0] if MODEL_CHAIN else "default"
 # Shaun's posts and investor-facing posts can start with a stronger model (e.g. a Pro model on a paid tier). Unset,
 # they use the same chain as everything else.
 HIGH_STAKES_MODEL = os.getenv("SENTIMENT_MODEL_HIGH_STAKES", "").strip() or MODEL
@@ -257,13 +261,13 @@ Rules for your assessment:
 - Keep the summary to two sentences. Return an empty findings list when there is nothing to flag.""" + "\n\n" + CREATOR_CONTEXT_GUIDANCE
 
 
-def _get_client() -> genai.Client:
+def _get_client() -> Any:
     global _client
     if _client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY is not configured, so sentiment can't be analysed.")
-        _client = genai.Client(api_key=api_key)
+        from services.ai.core.bedrock_service import get_ai_client
+        _client = get_ai_client()
+        if not _client:
+            raise RuntimeError("AI is not configured, so sentiment can't be analysed.")
     return _client
 
 

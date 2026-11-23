@@ -23,12 +23,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `feed` (def) L227
     - `flush` (def) L246
 
-## services/ai/observability/ai_health.py (100 lines) - Whether the AI (Gemini) is working right now, for the banner every signed-in user sees when it isn't.
-- `AiStatus` (class) L54
-- `summarize` (def) L63 - rows: the AI calls in the window, newest first, each with status, kind (the failure kind) and started_at.
-- `status` (def) L85
+## services/ai/observability/ai_health.py (105 lines) - Whether the AI (Gemini) is working right now, for the banner every signed-in user sees when it isn't.
+- `AiStatus` (class) L57
+- `summarize` (def) L66 - rows: the AI calls in the window, newest first, each with status, kind (the failure kind) and started_at.
+- `status` (def) L89
 
-## services/ai/observability/ai_observability.py (417 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+## services/ai/observability/ai_observability.py (418 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - `_env_int` (def) L41
 - `Span` (class) L57
 - `_get_queue` (def) L73
@@ -48,10 +48,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `classify_error` (def) L251 - What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
 - `_notify_attempt` (def) L274
 - `generate` (def) L284 - client.models.generate_content in a thread, traced and prompt-logged.
-- `_write` (def) L356
-- `_apply_retention` (def) L369
-- `flush` (def) L381 - Write whatever is still queued (on shutdown, before the pool closes).
-- `writer_loop` (def) L394 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
+- `_write` (def) L357
+- `_apply_retention` (def) L370
+- `flush` (def) L382 - Write whatever is still queued (on shutdown, before the pool closes).
+- `writer_loop` (def) L395 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
 
 ## services/ai/observability/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - `_attrs` (def) L9

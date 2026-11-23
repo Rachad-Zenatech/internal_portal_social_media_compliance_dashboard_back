@@ -76,13 +76,11 @@ _ai_check_cache = AsyncInMemoryCache(maxsize=500)
 _gemini_client: Optional[genai.Client] = None
 
 
-def _get_gemini_client() -> Optional[genai.Client]:
+def _get_gemini_client() -> Optional[Any]:
     global _gemini_client
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return None
     if _gemini_client is None:
-        _gemini_client = genai.Client(api_key=api_key)
+        from services.ai.core.bedrock_service import get_ai_client
+        _gemini_client = get_ai_client()
     return _gemini_client
 
 
@@ -97,9 +95,10 @@ def _ai_switched_off() -> bool:
 
 
 def _ai_viability_enabled() -> bool:
+    from services.ai.core.bedrock_service import has_ai_key
     return (
         os.getenv("COMPLIANCE_AI_VIABILITY_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
-        and bool(os.getenv("GEMINI_API_KEY", "").strip())
+        and has_ai_key()
     )
 
 

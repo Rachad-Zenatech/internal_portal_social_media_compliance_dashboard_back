@@ -92,25 +92,23 @@ TOPIC_SYNC_HOURS = _env_float("PUBLIC_MOOD_TOPIC_SYNC_HOURS", 24)
 WINDOW_DAYS = int(_env_float("PUBLIC_MOOD_WINDOW_DAYS", 7))
 MAX_TOPICS = int(_env_float("PUBLIC_MOOD_MAX_TOPICS", 4))
 MAX_TEXT_CHARS = 6000
-# Matching by meaning (Atlas cosine scores, 0-1). Calibrated on gemini-embedding-2 with the sample topics: the
-# topic a post is about leads the post's median topic score by 0.045-0.10; off-topic ones by 0.015-0.036.
-# A post is about a topic it doesn't name when it leads by MEANING_MIN_MARGIN and scores at least MEANING_MIN_SCORE.
+# Matching by meaning (Atlas cosine scores, 0-1).
 MEANING_MIN_MARGIN = _env_float("PUBLIC_MOOD_MEANING_MIN_MARGIN", 0.04)
 MEANING_MIN_SCORE = _env_float("PUBLIC_MOOD_MEANING_MIN_SCORE", 0.84)
 # A single everyday keyword ("crop") counts only if the meaning leads by this much too.
 KEYWORD_MIN_MARGIN = _env_float("PUBLIC_MOOD_KEYWORD_MIN_MARGIN", 0.025)
 TOPIC_KIND = "LISTENING_TOPIC"
 
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 
 
-def _get_client() -> genai.Client:
+def _get_client() -> Any:
     global _client
     if _client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise HTTPException(status_code=503, detail="GEMINI_API_KEY isn't configured, so public mood can't be summarised.")
-        _client = genai.Client(api_key=api_key)
+        from services.ai.core.bedrock_service import get_ai_client
+        _client = get_ai_client()
+    if not _client:
+        raise HTTPException(status_code=503, detail="AI isn't configured, so public mood can't be summarised.")
     return _client
 
 

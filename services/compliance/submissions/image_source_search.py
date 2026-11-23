@@ -160,18 +160,19 @@ async def find_source_urls_on_web(reference: str) -> List[str]:
         temperature=0,
         http_options=types.HttpOptions(timeout=int(os.getenv("SOURCE_SEARCH_TIMEOUT_SEC", "30")) * 1000),
     )
-    gemini_models = [m for m in get_gemini_fallback_models() if m.startswith("gemini-")]
-    for model in gemini_models:
-        try:
-            resp = await ai_observability.generate(
-                client, model=model, contents=prompt, config=config, feature="IMAGE_SOURCE_SEARCH",
-            )
-            urls = _extract_grounding_urls(resp)
-            if urls:
-                return urls
-        except Exception as e:
-            logger.warning("Web search for named source failed (%s): %s", model, e)
-            continue
+    # Gemini Google Search grounding (commented out for now, replaced with Bedrock):
+    # gemini_models = [m for m in get_gemini_fallback_models() if m.startswith("gemini-")]
+    # for model in gemini_models:
+    #     try:
+    #         resp = await ai_observability.generate(
+    #             client, model=model, contents=prompt, config=config, feature="IMAGE_SOURCE_SEARCH",
+    #         )
+    #         urls = _extract_grounding_urls(resp)
+    #         if urls:
+    #             return urls
+    #     except Exception as e:
+    #         logger.warning("Web search for named source failed (%s): %s", model, e)
+    #         continue
     api_urls = await _search_api_urls(query)
     if api_urls:
         return api_urls

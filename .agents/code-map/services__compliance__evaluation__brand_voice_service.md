@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/brand_voice_service.py (708 lines) - Brand voice per brand, read from its brand manual.
+## services/compliance/evaluation/brand_voice_service.py (707 lines) - Brand voice per brand, read from its brand manual.
 - `_may_edit` (def) L54 - Super admins, rulebook editors, and reviewers for the brands they work on.
 - `_require_edit` (def) L67
 - `_json_list` (def) L89
@@ -25,16 +25,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_AiColor` (class) L406
 - `_AiTypeface` (class) L412
 - `_AiResult` (class) L418
-- `_get_client` (def) L455
-- `_ask_ai` (def) L465
-- `_hex` (def) L484
-- `_logo_guess` (def) L489 - Without AI: the biggest image on the earliest page that has one (manuals open with the logo).
-- `_rgb` (def) L498
-- `build_palette` (def) L502 - Each swatch row under its main colour: the one it starts with, else the closest main colour, else its own
-- `extract` (def) L519 - Read the stored manual and save what it says (runs in the background).
-- `_save_failure` (def) L611
-- `schedule` (def) L618
-    - `run` (def) L619
-- `context_body` (def) L635 - The brand voice as one Messaging Context entry body (what the analysis is given).
-- `_sync_context_entry` (def) L659 - Keep the brand's Brand Voice entry in the Messaging Context in step with its profile.
-- `resume_interrupted` (def) L702 - Manuals that were being read when the server stopped are read again.
+- `_get_client` (def) L454
+- `_ask_ai` (def) L464
+- `_hex` (def) L483
+- `_logo_guess` (def) L488 - Without AI: the biggest image on the earliest page that has one (manuals open with the logo).
+- `_rgb` (def) L497
+- `build_palette` (def) L501 - Each swatch row under its main colour: the one it starts with, else the closest main colour, else its own
+- `extract` (def) L518 - Read the stored manual and save what it says (runs in the background).
+- `_save_failure` (def) L610
+- `schedule` (def) L617
+    - `run` (def) L618
+- `context_body` (def) L634 - The brand voice as one Messaging Context entry body (what the analysis is given).
+- `_sync_context_entry` (def) L658 - Keep the brand's Brand Voice entry in the Messaging Context in step with its profile.
+- `resume_interrupted` (def) L701 - Manuals that were being read when the server stopped are read again.

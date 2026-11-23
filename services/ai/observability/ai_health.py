@@ -26,15 +26,18 @@ _PRIORITY = ["KEY", "QUOTA", "MODEL", "BUSY", "OTHER"]
 _TEXT = {
     "KEY": (
         "The AI key isn't working",
-        "It may have expired or been revoked. Ask an admin to renew the Gemini key.",
+        # "It may have expired or been revoked. Ask an admin to renew the Gemini key."
+        "It may have expired or been revoked. Ask an admin to renew the AWS Bedrock key.",
     ),
     "QUOTA": (
         "The AI limit has been reached",
-        "The Gemini quota is used up for now. It works again when the limit resets, or when an admin raises it.",
+        # "The Gemini quota is used up for now. It works again when the limit resets, or when an admin raises it."
+        "The Bedrock limit is used up for now. It works again when the limit resets, or when an admin raises it.",
     ),
     "MODEL": (
         "The AI models aren't available",
-        "The configured Gemini models have been retired or renamed. Ask an admin to update them.",
+        # "The configured Gemini models have been retired or renamed. Ask an admin to update them."
+        "The configured Bedrock models have been retired or renamed. Ask an admin to update them.",
     ),
     "BUSY": (
         "The AI isn't responding",
@@ -63,7 +66,8 @@ class AiStatus(BaseModel):
 def summarize(rows: List[Dict[str, Any]], now: datetime, key_set: bool = True) -> AiStatus:
     """rows: the AI calls in the window, newest first, each with status, kind (the failure kind) and started_at."""
     if not key_set:
-        return AiStatus(available=False, reason="KEY", title="The AI key isn't set", message="No Gemini key is configured. " + _EFFECT)
+        return AiStatus(available=False, reason="KEY", title="The AI key isn't set", # message="No Gemini key is configured. "
+        message="No AWS Bedrock key is configured. " + _EFFECT)
     if not rows or rows[0]["status"] == "OK":
         return AiStatus()
     last_ok = next((r["started_at"] for r in rows if r["status"] == "OK"), None)
@@ -89,11 +93,12 @@ async def status() -> AiStatus:
         """
         SELECT status, attributes->>'error_kind' AS kind, started_at
         FROM ai_trace_spans
-        WHERE kind = 'model' AND name = 'gemini.generate_content' AND started_at > $1
+        WHERE kind = 'model' AND (name = 'bedrock.generate_content' OR name = 'gemini.generate_content') AND started_at > $1
         ORDER BY started_at DESC LIMIT 300
         """,
         datetime.now(timezone.utc) - WINDOW,
     )
-    result = summarize([dict(r) for r in rows], datetime.now(timezone.utc), bool(os.getenv("GEMINI_API_KEY")))
+    from services.ai.core.bedrock_service import has_ai_key
+    result = summarize([dict(r) for r in rows], datetime.now(timezone.utc), has_ai_key())
     _cache.update(at=time.monotonic(), status=result)
     return result

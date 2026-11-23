@@ -22,7 +22,6 @@ sources that couldn't be read are for a person, at no cost; a SUPPORTED claim cl
 source" for the same claim (see compliance_service). Answers are remembered for the same post text and source text.
 """
 
-from services.ai.core import gemini_service, compliance_request_policy
 import asyncio
 import hashlib
 import json
@@ -61,11 +60,13 @@ logger = logging.getLogger(__name__)
 PROMPT_VERSION = "source-v12-combined-post-inventory"
 VERSION = f"sources-2|{citation_finder.VERSION}|{PROMPT_VERSION}"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
-MODELS = without_retired([m.strip() for m in os.getenv(
-    "SOURCE_CHECK_MODELS",
-    "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite",
-).split(",") if m.strip()])
-MODELS = compliance_request_policy.text_models(MODELS)
+# Gemini models (commented out for now, replaced with Bedrock):
+# MODELS = without_retired([m.strip() for m in os.getenv(
+#     "SOURCE_CHECK_MODELS",
+#     "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite",
+# ).split(",") if m.strip()])
+from services.ai.core.bedrock_service import get_bedrock_profile_id
+MODELS = [get_bedrock_profile_id()] if get_bedrock_profile_id() else []
 TIMEOUT_SEC = int(os.getenv("SOURCE_CHECK_TIMEOUT_SEC", "45"))
 RETRY_PAUSE_SEC = context_evaluator.RETRY_PAUSE_SEC
 # What a model is given of the post, at most.
@@ -250,13 +251,9 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
     )
     guard = screen_input(contents)
     for sweep in range(2):
-        if not any(gemini_service.model_is_available(model) for model in MODELS):
-            break
         if sweep:
             await asyncio.sleep(RETRY_PAUSE_SEC)
         for model in MODELS:
-            if not gemini_service.model_is_available(model):
-                continue
             try:
                 response = await _ask(model, contents, guard)
             except Exception as e:

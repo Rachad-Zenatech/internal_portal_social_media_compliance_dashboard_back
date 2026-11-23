@@ -50,36 +50,38 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `sync_accounts_from_mqtt` (def) L464 - Upserts social media accounts provided by the marketing/social media app via MQTT.
 - `sync_with_social_media_app_mqtt` (def) L560 - Requests account synchronization over MQTT, and populates connected accounts.
 
-## services/shared/auth/rbac_service.py (757 lines) - Utility for audit logging
-- `log_audit` (def) L12
-- `get_audit_logs` (def) L24
-- `_actor_is_super_admin` (def) L61
-- `_guard_account_change` (def) L67 - Only a super admin may change a super admin's account (anyone else could take it over, e.g.
-- `_public_user` (def) L81
-- `get_all_users` (def) L86
-- `create_user` (def) L131
-- `update_user` (def) L191
-- `delete_user` (def) L260
-- `bulk_delete_users` (def) L290
-- `get_all_roles` (def) L343
-- `get_role_tree` (def) L353
-- `create_role` (def) L426
-- `update_role` (def) L441
-- `delete_role` (def) L515
-- `get_user_roles` (def) L533
-- `set_user_roles` (def) L542
-- `get_user_brands` (def) L567 - The brands a user works on, plus every active brand to choose from.
-- `set_user_brands` (def) L578 - Replace the brands a user works on.
-- `get_role_navigation_permissions` (def) L604
-- `update_role_navigation_permissions` (def) L614
-- `get_role_mcp_tool_permissions` (def) L636
-- `update_role_mcp_tool_permissions` (def) L645
-- `log_login_activity` (def) L670
-- `get_login_activity_logs` (def) L679
-- `log_audit_action` (def) L691
-- `get_permission_modules` (def) L697
-- `get_role_permission_groups` (def) L735
-- `update_role_permission_groups` (def) L740
+## services/shared/auth/rbac_audit.py (108 lines) - Audit and login activity logging for Social Media Compliance RBAC.
+- `log_audit` (def) L10
+- `get_audit_logs` (def) L51
+- `log_login_activity` (def) L75
+- `get_login_activity_logs` (def) L92
+- `log_audit_action` (def) L104
+
+## services/shared/auth/rbac_service.py (702 lines) - rbac service (shared auth)
+- `_actor_is_super_admin` (def) L32
+- `_guard_account_change` (def) L38 - Only a super admin may change a super admin's account (anyone else could take it over, e.g.
+- `_public_user` (def) L52
+- `get_all_users` (def) L57
+- `create_user` (def) L102
+- `update_user` (def) L162
+- `delete_user` (def) L231
+- `bulk_delete_users` (def) L261
+- `get_all_roles` (def) L314
+- `get_role_tree` (def) L324
+- `create_role` (def) L397
+- `update_role` (def) L412
+- `delete_role` (def) L486
+- `get_user_roles` (def) L504
+- `set_user_roles` (def) L513
+- `get_user_brands` (def) L538 - The brands a user works on, plus every active brand to choose from.
+- `set_user_brands` (def) L549 - Replace the brands a user works on.
+- `get_role_navigation_permissions` (def) L575
+- `update_role_navigation_permissions` (def) L585
+- `get_role_mcp_tool_permissions` (def) L607
+- `update_role_mcp_tool_permissions` (def) L616
+- `get_permission_modules` (def) L642
+- `get_role_permission_groups` (def) L680
+- `update_role_permission_groups` (def) L685
 
 ## services/shared/auth/secret_config.py (18 lines) - Validated secret lookup from environment variables with no hardcoded fallbacks.
 - `require_secret` (def) L6 - Return the first configured secret meeting min_length, or raise RuntimeError.

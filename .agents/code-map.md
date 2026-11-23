@@ -19,7 +19,7 @@ to find the right file.
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |
 | .agents/code-map/postgresql_db__schemas.md | 24 | 6 KB |
 | .agents/code-map/scripts.md | 11 | 9 KB |
-| .agents/code-map/services__ai__core.md | 8 | 6 KB |
+| .agents/code-map/services__ai__core.md | 9 | 8 KB |
 | .agents/code-map/services__ai__observability.md | 5 | 4 KB |
 | .agents/code-map/services__compliance__analytics__conversation_evidence.md | 1 | 3 KB |
 | .agents/code-map/services__compliance__analytics__conversation_feedback.md | 1 | 1 KB |
@@ -108,9 +108,9 @@ to find the right file.
 | .agents/code-map/services__compliance__sentiment.md | 8 | 7 KB |
 | .agents/code-map/services__compliance__submissions.md | 28 | 29 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |
-| .agents/code-map/services__notifications.md | 10 | 9 KB |
+| .agents/code-map/services__notifications.md | 11 | 9 KB |
 | .agents/code-map/services__notifications__review_email.md | 7 | 2 KB |
-| .agents/code-map/services__shared__auth.md | 8 | 5 KB |
+| .agents/code-map/services__shared__auth.md | 9 | 5 KB |
 | .agents/code-map/services__shared__core.md | 8 | 4 KB |
 | .agents/code-map/services__shared__storage.md | 1 | 1 KB |
 | .agents/code-map/tools__ai.md | 3 | 1 KB |

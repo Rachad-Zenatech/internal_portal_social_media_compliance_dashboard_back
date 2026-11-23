@@ -23,11 +23,10 @@ from typing import Dict, List
 from services.ai.core.gemini_service import get_gemini_fallback_models, without_retired
 
 TIERS = ("LIGHT", "STANDARD", "HEAVY")
-# HEAVY defaults to flash because Pro models have no free-tier allowance; on a paid key, put a Pro model first.
 _TIER_DEFAULTS: Dict[str, str] = {
-    "LIGHT": "gemini-3.1-flash-lite,gemini-3.5-flash-lite",
-    "STANDARD": "gemini-3.1-flash-lite,gemini-3.5-flash-lite",
-    "HEAVY": "gemini-3.1-flash-lite",
+    "LIGHT": "us.anthropic.claude-haiku-5-5,us.anthropic.claude-3-5-haiku-20241022-v1:0",
+    "STANDARD": "us.anthropic.claude-haiku-5-5,us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+    "HEAVY": "us.anthropic.claude-3-5-sonnet-20241022-v2:0,us.anthropic.claude-haiku-5-5",
 }
 _FEATURE_TIERS: Dict[str, str] = {
     "CHAT": "LIGHT",
@@ -63,9 +62,9 @@ def base_tier(feature: str) -> str:
 
 def route(feature: str, *, prompt_chars: int = 0, attachments: int = 0, high_stakes: bool = False) -> Route:
     """The models to try, in order, for this request, and why that tier was chosen."""
-    available = get_gemini_fallback_models()
-    if not enabled():
-        return Route("FALLBACK", available, "routing disabled")
+    from services.ai.core.bedrock_service import get_bedrock_profile_id
+
+    profile = get_bedrock_profile_id()
     tier = base_tier(feature)
     reasons = [f"{feature.lower()} defaults to {tier.lower()}"]
     if high_stakes or prompt_chars > VERY_LONG_PROMPT_CHARS:
@@ -75,5 +74,8 @@ def route(feature: str, *, prompt_chars: int = 0, attachments: int = 0, high_sta
     elif tier == "LIGHT" and (attachments or prompt_chars > LONG_PROMPT_CHARS):
         tier = "STANDARD"
         reasons.append("has attachments" if attachments else f"prompt over {LONG_PROMPT_CHARS:,} characters")
-    preferred = [m for m in tier_models(tier) if m in available]
-    return Route(tier, preferred + [m for m in available if m not in preferred], "; ".join(reasons))
+
+    preferred = tier_models(tier)
+    if profile:
+        preferred = [profile] + [m for m in preferred if m != profile]
+    return Route(tier, preferred, "; ".join(reasons))

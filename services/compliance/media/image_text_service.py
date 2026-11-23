@@ -12,7 +12,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Iterable, List, Optional, Set
+from typing import Any, Iterable, List, Optional, Set
 from uuid import UUID
 
 import httpx
@@ -36,9 +36,12 @@ MAX_TEXT_CHARS = 5000
 # Reading text doesn't need a strong model, so this uses light models with their own daily allowance (on Gemini's
 # free tier each model has its own), leaving the main models' allowance for sentiment and transcription. Tried in
 # order; the next one is used when a model's limit is reached or it isn't available.
-MODELS = without_retired([m.strip() for m in os.getenv(
-    "IMAGE_TEXT_MODELS", "gemini-3.5-flash-lite,gemini-3.1-flash-lite"
-).split(",") if m.strip()])
+# Gemini models (commented out for now, replaced with Bedrock):
+# MODELS = without_retired([m.strip() for m in os.getenv(
+#     "IMAGE_TEXT_MODELS", "gemini-3.5-flash-lite,gemini-3.1-flash-lite"
+# ).split(",") if m.strip()])
+from services.ai.core.bedrock_service import get_bedrock_profile_id
+MODELS = [get_bedrock_profile_id()] if get_bedrock_profile_id() else []
 # The most one read may take before the next model is tried.
 TIMEOUT_SEC = int(os.getenv("IMAGE_TEXT_TIMEOUT_SEC", "60"))
 
@@ -66,13 +69,13 @@ def is_image_file(kind: str, mime_type: str) -> bool:
     return kind in IMAGE_KINDS and (mime_type or "").startswith("image/")
 
 
-def _get_client() -> genai.Client:
+def _get_client() -> Any:
     global _client
     if _client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY is not configured, so text in images can't be read.")
-        _client = genai.Client(api_key=api_key)
+        from services.ai.core.bedrock_service import get_ai_client
+        _client = get_ai_client()
+        if not _client:
+            raise RuntimeError("AI is not configured, so text in images can't be read.")
     return _client
 
 

@@ -4,9 +4,9 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/shared/core/audit_service.py (126 lines) - audit service (shared core)
+## services/shared/core/audit_service.py (140 lines) - audit service (shared core)
 - `log_audit_event` (def) L6 - Records an event in the audit_logs table.
-- `get_audit_logs` (def) L30
+- `get_audit_logs` (def) L44
 
 ## services/shared/core/browser_stealth.py (40 lines) - Playwright stealth: hides the usual headless-browser giveaways (navigator.webdriver, missing plugins, the "HeadlessChrome" user agent, .....
 - `apply_stealth` (def) L20 - Apply stealth to a Playwright browser context (every page opened from it after this).
