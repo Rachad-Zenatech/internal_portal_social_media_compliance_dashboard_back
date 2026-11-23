@@ -61,7 +61,7 @@ from services.ai.core.gemini_service import is_rotatable_model_error, without_re
 logger = logging.getLogger(__name__)
 
 # v10: brand alignment also checks images and video against the visual identity in the brand voice entries.
-PROMPT_VERSION = "sentiment-v16"
+PROMPT_VERSION = "sentiment-v17-output-budget"
 # Gemini processes an uploaded video before it can be used in a prompt.
 VIDEO_READY_TIMEOUT_SEC = 300
 # Models to analyse with, in order of preference. Gemini's free tier gives each model its own small daily allowance
@@ -102,6 +102,7 @@ API_RETRIES = 3
 # The most one Gemini analysis call may take (a normal one takes about 20 seconds); after that the model counts as
 # too busy and the next one in the chain takes over.
 GENERATE_TIMEOUT_SEC = int(os.getenv("SENTIMENT_TIMEOUT_SEC", "120"))
+MAX_OUTPUT_TOKENS = int(os.getenv("SENTIMENT_MAX_OUTPUT_TOKENS", "16384"))
 MAX_TEXT_CHARS = 30_000
 
 CEO_RULE_SET = "Shaun CEO Thought Leadership"

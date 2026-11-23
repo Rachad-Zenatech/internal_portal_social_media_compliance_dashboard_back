@@ -75,13 +75,15 @@ class BedrockUsageMetadata:
 class BedrockResponse:
     """Emulates google.genai.types.GenerateContentResponse for downstream services."""
 
-    def __init__(self, text: str, usage: Optional[Dict[str, Any]] = None, parsed: Any = None):
+    def __init__(self, text: str, usage: Optional[Dict[str, Any]] = None, parsed: Any = None,
+                 stop_reason: Optional[str] = None):
         self._text = text
         self.candidates = [BedrockCandidate(text)]
         in_tok = (usage or {}).get("inputTokens", 0)
         out_tok = (usage or {}).get("outputTokens", 0)
         self.usage_metadata = BedrockUsageMetadata(in_tok, out_tok)
         self.parsed = parsed
+        self.stop_reason = stop_reason
 
     @property
     def text(self) -> str:
@@ -282,7 +284,7 @@ class BedrockModels:
             except Exception:
                 pass
 
-        return BedrockResponse(clean_text, usage, parsed)
+        return BedrockResponse(clean_text, usage, parsed, resp.get("stopReason"))
 
 
 class BedrockStreamIterator:

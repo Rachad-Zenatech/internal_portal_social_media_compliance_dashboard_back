@@ -111,7 +111,8 @@ class ClaimCoverageTests(unittest.IsolatedAsyncioTestCase):
             patch.object(cs, "rulebook_version", AsyncMock(return_value="test")),
         ):
             result = await cs.check_compliance(ComplianceCheckRequest(
-                text=POST.replace("during transport", "during\ntransport").replace("demanding environments", "demanding\nenvironments")))
+                text=POST.replace("during transport", "during\ntransport").replace("demanding environments", "demanding\nenvironments"),
+                content_type="SOCIAL_POST"))
         self.assertFalse(result.ai_unavailable)
         self.assertEqual(result.score, 100 - cs.EVIDENCE_CAP)
         self.assertEqual(result.evidence_count, len(CLAIMS))

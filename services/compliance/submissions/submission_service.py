@@ -1328,6 +1328,7 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
     if not _check_text(row):
         raise HTTPException(status_code=422, detail="Add a title or caption before running the check")
     await manual_check_service.require_compliance_ready(row)
+    await transcription_service.retry_failed_videos(submission_id)
     # Duplicates are settled before the compliance check, not when the post is sent: a true duplicate is refused here,
     # and a repost for another date is confirmed here (sending still refuses a duplicate made by later edits).
     duplicates = await _require_not_duplicate(row, confirm_repost)

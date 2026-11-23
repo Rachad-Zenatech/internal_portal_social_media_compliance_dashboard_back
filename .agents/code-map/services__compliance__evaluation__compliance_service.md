@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/compliance_service.py (1541 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+## services/compliance/evaluation/compliance_service.py (1524 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - `_get_gemini_client` (def) L79
 - `_ai_switched_off` (def) L92 - The AI meaning check was turned off on purpose (not a failure).
 - `_ai_viability_enabled` (def) L97
@@ -35,30 +35,29 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `implied_audiences` (def) L698 - Audiences a post reaches whatever it targets: investor wording ($ZENA, "shareholders") means investors read it,
 - `CheckScope` (class) L708
 - `check_scope` (def) L723 - Who the content reaches and what it's made of, for picking the rules that apply to it.
-- `_rule_applies` (def) L741 - A rule applies unless it's limited to values the content doesn't have.
-    - `overlaps` (def) L746
-- `applicable_rules` (def) L762 - Active rules matching the brand/audience policy and individual rule scopes, also used by sentiment.
-- `_quoted` (def) L792 - a", "b"'.
-- `_penalty_and_light` (def) L797
-- `_evaluate_rule` (def) L808 - One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
-    - `found` (def) L816
-- `_sentences` (def) L884 - The post's sentences worth searching on: long enough to say something, each once, in order, at most `limit`.
-- `_vector_context_for_check` (def) L898 - Query the MongoDB Atlas vector store for:
-- `_full_rule_mode` (def) L1002 - always (default): review every post; auto: add a full pass for claims; off: use search-selected rules.
-- `_looks_like_claims` (def) L1029
-- `_semantic_findings` (def) L1036 - Rules the exact wording missed but the vector store says the post is close to in meaning, confirmed by Gemini.
-- `_passage` (def) L1203 - The sentence a finding's wording sits in, and the sentences around it, for judging it in context.
-- `plain_text_lines` (def) L1221
-- `check_compliance` (def) L1225 - Screen content with scoped rules, contextual judgments, source checks and review penalties.
-- `flagged_tags` (def) L1340 - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
-- `_count_overlaps_once` (def) L1356 - When two rules flag the very same words (e.g.
-    - `spans` (def) L1359
-- `_charge_unsupported_claims` (def) L1376 - Give each claim that needs a source its small penalty.
-    - `claim` (def) L1382
-- `review_penalty` (def) L1407 - What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE).
-- `_charge_review_findings` (def) L1419 - Give each finding a person has to check its points by the model's confidence.
-- `_count_extra_claims` (def) L1438 - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
-- `rulebook_version` (def) L1464 - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
-- `self_test` (def) L1482 - Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable
-- `self_test_all` (def) L1513
-- `get_compliance_stats` (def) L1517 - Retrieve aggregate compliance metrics.
+- `_rule_applies` (def) L741 - Keep the existing entry point while the policy module handles scope matching.
+- `applicable_rules` (def) L746 - Active rules matching the brand/audience policy and individual rule scopes, also used by sentiment.
+- `_quoted` (def) L776 - a", "b"'.
+- `_penalty_and_light` (def) L781
+- `_evaluate_rule` (def) L792 - One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
+    - `found` (def) L800
+- `_sentences` (def) L868 - The post's sentences worth searching on: long enough to say something, each once, in order, at most `limit`.
+- `_vector_context_for_check` (def) L882 - Query the MongoDB Atlas vector store for:
+- `_full_rule_mode` (def) L986 - always (default): review every post; auto: add a full pass for claims; off: use search-selected rules.
+- `_looks_like_claims` (def) L1013
+- `_semantic_findings` (def) L1020 - Rules the exact wording missed but the vector store says the post is close to in meaning, confirmed by Gemini.
+- `_passage` (def) L1187 - The sentence a finding's wording sits in, and the sentences around it, for judging it in context.
+- `plain_text_lines` (def) L1205
+- `check_compliance` (def) L1209 - Screen content with scoped rules, contextual judgments, source checks and review penalties.
+- `flagged_tags` (def) L1323 - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
+- `_count_overlaps_once` (def) L1339 - When two rules flag the very same words (e.g.
+    - `spans` (def) L1342
+- `_charge_unsupported_claims` (def) L1359 - Give each claim that needs a source its small penalty.
+    - `claim` (def) L1365
+- `review_penalty` (def) L1390 - What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE).
+- `_charge_review_findings` (def) L1402 - Give each finding a person has to check its points by the model's confidence.
+- `_count_extra_claims` (def) L1421 - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
+- `rulebook_version` (def) L1447 - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
+- `self_test` (def) L1465 - Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable
+- `self_test_all` (def) L1496
+- `get_compliance_stats` (def) L1500 - Retrieve aggregate compliance metrics.

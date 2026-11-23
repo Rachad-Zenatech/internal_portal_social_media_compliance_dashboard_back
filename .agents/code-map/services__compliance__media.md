@@ -174,6 +174,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `resume_interrupted` (def) L238 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
 - `schedule_missing` (def) L255 - Read the images among these that were never read, or whose read was abandoned (e.g.
 
+## services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
+- `audio_samples` (def) L16
+- `speech_segments` (def) L32 - Run a cached public Whisper model on CPU.
+
 ## services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - `node` (def) L12
 - `paragraph` (def) L16
@@ -183,17 +187,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `is_sources_label` (def) L10
 - `split` (def) L14 - Return the script body and citations from merged table rows or a plain-text footer.
 
-## services/compliance/media/transcription_service.py (260 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
-- `_get_client` (def) L65
-- `_to_seconds` (def) L75 - Accept numbers or "MM:SS(.s)" / "HH:MM:SS" strings, which models sometimes return anyway.
-- `_normalize` (def) L88
-- `_wait_until_active` (def) L105 - Gemini processes uploaded videos before they can be referenced in a prompt.
-- `_claim` (def) L119 - Atomically move a video to PROCESSING unless another worker is already transcribing it.
-- `_save` (def) L135
-- `transcribe_file` (def) L151
-- `_run` (def) L199
-- `schedule` (def) L206 - Start background transcription for each video not already being transcribed by this process.
-- `schedule_missing` (def) L217 - Queue videos that were never transcribed, or whose previous attempt was abandoned.
+## services/compliance/media/transcription_service.py (220 lines) - Video Transcription Service Generates timestamped local speech and Bedrock on-screen text for submitted videos.
+- `_to_seconds` (def) L60 - Accept numbers or "MM:SS(.s)" / "HH:MM:SS" strings, which models sometimes return anyway.
+- `_normalize` (def) L73
+- `_claim` (def) L90 - Atomically move a video to PROCESSING unless another worker is already transcribing it.
+- `_save` (def) L106
+- `transcribe_file` (def) L122
+- `_run` (def) L149
+- `schedule` (def) L156 - Start background transcription for each video not already being transcribed by this process.
+- `schedule_missing` (def) L167 - Queue videos that were never transcribed, or whose previous attempt was abandoned.
+- `retry_failed_videos` (def) L214 - Only explicit compliance reruns retry failed transcripts; background polling does not.
 
 ## services/compliance/media/video_finding_service.py (116 lines) - Locate exact flagged wording in video frames without inventing a visual region.
 - `_ffmpeg_binary` (def) L20 - Use the configured Windows executable from WSL when development mounts the drive.
@@ -209,3 +212,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_video_job` (def) L102 - Retrieve current status and progress of a background video job owned by user_id.
 - `list_video_jobs` (def) L112 - List recent video processing jobs belonging to user_id.
 - `run_video_processing_pipeline` (def) L122 - Background task simulating end-to-end video processing through all stages.
+
+## services/compliance/media/video_transcription_provider.py (39 lines) - Real local speech plus timestamped on-screen text, using only the authorized Bedrock visual path.
+- `PartialTranscriptError` (class) L16 - Keep independently verified speech if the on-screen read fails.
+    - `__init__` (def) L18
+- `transcribe` (def) L23 - The speech stays local; only sampled frame images use the authorized Bedrock provider.

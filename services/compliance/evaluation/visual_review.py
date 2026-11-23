@@ -5,13 +5,14 @@ import logging
 import math
 import os
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 
 from models.compliance.compliance_model import ComplianceViolation, ContextEvaluation
 from services.compliance.evaluation import context_evaluator
-from services.compliance.evaluation.visual_review_prompt import PROMPT, RULE_NUMBERS, SCHEMA
+from services.compliance.evaluation.visual_review_prompt import PROMPT, PROMPT_VERSION, RULE_NUMBERS, SCHEMA
 from services.compliance.media import image_text_service
 from services.compliance.media.image_finding_service import region_from_box
 
@@ -28,6 +29,7 @@ class Assessment(BaseModel):
     rule_number: str
     status: str
     confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+    evidence_basis: Literal["OBSERVED_CONTENT", "NO_CONCERN", "COVERAGE_LIMITATION"]
     evidence: str = Field(max_length=2000)
     reasoning: str = Field(min_length=1, max_length=4000)
     box: list[FiniteFloat]
@@ -52,6 +54,11 @@ async def _asset_part(asset):
             data, mime = await asyncio.to_thread(_image_bytes, path, mime)
             part = types.Part.from_bytes(data=data, mime_type=mime)
         elif mime.startswith("video/"):
+            from services.ai.core.bedrock_service import is_bedrock_enabled
+            if is_bedrock_enabled():
+                from services.compliance.evaluation.visual_video_frames import sample_parts
+                yield await asyncio.to_thread(sample_parts, path)
+                return
             if path.stat().st_size <= MAX_VIDEO_BYTES:
                 data = await asyncio.to_thread(path.read_bytes)
                 part = types.Part.from_bytes(data=data, mime_type=mime)
@@ -91,15 +98,21 @@ def _parse(response, rules):
             d["end_sec"] = 0.0
         if "confidence" not in d:
             d["confidence"] = 1.0
-        allowed_keys = {"rule_number", "status", "confidence", "evidence", "reasoning", "box", "start_sec", "end_sec"}
+        allowed_keys = {"rule_number", "status", "confidence", "evidence", "reasoning", "box", "start_sec", "end_sec", "evidence_basis"}
         cleaned = {k: v for k, v in d.items() if k in allowed_keys}
         normalized.append(cleaned)
     assessments = [Assessment.model_validate(item) for item in normalized]
     expected = {r.rule_number for r in rules}
     if len(assessments) != len(expected) or {a.rule_number for a in assessments} != expected:
         raise ValueError("Visual review did not assess every applicable rule exactly once")
-    if any(a.status not in {"VIOLATION", "NEEDS_REVIEW", "CLEARED"} for a in assessments):
+    if any(a.status not in {"VIOLATION", "NEEDS_REVIEW", "CLEARED", "UNAVAILABLE"} for a in assessments):
         raise ValueError("Invalid visual decision")
+    for assessment in assessments:
+        if (assessment.evidence_basis == "COVERAGE_LIMITATION"
+                or (assessment.status != "CLEARED" and assessment.evidence_basis != "OBSERVED_CONTENT")
+                or (assessment.status != "CLEARED" and not assessment.evidence.strip())
+                or (assessment.status == "CLEARED" and assessment.confidence < .8)):
+            assessment.status = "UNAVAILABLE"
     return assessments
 
 
@@ -108,6 +121,8 @@ def _finding(asset, rule, assessment, model):
     from services.compliance.evaluation.compliance_service import _penalty_and_light
 
     a = assessment
+    if a.status == "UNAVAILABLE":
+        return None
     status = a.status
     if status == "CLEARED" and a.confidence < .8:
         status = "NEEDS_REVIEW"
@@ -142,7 +157,7 @@ def _finding(asset, rule, assessment, model):
 
 def _merge(findings, finding):
     """One charge per rule; preserve stronger text findings and all visual locations."""
-    if finding.status == "CLEARED":
+    if finding is None or finding.status == "CLEARED":
         return  # Clear assessments remain in the saved visual coverage, not the issue list.
     existing = next((f for f in findings if f.rule_id == finding.rule_id and f.status != "CLEARED"), None)
     if not existing:
@@ -180,12 +195,17 @@ async def review(req, rules, findings):
                 response = await image_text_service._generate(
                     [part, PROMPT + json.dumps(payload, ensure_ascii=False)],
                     feature="VISUAL_COMPLIANCE", response_schema=SCHEMA, models=MODELS)
+            from services.ai.core.bedrock_service import is_bedrock_enabled
+            entry["input_mode"] = ("SAMPLED_FRAMES" if asset["mime_type"].startswith("video/")
+                                   and is_bedrock_enabled() else "FULL_ASSET")
             assessments = _parse(response, selected)
             model = getattr(response, "model_version", None)
             by_number = {r.rule_number: r for r in selected}
             for assessment in assessments:
                 _merge(findings, _finding(asset, by_number[assessment.rule_number], assessment, model))
-            entry.update(status="COMPLETED", model=model,
+            unavailable = [a.rule_number for a in assessments if a.status == "UNAVAILABLE"]
+            entry.update(status="UNAVAILABLE" if unavailable else "COMPLETED", model=model,
+                         unavailable_rules=unavailable,
                          assessments=[a.model_dump() for a in assessments])
         except Exception:
             logger.warning("Visual compliance review unavailable for %s", asset["id"], exc_info=True)

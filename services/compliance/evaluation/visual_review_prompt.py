@@ -1,5 +1,7 @@
 """Visual compliance instructions; the active database rule remains the policy authority."""
 
+PROMPT_VERSION = "visual-v2-observed-evidence-video-samples"
+
 RULE_NUMBERS = {"Rule 11", "Rule 7", "Rule 12", "Rule 27", "Rule 28", "Rule 29"}
 PROMPT = """Inspect the attached social-media asset visually, not only its text. Evaluate every supplied
 rule against the actual pixels and the full post context, audience, disclosures and supporting evidence.
@@ -30,7 +32,13 @@ A Rule 29 NEEDS_REVIEW assessment must identify a specific observed prohibited-c
 what is ambiguous. If the evidence says there are no weapons, harm or violence and only technical
 reporting, clear the rule rather than raising a general rulebook-review warning. Continue to flag
 actual prohibited weapons, threats, graphic harm and glorification under the supplied policy.
-For videos inspect the supplied video, and report the time in seconds for any observed issue.
+For videos inspect the supplied video or timestamped frame images, and report the supplied time for an observed issue.
+Assess only the supplied material. Sampling alone is not a rule breach or a reason to raise NEEDS_REVIEW.
+A NEEDS_REVIEW finding requires a specific observed potentially prohibited cue, not speculation about unseen frames,
+backgrounds, plates or clothing. No relevant cue in inspected material means CLEARED, including Rules 27 and 28.
+Set evidence_basis to OBSERVED_CONTENT for a specific concerning cue, NO_CONCERN for no relevant cue, or
+COVERAGE_LIMITATION if no usable visual material was supplied. Use UNAVAILABLE for coverage limitations;
+never raise a rule finding or request removal of content merely because frames were not inspected.
 Use VIOLATION only for a clearly visible policy breach established in context, with confidence >=0.85.
 Use NEEDS_REVIEW for ambiguous imagery or required external verification (clearance, permission,
 release or sensitivity). Use CLEARED when the visual does not breach the rule. A disclaimer does not
@@ -45,10 +53,11 @@ SCHEMA = {
     "type": "OBJECT", "required": ["assessments"], "properties": {
         "assessments": {"type": "ARRAY", "items": {
             "type": "OBJECT",
-            "required": ["rule_number", "status", "confidence", "evidence", "reasoning", "box", "start_sec", "end_sec"],
+            "required": ["rule_number", "status", "confidence", "evidence", "reasoning", "box", "start_sec", "end_sec", "evidence_basis"],
             "properties": {
                 "rule_number": {"type": "STRING"},
-                "status": {"type": "STRING", "enum": ["VIOLATION", "NEEDS_REVIEW", "CLEARED"]},
+                "status": {"type": "STRING", "enum": ["VIOLATION", "NEEDS_REVIEW", "CLEARED", "UNAVAILABLE"]},
+                "evidence_basis": {"type": "STRING", "enum": ["OBSERVED_CONTENT", "NO_CONCERN", "COVERAGE_LIMITATION"]},
                 "confidence": {"type": "NUMBER"}, "evidence": {"type": "STRING"},
                 "reasoning": {"type": "STRING"},
                 "box": {"type": "ARRAY", "items": {"type": "NUMBER"}},

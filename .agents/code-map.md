@@ -65,7 +65,9 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__newsroom_sync_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__policy_watch_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__reference_index_service.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__rule18_policy.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__rule_examples.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__rule_scope_policy.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__rule_set_policy.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_batch_service.md | 1 | 3 KB |
 | .agents/code-map/services__compliance__evaluation__script_compliance_check.md | 1 | 1 KB |
@@ -110,8 +112,9 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__synthetic_media_disclosure.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_review.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_review_prompt.md | 1 | 1 KB |
-| .agents/code-map/services__compliance__media.md | 18 | 14 KB |
-| .agents/code-map/services__compliance__sentiment.md | 8 | 7 KB |
+| .agents/code-map/services__compliance__evaluation__visual_video_frames.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__media.md | 20 | 15 KB |
+| .agents/code-map/services__compliance__sentiment.md | 9 | 8 KB |
 | .agents/code-map/services__compliance__submissions.md | 29 | 29 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |
 | .agents/code-map/services__notifications.md | 11 | 9 KB |
