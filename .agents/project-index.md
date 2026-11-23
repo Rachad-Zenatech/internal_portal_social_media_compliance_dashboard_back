@@ -224,6 +224,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
 - services/microsoft_graph/graph_sync_job.py (132 lines) - Periodic Microsoft Graph sync for already-known employees.
+- services/notifications/audit_hub_publisher.py (94 lines) - Publish local audit log records to the CEO Dashboard via the RabbitMQ Message Hub.
 - services/notifications/ceo_event_publisher.py (50 lines) - Cross-application event publisher for CEO Dashboard integration.
 - services/notifications/email_service.py (228 lines) - Email service module using SendGrid REST API for Social Media Compliance & Notifications.
 - services/notifications/mqtt_presence.py (325 lines) - MQTT Service Presence & Event-Driven Messaging Component for Social Media Compliance.
@@ -245,11 +246,12 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/auth/microsoft_auth_service.py (198 lines) - Microsoft Entra user provisioning and claim mapping.
 - services/shared/auth/oauth_connection_remote_sync.py (24 lines) - Read optional OAuth connections from the administration portal.
 - services/shared/auth/oauth_connection_service.py (599 lines) - OAuth Connection Management Service Supports hierarchical multi-entity OAuth: Organization -> Companies/Entities -> OAuth connections
-- services/shared/auth/rbac_service.py (757 lines) - Utility for audit logging
+- services/shared/auth/rbac_audit.py (108 lines) - Audit and login activity logging for Social Media Compliance RBAC.
+- services/shared/auth/rbac_service.py (702 lines) - rbac service (shared auth)
 - services/shared/auth/secret_config.py (18 lines) - Validated secret lookup from environment variables with no hardcoded fallbacks.
 - services/shared/auth/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
 - services/shared/auth/test_login_service.py (51 lines) - Local sign-in for the existing, explicitly allowed dummy review accounts.
-- services/shared/core/audit_service.py (126 lines) - audit service (shared core)
+- services/shared/core/audit_service.py (140 lines) - audit service (shared core)
 - services/shared/core/browser_stealth.py (40 lines) - Playwright stealth: hides the usual headless-browser giveaways (navigator.webdriver, missing plugins, the "HeadlessChrome" user agent, .....
 - services/shared/core/cache_service.py (221 lines) - cache service (shared core)
 - services/shared/core/integration_status_service.py (33 lines) - Small cached health snapshot used by the integrations status widget.
