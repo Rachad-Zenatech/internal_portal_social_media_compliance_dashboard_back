@@ -107,6 +107,8 @@ async def save_source_link_check(
                     ELSE array_append(COALESCE(source_links, '{}'), $3)
                 END,
                 source_link_checks = COALESCE(source_link_checks, '{}'::jsonb) || $2::jsonb,
+                content_edited_at = CASE WHEN $3 = ANY(COALESCE(source_links, '{}'))
+                    THEN content_edited_at ELSE NOW() END,
                 updated_at = NOW()
             WHERE id = $1 AND deleted_at IS NULL
             """,
