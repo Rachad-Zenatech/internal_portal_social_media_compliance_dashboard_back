@@ -195,7 +195,7 @@ async def dismiss(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagDi
             # "The evidence is on file" means the flag was right to ask, so it's kept as a correct flag, not a false alarm.
             verdict = "CORRECT" if req.reason == "EVIDENCE_ON_FILE" else "OVER_FLAGGED"
             verdict_id = await _save_verdict(conn, submission_id, row["current_version"], rule_id, v, verdict,
-                                             req.reason, note, user_id)
+                                             req.reason, note, user_id, selection_verified=req.finding_snapshot_id is not None)
             from services.compliance.submissions import submission_service
 
             await submission_service._add_event(
@@ -215,10 +215,11 @@ async def dismiss(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagDi
 
 
 async def _save_verdict(conn, submission_id: UUID, version: int, rule_id: UUID, finding: Dict[str, Any], verdict: str,
-                        reason: Optional[str], note: Optional[str], user_id: UUID) -> UUID:
+                        reason: Optional[str], note: Optional[str], user_id: UUID, *, selection_verified: bool = False) -> UUID:
     """Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag."""
     return await check_snapshot_feedback.save_verdict(
         conn, submission_id, version, rule_id, finding, verdict, reason, note, user_id,
+        selection_verified=selection_verified,
     )
 
 
@@ -292,7 +293,7 @@ async def confirm(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagCo
     async with pool.acquire() as conn:
         async with conn.transaction():
             verdict_id = await _save_verdict(conn, submission_id, row["current_version"], rule_id, v, "CORRECT", None,
-                                             note, user_id)
+                                             note, user_id, selection_verified=req.finding_snapshot_id is not None)
             from services.compliance.submissions import submission_service
 
             await submission_service._add_event(

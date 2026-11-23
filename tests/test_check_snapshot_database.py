@@ -235,3 +235,30 @@ class SnapshotDatabaseTests(unittest.IsolatedAsyncioTestCase):
             evaluated = json.loads(await conn.fetchval("SELECT evaluated_input FROM compliance_check_snapshots WHERE id=$1",
                                                        UUID(check["check_snapshot_id"])))
             self.assertEqual(evaluated["rules"], self.captured["rules"])
+
+    async def test_confirmation_records_selection_provenance_and_retraction(self):
+        from models.compliance.flag_review_model import FlagConfirmRequest
+        from services.compliance.submissions import flag_review_service as reviews, submission_service as subs
+
+        row = {"current_version": 1, "latest_check": self.check}
+
+        async def fetch(sql, *args):
+            async with self.pool.acquire() as conn:
+                return await conn.fetchrow(sql, *args)
+
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(reviews, "get_pool", return_value=self.pool))
+            stack.enter_context(patch.object(reviews, "fetch_one", AsyncMock(side_effect=fetch)))
+            stack.enter_context(patch.object(reviews, "_reviewable", AsyncMock(return_value=row)))
+            stack.enter_context(patch.object(reviews, "log_audit_event", AsyncMock()))
+            stack.enter_context(patch.object(subs, "_add_event", AsyncMock()))
+            stack.enter_context(patch.object(reviews.finding_precedent_service, "remember_soon"))
+            stack.enter_context(patch.object(reviews.finding_precedent_service, "forget_soon"))
+            selected = FlagConfirmRequest(finding_snapshot_id=self.check["violations"][0]["finding_snapshot_id"])
+            await reviews.confirm(self.post_id, self.rule_id, self.user_id, selected)
+            await reviews.unconfirm(self.post_id, self.rule_id, self.user_id)
+            await reviews.confirm(self.post_id, self.rule_id, self.user_id, FlagConfirmRequest())
+        async with self.pool.acquire() as conn:
+            events = await conn.fetch("SELECT verdict, selection_verified FROM compliance_feedback_events ORDER BY event_sequence")
+            self.assertEqual([(e["verdict"], e["selection_verified"]) for e in events],
+                             [("CORRECT", True), ("RETRACTED", False), ("CORRECT", False)])

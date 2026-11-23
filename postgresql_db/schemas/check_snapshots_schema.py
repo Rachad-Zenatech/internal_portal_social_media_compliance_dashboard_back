@@ -44,6 +44,7 @@ async def ensure_check_snapshots(conn) -> None:
             submission_version INT NOT NULL,
             verdict TEXT NOT NULL CHECK (verdict IN ('CORRECT', 'OVER_FLAGGED', 'RETRACTED')),
             resolution TEXT NOT NULL,
+            selection_verified BOOLEAN NOT NULL DEFAULT FALSE,
             reason TEXT,
             note TEXT,
             decided_by UUID NOT NULL,
@@ -53,6 +54,8 @@ async def ensure_check_snapshots(conn) -> None:
             ON compliance_feedback_events(finding_snapshot_id, decided_at);
         ALTER TABLE compliance_feedback_events ADD COLUMN IF NOT EXISTS
             event_sequence BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE;
+        ALTER TABLE compliance_feedback_events ADD COLUMN IF NOT EXISTS
+            selection_verified BOOLEAN NOT NULL DEFAULT FALSE;
 
         ALTER TABLE finding_verdicts ADD COLUMN IF NOT EXISTS finding_snapshot_id UUID
             REFERENCES compliance_finding_snapshots(id);

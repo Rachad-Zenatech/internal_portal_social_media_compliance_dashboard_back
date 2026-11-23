@@ -39,7 +39,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/database.py (260 lines) - Optional dotenv import for loading .env and local overrides during development
 - postgresql_db/schema_metadata.py (331 lines) - SQLAlchemy Core schema mirror used ONLY for Alembic autogenerate.
 - postgresql_db/schemas/baseline_context_guidance.py (94 lines) - Contextual review guidance applied to baseline compliance rules during schema setup.
-- postgresql_db/schemas/check_snapshots_schema.py (90 lines) - Immutable inputs, results and human feedback for future compliance learning.
+- postgresql_db/schemas/check_snapshots_schema.py (93 lines) - Immutable inputs, results and human feedback for future compliance learning.
 - postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (19 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/pbac_seed.py (204 lines) - Default navigation, permission groups, roles and initial administrators.
@@ -204,7 +204,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/delegation_service.py (214 lines) - Review delegation: a reviewer hands a post in review to someone else.
 - services/compliance/submissions/duplicate_service.py (237 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
 - services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
-- services/compliance/submissions/flag_review_service.py (444 lines) - Reviewers' calls on automated compliance flags.
+- services/compliance/submissions/flag_review_service.py (445 lines) - Reviewers' calls on automated compliance flags.
 - services/compliance/submissions/image_provenance_service.py (81 lines) - Require an explicit Yes/No disclosure for attached post images.
 - services/compliance/submissions/image_source_checks.py (102 lines) - Find candidate sources while keeping each source's compliance verdict separate.
 - services/compliance/submissions/image_source_search.py (185 lines) - Find a cited source on the web: Gemini Google Search grounding first, then search APIs (Serper or Google CSE) when configured, then the s...

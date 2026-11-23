@@ -51,7 +51,7 @@ async def validate_link(conn, submission_id, version, rule_id, finding):
     return UUID(str(finding_id))
 
 
-async def record(conn, finding_id, version, verdict, reason, note, user_id, *, resolution=None):
+async def record(conn, finding_id, version, verdict, reason, note, user_id, *, resolution=None, selection_verified=False):
     if finding_id is None:
         return
     resolution = resolution or (
@@ -60,13 +60,13 @@ async def record(conn, finding_id, version, verdict, reason, note, user_id, *, r
     )
     await conn.execute(
         """INSERT INTO compliance_feedback_events
-           (finding_snapshot_id, submission_version, verdict, resolution, reason, note, decided_by)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)""",
-        finding_id, version, verdict, resolution, reason, note, user_id,
+           (finding_snapshot_id, submission_version, verdict, resolution, reason, note, decided_by, selection_verified)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
+        finding_id, version, verdict, resolution, reason, note, user_id, selection_verified,
     )
 
 
-async def save_verdict(conn, submission_id, version, rule_id, finding, verdict, reason, note, user_id):
+async def save_verdict(conn, submission_id, version, rule_id, finding, verdict, reason, note, user_id, *, selection_verified=False):
     finding_id = await validate_link(conn, submission_id, version, rule_id, finding)
     evaluation = finding.get("evaluation") or {}
     verdict_id = await conn.fetchval(
@@ -84,7 +84,7 @@ async def save_verdict(conn, submission_id, version, rule_id, finding, verdict, 
         finding.get("passage"), finding.get("context"), list(finding.get("flagged_terms") or []),
         finding.get("status") or "VIOLATION", evaluation.get("decision"), user_id, finding_id,
     )
-    await record(conn, finding_id, version, verdict, reason, note, user_id)
+    await record(conn, finding_id, version, verdict, reason, note, user_id, selection_verified=selection_verified)
     return verdict_id
 
 

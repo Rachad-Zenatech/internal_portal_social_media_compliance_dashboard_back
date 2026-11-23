@@ -6,9 +6,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 
 ## postgresql_db/schemas/baseline_context_guidance.py (94 lines) - Contextual review guidance applied to baseline compliance rules during schema setup.
 
-## postgresql_db/schemas/check_snapshots_schema.py (90 lines) - Immutable inputs, results and human feedback for future compliance learning.
+## postgresql_db/schemas/check_snapshots_schema.py (93 lines) - Immutable inputs, results and human feedback for future compliance learning.
 - `ensure_check_snapshots` (def) L4
-- `_protect_history` (def) L67
+- `_protect_history` (def) L70
 
 ## postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (19 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
 - `ensure_creator_flag_dismissal_requests` (def) L4

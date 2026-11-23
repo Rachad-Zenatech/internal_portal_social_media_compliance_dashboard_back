@@ -91,7 +91,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `remember_all_in_background` (def) L118 - Startup: index verdicts given while the vector store was off or the server was down.
 - `similar` (def) L128 - Past verdicts on this rule for wording like `text`, closest first, as {score, verdict, reason, note, passage}.
 
-## services/compliance/submissions/flag_review_service.py (444 lines) - Reviewers' calls on automated compliance flags.
+## services/compliance/submissions/flag_review_service.py (445 lines) - Reviewers' calls on automated compliance flags.
 - `_json` (def) L36
 - `_out` (def) L40
 - `_creator_request_out` (def) L61
@@ -103,17 +103,17 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_reviewable` (def) L154 - The submission, if this user may make calls on its flags now: a reviewer, while it's in review.
 - `dismiss` (def) L168
 - `_save_verdict` (def) L217 - Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag.
-- `undo` (def) L225
-- `_verdict_out` (def) L251
-- `verdicts_for` (def) L266 - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
-- `confirm` (def) L277 - A reviewer says a flag is right.
-- `unconfirm` (def) L311
-- `score_after_dismissals` (def) L326 - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
-- `ApprovalStanding` (class) L349
-    - `score_too_low` (def) L359
-- `approval_standing` (def) L363 - Per submission, what stands between its current version and approval: open critical flags and the score
-- `open_critical_counts` (def) L410 - Per submission: critical (red) flags on its current version that nobody has dismissed.
-- `rule_stats` (def) L415 - How often each rule flagged a submitted version, and how often reviewers dismissed it.
+- `undo` (def) L226
+- `_verdict_out` (def) L252
+- `verdicts_for` (def) L267 - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
+- `confirm` (def) L278 - A reviewer says a flag is right.
+- `unconfirm` (def) L312
+- `score_after_dismissals` (def) L327 - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
+- `ApprovalStanding` (class) L350
+    - `score_too_low` (def) L360
+- `approval_standing` (def) L364 - Per submission, what stands between its current version and approval: open critical flags and the score
+- `open_critical_counts` (def) L411 - Per submission: critical (red) flags on its current version that nobody has dismissed.
+- `rule_stats` (def) L416 - How often each rule flagged a submitted version, and how often reviewers dismissed it.
 
 ## services/compliance/submissions/image_provenance_service.py (81 lines) - Require an explicit Yes/No disclosure for attached post images.
 - `is_confirmed` (def) L14
