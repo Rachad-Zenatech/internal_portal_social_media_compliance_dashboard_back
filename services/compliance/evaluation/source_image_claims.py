@@ -29,7 +29,8 @@ def is_identifier(text):
 def label(text):
     text = re.sub(r"^\s*(?:[-*?]+|\d+[.)])\s*", "", text).strip()
     tokens = words(text)
-    if (is_identifier(text) or not 2 <= len(tokens) <= 6 or len(text) > 70 or re.search(r"[.,!?;:=/\d]", text)
+    if (re.match(r"^(?:supports|provides|delivers|maintains|keeps|reduces|enables)\b", text, re.I)
+            or is_identifier(text) or not 2 <= len(tokens) <= 6 or len(text) > 70 or re.search(r"[.,!?;:=/\d]", text)
             or set(tokens) & (FRAGMENT_WORDS | COUNT_WORDS)):
         return None
     return text

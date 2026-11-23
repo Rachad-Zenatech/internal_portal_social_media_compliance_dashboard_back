@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_claim_coverage.py (58 lines) - Identify claims even without sources; keep missing evidence distinct from a false claim.
+## services/compliance/evaluation/source_claim_coverage.py (59 lines) - Identify claims even without sources; keep missing evidence distinct from a false claim.
 - `post_body` (def) L11
 - `identify` (def) L15
 - `claim_key` (def) L24

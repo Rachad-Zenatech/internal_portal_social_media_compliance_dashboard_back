@@ -9,5 +9,10 @@ async def setup():
                 content_key TEXT PRIMARY KEY,
                 claims JSONB NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            CREATE TABLE IF NOT EXISTS source_claim_comparisons (
+                comparison_key TEXT PRIMARY KEY,
+                result JSONB NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
