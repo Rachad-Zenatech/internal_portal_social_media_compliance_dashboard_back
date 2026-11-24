@@ -1305,7 +1305,7 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
                                submission_id, json.dumps(check))
             await _mirror_to_script_version(conn, submission_id, check)
             await _add_event(conn, submission_id, "CHECK_RUN",
-                             "Initial check: the AI review couldn't run, so there is no score yet" if check["ai_unavailable"]
+                             f"Initial check incomplete: some review steps did not finish; provisional score {result.score}/100" if check["ai_unavailable"]
                              else f"Initial check: {result.violations_count} issue(s), score {result.score}/100", user_id,
                              {"traffic_light": result.traffic_light, "score": result.score})
     return await get_submission(submission_id, user_id)
