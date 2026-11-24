@@ -212,6 +212,7 @@ def feed_in_database(file_path: Optional[Path] = None) -> bool:
 import time as _time
 
 _FEED_CACHE: Optional[tuple] = None  # (expires_at, store_obj, data)
+_STAMP_CACHE: Optional[tuple] = None  # (expires_at, store_obj, stamp)
 _FEED_CACHE_TTL = 5.0
 
 
@@ -238,8 +239,9 @@ async def load_feed(file_path: Optional[Path] = None) -> Optional[Dict[str, Any]
 
 async def save_feed(payload: Dict[str, Any], file_path: Optional[Path] = None) -> str:
     """Store a collected feed as the current one; says where it went."""
-    global _FEED_CACHE
+    global _FEED_CACHE, _STAMP_CACHE
     _FEED_CACHE = None
+    _STAMP_CACHE = None
     if feed_in_database(file_path):
         store = _x_feed_store()
         await store.write_feed(payload)
@@ -252,8 +254,15 @@ async def save_feed(payload: Dict[str, Any], file_path: Optional[Path] = None) -
 
 async def feed_stamp(file_path: Optional[Path] = None) -> Optional[datetime]:
     """When the current feed was stored: the cue that topics and snapshots built from an earlier one are out of date."""
+    global _STAMP_CACHE
     if feed_in_database(file_path):
-        return await _x_feed_store().written_at()
+        store = _x_feed_store()
+        now = _time.monotonic()
+        if _STAMP_CACHE and _STAMP_CACHE[0] > now and _STAMP_CACHE[1] is store:
+            return _STAMP_CACHE[2]
+        stamp = await store.written_at()
+        _STAMP_CACHE = (now + _FEED_CACHE_TTL, store, stamp)
+        return stamp
     try:
         return datetime.fromtimestamp((file_path or DEFAULT_X_JSON_PATH).stat().st_mtime, tz=timezone.utc)
     except OSError:

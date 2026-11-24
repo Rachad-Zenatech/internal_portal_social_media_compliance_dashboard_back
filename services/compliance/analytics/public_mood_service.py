@@ -165,7 +165,7 @@ async def _sync_topics(force: bool = False) -> None:
                 """,
                 provider.name, [t["external_id"] for t in topics],
             )
-    await _sync_topic_vectors()
+    asyncio.create_task(_sync_topic_vectors(), name="sync-topic-vectors")
 
 
 async def _sync_topic_vectors() -> None:
@@ -831,7 +831,7 @@ async def update_topic(topic_id: UUID, data: ListeningTopicUpdate, user_id: UUID
     if not row:
         raise HTTPException(status_code=404, detail="Topic not found")
     _meaning_cache.clear()
-    await _sync_topic_vectors()
+    asyncio.create_task(_sync_topic_vectors(), name="sync-topic-vectors")
     return next(t for t in await list_topics() if t.id == topic_id)
 
 

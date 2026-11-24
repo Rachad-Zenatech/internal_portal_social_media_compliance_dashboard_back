@@ -99,7 +99,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/analytics/conversation_text.py (114 lines) - Text normalization, story deduplication, and named-entity helpers for conversation evidence.
 - services/compliance/analytics/daily_scrape_schedule.py (170 lines) - Daily 8:30 AM schedule for refreshing both nav public-mood scrapings (Financial ZenaTech + Today's Posts).
 - services/compliance/analytics/item_sentiment.py (141 lines) - Item-level sentiment models: general X/social RoBERTa, FinBERT for financial news, and VADER fallback.
-- services/compliance/analytics/listening_providers.py (482 lines) - Social listening providers: where "public mood" data comes from.
+- services/compliance/analytics/listening_providers.py (491 lines) - Social listening providers: where "public mood" data comes from.
 - services/compliance/analytics/listening_sources.py (78 lines) - What to listen for about the company itself, besides the market topics (drone delivery, FAA rules...).
 - services/compliance/analytics/mood_auto_train.py (186 lines) - Training the decision model again whenever a reviewer's decision changes, without anyone running it.
 - services/compliance/analytics/mood_dataset.py (236 lines) - A fixed training dataset made from reviewed assessments.
@@ -109,7 +109,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/analytics/mood_reviews.py (138 lines) - What reviewers say about an assessment, kept for learning (the screen's own state lives in Postgres, see conversation_feedback; these wri...
 - services/compliance/analytics/mood_training.py (375 lines) - Training and judging the decision model.
 - services/compliance/analytics/mood_training_examples.py (386 lines) - What the XGBoost decision model was trained on (and live reviewed assessments queued for training), with post details, reviewer comment n...
-- services/compliance/analytics/nav_public_mood_service.py (250 lines) - Nav Public Mood overview: combines the two public scrapings shown in the navigation page: 1.
+- services/compliance/analytics/nav_public_mood_service.py (256 lines) - Nav Public Mood overview: combines the two public scrapings shown in the navigation page: 1.
 - services/compliance/analytics/performance_service.py (323 lines) - Post performance: how published posts are doing, and whether the reaction is still positive.
 - services/compliance/analytics/post_metrics_providers.py (303 lines) - Where published posts' numbers come from, and what each platform's API can actually give us.
 - services/compliance/analytics/post_queries.py (425 lines) - Searches built from what each draft actually says.
