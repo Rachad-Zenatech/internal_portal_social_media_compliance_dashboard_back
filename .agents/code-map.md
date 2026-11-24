@@ -13,7 +13,7 @@ to find the right file.
 | .agents/code-map/mcp_tools.md | 3 | 1 KB |
 | .agents/code-map/mcp_tools__compliance.md | 1 | 1 KB |
 | .agents/code-map/mcp_tools__shared.md | 1 | 1 KB |
-| .agents/code-map/models__compliance.md | 21 | 17 KB |
+| .agents/code-map/models__compliance.md | 22 | 17 KB |
 | .agents/code-map/models__notifications.md | 2 | 1 KB |
 | .agents/code-map/models__shared.md | 3 | 2 KB |
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |

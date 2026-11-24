@@ -4,7 +4,9 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/submission_fields.py (35 lines) - Field shaping for submission summaries and draft type changes.
-- `summary_fields` (def) L5
-- `editable_type_fields` (def) L14
-- `apply_clear_fields` (def) L25 - Clear scalar selections together with their plural representations.
+## services/compliance/submissions/submission_fields.py (65 lines) - Field shaping for submission summaries and draft type changes.
+- `summary_fields` (def) L9
+- `editable_type_fields` (def) L18
+- `script_mode_fields` (def) L30
+- `lock_script_mode` (def) L48 - Do not let a racing autosave bypass a script that has just been sent.
+- `apply_clear_fields` (def) L55 - Clear scalar selections together with their plural representations.

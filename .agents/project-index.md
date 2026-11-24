@@ -29,7 +29,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/sentiment_model.py (322 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - models/compliance/source_link_model.py (56 lines) - Models for submission source links and quick AI link checks.
 - models/compliance/source_trust_model.py (50 lines) - Models for people's calls on sources (does this claim match the page? is the page a good source?) and the standing a site earns from revi...
-- models/compliance/submission_model.py (627 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+- models/compliance/submission_input_model.py (19 lines) - Post creation inputs and the optional video script review setting.
+- models/compliance/submission_model.py (621 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/compliance/submission_steps_model.py (22 lines) - Creator progress through submission and revision steps.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
 - models/notifications/review_email_model.py (43 lines) - Small workflow records shared by email selection, scheduling and rendering.
@@ -242,7 +243,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
 - services/compliance/submissions/submission_check_material.py (104 lines) - The post material used by full compliance and every source comparison.
 - services/compliance/submissions/submission_check_runner.py (67 lines) - Run and snapshot the complete post check without changing its scoring policy.
-- services/compliance/submissions/submission_fields.py (35 lines) - Field shaping for submission summaries and draft type changes.
+- services/compliance/submissions/submission_fields.py (65 lines) - Field shaping for submission summaries and draft type changes.
 - services/compliance/submissions/submission_list_query.py (94 lines) - SQL for the submission list, including previews and analysis status.
 - services/compliance/submissions/submission_service.py (2708 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.

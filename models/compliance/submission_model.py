@@ -10,15 +10,13 @@ from models.compliance.submission_steps_model import StepState, SubmissionSteps
 from models.compliance.image_provenance_model import ImageProvenanceFields
 from models.compliance.review_score_model import ReviewScoreFields
 from models.compliance.source_link_model import SourceLinksMixin, SourceLinksUpdateMixin
+from models.compliance.submission_input_model import ContentType as ContentType, SubmissionCreate as SubmissionCreate, VideoScriptOptions
 from models.compliance.duplicate_model import (
     DuplicateDetail as DuplicateDetail,
     DuplicateMatch as DuplicateMatch,
     DuplicateReport as DuplicateReport,
 )
 
-# AD: paid social ads. Only the type and its rule set exist so far; ad-specific fields and rules (claims,
-# targeting, platform ad policies) are still to be defined.
-ContentType = Literal["VIDEO", "SOCIAL_POST", "CAROUSEL", "IMAGE", "BLOG", "AD"]
 FileKind = Literal["MAIN", "SCRIPT", "IMAGE", "SUPPORTING"]
 SubmissionStatus = Literal["DRAFT", "IN_REVIEW", "CHANGES_REQUESTED", "APPROVED", "REJECTED"]
 
@@ -91,12 +89,8 @@ class ReviewerOption(BaseModel):
     # REVIEWER can approve it; SUGGESTER can only comment and suggest edits to its script.
     kind: Literal["REVIEWER", "SUGGESTER"] = "REVIEWER"
 
-class SubmissionCreate(BaseModel):
-    title: str = Field(..., min_length=1, max_length=300)
-    content_type: ContentType
 
-
-class SubmissionUpdate(SourceLinksUpdateMixin):
+class SubmissionUpdate(SourceLinksUpdateMixin, VideoScriptOptions):
     title: Optional[str] = Field(None, min_length=1, max_length=300)
     content_type: Optional[ContentType] = None
     # Every brand it's for, primary first. brand_code alone still works and means just that one.

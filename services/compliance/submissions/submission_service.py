@@ -552,12 +552,12 @@ async def create_submission(data: SubmissionCreate, user_id: UUID) -> Submission
             row = await conn.fetchrow(
                 """
                 INSERT INTO content_submissions (title, content_type, created_by, updated_by, script_required)
-                VALUES ($1, $2::varchar, $3, $3, $2::varchar = 'VIDEO')
+                VALUES ($1, $2::varchar, $3, $3, $2::varchar = 'VIDEO' AND $4::boolean)
                 RETURNING id, reference_code
                 """,
                 data.title.strip(),
                 data.content_type,
-                user_id,
+                user_id, data.script_required is not False,
             )
             await _add_event(conn, row["id"], "CREATED", f"Draft {row['reference_code']} created", user_id)
     await log_audit_event("content_submission", str(row["id"]), "CREATE_SUBMISSION", user_id,
@@ -730,7 +730,6 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
             raise HTTPException(status_code=422, detail="Some of those people can't review content on this brand")
         fields["reviewer_ids"] = kept + picked
     submission_fields.apply_clear_fields(fields, data.clear_fields)
-
     if not fields:
         return await _to_submission(row)
 
@@ -746,6 +745,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
                 # Fail fast if another request holds this row (e.g. a stuck upload), instead of hanging until the
                 # 120s command timeout and returning a 500.
                 await conn.execute("SET LOCAL lock_timeout = '8s'")
+                await submission_fields.lock_script_mode(conn, submission_id, payload)
                 await conn.execute(
                     f"UPDATE content_submissions SET {sets}{edited}, updated_by = ${len(params)}, updated_at = NOW() WHERE id = $1",
                     *params,
