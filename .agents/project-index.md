@@ -78,7 +78,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/script_submission_documents_eval.py (204 lines) - Shared-document adoption and original-post sync regressions, using isolated mocked services.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
-- server.py (471 lines) - server
+- server.py (472 lines) - server
 - services/ai/core/ai_types.py (84 lines) - Native AI request/content DTOs replacing google.genai.types for AWS Bedrock.
 - services/ai/core/assistant_chat_service.py (261 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/bedrock_embeddings.py (52 lines) - Real Titan embeddings, isolated from chat inference profiles and old vector spaces.

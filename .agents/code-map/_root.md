@@ -4,19 +4,19 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## server.py (471 lines) - server
+## server.py (472 lines) - server
 - `_graph_background_sync_enabled` (def) L73
 - `_env_flag` (def) L77
 - `lifespan` (def) L82
-- `root` (def) L183 [GET /]
-- `health_live` (def) L187 [GET /health/live]
-- `health_ready` (def) L191 [GET /health/ready]
-- `integration_status` (def) L200 [GET /api/integration-status, GET /api/integration/status]
-- `_sweep_rate_buckets` (def) L263
-- `_client_ip` (def) L267
-- `_session_identity` (def) L273
-- `rate_limit` (def) L286
-- `security_headers` (def) L352
-- `_slow_request_threshold_ms` (def) L367
-- `_should_log_request_completion` (def) L376
-- `request_observability` (def) L382
+- `root` (def) L184 [GET /]
+- `health_live` (def) L188 [GET /health/live]
+- `health_ready` (def) L192 [GET /health/ready]
+- `integration_status` (def) L201 [GET /api/integration-status, GET /api/integration/status]
+- `_sweep_rate_buckets` (def) L264
+- `_client_ip` (def) L268
+- `_session_identity` (def) L274
+- `rate_limit` (def) L287
+- `security_headers` (def) L353
+- `_slow_request_threshold_ms` (def) L368
+- `_should_log_request_completion` (def) L377
+- `request_observability` (def) L383
