@@ -28,7 +28,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `summarize` (def) L66 - rows: the AI calls in the window, newest first, each with status, kind (the failure kind) and started_at.
 - `status` (def) L89
 
-## services/ai/observability/ai_observability.py (418 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+## services/ai/observability/ai_observability.py (424 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - `_env_int` (def) L41
 - `Span` (class) L57
 - `_get_queue` (def) L73
@@ -48,10 +48,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `classify_error` (def) L251 - What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
 - `_notify_attempt` (def) L274
 - `generate` (def) L284 - client.models.generate_content in a thread, traced and prompt-logged.
-- `_write` (def) L357
-- `_apply_retention` (def) L370
-- `flush` (def) L382 - Write whatever is still queued (on shutdown, before the pool closes).
-- `writer_loop` (def) L395 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
+- `_write` (def) L363
+- `_apply_retention` (def) L376
+- `flush` (def) L388 - Write whatever is still queued (on shutdown, before the pool closes).
+- `writer_loop` (def) L401 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
 
 ## services/ai/observability/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - `_attrs` (def) L9
@@ -61,14 +61,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_trace` (def) L97
 - `list_prompt_logs` (def) L111
 
-## services/ai/observability/ai_usage_service.py (170 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
-- `_env_int` (def) L51
-- `limit` (def) L58
-- `per_user_minute` (def) L62
-- `Usage` (class) L67
-- `AiLimitExceeded` (class) L73
-    - `__init__` (def) L74
-- `_when` (def) L78
-- `_count` (def) L88
-- `reserve` (def) L101 - Record one Gemini call, or raise AiLimitExceeded (HTTP 429) with a message saying when it frees up.
-- `usage_for` (def) L144 - What a person has left, per feature (and for one submission when given), for showing in the UI.
+## services/ai/observability/ai_usage_service.py (169 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
+- `_env_int` (def) L50
+- `limit` (def) L57
+- `per_user_minute` (def) L61
+- `Usage` (class) L66
+- `AiLimitExceeded` (class) L72
+    - `__init__` (def) L73
+- `_when` (def) L77
+- `_count` (def) L87
+- `reserve` (def) L100 - Record one Gemini call, or raise AiLimitExceeded (HTTP 429) with a message saying when it frees up.
+- `usage_for` (def) L143 - What a person has left, per feature (and for one submission when given), for showing in the UI.

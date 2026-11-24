@@ -80,7 +80,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - server.py (471 lines) - server
 - services/ai/core/assistant_chat_service.py (259 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/bedrock_embeddings.py (52 lines) - Real Titan embeddings, isolated from chat inference profiles and old vector spaces.
-- services/ai/core/bedrock_service.py (375 lines) - AWS Bedrock AI Service Adapter.
+- services/ai/core/bedrock_service.py (386 lines) - AWS Bedrock AI Service Adapter.
 - services/ai/core/compliance_request_policy.py (30 lines) - Bound compliance attempts and share outage knowledge without changing judgment prompts or coverage.
 - services/ai/core/gemini_service.py (209 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (82 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
@@ -90,9 +90,9 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - services/ai/observability/ai_guardrails.py (250 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
 - services/ai/observability/ai_health.py (105 lines) - Whether the AI (Gemini) is working right now, for the banner every signed-in user sees when it isn't.
-- services/ai/observability/ai_observability.py (418 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+- services/ai/observability/ai_observability.py (424 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - services/ai/observability/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
-- services/ai/observability/ai_usage_service.py (170 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
+- services/ai/observability/ai_usage_service.py (169 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - services/compliance/analytics/conversation_evidence.py (857 lines) - Conversation evidence for public mood: the news articles and X posts a post is compared with, and the saved assessment of what they say a...
 - services/compliance/analytics/conversation_feedback.py (202 lines) - Reviewer input on a conversation assessment, kept against the exact assessment the reviewer was looking at.
 - services/compliance/analytics/conversation_review_actions.py (68 lines) - Reviewer feedback on retrieved conversations (unrelated, wrong sentiment, recommendation corrections).

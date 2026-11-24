@@ -23,46 +23,46 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_embed_one` (def) L27
 - `embed` (def) L43
 
-## services/ai/core/bedrock_service.py (375 lines) - AWS Bedrock AI Service Adapter.
-- `is_bedrock_enabled` (def) L20 - Return True if AWS Bedrock credentials and profile ID are configured.
-- `get_bedrock_profile_id` (def) L27
-- `get_bedrock_region` (def) L31
-- `get_bedrock_key` (def) L35
-- `has_ai_key` (def) L39 - Return True if either AWS Bedrock or Google Gemini is configured.
-- `clean_json_fences` (def) L44 - Strip markdown code fences from JSON output so json.loads succeeds.
-- `BedrockPart` (class) L53
-    - `__init__` (def) L54
-- `BedrockContent` (class) L59
-    - `__init__` (def) L60
-- `BedrockCandidate` (class) L64
-    - `__init__` (def) L65
-- `BedrockUsageMetadata` (class) L69
-    - `__init__` (def) L70
-- `BedrockResponse` (class) L75 - Emulates google.genai.types.GenerateContentResponse for downstream services.
-    - `__init__` (def) L78
-    - `text` (def) L89
-- `BedrockStreamChunk` (class) L93 - Single streamed chunk matching the structure expected by assistant_chat_service.
-    - `__init__` (def) L96
-- `_extract_text_and_media` (def) L103 - Convert Gemini contents (strings, Parts, Contents, dicts) into Bedrock content blocks.
-    - `process_item` (def) L107
-- `_build_converse_params` (def) L197 - Translate model, contents, and config into boto3 converse parameters.
-- `BedrockModels` (class) L250 - Mimics client.models on Google GenAI SDK.
-    - `__init__` (def) L253
-    - `generate_content` (def) L256
-- `BedrockStreamIterator` (class) L290
-    - `__init__` (def) L291
-    - `__aiter__` (def) L294
-    - `_iter` (def) L297
-- `BedrockAioModels` (class) L308 - Mimics client.aio.models for streaming calls.
-    - `__init__` (def) L311
-    - `generate_content_stream` (def) L314
-- `BedrockAio` (class) L330
-    - `__init__` (def) L331
-- `BedrockClientAdapter` (class) L335 - Adapter implementing the client interface used by services calling Gemini.
-    - `__init__` (def) L338
-    - `get_boto_client` (def) L343
-- `get_bedrock_client` (def) L359
-- `get_ai_client` (def) L366 - Return Bedrock client if enabled; otherwise Gemini client if GEMINI_API_KEY is present.
+## services/ai/core/bedrock_service.py (386 lines) - AWS Bedrock AI Service Adapter.
+- `is_bedrock_enabled` (def) L21 - Return True if AWS Bedrock credentials and profile ID are configured.
+- `get_bedrock_profile_id` (def) L28
+- `get_bedrock_region` (def) L32
+- `get_bedrock_key` (def) L36
+- `has_ai_key` (def) L40 - Return True if either AWS Bedrock or Google Gemini is configured.
+- `clean_json_fences` (def) L45 - Strip markdown code fences from JSON output so json.loads succeeds.
+- `BedrockPart` (class) L54
+    - `__init__` (def) L55
+- `BedrockContent` (class) L60
+    - `__init__` (def) L61
+- `BedrockCandidate` (class) L65
+    - `__init__` (def) L66
+- `BedrockUsageMetadata` (class) L70
+    - `__init__` (def) L71
+- `BedrockResponse` (class) L76 - Emulates google.genai.types.GenerateContentResponse for downstream services.
+    - `__init__` (def) L79
+    - `text` (def) L90
+- `BedrockStreamChunk` (class) L94 - Single streamed chunk matching the structure expected by assistant_chat_service.
+    - `__init__` (def) L97
+- `_extract_text_and_media` (def) L104 - Convert Gemini contents (strings, Parts, Contents, dicts) into Bedrock content blocks.
+    - `process_item` (def) L108
+- `_build_converse_params` (def) L198 - Translate model, contents, and config into boto3 converse parameters.
+- `BedrockModels` (class) L251 - Mimics client.models on Google GenAI SDK.
+    - `__init__` (def) L254
+    - `generate_content` (def) L257
+- `BedrockStreamIterator` (class) L291
+    - `__init__` (def) L292
+    - `__aiter__` (def) L295
+    - `_iter` (def) L298
+- `BedrockAioModels` (class) L309 - Mimics client.aio.models for streaming calls.
+    - `__init__` (def) L312
+    - `generate_content_stream` (def) L315
+- `BedrockAio` (class) L338
+    - `__init__` (def) L339
+- `BedrockClientAdapter` (class) L343 - Adapter implementing the client interface used by services calling Gemini.
+    - `__init__` (def) L346
+    - `get_boto_client` (def) L351
+- `get_bedrock_client` (def) L370
+- `get_ai_client` (def) L377 - Return Bedrock client if enabled; otherwise Gemini client if GEMINI_API_KEY is present.
 
 ## services/ai/core/compliance_request_policy.py (30 lines) - Bound compliance attempts and share outage knowledge without changing judgment prompts or coverage.
 - `configure` (def) L9
