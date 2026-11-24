@@ -157,6 +157,7 @@ SOCIAL_ACCOUNTS = [
     ("FACEBOOK_PAGE", "ZenaDrone", None, _ZD, "ZDR", False),
     ("FACEBOOK_PAGE", "ZenaTech Inc.", None, _ZT, "ZTG", False),
     # Instagram
+    ("INSTAGRAM", "Shaun Passley, PhD", None, _CEO, "ZTG", True),
     ("INSTAGRAM", "zenatech", "zenatech", _ZT, "ZTG", False),
     ("INSTAGRAM", "daasplatform", "daasplatform", _DAAS, "ZDR", False),
     ("INSTAGRAM", "deskflex_software", "deskflex_software", _SW, "ZTG", False),
