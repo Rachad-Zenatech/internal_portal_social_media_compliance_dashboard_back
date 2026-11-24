@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_review_service.py (1055 lines) - Script stage of a video post.
+## services/compliance/evaluation/script_review_service.py (1003 lines) - Script stage of a video post.
 - `_send_state` (def) L69 - Where the background send of this post's script is: PROCESSING, FAILED (with why), or neither.
 - `_same` (def) L86 - Whether two versions say the same thing (spacing and line endings aside).
 - `_clean` (def) L92
@@ -49,4 +49,3 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_highlights` (def) L937 - The reviewer's highlights and notes on a script version, for anyone who can read the post.
 - `save_highlights` (def) L950 - Replace the highlights on a script version.
 - `resolve_highlights` (def) L973 - The creator marks which of the reviewer's highlights they fixed, and what the wording reads now.
-- `suggest_fix` (def) L1028 - A compliant rewrite of one flagged passage, for the creator to use or not.

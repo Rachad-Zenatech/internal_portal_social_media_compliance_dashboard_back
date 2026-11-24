@@ -35,8 +35,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 from pydantic import BaseModel, Field, ValidationError
 
 from models.compliance.compliance_model import ComplianceRule, ComplianceViolation, ContextEvaluation
@@ -69,7 +68,7 @@ CACHE_TTL_SEC = int(os.getenv("CONTEXT_EVAL_CACHE_TTL_SECONDS", str(24 * 3600)))
 CONTEXT_LINES = 1
 
 _cache = AsyncInMemoryCache(maxsize=4000)
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 
 STATUS_BY_MODEL = {
     "VIOLATION": "VIOLATION",

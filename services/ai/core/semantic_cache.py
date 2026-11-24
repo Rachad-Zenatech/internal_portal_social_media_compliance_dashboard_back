@@ -27,8 +27,6 @@ import unicodedata
 from dataclasses import dataclass
 from typing import List, Optional
 
-from google.genai import types
-
 from postgresql_db.database import get_pool
 from services.ai.observability.ai_observability import span
 
@@ -85,22 +83,16 @@ def numbers(text: str) -> List[str]:
 
 
 async def _embed(text: str) -> List[float]:
-    from services.ai.core import vector_store_service
+    from services.ai.core import bedrock_embeddings, vector_store_service
 
-    client = vector_store_service._gemini_client()
-    model = os.getenv("AI_SEMANTIC_CACHE_EMBEDDING_MODEL", "").strip() or vector_store_service.embedding_model()
+    model = bedrock_embeddings.model_id()
     vector_store_service.check_embedding_quota()  # skipped while the embedding quota is used up
-    async with span("embedding", "gemini.embed_content", model=model, texts=1, chars=len(text), purpose="semantic_cache"):
+    async with span("embedding", "bedrock.embed_content", model=model, texts=1, chars=len(text), purpose="semantic_cache"):
         try:
-            res = await client.aio.models.embed_content(
-                model=model,
-                contents=[types.Content(parts=[types.Part(text=text)])],
-                config=types.EmbedContentConfig(output_dimensionality=DIMENSIONS, task_type="SEMANTIC_SIMILARITY"),
-            )
+            values = (await bedrock_embeddings.embed([text]))[0][:DIMENSIONS]
         except Exception as e:
             vector_store_service.note_embedding_error(e)
             raise
-    values = list((res.embeddings or [])[0].values or [])
     norm = math.sqrt(sum(v * v for v in values)) or 1.0
     return [v / norm for v in values]
 

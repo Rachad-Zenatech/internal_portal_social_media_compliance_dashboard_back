@@ -171,7 +171,7 @@ def _post_key(post_text: str) -> str:
 
 
 async def _ask(model: str, contents: str, guard: Any, *, system_prompt: str = SYSTEM_PROMPT) -> _Response:
-    from google.genai import types
+    from services.ai.core import ai_types as types
 
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,

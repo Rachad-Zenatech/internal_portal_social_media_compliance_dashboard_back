@@ -66,14 +66,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `list_prompt_logs` (def) L111
 - `list_ai_errors` (def) L127 - Recent AI errors and blocked calls within `hours`, optionally filtered by feature and/or model.
 
-## services/ai/observability/ai_overview_service.py (422 lines) - Combined AI health, feature-to-core mapping, and usage overview for System & Security.
-- `_routing_tier` (def) L43
-- `_features_by_core` (def) L54
-- `_probe_cloud_cores` (def) L62
-- `_probe_local_cores` (def) L151
-- `_build_features` (def) L260
-- `_query_telemetry` (def) L324
-- `overview` (def) L382 - Return full AI health (what is out/overflow/working), feature-to-core mappings, and usage telemetry.
+## services/ai/observability/ai_overview_service.py (404 lines) - Combined AI health, feature-to-core mapping, and usage overview for System & Security.
+- `_routing_tier` (def) L42
+- `_features_by_core` (def) L53
+- `_probe_cloud_cores` (def) L61
+- `_probe_local_cores` (def) L133
+- `_build_features` (def) L242
+- `_query_telemetry` (def) L306
+- `overview` (def) L364 - Return full AI health (what is out/overflow/working), feature-to-core mappings, and usage telemetry.
 
 ## services/ai/observability/ai_usage_service.py (169 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - `_env_int` (def) L50

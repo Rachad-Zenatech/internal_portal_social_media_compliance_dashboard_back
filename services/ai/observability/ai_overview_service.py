@@ -13,7 +13,7 @@ _FEATURE_CATALOG: List[Dict[str, Any]] = [
     {"feature": "COMPLIANCE_CHECK", "purpose": "Screens captions, scripts, and transcripts against active rulebook rules and messaging precedent.", "primary_core": "bedrock_llm", "cores": ["bedrock_llm", "titan_embeddings"], "routed": True},
     {"feature": "VISUAL_COMPLIANCE", "purpose": "Evaluates attached images and sampled video frames against visual compliance rules.", "primary_core": "bedrock_llm", "cores": ["bedrock_llm"], "routed": False},
     {"feature": "SENTIMENT", "purpose": "Produces editorial tone, brand-fit, and controversy findings with precedent retrieval.", "primary_core": "bedrock_llm", "cores": ["bedrock_llm", "titan_embeddings"], "routed": False},
-    {"feature": "SOURCE_CHECK", "purpose": "Verifies factual claims in posts against cited URLs and web search results.", "primary_core": "bedrock_llm", "cores": ["bedrock_llm", "gemini_fallback"], "routed": False},
+    {"feature": "SOURCE_CHECK", "purpose": "Verifies factual claims in posts against cited URLs and web search results.", "primary_core": "bedrock_llm", "cores": ["bedrock_llm"], "routed": False},
     {"feature": "IMAGE_TEXT", "purpose": "Extracts text inside uploaded graphics and detects faces anonymously before review.", "primary_core": "bedrock_llm", "cores": ["bedrock_llm", "local_yunet_faces"], "routed": False},
     {"feature": "IMAGE_SOURCE_OCR", "purpose": "Reads URLs, titles, and source attributions printed inside post images.", "primary_core": "bedrock_llm", "cores": ["bedrock_llm"], "routed": False},
     {"feature": "IMAGE_FINDING_REGIONS", "purpose": "Pinpoints bounding boxes in images for flagged compliance wording.", "primary_core": "bedrock_llm", "cores": ["bedrock_llm"], "routed": False},
@@ -30,7 +30,6 @@ _FEATURE_CATALOG: List[Dict[str, Any]] = [
 
 _CORE_LABELS: Dict[str, str] = {
     "bedrock_llm": "AWS Bedrock (Claude LLM)",
-    "gemini_fallback": "Google Gemini (Search & Fallback)",
     "titan_embeddings": "Amazon Titan + Atlas Vector Store",
     "local_nlp_sentiment": "Local Sentiment NLP (FinBERT / RoBERTa / VADER)",
     "local_whisper": "Local Speech-to-Text (Whisper CPU)",
@@ -66,7 +65,7 @@ def _probe_cloud_cores(
     step_rows: List[Dict[str, Any]],
     by_core: Dict[str, List[str]],
 ) -> List[Dict[str, Any]]:
-    from services.ai.core import bedrock_embeddings, bedrock_service, gemini_service, model_router, vector_store_service
+    from services.ai.core import bedrock_embeddings, bedrock_service, model_router, vector_store_service
 
     bedrock_enabled = bedrock_service.is_bedrock_enabled()
     bedrock_profile = bedrock_service.get_bedrock_profile_id() or "Not set"
@@ -101,10 +100,6 @@ def _probe_cloud_cores(
             embed_status = "OK" if embed_calls > 0 else "READY"
             embed_note = f"Vector search active ({bedrock_embeddings.dimensions()}d)"
 
-    gemini_key = bool(os.getenv("GEMINI_API_KEY", "").strip())
-    gemini_models = gemini_service.get_gemini_fallback_models() if gemini_key else []
-    gemini_cooldowns = [m for m, until in getattr(gemini_service, "_model_cooldowns", {}).items() if until > 0]
-
     return [
         {
             "core": "bedrock_llm",
@@ -131,19 +126,6 @@ def _probe_cloud_cores(
             "calls": embed_calls,
             "tokens": 0,
             "features": by_core["titan_embeddings"],
-        },
-        {
-            "core": "gemini_fallback",
-            "name": _CORE_LABELS["gemini_fallback"],
-            "provider": "Google GenAI",
-            "status": "UNCONFIGURED" if not gemini_key else ("OVERFLOW" if gemini_cooldowns else "READY"),
-            "configured": gemini_key,
-            "model": ", ".join(gemini_models) if gemini_models else "Not configured",
-            "detail": "Google Search grounding for Source Link Fact-Check & fallback chain",
-            "note": f"Cooldown on: {', '.join(gemini_cooldowns)}" if gemini_cooldowns else ("Configured" if gemini_key else "GEMINI_API_KEY not set (Bedrock primary)"),
-            "calls": 0,
-            "tokens": 0,
-            "features": by_core["gemini_fallback"],
         },
     ]
 

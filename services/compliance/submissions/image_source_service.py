@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
-from google.genai import types
+from services.ai.core import ai_types as types
 
 from models.compliance.source_link_model import (
     ImageSourceCitation,

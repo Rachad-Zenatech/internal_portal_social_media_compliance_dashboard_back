@@ -16,8 +16,7 @@ from typing import Any, Iterable, List, Optional, Set
 from uuid import UUID
 
 import httpx
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.observability import ai_observability
@@ -48,7 +47,7 @@ TIMEOUT_SEC = int(os.getenv("IMAGE_TEXT_TIMEOUT_SEC", "60"))
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 _running: Set[UUID] = set()
 _tasks: Set[asyncio.Task] = set()
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 
 PROMPT = """This image is part of a social media post that is screened for compliance, so we need every word it shows.
 Transcribe all readable text in the image exactly as written: headlines, body text, figures and amounts, dates,

@@ -8,12 +8,8 @@ from typing import List, Optional
 from urllib.parse import quote_plus
 
 import httpx
-from google.genai import types
 
-from services.ai.core.gemini_service import get_gemini_fallback_models
-from services.ai.observability import ai_observability
 from services.compliance.evaluation import source_settings as cfg
-from services.compliance.media import image_text_service
 
 logger = logging.getLogger(__name__)
 
@@ -146,33 +142,10 @@ async def _search_api_urls(query: str) -> List[str]:
 
 
 async def find_source_urls_on_web(reference: str) -> List[str]:
-    """Return candidate URLs via Gemini Google Search grounding, Search APIs, or Playwright + Google News RSS/Bing."""
+    """Return candidate URLs via Search APIs or Playwright + Google News RSS/Bing."""
     query = (reference or "").strip()
     if not query:
         return []
-    client = image_text_service._get_client()
-    prompt = (
-        f"Find the exact primary web page or official document URL for this cited source:\n{query}\n\n"
-        "Return the direct URL to the official memo, press release, report, or article."
-    )
-    config = types.GenerateContentConfig(
-        tools=[types.Tool(google_search=types.GoogleSearch())],
-        temperature=0,
-        http_options=types.HttpOptions(timeout=int(os.getenv("SOURCE_SEARCH_TIMEOUT_SEC", "30")) * 1000),
-    )
-    # Gemini Google Search grounding (commented out for now, replaced with Bedrock):
-    # gemini_models = [m for m in get_gemini_fallback_models() if m.startswith("gemini-")]
-    # for model in gemini_models:
-    #     try:
-    #         resp = await ai_observability.generate(
-    #             client, model=model, contents=prompt, config=config, feature="IMAGE_SOURCE_SEARCH",
-    #         )
-    #         urls = _extract_grounding_urls(resp)
-    #         if urls:
-    #             return urls
-    #     except Exception as e:
-    #         logger.warning("Web search for named source failed (%s): %s", model, e)
-    #         continue
     api_urls = await _search_api_urls(query)
     if api_urls:
         return api_urls

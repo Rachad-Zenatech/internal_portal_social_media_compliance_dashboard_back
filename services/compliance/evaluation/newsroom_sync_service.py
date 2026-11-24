@@ -20,8 +20,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 import httpx
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.core.gemini_service import generate_content_with_fallback
@@ -40,7 +39,7 @@ AI_CONCURRENCY = 2
 MAX_ARTICLE_CHARS = 12_000
 USER_AGENT = "Mozilla/5.0 (compatible; ZenaTechCompliancePortal/1.0; +https://www.zenatech.com/)"
 
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 _task: Optional[asyncio.Task] = None
 
 _ITEM = re.compile(

@@ -112,8 +112,7 @@ def rules_plan(title: str, caption: str, body: str, why: str) -> Dict[str, Any]:
 
 
 async def _ask_gemini(text: str) -> Dict[str, Any]:
-    from google import genai
-    from google.genai import types
+    from services.ai.core import ai_types as types
     from services.ai.core.gemini_service import generate_content_with_fallback
 
     from services.ai.core.bedrock_service import get_ai_client
