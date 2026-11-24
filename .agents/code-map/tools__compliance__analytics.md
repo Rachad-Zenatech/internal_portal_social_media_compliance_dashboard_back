@@ -12,7 +12,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `design_thumbnail` (def) L40 [GET /designs/{design_id}/thumbnail] - A small PNG preview of the design for the picker.
 - `simulate_edit` (def) L47 [POST /designs/{design_id}/simulate-edit] - Mock Canva only: pretend the design was edited, so its next export is a new revision.
 
-## tools/compliance/analytics/listening_router.py (281 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
+## tools/compliance/analytics/listening_router.py (280 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
 - `list_topics` (def) L37 [GET /topics] - Every topic with its current mood, the team's keyword tuning and how often it was matched wrongly.
 - `sync_topics` (def) L43 [POST /topics/sync] - Pull the topic list from the listening source now instead of waiting for the daily sync.
 - `update_topic` (def) L49 [PUT /topics/{topic_id}]
@@ -28,12 +28,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_run_scraper_process` (def) L120 - The scraper in its own Python process.
 - `_collection_summary` (def) L135 - How the scrape that just finished went (status and per-source results, as the scraper recorded them), read from
 - `_run_scrape_and_refresh` (def) L151 - Scrape, then bring the topics, trends and conversation index up to date.
-- `trigger_live_scrape` (def) L198 [POST /scrape] - The scrape button: collect ZenaTech financial coverage and/or today's posts public mood (scope=all|financial|today),
-- `scrape_status` (def) L219 [GET /scrape/status] - Whether a scrape is running, and how the last one went: state (idle | running | finished | failed), start and
-- `_last_collected_at` (def) L229
-- `_try_daily_scrape_lock` (def) L246
-- `_release_daily_scrape_lock` (def) L260
-- `daily_public_scrape_loop` (def) L272 - Run both nav public-mood scrapings daily at 8:30 AM (default America/New_York).
+- `trigger_live_scrape` (def) L197 [POST /scrape] - The scrape button: collect ZenaTech financial coverage and/or today's posts public mood (scope=all|financial|today),
+- `scrape_status` (def) L218 [GET /scrape/status] - Whether a scrape is running, and how the last one went: state (idle | running | finished | failed), start and
+- `_last_collected_at` (def) L228
+- `_try_daily_scrape_lock` (def) L245
+- `_release_daily_scrape_lock` (def) L259
+- `daily_public_scrape_loop` (def) L271 - Run both nav public-mood scrapings daily at 8:30 AM (default America/New_York).
 
 ## tools/compliance/analytics/performance_router.py (45 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - `performance` (def) L22 [GET ] - Live posts (one row per platform) with their numbers and health, problems first, plus totals.

@@ -184,10 +184,9 @@ async def _run_scrape_and_refresh(scope: str = "all") -> None:
             raise RuntimeError("The scraper failed: " + (" | ".join(tail)[:400] or f"exit code {done.returncode}"))
         reset_provider_cache()  # the feed may not have existed when the provider was first chosen
         await svc.record_conversations()  # first: the topic trends count the items collected so far
-        await svc.list_topics(refresh=True)
         await svc.list_trend_opportunities(refresh=True)
-        await svc.index_conversations()  # last: it is the slow part (embedding quota)
         _scrape.update(state="finished", collection=await _collection_summary())
+        asyncio.create_task(svc.index_conversations(), name="listening-index-conversations")
     except Exception as exc:
         logger.error("Scrape from the button failed: %s", exc)
         _scrape.update(state="failed", error=str(exc)[:500])
