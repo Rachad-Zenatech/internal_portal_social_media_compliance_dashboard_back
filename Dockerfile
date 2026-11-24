@@ -57,10 +57,10 @@ RUN useradd --create-home --uid 10001 appuser \
 
 USER appuser
 
-EXPOSE 8009 7006
+EXPOSE 8000 7006
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8009/health/live')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')" || exit 1
 
 # Serve FastAPI and the mounted /mcp endpoint in one foreground uvicorn process so memory isn't doubled and crashes restart cleanly.
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8009", "--workers", "1"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
