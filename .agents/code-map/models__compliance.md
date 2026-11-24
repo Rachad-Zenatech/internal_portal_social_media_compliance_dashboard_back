@@ -10,12 +10,13 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ApproverOption` (class) L26
 - `ApprovalPathOptions` (class) L34
 
-## models/compliance/brand_voice_model.py (59 lines) - Brand voice per brand: the brand manual (PDF) and what was read from it (voice, colours, typefaces, logo).
+## models/compliance/brand_voice_model.py (68 lines) - Brand voice per brand: the brand manual (PDF) and what was read from it (voice, colours, typefaces, logo).
 - `BrandColor` (class) L13
 - `PaletteRow` (class) L19 - A row of colour swatches in the manual (e.g.
 - `BrandTypeface` (class) L26
 - `BrandVoiceIn` (class) L32 - What a person can change by hand after (or instead of) reading the manual.
 - `BrandVoice` (class) L43
+- `BrandManualSection` (class) L61 - A PDF page under its printed heading; text is never summarised or cut off.
 
 ## models/compliance/canva_model.py (41 lines) - Canva Integration Models Connecting a Canva account, picking a design and importing (or reimporting) its export into a submission.
 - `CanvaConnection` (class) L14
@@ -64,14 +65,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `DuplicateMatch` (class) L19 - A post already sent for approval with the same content and caption.
 - `DuplicateReport` (class) L34 - Earlier posts with the same content and caption.
 
-## models/compliance/flag_review_model.py (78 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
+## models/compliance/flag_review_model.py (82 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - `FlagDismissRequest` (class) L21
-- `FlagReview` (class) L26
-- `CreatorFlagDismissalRequest` (class) L39 - A creator's request for a reviewer to dismiss a finding; never a dismissal by itself.
-- `CreatorFlagDismissalRejection` (class) L45 - A reviewer's reason for sending a declined dismissal request back to its creator.
-- `FlagConfirmRequest` (class) L53
-- `FindingVerdict` (class) L57 - A reviewer's call on a finding, kept as a labelled example: the flag was right, or it was a false alarm.
-- `RuleFlagStats` (class) L70
+- `FlagReview` (class) L27
+- `CreatorFlagDismissalRequest` (class) L41 - A creator's request for a reviewer to dismiss a finding; never a dismissal by itself.
+- `CreatorFlagDismissalRejection` (class) L47 - A reviewer's reason for sending a declined dismissal request back to its creator.
+- `FlagConfirmRequest` (class) L55
+- `FindingVerdict` (class) L60 - A reviewer's call on a finding, kept as a labelled example: the flag was right, or it was a false alarm.
+- `RuleFlagStats` (class) L74
 
 ## models/compliance/image_provenance_model.py (15 lines) - Saved AI-image disclosure and whether the creator explicitly answered the question.
 - `ImageProvenanceFields` (class) L6

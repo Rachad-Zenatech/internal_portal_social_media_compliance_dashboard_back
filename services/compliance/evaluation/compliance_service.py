@@ -13,6 +13,8 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 from services.compliance.evaluation.rule_examples import _QUOTED, _examples
+from services.compliance.evaluation import check_rule_capture
+from services.compliance.evaluation.compliance_ai_config import _full_rule_mode
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
@@ -983,17 +985,6 @@ _SEMANTIC_SCHEMA: Dict[str, Any] = {
 # ("best in class", "reduces errors", "guards every border") often sits too far from any rule's wording for the search to
 # find it, and a post the search found nothing for would otherwise never be read at all. Turn it off to go back to the
 # search's picks only (fewer AI calls).
-def _full_rule_mode() -> str:
-    """always (default): review every post; auto: add a full pass for claims; off: use search-selected rules.
-    Exact-content caching preserves repeatability; explicit overrides retain selective modes."""
-    raw = os.getenv("COMPLIANCE_FULL_RULE_PASS", "always").strip().lower()
-    if raw in {"1", "true", "yes", "on", "always"}:
-        return "always"
-    if raw == "auto":
-        return "auto"
-    return "off"
-
-
 # The most rules put in front of the AI at once, the search's picks first.
 FULL_RULE_PASS_MAX = int(os.getenv("COMPLIANCE_FULL_RULE_PASS_MAX", "40"))
 
@@ -1219,6 +1210,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     signals = post_signals.extract(match_text)
     scope = check_scope(match_req, signals)
     rules = await applicable_rules(req)
+    check_rule_capture.remember(rules, req)
     padded_text = f" {_normalize(chr(10).join([without_image_marks(match_text), *signals.hashtag_phrases]))} "
     hashtag_keys = signals.hashtag_keys
     # Where a required disclaimer has to be: the published parts only, when the caller says which those are.

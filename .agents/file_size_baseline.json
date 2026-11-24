@@ -38,7 +38,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/sentiment/jobs.py": {
-      "max_lines": 539,
+      "max_lines": 530,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
@@ -69,10 +69,6 @@
     },
     "scripts/validate_mood_flow.py#scenarios": {
       "max_lines": 127,
-      "kind": "py_function"
-    },
-    "services/compliance/submissions/submission_service.py#update_submission": {
-      "max_lines": 126,
       "kind": "py_function"
     },
     "services/notifications/rabbitmq_hub_status.py#HubStatusMixin._build_hub_live_status": {

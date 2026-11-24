@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_review_persistence.py (42 lines) - Script-stage version persistence and locking, shared by uploaded-script send paths.
-- `_adopt_check` (def) L9 - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
-- `_add_version` (def) L17
-- `_lock_status` (def) L32 - Lock the post and make sure the script is still where the caller saw it (two people can act at once).
+## services/compliance/evaluation/script_review_persistence.py (44 lines) - Script-stage version persistence and locking, shared by uploaded-script send paths.
+- `_adopt_check` (def) L10 - While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
+- `_add_version` (def) L19
+- `_lock_status` (def) L34 - Lock the post and make sure the script is still where the caller saw it (two people can act at once).

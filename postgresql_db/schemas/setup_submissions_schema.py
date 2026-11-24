@@ -9,6 +9,7 @@ import os
 from postgresql_db.database import get_pool, close_pool
 from postgresql_db.schemas.submission_tables_schema import setup_submission_tables
 from postgresql_db.schemas.creator_flag_dismissal_requests_schema import ensure_creator_flag_dismissal_requests
+from postgresql_db.schemas.check_snapshots_schema import ensure_check_snapshots
 from postgresql_db.schemas.setup_source_links_schema import ensure_source_links_column
 from postgresql_db.schemas.setup_ai_usage_schema import ensure_ai_usage_events
 
@@ -21,6 +22,7 @@ async def setup():
         await setup_submission_tables(conn)
         await ensure_ai_usage_events(conn)
         await ensure_creator_flag_dismissal_requests(conn)
+        await ensure_check_snapshots(conn)
 
         # The five brands content is filed under. The software products (ZooOffice, DeskFlex, Othership,
         # Zena Studios) roll up into "Software Brands"; Shaun's own posts are their own brand.

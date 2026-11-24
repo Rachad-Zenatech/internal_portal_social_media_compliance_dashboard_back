@@ -4,11 +4,13 @@ import json
 from typing import Any, Dict, Optional
 from uuid import UUID
 from fastapi import HTTPException
+from services.compliance.submissions import check_snapshot_service
 
 
 async def _adopt_check(run, submission_id: UUID, check: Dict[str, Any]) -> None:
     """While a script is with the reviewer, the post's own score is the script's check, so the creator and the reviewer
     never see two different scores for the same wording. `run` is conn.execute or the pool's execute."""
+    await check_snapshot_service.link_to_post(run, submission_id, check)
     await run(
         "UPDATE content_submissions SET latest_check = coalesce(latest_check, '{}'::jsonb) || $2::jsonb WHERE id = $1",
         submission_id, json.dumps({**check, "analysis_pending": False, "documents_pending": 0}),
