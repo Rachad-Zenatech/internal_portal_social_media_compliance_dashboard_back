@@ -122,6 +122,7 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions__creator_dismissal_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__delegation_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__disconnected_analysis.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__draft_deletion.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__duplicate_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__submissions__finding_precedent_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__flag_review_service.md | 1 | 2 KB |
