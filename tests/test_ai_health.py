@@ -18,6 +18,7 @@ class AiHealthFeatureTests(unittest.TestCase):
         self.assertEqual(len(st.degraded_features), 1)
         self.assertEqual(st.degraded_features[0].feature, "SOURCE_CHECK")
         self.assertEqual(st.degraded_features[0].status, "OUT")
+        self.assertIn("Source Link Fact-Check", st.degraded_features[0].affected_features)
 
     def test_quota_or_busy_surfaces_as_overflow(self):
         now = datetime.now(timezone.utc)

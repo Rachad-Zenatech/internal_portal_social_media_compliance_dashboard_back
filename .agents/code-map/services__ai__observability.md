@@ -23,14 +23,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `feed` (def) L228
     - `flush` (def) L247
 
-## services/ai/observability/ai_health.py (220 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
-- `FeatureIssue` (class) L71
-- `AiStatus` (class) L80
-- `_feature_label` (def) L90
-- `summarize_features` (def) L94 - Identify individual features whose latest calls are failing or hitting quota/overflow.
-- `summarize` (def) L129 - rows: the AI calls in the window, newest first, each with status, kind, feature and started_at.
-- `_runtime_issues` (def) L151
-- `status` (def) L199
+## services/ai/observability/ai_health.py (249 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
+- `FeatureIssue` (class) L95
+- `AiStatus` (class) L105
+- `_feature_label` (def) L115
+- `summarize_features` (def) L119 - Identify individual features whose latest calls are failing or hitting quota/overflow.
+- `summarize` (def) L155 - rows: the AI calls in the window, newest first, each with status, kind, feature and started_at.
+- `_runtime_issues` (def) L177
+- `status` (def) L228
 
 ## services/ai/observability/ai_observability.py (424 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - `_env_int` (def) L41

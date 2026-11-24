@@ -40,6 +40,30 @@ _FEATURE_LABELS: Dict[str, str] = {
     "PUBLIC_MOOD_SCRAPE": "Public Mood Scraper",
 }
 
+_FEATURE_AFFECTS: Dict[str, List[str]] = {
+    "EMBEDDINGS": [
+        "Compliance Rulebook Check (RAG precedent)",
+        "Sentiment Analysis (review memory)",
+        "AI Assistant Chat (RAG & semantic cache)",
+        "Messaging Context vector search",
+    ],
+    "PUBLIC_MOOD_SCRAPE": ["Public Mood (Financial ZenaTech)", "Public Mood (Today's Posts)", "Trend Discovery"],
+    "PUBLIC_MOOD": ["Public Mood Summary", "Pre-Publish Mood Check"],
+    "PUBLIC_MOOD_QUERY": ["Public Mood Search Planner"],
+    "COMPLIANCE_CHECK": ["Post Compliance Rulebook Check", "Script Review Check", "Submission Approval Gate"],
+    "VISUAL_COMPLIANCE": ["Image & Video Visual Compliance Review"],
+    "SOURCE_CHECK": ["Source Link Fact-Check", "Image Source Verification"],
+    "IMAGE_TEXT": ["Image OCR & Face Detection"],
+    "IMAGE_SOURCE_OCR": ["Image Source Citation OCR"],
+    "IMAGE_FINDING_REGIONS": ["Image Finding Locator"],
+    "TRANSCRIPTION": ["Video Transcription", "Video On-Screen Text Scan"],
+    "SENTIMENT": ["Reviewer Sentiment Analysis"],
+    "CAPTION": ["Caption Suggestions"],
+    "SCRIPT_FIX": ["Script Fix Suggestions"],
+    "BRAND_VOICE": ["Brand Manual PDF Extraction"],
+    "CHAT": ["AI Assistant Chat"],
+}
+
 _TEXT = {
     "KEY": (
         "The AI key isn't working",
@@ -75,6 +99,7 @@ class FeatureIssue(BaseModel):
     reason: str
     message: str
     since: Optional[datetime] = None
+    affected_features: List[str] = Field(default_factory=list)
 
 
 class AiStatus(BaseModel):
@@ -121,6 +146,7 @@ def summarize_features(rows: List[Dict[str, Any]], now: datetime) -> List[Featur
             reason=reason,
             message=title,
             since=min(r["started_at"] for r in failed),
+            affected_features=_FEATURE_AFFECTS.get(feat, [_feature_label(feat)]),
         ))
     issues.sort(key=lambda i: (0 if i.status == "OUT" else 1, i.label))
     return issues
@@ -163,6 +189,7 @@ def _runtime_issues(now: datetime) -> List[FeatureIssue]:
                 reason="KEY" if is_denied else "QUOTA",
                 message=f"{reason_msg} (~{max(1, left_sec // 60)}m paused; using keyword fallback)",
                 since=now,
+                affected_features=_FEATURE_AFFECTS["EMBEDDINGS"],
             ))
     except Exception:
         pass
@@ -176,6 +203,7 @@ def _runtime_issues(now: datetime) -> List[FeatureIssue]:
                 status="OVERFLOW" if "timeout" in str(sc.get("error") or "").lower() else "OUT",
                 reason="BUSY" if "timeout" in str(sc.get("error") or "").lower() else "OTHER",
                 message=str(sc.get("error") or "Last scrape failed")[:140],
+                affected_features=_FEATURE_AFFECTS["PUBLIC_MOOD_SCRAPE"],
             ))
         else:
             sources = (sc.get("collection") or {}).get("sources") or []
@@ -187,6 +215,7 @@ def _runtime_issues(now: datetime) -> List[FeatureIssue]:
                     status="OVERFLOW",
                     reason="QUOTA",
                     message=f"{len(bad)} scrape source(s) hit rate limit/timeout",
+                    affected_features=_FEATURE_AFFECTS["PUBLIC_MOOD_SCRAPE"],
                 ))
     except Exception:
         pass
