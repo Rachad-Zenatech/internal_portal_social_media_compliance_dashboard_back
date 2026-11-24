@@ -86,10 +86,11 @@ async def lifespan(app: FastAPI):
     loop.set_exception_handler(asyncio_exception_handler)
     try:
         pool = await create_pool()
-        # Apply schema changes before serving requests in every environment.
+        # GitHub Actions (migrate-db) runs schema setup/seeding on deploy; skip on AWS production startup unless opted in.
+        default_auto_migrate = "false" if os.getenv("APP_ENV", "development").strip().lower() == "production" else "true"
         should_auto_migrate = _env_flag(
             "AUTO_MIGRATE_SCHEMA",
-            "true",
+            default_auto_migrate,
         )
         if should_auto_migrate:
             logger.info("Running automated schema verification and migration", extra={"event": "schema_migration_start"})

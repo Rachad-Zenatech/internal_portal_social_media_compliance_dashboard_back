@@ -76,7 +76,13 @@ def named_collection(name: str):
     if _client is None:
         import motor.motor_asyncio  # imported lazily: only needed once the vector store is configured
 
-        _client = motor.motor_asyncio.AsyncIOMotorClient(os.environ["MONGODB_URI"], serverSelectionTimeoutMS=5000)
+        kwargs = {"serverSelectionTimeoutMS": 5000}
+        try:
+            import certifi
+            kwargs["tlsCAFile"] = certifi.where()
+        except ImportError:
+            pass
+        _client = motor.motor_asyncio.AsyncIOMotorClient(os.environ["MONGODB_URI"], **kwargs)
     return _client.get_database(database_name()).get_collection(name)
 
 

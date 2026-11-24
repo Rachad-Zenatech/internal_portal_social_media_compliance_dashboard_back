@@ -313,7 +313,7 @@ async def generate(client: Any, *, model: str, contents: Any, config: Any = None
                 timeout=call_timeout,
             )
         except Exception as e:
-            if compliance:
+            if compliance or gemini_service.is_rotatable_model_error(e):
                 gemini_service.record_model_failure(model, e)
             s.attributes["error_kind"] = classify_error(e)
             _notify_attempt({"event": "attempt", "id": attempt_id, "status": "FAILED", "model": model, "feature": feature,

@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_CHEAP_MODEL = "us.anthropic.claude-haiku-5-5"
 DEFAULT_HEAVY_MODEL = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
 _FALLBACK_CLIENT_ERRORS = ("AccessDeniedException", "ValidationException", "ResourceNotFoundException", "ThrottlingException")
+_PERSISTENT_UNAVAILABLE_ERRORS = ("AccessDeniedException", "ValidationException", "ResourceNotFoundException")
+_UNAVAILABLE_MODEL_CACHE: set[str] = set()
 
 
 def is_expensive_model(name: Optional[str]) -> bool:
@@ -305,11 +307,15 @@ class BedrockModels:
         boto = self._adapter.get_boto_client()
         params = _build_converse_params(model, contents, config)
         profile_id = get_bedrock_profile_id()
+        if profile_id and params["modelId"] != profile_id and params["modelId"] in _UNAVAILABLE_MODEL_CACHE:
+            params["modelId"] = profile_id
         try:
             resp = boto.converse(**params)
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code", "")
             if profile_id and params["modelId"] != profile_id and code in _FALLBACK_CLIENT_ERRORS:
+                if code in _PERSISTENT_UNAVAILABLE_ERRORS:
+                    _UNAVAILABLE_MODEL_CACHE.add(params["modelId"])
                 logger.info("Bedrock %s failed (%s); falling back to profile %s", params["modelId"], code, profile_id)
                 params["modelId"] = profile_id
                 resp = boto.converse(**params)
