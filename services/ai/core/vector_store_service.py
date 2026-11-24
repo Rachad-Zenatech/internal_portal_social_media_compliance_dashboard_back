@@ -126,6 +126,12 @@ def check_embedding_quota() -> None:
         raise EmbeddingQuotaExhausted(f"{_embed_pause_reason}; embeddings paused for another {left:.0f}s")
 
 
+def embedding_pause_status() -> Optional[tuple[str, int]]:
+    """Return (reason, seconds_remaining) when embeddings are paused, else None."""
+    left = _embed_paused_until - time.time()
+    return (_embed_pause_reason, int(left)) if left > 0 else None
+
+
 def note_embedding_error(error: Exception) -> None:
     """Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
     least EMBEDDING_DAILY_QUOTA_PAUSE_SECONDS (it won't come back within minutes)."""
