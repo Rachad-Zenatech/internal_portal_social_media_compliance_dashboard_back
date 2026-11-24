@@ -41,5 +41,5 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `Config` (class) L141
 - `RolePermissionGroupsUpdate` (class) L144
 
-## models/shared/test_login_model.py (10 lines) - Only the existing dummy accounts support local test sign-in.
+## models/shared/test_login_model.py (10 lines) - Only the existing dummy review accounts support local test sign-in.
 - `TestLoginRequest` (class) L8
