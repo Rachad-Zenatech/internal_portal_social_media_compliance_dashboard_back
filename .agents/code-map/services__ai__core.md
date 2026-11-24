@@ -40,7 +40,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_embed_one` (def) L27
 - `embed` (def) L43
 
-## services/ai/core/bedrock_service.py (450 lines) - AWS Bedrock AI Service Adapter.
+## services/ai/core/bedrock_service.py (466 lines) - AWS Bedrock AI Service Adapter.
 - `is_expensive_model` (def) L27
 - `get_bedrock_cheap_model` (def) L34
 - `get_bedrock_heavy_model` (def) L44
@@ -70,20 +70,20 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `BedrockModels` (class) L294 - Mimics client.models on Google GenAI SDK.
     - `__init__` (def) L297
     - `generate_content` (def) L300
-- `BedrockStreamIterator` (class) L348
-    - `__init__` (def) L349
-    - `__aiter__` (def) L352
-    - `_iter` (def) L355
-- `BedrockAioModels` (class) L366 - Mimics client.aio.models for streaming calls.
-    - `__init__` (def) L369
-    - `generate_content_stream` (def) L372
-- `BedrockAio` (class) L408
-    - `__init__` (def) L409
-- `BedrockClientAdapter` (class) L413 - Adapter implementing the client interface used by services calling Gemini.
-    - `__init__` (def) L416
-    - `get_boto_client` (def) L421
-- `get_bedrock_client` (def) L440
-- `get_ai_client` (def) L447 - Return Bedrock client if enabled, else None.
+- `BedrockStreamIterator` (class) L364
+    - `__init__` (def) L365
+    - `__aiter__` (def) L368
+    - `_iter` (def) L371
+- `BedrockAioModels` (class) L382 - Mimics client.aio.models for streaming calls.
+    - `__init__` (def) L385
+    - `generate_content_stream` (def) L388
+- `BedrockAio` (class) L424
+    - `__init__` (def) L425
+- `BedrockClientAdapter` (class) L429 - Adapter implementing the client interface used by services calling Gemini.
+    - `__init__` (def) L432
+    - `get_boto_client` (def) L437
+- `get_bedrock_client` (def) L456
+- `get_ai_client` (def) L463 - Return Bedrock client if enabled, else None.
 
 ## services/ai/core/compliance_request_policy.py (29 lines) - Bound compliance attempts and share outage knowledge without changing judgment prompts or coverage.
 - `configure` (def) L8

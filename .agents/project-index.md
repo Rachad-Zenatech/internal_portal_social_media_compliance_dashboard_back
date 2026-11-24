@@ -85,7 +85,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/core/ai_types.py (84 lines) - Native AI request/content DTOs replacing google.genai.types for AWS Bedrock.
 - services/ai/core/assistant_chat_service.py (261 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/bedrock_embeddings.py (52 lines) - Real Titan embeddings, isolated from chat inference profiles and old vector spaces.
-- services/ai/core/bedrock_service.py (450 lines) - AWS Bedrock AI Service Adapter.
+- services/ai/core/bedrock_service.py (466 lines) - AWS Bedrock AI Service Adapter.
 - services/ai/core/compliance_request_policy.py (29 lines) - Bound compliance attempts and share outage knowledge without changing judgment prompts or coverage.
 - services/ai/core/embedding_service.py (147 lines) - Choose an embedding provider independently of the Claude review models.
 - services/ai/core/gemini_service.py (201 lines) - gemini service (ai core)
