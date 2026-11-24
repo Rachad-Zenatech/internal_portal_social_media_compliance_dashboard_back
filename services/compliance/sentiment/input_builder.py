@@ -230,9 +230,9 @@ def _past_reviews(precedents: List[Dict[str, Any]]) -> str:
             + (f" on {meta['decided_at'][:10]}" if meta.get("decided_at") else "") + "."
         )
         if meta.get("notes"):
-            lines.append(f"  Reviewer's note: {meta['notes'][:500]}")
+            lines.append(f"  Reviewer's note: {meta['notes'][:250]}")
         if meta.get("comments"):
-            lines.append("  Reviewer comments: " + " | ".join(c[:300] for c in meta["comments"]))
+            lines.append("  Reviewer comments: " + " | ".join(c[:180] for c in meta["comments"][:4]))
         for flag in meta.get("dismissed_flags") or []:
             terms = ", ".join(f'"{t}"' for t in flag.get("terms") or [])
             lines.append(f"  Compliance flag dismissed as a false alarm: {flag.get('rule_number')} {terms}"
@@ -240,9 +240,9 @@ def _past_reviews(precedents: List[Dict[str, Any]]) -> str:
         for verdict, label in (("USEFUL", "rated a fair concern"), ("NOT_AN_ISSUE", "rated not an issue")):
             quotes = [r["quote"] for r in meta.get("ratings") or [] if r.get("verdict") == verdict and r.get("quote")]
             if quotes:
-                lines.append(f"  Earlier findings reviewers {label}: " + " | ".join(f'"{q[:200]}"' for q in quotes))
+                lines.append(f"  Earlier findings reviewers {label}: " + " | ".join(f'"{q[:160]}"' for q in quotes[:4]))
         content = (p.get("text") or "").strip()
-        lines.append(f"  Its content: {p.get('title') or ''}" + (f" - {content[:700]}" if content else ""))
+        lines.append(f"  Its content: {p.get('title') or ''}" + (f" - {content[:350]}" if content else ""))
     return "\n".join(lines)
 
 

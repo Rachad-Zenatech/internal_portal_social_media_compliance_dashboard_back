@@ -86,7 +86,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/core/model_router.py (82 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
 - services/ai/core/mood_store.py (121 lines) - The collections public mood learns from, in the same MongoDB database as the vector store.
 - services/ai/core/semantic_cache.py (204 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
-- services/ai/core/vector_store_service.py (365 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+- services/ai/core/vector_store_service.py (368 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
 - services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - services/ai/observability/ai_guardrails.py (250 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
 - services/ai/observability/ai_health.py (249 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
@@ -99,8 +99,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/analytics/conversation_review_actions.py (68 lines) - Reviewer feedback on retrieved conversations (unrelated, wrong sentiment, recommendation corrections).
 - services/compliance/analytics/conversation_text.py (114 lines) - Text normalization, story deduplication, and named-entity helpers for conversation evidence.
 - services/compliance/analytics/daily_scrape_schedule.py (170 lines) - Daily 8:30 AM schedule for refreshing both nav public-mood scrapings (Financial ZenaTech + Today's Posts).
-- services/compliance/analytics/item_sentiment.py (141 lines) - Item-level sentiment models: general X/social RoBERTa, FinBERT for financial news, and VADER fallback.
-- services/compliance/analytics/listening_providers.py (491 lines) - Social listening providers: where "public mood" data comes from.
+- services/compliance/analytics/item_sentiment.py (171 lines) - Item-level sentiment models: general X/social RoBERTa, FinBERT for financial news, and VADER fallback.
+- services/compliance/analytics/listening_providers.py (494 lines) - Social listening providers: where "public mood" data comes from.
 - services/compliance/analytics/listening_sources.py (78 lines) - What to listen for about the company itself, besides the market topics (drone delivery, FAA rules...).
 - services/compliance/analytics/mood_auto_train.py (186 lines) - Training the decision model again whenever a reviewer's decision changes, without anyone running it.
 - services/compliance/analytics/mood_dataset.py (236 lines) - A fixed training dataset made from reviewed assessments.
@@ -118,7 +118,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/analytics/post_signals.py (216 lines) - Post signals: the parts of a post that carry meaning in their symbols, read before the rule matcher strips them.
 - services/compliance/analytics/public_mood_process.py (149 lines) - A plain-language log of how a post's public mood was made, shown on the page so a person can follow it: what was read from the post, whic...
 - services/compliance/analytics/public_mood_prompt.py (105 lines) - Prompt and structured response schema for the Gemini public-mood summary.
-- services/compliance/analytics/public_mood_service.py (938 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+- services/compliance/analytics/public_mood_service.py (936 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - services/compliance/analytics/public_mood_snapshots.py (97 lines) - Background & inline snapshot refresh helpers for public_mood_service.
 - services/compliance/analytics/sentiment_service.py (221 lines) - Content Sentiment Analysis Service (Module A) - Compatibility Facade This module re-exports all constants, functions, classes and entry p...
 - services/compliance/analytics/zenatech_financial_scrape.py (249 lines) - Financial & company public-sentiment scraping definitions for ZenaTech (NASDAQ: ZENA).
@@ -132,7 +132,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/compliance_ai_config.py (15 lines) - Configuration for the full rulebook model pass.
 - services/compliance/evaluation/compliance_check_result.py (119 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
 - services/compliance/evaluation/compliance_service.py (1516 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
-- services/compliance/evaluation/context_evaluator.py (418 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+- services/compliance/evaluation/context_evaluator.py (450 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/evaluation/context_service.py (226 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/evaluation/defense_disclaimer.py (27 lines) - Military names and citations alone do not establish use of government visual material.
 - services/compliance/evaluation/finding_evidence.py (37 lines) - Use a finding's judged evidence consistently across image, video and text locations.
@@ -170,7 +170,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/shared_script_service.py (191 lines) - Shared documents for script pages.
 - services/compliance/evaluation/shared_script_sync.py (165 lines) - Keeping this portal in step with the Share Document server's script reviews.
 - services/compliance/evaluation/source_browser_fetch.py (96 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
-- services/compliance/evaluation/source_check_service.py (485 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+- services/compliance/evaluation/source_check_service.py (487 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_claim_checks.py (137 lines) - Ground source support and contradiction judgments; uncertainty remains for review.
 - services/compliance/evaluation/source_claim_coverage.py (59 lines) - Identify claims even without sources; keep missing evidence distinct from a false claim.
 - services/compliance/evaluation/source_claim_grounding.py (42 lines) - Recover verbatim post excerpts when a model changes only spacing or list separators.
@@ -187,12 +187,12 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_settings.py (86 lines) - Settings for checking a post's sources, none of them fixed in code.
 - services/compliance/evaluation/source_verdict_models.py (43 lines) - Structured claim comparison answers shared by source review and its durable cache.
 - services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
-- services/compliance/evaluation/visual_review.py (215 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
+- services/compliance/evaluation/visual_review.py (249 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
 - services/compliance/evaluation/visual_review_prompt.py (69 lines) - Visual compliance instructions; the active database rule remains the policy authority.
 - services/compliance/evaluation/visual_video_frames.py (37 lines) - Bounded, timestamped video samples for image-capable providers without video input.
 - services/compliance/media/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
 - services/compliance/media/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
-- services/compliance/media/caption_service.py (338 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
+- services/compliance/media/caption_service.py (339 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
 - services/compliance/media/document_layout.py (433 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
 - services/compliance/media/document_text_service.py (245 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - services/compliance/media/face_detection_service.py (60 lines) - Local CPU face detection using OpenCV YuNet, returning anonymous [top, left, bottom, right] 0..1000 boxes.
@@ -202,7 +202,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
 - services/compliance/media/image_finding_service.py (235 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - services/compliance/media/image_finding_zoom.py (82 lines) - Recover small-text locations from enlarged sections; map boxes back to the original image.
-- services/compliance/media/image_text_service.py (271 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+- services/compliance/media/image_text_service.py (272 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - services/compliance/media/script_sources.py (48 lines) - Read optional sources from a script template without adding them to its spoken text.

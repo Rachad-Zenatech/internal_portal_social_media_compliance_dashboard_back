@@ -4,10 +4,12 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/visual_review.py (215 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
-- `Assessment` (class) L27
-- `_asset_part` (def) L41 - Only internally selected storage paths can be attached; never accept paths from API input.
-- `_parse` (def) L79 - Missing/duplicate rules and malformed output must never look like a successful clear.
-- `_finding` (def) L119 - Uncertain visual evidence cannot become a confirmed critical violation.
-- `_merge` (def) L158 - One charge per rule; preserve stronger text findings and all visual locations.
-- `review` (def) L180 - Read every post asset, recording failures explicitly instead of silently treating them as compliant.
+## services/compliance/evaluation/visual_review.py (249 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
+- `Assessment` (class) L31
+- `_asset_part` (def) L45 - Only internally selected storage paths can be attached; never accept paths from API input.
+- `_parse` (def) L83 - Missing/duplicate rules and malformed output must never look like a successful clear.
+- `_finding` (def) L123 - Uncertain visual evidence cannot become a confirmed critical violation.
+- `_merge` (def) L162 - One charge per rule; preserve stronger text findings and all visual locations.
+- `_compact_rule` (def) L184
+- `_compact_source` (def) L192
+- `review` (def) L199 - Read every post asset, recording failures explicitly instead of silently treating them as compliant.

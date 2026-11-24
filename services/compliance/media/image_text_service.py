@@ -109,11 +109,12 @@ async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: O
     )
 
 
-async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None, *, models=None) -> object:
+async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None, *, models=None, max_output_tokens: int = 1200) -> object:
     """Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
     PDF scripts and visual compliance reuse the traced calls with their own feature labels."""
     config = types.GenerateContentConfig(
-        response_mime_type="application/json", response_schema=response_schema or RESPONSE_SCHEMA, temperature=0,
+        response_mime_type="application/json", response_schema=response_schema or RESPONSE_SCHEMA,
+        max_output_tokens=max_output_tokens, temperature=0,
         # A request stuck behind "high demand" moves on to the next model instead of hanging.
         http_options=types.HttpOptions(timeout=TIMEOUT_SEC * 1000),
     )

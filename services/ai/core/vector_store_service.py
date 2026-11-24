@@ -313,6 +313,9 @@ async def search(
             found = [r for r in rows if r.get("score", 0) >= min_score]
             s.attributes.update(results=len(found), top_score=round(found[0]["score"], 4) if found else None)
             return found
+    except EmbeddingQuotaExhausted as e:
+        logger.debug("Vector search skipped while embeddings paused: %s", e)
+        return []
     except Exception as e:
         logger.warning("Vector search failed (continuing without it): %s", e)
         return []

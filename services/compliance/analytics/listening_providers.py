@@ -78,9 +78,12 @@ def _load_local_model() -> Any:
 
 
 async def warm_up_sentiment_model() -> None:
-    """Load both sentiment models in worker threads at startup, so no request waits for them (or freezes the server)."""
+    """Load both sentiment models in worker threads after startup settles, so initial requests aren't starved."""
     import asyncio
 
+    if os.getenv("SENTIMENT_WARMUP_ENABLED", "true").strip().lower() in {"0", "false", "no", "off"}:
+        return
+    await asyncio.sleep(float(os.getenv("SENTIMENT_WARMUP_DELAY_SEC", "5")))
     await asyncio.to_thread(_load_local_model)
     await asyncio.to_thread(load_financial_model)
 

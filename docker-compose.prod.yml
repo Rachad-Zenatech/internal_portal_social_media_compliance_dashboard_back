@@ -26,6 +26,9 @@ services:
     volumes:
       - ./data:/app/data
 
+    environment:
+      HF_HOME: /app/data/hf_cache
+
     # Compose applies these in order and the last one wins, so .env.production
     # is listed second: the deploy pipeline regenerates it every release, while
     # .env is untracked and survives `git reset --hard`, so a stale copy left on

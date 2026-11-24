@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/analytics/public_mood_service.py (938 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+## services/compliance/analytics/public_mood_service.py (936 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - `_env_float` (def) L79
 - `_get_client` (def) L105
 - `_source_label` (def) L115

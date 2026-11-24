@@ -219,14 +219,14 @@ def _build_converse_params(
     if is_json or response_schema:
         if isinstance(response_schema, (dict, list)):
             try:
-                schema_str = json.dumps(response_schema)
-                json_instruction = f"Return ONLY valid JSON matching this schema: {schema_str}. Do not include markdown code block syntax (no ```json)."
+                schema_str = json.dumps(response_schema, separators=(",", ":"))
+                json_instruction = f"Return ONLY valid JSON matching this schema:{schema_str}. No markdown fences."
             except Exception:
-                json_instruction = "Return ONLY valid JSON. Do not include markdown code block syntax (no ```json)."
+                json_instruction = "Return ONLY valid JSON. No markdown fences."
         elif isinstance(response_schema, str) and response_schema.strip():
-            json_instruction = f"Return ONLY valid JSON matching this schema: {response_schema}. Do not include markdown code block syntax (no ```json)."
+            json_instruction = f"Return ONLY valid JSON matching this schema:{response_schema}. No markdown fences."
         else:
-            json_instruction = "Return ONLY valid JSON. Do not include markdown code block syntax (no ```json)."
+            json_instruction = "Return ONLY valid JSON. No markdown fences."
         system_text = f"{system_text}\n{json_instruction}".strip() if system_text else json_instruction
 
     system = [{"text": system_text}] if system_text else None
@@ -234,7 +234,7 @@ def _build_converse_params(
     content_blocks, _ = _extract_text_and_media(contents)
     messages = [{"role": "user", "content": content_blocks}]
 
-    max_tokens = getattr(config, "max_output_tokens", None) or 4096
+    max_tokens = getattr(config, "max_output_tokens", None) or 2048
     inference_config: Dict[str, Any] = {"maxTokens": max_tokens}
 
     params: Dict[str, Any] = {

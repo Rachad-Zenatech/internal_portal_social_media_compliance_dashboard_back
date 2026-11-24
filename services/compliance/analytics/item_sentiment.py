@@ -25,14 +25,44 @@ _financial_model: Any = None  # (tokenizer, model), or False once disabled/unava
 _financial_lock = threading.Lock()
 
 
+def _has_memory_for_hf() -> bool:
+    """Avoid Linux OOM kills when loading ~500MB PyTorch models on memory-tight hosts."""
+    min_mb = int(os.getenv("HF_MIN_AVAILABLE_MB", "1500"))
+    if min_mb <= 0 or not os.path.exists("/proc/meminfo"):
+        return True
+    try:
+        with open("/proc/meminfo", encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("MemAvailable:"):
+                    avail_mb = int(line.split()[1]) // 1024
+                    if avail_mb < min_mb:
+                        logger.warning(
+                            "Skipping HuggingFace sentiment model load (MemAvailable=%dMB < %dMB); using VADER",
+                            avail_mb,
+                            min_mb,
+                        )
+                        return False
+                    return True
+    except Exception:
+        pass
+    return True
+
+
 def load_hf_model_from_hub(model_name: str) -> Any:
     """Load a HuggingFace sequence-classification model once; return False when disabled or unavailable."""
     name = (model_name or "").strip()
     if not name or name.lower() == "vader":
         return False
+    if not _has_memory_for_hf():
+        return False
     try:
-        import torch  # noqa: F401
+        import torch
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+        try:
+            torch.set_num_threads(max(1, int(os.getenv("TORCH_NUM_THREADS", "1"))))
+        except Exception:
+            pass
 
         try:
             tok = AutoTokenizer.from_pretrained(name, local_files_only=True)

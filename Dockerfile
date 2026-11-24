@@ -5,6 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     APP_ENV=production \
     TESSERACT_CMD=/usr/bin/tesseract \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    HF_HOME=/app/data/hf_cache \
     MCP_HOST=0.0.0.0 \
     MCP_PORT=7006
 
@@ -58,5 +59,5 @@ EXPOSE 8009 7006
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8009/health/live')" || exit 1
 
-# Start both FastAPI (background) and MCP server (foreground)
-CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port 8009 --workers 1 & python server.py"]
+# Run uvicorn as the foreground process (PID 1 via exec) so crashes trigger Docker restart; keep MCP port 7006 running too.
+CMD ["sh", "-c", "python server.py & exec uvicorn server:app --host 0.0.0.0 --port 8009 --workers 1"]

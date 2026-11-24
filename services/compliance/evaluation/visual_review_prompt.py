@@ -43,7 +43,7 @@ Use VIOLATION only for a clearly visible policy breach established in context, w
 Use NEEDS_REVIEW for ambiguous imagery or required external verification (clearance, permission,
 release or sensitivity). Use CLEARED when the visual does not breach the rule. A disclaimer does not
 automatically excuse prohibited imagery. For contextual rules, a keyword alone does not establish a breach.
-Describe the exact visible evidence and why the rule applies; do not invent quoted text. Give a tight
+Describe the exact visible evidence and why the rule applies; do not invent quoted text. For CLEARED rules, keep evidence "" and reasoning under 10 words. Give a tight
 box [top,left,bottom,right] on a 0..1000 grid for an issue, or [] if it cannot be localized. For video
 give start_sec and end_sec, otherwise use 0 for both. Do not fabricate coordinates or timestamps.
 An empty findings list is not a completed check. Return JSON only.

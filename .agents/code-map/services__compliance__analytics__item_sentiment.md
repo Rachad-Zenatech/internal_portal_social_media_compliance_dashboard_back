@@ -4,11 +4,12 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/analytics/item_sentiment.py (141 lines) - Item-level sentiment models: general X/social RoBERTa, FinBERT for financial news, and VADER fallback.
-- `load_hf_model_from_hub` (def) L28 - Load a HuggingFace sequence-classification model once; return False when disabled or unavailable.
-- `load_financial_model` (def) L49 - Load the financial sentiment model (FINANCIAL_SENTIMENT_MODEL, default ProsusAI/finbert) once.
-- `run_hf_model` (def) L63 - Run an already-loaded HuggingFace classifier and return {'POSITIVE', 'NEUTRAL', 'NEGATIVE'} probs.
-- `model_probs_for` (def) L80 - Return class probabilities from the model returned by `loader`, or None to fall back to VADER.
-- `score_with_probs` (def) L89 - Build the final sentiment dict from HuggingFace probabilities or VADER when `probs` is None.
-- `_financial_probs` (def) L131
-- `classify_financial_sentiment` (def) L135 - Classify financial/stock headlines with FinBERT (FINANCIAL_SENTIMENT_MODEL), falling back to VADER.
+## services/compliance/analytics/item_sentiment.py (171 lines) - Item-level sentiment models: general X/social RoBERTa, FinBERT for financial news, and VADER fallback.
+- `_has_memory_for_hf` (def) L28 - Avoid Linux OOM kills when loading ~500MB PyTorch models on memory-tight hosts.
+- `load_hf_model_from_hub` (def) L51 - Load a HuggingFace sequence-classification model once; return False when disabled or unavailable.
+- `load_financial_model` (def) L79 - Load the financial sentiment model (FINANCIAL_SENTIMENT_MODEL, default ProsusAI/finbert) once.
+- `run_hf_model` (def) L93 - Run an already-loaded HuggingFace classifier and return {'POSITIVE', 'NEUTRAL', 'NEGATIVE'} probs.
+- `model_probs_for` (def) L110 - Return class probabilities from the model returned by `loader`, or None to fall back to VADER.
+- `score_with_probs` (def) L119 - Build the final sentiment dict from HuggingFace probabilities or VADER when `probs` is None.
+- `_financial_probs` (def) L161
+- `classify_financial_sentiment` (def) L165 - Classify financial/stock headlines with FinBERT (FINANCIAL_SENTIMENT_MODEL), falling back to VADER.

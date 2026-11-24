@@ -265,6 +265,7 @@ async def suggest(submission_id: UUID, user_id: UUID, req: CaptionSuggestRequest
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
         response_schema=RESPONSE_SCHEMA,
+        max_output_tokens=700,
         temperature=0.7,
     )
     try:

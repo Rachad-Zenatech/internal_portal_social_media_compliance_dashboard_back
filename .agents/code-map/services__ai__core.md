@@ -111,7 +111,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `store` (def) L172 - Cache an answer for the question of an earlier lookup.
 - `clear` (def) L196 - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
-## services/ai/core/vector_store_service.py (365 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+## services/ai/core/vector_store_service.py (368 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
 - `_setting` (def) L46
 - `database_name` (def) L50
 - `collection_name` (def) L54
@@ -137,8 +137,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `delete_kind_except` (def) L252 - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
 - `_reference_changed` (def) L264 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
 - `search` (def) L274 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
-- `ensure_index` (def) L321 - Create the Atlas vector search index on the collection if it doesn't exist.
-- `status` (def) L346 - Whether the store is configured and reachable, and what's in it (no credentials).
+- `ensure_index` (def) L324 - Create the Atlas vector search index on the collection if it doesn't exist.
+- `status` (def) L349 - Whether the store is configured and reachable, and what's in it (no credentials).
 
 ## services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - `collection_name` (def) L36

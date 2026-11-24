@@ -908,9 +908,7 @@ async def summarise(submission_id: UUID, user_id: UUID) -> PublicMood:
 
     await ai_usage_service.reserve("PUBLIC_MOOD", user_id, submission_id)
     config = types.GenerateContentConfig(
-        response_mime_type="application/json",
-        response_schema=RESPONSE_SCHEMA,
-        temperature=0,
+        response_mime_type="application/json", response_schema=RESPONSE_SCHEMA, max_output_tokens=900, temperature=0,
     )
     try:
         response = await generate_content_with_fallback(_get_client(), _prompt(row, mood), config, feature="PUBLIC_MOOD",

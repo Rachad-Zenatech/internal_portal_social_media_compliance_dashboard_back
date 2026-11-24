@@ -29,7 +29,7 @@ from services.compliance.evaluation.source_image_claims import label as capabili
 logger = logging.getLogger(__name__)
 
 # Sources up to this long are given to the model whole; longer ones as an excerpt of the passages that matter.
-MODEL_SOURCE_CHARS = int(os.getenv("SOURCE_MODEL_CHARS", "30000"))
+MODEL_SOURCE_CHARS = int(os.getenv("SOURCE_MODEL_CHARS", "16000"))
 EMBED_ENABLED = os.getenv("SOURCE_PASSAGES_EMBED", "true").strip().lower() not in {"0", "false", "no", "off"}
 MAX_EMBED_PASSAGES = int(os.getenv("SOURCE_PASSAGES_MAX_EMBED", "400"))
 PASSAGE_CHARS = int(os.getenv("SOURCE_PASSAGE_CHARS", "900"))
