@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from pydantic import BaseModel, Field
 
-from services.ai.observability import ai_observability_service
+from services.ai.observability import ai_observability_service, ai_overview_service
 from services.shared.auth.auth_service import get_current_user_id_dependency, require_permission
 
 
@@ -82,6 +82,15 @@ async def get_token_usage(hours: int = Query(24, ge=1, le=24 * 30)):
 async def get_ai_summary(hours: int = Query(24, ge=1, le=24 * 30)):
     """Per feature and model: calls, errors, p50/p95 latency, tokens; plus cache hits, guard verdicts, tool calls."""
     return await ai_observability_service.summary(hours)
+
+
+@router.get('/observability/ai/overview', dependencies=_ai_logs_viewer)
+async def get_ai_overview(
+    hours: int = Query(24, ge=1, le=24 * 30),
+    user_id: UUID = Depends(get_current_user_id_dependency),
+):
+    """Unified System & Security AI snapshot: outages/overflows, feature-to-core mapping, and usage."""
+    return await ai_overview_service.overview(hours=hours, user_id=user_id)
 
 
 @router.get('/observability/ai/traces', dependencies=_ai_logs_viewer)

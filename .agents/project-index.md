@@ -92,6 +92,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/observability/ai_health.py (220 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
 - services/ai/observability/ai_observability.py (424 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - services/ai/observability/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
+- services/ai/observability/ai_overview_service.py (422 lines) - Combined AI health, feature-to-core mapping, and usage overview for System & Security.
 - services/ai/observability/ai_usage_service.py (169 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
 - services/compliance/analytics/conversation_evidence.py (857 lines) - Conversation evidence for public mood: the news articles and X posts a post is compared with, and the saved assessment of what they say a...
 - services/compliance/analytics/conversation_feedback.py (202 lines) - Reviewer input on a conversation assessment, kept against the exact assessment the reviewer was looking at.
@@ -321,5 +322,5 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/shared/auth/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
 - tools/shared/auth/rbac_router.py (236 lines) - rbac router (shared auth)
 - tools/shared/core/log_router.py (74 lines) - log router (shared core)
-- tools/shared/core/observability.py (117 lines) - observability (shared core)
-- tools/shared/core/search.py (176 lines) - Static system pages for quick navigation search with explicit permission codes
+- tools/shared/core/observability.py (126 lines) - observability (shared core)
+- tools/shared/core/search.py (157 lines) - Static system pages for quick navigation search with explicit permission codes
