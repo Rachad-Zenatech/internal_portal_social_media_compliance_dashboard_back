@@ -7,7 +7,7 @@ Three tiers, each an ordered list of models (override with AI_ROUTE_TIER_<TIER>=
     HEAVY     long (>60k chars) or high-stakes requests               stronger Sonnet first, Haiku fallback
 
 Each feature has a base tier (AI_ROUTE_<FEATURE>=LIGHT|STANDARD|HEAVY overrides it), and the request can move up:
-several attachments (>2) or a long prompt lift LIGHT to STANDARD; a very long prompt or high stakes lift it to HEAVY.
+attachments or a long prompt lift LIGHT to STANDARD; a very long prompt or high stakes lift it to HEAVY.
 When AWS_PROFILE_ID is configured, cheap profiles stay first for LIGHT/STANDARD while HEAVY tries the stronger tier
 first and falls back to AWS_PROFILE_ID so accounts limited to one inference profile never break.
 """
@@ -26,7 +26,7 @@ _TIER_DEFAULTS: Dict[str, str] = {
 }
 _FEATURE_TIERS: Dict[str, str] = {
     "CHAT": "LIGHT",
-    "CAPTION": "LIGHT",
+    "CAPTION": "STANDARD",
     "IMAGE_TEXT": "LIGHT",
     "IMAGE_SOURCE_OCR": "LIGHT",
     "IMAGE_FINDING_REGIONS": "LIGHT",
@@ -85,9 +85,9 @@ def route(feature: str, *, prompt_chars: int = 0, attachments: int = 0, high_sta
             if tier != "HEAVY":
                 tier = "HEAVY"
                 reasons.append("high stakes" if high_stakes else f"prompt over {VERY_LONG_PROMPT_CHARS:,} characters")
-        elif tier == "LIGHT" and (attachments > 2 or prompt_chars > LONG_PROMPT_CHARS):
+        elif tier == "LIGHT" and (attachments or prompt_chars > LONG_PROMPT_CHARS):
             tier = "STANDARD"
-            reasons.append("multiple attachments" if attachments > 2 else f"prompt over {LONG_PROMPT_CHARS:,} characters")
+            reasons.append("has attachments" if attachments else f"prompt over {LONG_PROMPT_CHARS:,} characters")
     else:
         reasons = ["routing disabled (using standard order)"]
 
@@ -100,4 +100,4 @@ def route(feature: str, *, prompt_chars: int = 0, attachments: int = 0, high_sta
             preferred = [profile] + [m for m in preferred if m != profile]
         else:
             preferred = preferred + ([profile] if profile not in preferred else [])
-    return Route(tier, preferred, "; ".join(reasons))
+    return Route(tier, list(dict.fromkeys(preferred)), "; ".join(reasons))

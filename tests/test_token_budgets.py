@@ -17,8 +17,12 @@ from services.compliance.evaluation import context_evaluator, visual_review
 class TestTokenBudgets(unittest.IsolatedAsyncioTestCase):
     def test_model_router_prefers_cheap_for_easy_and_stronger_when_needed(self):
         with patch.dict("os.environ", {"AWS_PROFILE_ID": "us.anthropic.claude-3-5-sonnet-20241022-v2:0"}, clear=True):
+            chat = model_router.route("CHAT", prompt_chars=200)
+            self.assertEqual(chat.tier, "LIGHT")
+            self.assertEqual(chat.models[0], "us.anthropic.claude-haiku-5-5")
+
             easy = model_router.route("IMAGE_TEXT", attachments=1)
-            self.assertEqual(easy.tier, "LIGHT")
+            self.assertEqual(easy.tier, "STANDARD")
             self.assertEqual(easy.models[0], "us.anthropic.claude-haiku-5-5")
 
             ctx = model_router.route("CONTEXT_EVAL", prompt_chars=500)
