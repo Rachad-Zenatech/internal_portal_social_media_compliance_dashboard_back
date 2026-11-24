@@ -80,7 +80,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - server.py (471 lines) - server
 - services/ai/core/assistant_chat_service.py (259 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/bedrock_embeddings.py (52 lines) - Real Titan embeddings, isolated from chat inference profiles and old vector spaces.
-- services/ai/core/bedrock_service.py (386 lines) - AWS Bedrock AI Service Adapter.
+- services/ai/core/bedrock_service.py (427 lines) - AWS Bedrock AI Service Adapter.
 - services/ai/core/compliance_request_policy.py (30 lines) - Bound compliance attempts and share outage knowledge without changing judgment prompts or coverage.
 - services/ai/core/gemini_service.py (209 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (82 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
