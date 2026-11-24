@@ -29,12 +29,25 @@ uploads
 outputs
 
 *.log
-# Agent/AI tooling: GitHub only, never in the image
+# Agent/AI tooling, IDE, docs, hooks, and test/dev files: GitHub only, never in the AWS image
 .agents
 .cursor
 .claude
 .cursorrules
+.githooks
+.vscode
+.windsurfrules
 AGENTS.md
 CLAUDE.md
 GEMINI.md
+antigravity.md
+Dev.code-workspace
+README.md
+docs
+tests
+pytest.ini
+requirements-dev.txt
+package-lock.json
+run_server.sh
+run_server_dev.sh
 .antigravityignore
