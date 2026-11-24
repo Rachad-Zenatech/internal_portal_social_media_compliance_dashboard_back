@@ -30,8 +30,7 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 
-from services.compliance.evaluation import source_settings
-from services.compliance.media import document_layout
+from services.compliance.evaluation import source_settings, source_pdf_reader
 
 logger = logging.getLogger(__name__)
 
@@ -324,12 +323,13 @@ async def _fetch(url: str) -> FetchedSource:
 
     kind = content_type.split(";")[0].strip().lower()
     title = published = None
-    if kind == "application/pdf" or final.lower().split("?")[0].endswith(".pdf"):
-        text = await asyncio.to_thread(document_layout.pdf_to_text, data) or ""
+    if source_pdf_reader.is_pdf(data, kind, final):
+        text = await asyncio.to_thread(source_pdf_reader.read, data)
         if not text.strip():
-            return _fail(url, "UNSUPPORTED", "This PDF has no text the checker can read (a scan, perhaps). Attach it "
-                                             "as a supporting document instead.")
+            return _fail(url, "UNSUPPORTED", "This PDF has no extractable text, is encrypted or could not be parsed. "
+                                             "Attach an unlocked copy or paste the relevant source text.")
         text = _tidy(text)
+        title = source_pdf_reader.title(final)
     elif kind in ("text/html", "application/xhtml+xml", "") or "html" in kind:
         text, title, published = html_to_text(_decode(data, content_type))
     elif kind.startswith("text/"):

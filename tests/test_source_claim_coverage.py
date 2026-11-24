@@ -18,7 +18,7 @@ class ClaimCoverageTests(unittest.IsolatedAsyncioTestCase):
         ask = AsyncMock(return_value=sc._Response(claims=[sc._Result(claim=c, verdict="UNCLEAR") for c in response]))
         write = AsyncMock(side_effect=lambda sql, key, claims: {"claims": claims})
         with (
-            patch.object(sc.newsroom_facts, "material", AsyncMock(return_value=None)),
+            patch.object(sc.newsroom_claim_sources, "readings", AsyncMock(return_value=[])),
             patch.object(sc, "MODELS", ["test-model"]), patch.object(sc, "_ask", ask),
             patch.object(inventory.db, "fetch_one", AsyncMock(return_value=None)),
             patch.object(inventory.db, "execute", write),
@@ -42,13 +42,13 @@ class ClaimCoverageTests(unittest.IsolatedAsyncioTestCase):
         newsroom = SourceCheck(reference="Company newsroom", kind="URL", where="newsroom", status="READ")
         answers = [sc._Result(claim=c, where="image", verdict="NOT_FOUND", confidence=0.9) for c in CLAIMS]
         with (
-            patch.object(sc.newsroom_facts, "material", AsyncMock(return_value=(newsroom, ("Newsroom", "No cooler evidence.")))),
+            patch.object(sc.newsroom_claim_sources, "readings", AsyncMock(return_value=[(newsroom, ("Newsroom", "No cooler evidence."))])),
             patch.object(sc, "_compare", AsyncMock(return_value=(answers, "test-model"))),
             patch.object(sc.source_passages, "EMBED_ENABLED", False),
-            patch.object(coverage, "identify", AsyncMock()) as identify,
+            patch.object(coverage, "identify", AsyncMock(return_value=[{"claim": c, "where": "image"} for c in CLAIMS])) as identify,
         ):
             result = await sc.run(POST, include_image_citations=False)
-        identify.assert_not_awaited()
+        identify.assert_awaited_once()
         self.assertFalse(result.ai_failed)
         self.assertEqual(result.checks, [])  # Keep irrelevant automatic newsroom summaries out of the panel.
         self.assertEqual([finding.passage for finding in result.unbacked], CLAIMS)
@@ -65,7 +65,9 @@ class ClaimCoverageTests(unittest.IsolatedAsyncioTestCase):
         newsroom = SourceCheck(reference="Newsroom", kind="URL", where="newsroom", status="READ")
         partial = inventory.ClaimBatch([sc._Result(claim=CLAIMS[0], where="image", verdict="NOT_FOUND")], complete=False)
         with (
-            patch.object(sc.newsroom_facts, "material", AsyncMock(return_value=(newsroom, ("Newsroom", "No cooler evidence.")))),
+            patch.object(sc.newsroom_claim_sources, "readings", AsyncMock(return_value=[(newsroom, ("Newsroom", "No cooler evidence."))])),
+            patch.object(coverage, "identify", AsyncMock(return_value=inventory.ClaimBatch(
+                [{"claim": CLAIMS[0], "where": "image"}], complete=False))),
             patch.object(sc, "_compare", AsyncMock(return_value=(partial, "test-model"))),
             patch.object(sc.source_passages, "EMBED_ENABLED", False),
         ):

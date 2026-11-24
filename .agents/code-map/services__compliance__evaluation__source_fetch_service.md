@@ -5,21 +5,21 @@
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
 ## services/compliance/evaluation/source_fetch_service.py (348 lines) - Source fetcher: opens a link a post cites and returns its readable text.
-- `FetchedSource` (class) L59
-- `_Refused` (class) L76
-- `_forbidden` (def) L82
-- `_check_destination` (def) L90
-- `_Text` (class) L139 - Visible text of a page, with the article's own text kept apart (it beats menus and related-story lists).
-    - `__init__` (def) L142
-    - `handle_starttag` (def) L153
-    - `handle_endtag` (def) L173
-    - `handle_data` (def) L183
-    - `_put` (def) L190
-- `_tidy` (def) L196
-- `html_to_text` (def) L210 - (text, title, published date) of an HTML page.
-- `_decode` (def) L225
-- `_fail` (def) L235
-- `_get_once` (def) L239 - One request, its body read as a stream and cut off at the size limit.
-- `_download` (def) L257 - (bytes, content type, final url), following a few redirects, checking every destination.
-- `fetch` (def) L286 - Open a link and return its readable text, or the reason it couldn't be read.
-- `_fetch` (def) L304
+- `FetchedSource` (class) L58
+- `_Refused` (class) L75
+- `_forbidden` (def) L81
+- `_check_destination` (def) L89
+- `_Text` (class) L138 - Visible text of a page, with the article's own text kept apart (it beats menus and related-story lists).
+    - `__init__` (def) L141
+    - `handle_starttag` (def) L152
+    - `handle_endtag` (def) L172
+    - `handle_data` (def) L182
+    - `_put` (def) L189
+- `_tidy` (def) L195
+- `html_to_text` (def) L209 - (text, title, published date) of an HTML page.
+- `_decode` (def) L224
+- `_fail` (def) L234
+- `_get_once` (def) L238 - One request, its body read as a stream and cut off at the size limit.
+- `_download` (def) L256 - (bytes, content type, final url), following a few redirects, checking every destination.
+- `fetch` (def) L285 - Open a link and return its readable text, or the reason it couldn't be read.
+- `_fetch` (def) L303

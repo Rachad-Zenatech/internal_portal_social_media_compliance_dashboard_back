@@ -25,7 +25,7 @@ def claim_key(claim, where):
     return (" ".join(claim.casefold().split()), where)
 
 
-def missing_findings(inventory, checks):
+def missing_findings(inventory, checks, *, failed=()):
     # Explicit source judgments already have findings. Uncited newsroom silence is not evidence.
     addressed = {claim_key(claim.claim, claim.where)
                  for check in checks for claim in check.claims
@@ -33,7 +33,7 @@ def missing_findings(inventory, checks):
     findings, seen = [], set()
     for item in inventory:
         key = claim_key(item["claim"], item["where"])
-        if key in addressed or key in seen:
+        if key in addressed or key in seen or key in failed:
             continue
         seen.add(key)
         note = "No readable supporting source has verified this claim. Attach evidence that supports its scope and conditions."
@@ -46,7 +46,7 @@ def missing_findings(inventory, checks):
     return findings
 
 
-async def complete(result, inventory, text, ask, models, limit):
+async def complete(result, inventory, text, ask, models, limit, *, failed=()):
     if inventory is None:
         if result.ai_failed:
             return  # Failed comparison already marks the review incomplete; do not repeat failed AI work.
@@ -55,4 +55,4 @@ async def complete(result, inventory, text, ask, models, limit):
         result.ai_failed = True
         return
     result.ai_failed = result.ai_failed or not getattr(inventory, "complete", True)
-    result.unbacked = missing_findings(inventory, result.checks)
+    result.unbacked = missing_findings(inventory, result.checks, failed=failed)

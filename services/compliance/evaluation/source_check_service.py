@@ -40,7 +40,7 @@ from services.ai.observability import ai_observability
 from services.ai.observability.ai_guardrails import screen_input
 from services.ai.core.gemini_service import is_rotatable_model_error, without_retired, model_is_available
 from services.compliance.evaluation import (
-    source_claim_support, source_comparison_cache, source_claim_coverage, source_claim_inventory, citation_finder, context_evaluator, newsroom_facts, source_fetch_service, source_passages, source_settings, source_post_checks, source_recheck,
+    source_claim_routing, newsroom_claim_sources, source_claim_support, source_comparison_cache, source_claim_coverage, source_claim_inventory, citation_finder, context_evaluator, newsroom_facts, source_fetch_service, source_passages, source_settings, source_post_checks, source_recheck,
 )
 # The safeguards on the model's answers live in their own module; these names stay importable from here.
 from services.compliance.evaluation.source_claim_checks import (  # noqa: F401
@@ -57,7 +57,7 @@ from services.compliance.evaluation import source_identity
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v15-proportionate-stable-comparisons"
+PROMPT_VERSION = "source-v16-claim-routed-evidence"
 VERSION = f"sources-2|{citation_finder.VERSION}|{PROMPT_VERSION}|{source_claim_inventory.VERSION}|evidence-union-1"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 # Gemini models (commented out for now, replaced with Bedrock):
@@ -194,9 +194,10 @@ async def _ask(model: str, contents: str, guard: Any, *, system_prompt: str = SY
 
 
 async def _compare(post_text: str, label: str, title: Optional[str], url: Optional[str], published: Optional[str],
-                   source_text: str) -> Tuple[Optional[List[_Result]], Optional[str]]:
+                   source_text: str, *, inventory=None) -> Tuple[Optional[List[_Result]], Optional[str]]:
     """The model's claim-by-claim answer for one source (None when no model could give one), and the model's name."""
-    inventory = await source_claim_coverage.identify(post_text, _ask, MODELS, MAX_CLAIMS)
+    if inventory is None:
+        inventory = await source_claim_coverage.identify(post_text, _ask, MODELS, MAX_CLAIMS)
     if inventory is None:
         return None, None
     if not inventory:
@@ -216,7 +217,7 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
         head.append(f"Address: {url}")
     if published:
         head.append(f"Published: {published}")
-    shown = await source_passages.excerpt(post_text[:MAX_POST_CHARS], source_text)  # a long source: what matters of it
+    shown = await source_passages.excerpt("\n".join(item["claim"] for item in inventory), source_text)
     contents = (
         "Verify this fixed inventory: " + json.dumps(inventory) + "\n\n<post>\n" + post_text + "\n</post>\n\n<source>\n"
         + "\n".join(head) + "\n\n" + shown + "\n</source>"
@@ -296,7 +297,10 @@ async def run(
     # Post Details owns image-source discovery; compliance still compares the full image text with saved links.
     citations = [c for c in citation_finder.find(text) if include_image_citations or c.where != "image"]
     docs = [d for d in provided if (d.text or "").strip()]
-    newsroom = await newsroom_facts.material(text)  # the company's own published facts, as one more source
+    inventory = await source_claim_coverage.identify(source_claim_coverage.post_body(text), _ask, MODELS, MAX_CLAIMS)
+    if inventory is None:
+        result.ai_failed = True
+        inventory = []
 
     # Named sources an attached document or a read source link stands in for are covered by that source.
     reading: List[Tuple[SourceCheck, Optional[Tuple[str, str]]]] = []
@@ -337,35 +341,35 @@ async def run(
         reading.append((SourceCheck(reference=d.name, kind="DOCUMENT", where="attached", status="READ", title=d.name),
                         (f"attached document {d.name}", shown)))
 
-    if newsroom:
-        reading.append((newsroom[0], newsroom[1]))
+    lookup_failed = False
+    try:
+        reading.extend(await newsroom_claim_sources.readings(inventory))
+    except Exception:
+        logger.warning("Per-claim newsroom retrieval could not complete", exc_info=True)
+        lookup_failed = True
+    reading = source_identity.readings(reading)
 
-    inventory = None
-
-    async def compare(check: SourceCheck, material: Tuple[str, str]) -> None:
-        nonlocal inventory
+    async def compare(check, material, assigned):
         label, source_text = material
-        results, model, incomplete = await source_post_checks.compare_parts(
-            text, label, check.title, check.url, check.published, source_text, _compare)
-        if incomplete and not newsroom_facts.is_newsroom(check):
-            result.ai_failed = True
-            check.message = ("No AI model could compare this source just now. Check again to finish." if results is None
-                             else "Some caption or image claims could not be compared with this source. Check again to finish.")
+        results, model = await _compare(text, label, check.title, check.url, check.published,
+                                        source_text, inventory=assigned)
         if results is None:
-            return
-        if inventory is None:
-            inventory = source_claim_inventory.ClaimBatch(
-                ({"claim": claim.claim, "where": claim.where} for claim in results), complete=getattr(results, "complete", True))
+            check.message = "No AI model could compare the assigned claims just now. Check again to finish."
+            return None
+        checked = await source_passages.checked_claims(results, source_text)
         check.model = model
-        check.claims = await source_passages.checked_claims(results, source_text)
-        if newsroom_facts.is_newsroom(check):
-            check.claims = newsroom_facts.in_post(check.claims, text)
-        if not check.claims and not incomplete:
-            check.message = "No claim in the post turned out to depend on this source."
+        check.claims.extend(checked)
+        return checked
 
-    await asyncio.gather(*(compare(check, material) for check, material in reading if material))
+    failures = await source_claim_routing.verify(inventory, reading, compare)
+    if lookup_failed:
+        settled = {source_claim_coverage.claim_key(c.claim, c.where) for check, _ in reading
+                   for c in check.claims if c.verdict in {"SUPPORTED", "CONTRADICTED"}}
+        failures.update(source_claim_routing.key(item) for item in inventory
+                        if source_claim_routing.key(item) not in settled)
+    result.ai_failed = result.ai_failed or bool(failures) or not getattr(inventory, "complete", True)
     result.checks = newsroom_facts.visible_checks([check for check, _ in reading])
-    await source_claim_coverage.complete(result, inventory, text, _ask, MODELS, MAX_CLAIMS)
+    await source_claim_coverage.complete(result, inventory, text, _ask, MODELS, MAX_CLAIMS, failed=failures)
     return result
 
 
