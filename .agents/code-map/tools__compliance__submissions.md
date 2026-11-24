@@ -105,31 +105,31 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_ws_user` (def) L209 - Who the connection is: the sign-in cookie, or a first message {"type": "auth", "token": ...}.
 - `live` (def) L229 [WEBSOCKET /{doc_id}/live] - The live connection for one script: its text and notes, or (`notes_only`, for a script edited in the Share Document
 
-## tools/compliance/submissions/script_review_router.py (146 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
+## tools/compliance/submissions/script_review_router.py (149 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - `suggest_fix` (def) L36 [POST /scripts/suggest-fix] - A compliant rewrite of one flagged passage of a script, for the creator to use or not.
-- `suggester_dashboard` (def) L42 [GET /scripts/suggester-dashboard] - A suggesting reviewer's dashboard: what is sent to them, and what they have done on it.
-- `script_queue` (def) L48 [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
-- `script_queue_summary` (def) L54 [GET /scripts/queue/summary]
-- `get_script` (def) L59 [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
-- `submit_script` (def) L65 [POST /{submission_id}/script/submit] - Send the uploaded script for review.
-- `decide_script` (def) L72 [POST /{submission_id}/script/decision] - Approve the script, or send it back with a note and/or the reviewer's edited version.
-- `save_script_suggestion` (def) L78 [PUT /{submission_id}/script/suggestion] - A suggesting reviewer saves their edited wording and notes for the script in review (theirs alone for now).
-- `discard_script_suggestion` (def) L84 [DELETE /{submission_id}/script/suggestion] - Take back a suggesting reviewer's own suggestion on the script.
-- `accept_script_edits` (def) L90 [POST /{submission_id}/script/accept] - Accept the reviewer's edits; the script is approved.
-- `revise_script` (def) L96 [POST /{submission_id}/script/revise] - Send an edited script back to the reviewer.
-- `precheck_script` (def) L102 [POST /{submission_id}/script/precheck] - Creator: check the uploaded script against the rulebook before sending it (the result is kept).
-- `check_script` (def) L109 [POST /{submission_id}/script/check] - Check wording being edited, without saving it.
-- `get_script_highlights` (def) L115 [GET /{submission_id}/script/highlights] - The reviewer's highlights and notes on a script version (the creator sees them too).
-- `save_script_highlights` (def) L121 [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
-- `resolve_script_highlights` (def) L127 [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
-- `export_script` (def) L135 [GET /{submission_id}/script/export] - Download the exact saved script version the caller may read.
+- `suggester_dashboard` (def) L45 [GET /scripts/suggester-dashboard] - A suggesting reviewer's dashboard: what is sent to them, and what they have done on it.
+- `script_queue` (def) L51 [GET /scripts/queue] - Scripts for a Content Screener tab: waiting for a reviewer, sent back to the creator, or approved.
+- `script_queue_summary` (def) L57 [GET /scripts/queue/summary]
+- `get_script` (def) L62 [GET /{submission_id}/script] - The post's script stage: every version, the reviewer's decisions and what the viewer can do.
+- `submit_script` (def) L68 [POST /{submission_id}/script/submit] - Send the uploaded script for review.
+- `decide_script` (def) L75 [POST /{submission_id}/script/decision] - Approve the script, or send it back with a note and/or the reviewer's edited version.
+- `save_script_suggestion` (def) L81 [PUT /{submission_id}/script/suggestion] - A suggesting reviewer saves their edited wording and notes for the script in review (theirs alone for now).
+- `discard_script_suggestion` (def) L87 [DELETE /{submission_id}/script/suggestion] - Take back a suggesting reviewer's own suggestion on the script.
+- `accept_script_edits` (def) L93 [POST /{submission_id}/script/accept] - Accept the reviewer's edits; the script is approved.
+- `revise_script` (def) L99 [POST /{submission_id}/script/revise] - Send an edited script back to the reviewer.
+- `precheck_script` (def) L105 [POST /{submission_id}/script/precheck] - Creator: check the uploaded script against the rulebook before sending it (the result is kept).
+- `check_script` (def) L112 [POST /{submission_id}/script/check] - Check wording being edited, without saving it.
+- `get_script_highlights` (def) L118 [GET /{submission_id}/script/highlights] - The reviewer's highlights and notes on a script version (the creator sees them too).
+- `save_script_highlights` (def) L124 [PUT /{submission_id}/script/highlights] - Save the reviewer's highlights and notes on a script version.
+- `resolve_script_highlights` (def) L130 [POST /{submission_id}/script/highlights/resolve] - The creator marks the reviewer's highlights they fixed, with the wording as it reads now.
+- `export_script` (def) L138 [GET /{submission_id}/script/export] - Download the exact saved script version the caller may read.
 
-## tools/compliance/submissions/source_link_router.py (69 lines) - Router for quick AI checking of submission source links.
+## tools/compliance/submissions/source_link_router.py (75 lines) - Router for quick AI checking of submission source links.
 - `check_source_link` (def) L18 [POST /{submission_id}/check-source-link] - Quickly fetch one source URL and check whether it supports the post's current material.
-- `check_pasted_source` (def) L24 [POST /{submission_id}/check-pasted-source] - Check the post's claims against a whole article pasted in, and where in it each claim is found.
-- `scan_image_sources` (def) L32 [POST /{submission_id}/scan-image-sources] - Queue image source scanning, web lookup, and scraping as a background job.
-- `list_active_image_source_scan_jobs` (def) L58 [GET /{submission_id}/scan-image-sources] - Return any background image source scan jobs currently running for this submission.
-- `get_image_source_scan_job` (def) L64 [GET /{submission_id}/scan-image-sources/{job_id}] - Poll the status and result of a background image source scan job.
+- `check_pasted_source` (def) L27 [POST /{submission_id}/check-pasted-source] - Check the post's claims against a whole article pasted in, and where in it each claim is found.
+- `scan_image_sources` (def) L38 [POST /{submission_id}/scan-image-sources] - Queue image source scanning, web lookup, and scraping as a background job.
+- `list_active_image_source_scan_jobs` (def) L64 [GET /{submission_id}/scan-image-sources] - Return any background image source scan jobs currently running for this submission.
+- `get_image_source_scan_job` (def) L70 [GET /{submission_id}/scan-image-sources/{job_id}] - Poll the status and result of a background image source scan job.
 
 ## tools/compliance/submissions/source_trust_router.py (27 lines) - Router for people's calls on a post's sources (does a claim match the page? is the page a good source?) and the standing each source's si...
 - `get_source_confirmations` (def) L17 [GET /{submission_id}/source-confirmations] - Everyone's calls on this post's sources, and what reviewers have said about each source's site.

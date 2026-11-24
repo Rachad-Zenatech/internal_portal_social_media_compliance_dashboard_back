@@ -20,13 +20,16 @@ from fastapi import HTTPException
 
 from postgresql_db.database import get_pool
 
-Feature = Literal["SENTIMENT", "TRANSCRIPTION", "PUBLIC_MOOD", "CAPTION", "CHAT"]
+Feature = Literal["SENTIMENT", "TRANSCRIPTION", "PUBLIC_MOOD", "CAPTION", "CHAT", "SOURCE_CHECK", "IMAGE_TEXT", "SCRIPT_FIX"]
 FEATURE_NAMES: Dict[str, str] = {
     "SENTIMENT": "sentiment analyses",
     "TRANSCRIPTION": "video transcriptions",
     "PUBLIC_MOOD": "public mood summaries",
     "CAPTION": "caption suggestions",
     "CHAT": "assistant chat replies",
+    "SOURCE_CHECK": "source link checks",
+    "IMAGE_TEXT": "image reads",
+    "SCRIPT_FIX": "script fix suggestions",
 }
 
 # Rolling daily caps; each scope remains configurable through the environment.
@@ -37,6 +40,9 @@ _DEFAULTS = {
     "CAPTION": {"PER_USER_DAY": 15, "PER_SUBMISSION_DAY": 6, "GLOBAL_DAY": 30},
     # The assistant chat shares the same Gemini quota, so it gets a small share of it.
     "CHAT": {"PER_USER_DAY": 10, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 20},
+    "SOURCE_CHECK": {"PER_USER_DAY": 40, "PER_SUBMISSION_DAY": 20, "GLOBAL_DAY": 200},
+    "IMAGE_TEXT": {"PER_USER_DAY": 40, "PER_SUBMISSION_DAY": 20, "GLOBAL_DAY": 200},
+    "SCRIPT_FIX": {"PER_USER_DAY": 30, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 120},
 }
 DAY = timedelta(hours=24)
 MINUTE = timedelta(minutes=1)

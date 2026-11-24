@@ -164,8 +164,9 @@ def _keep_ip(m: "re.Match[str]") -> bool:
 # first so their digits aren't half-redacted as phone or card numbers.
 _PII: List[Tuple[str, "re.Pattern[str]", object]] = [
     ("PRIVATE_KEY", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)"), None),
-    ("API_KEY", re.compile(r"\b(?:AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{35}|sk-(?:proj-|ant-)?[A-Za-z0-9_\-]{20,}|"
+    ("API_KEY", re.compile(r"\b(?:AKIA[0-9A-Z]{16}|ABSK[A-Za-z0-9+/=_-]{20,}|AIza[0-9A-Za-z_\-]{35}|sk-(?:proj-|ant-)?[A-Za-z0-9_\-]{20,}|"
                            r"gh[pousr]_[A-Za-z0-9]{36,}|xox[abpr]-[A-Za-z0-9-]{10,})\b"), None),
+    ("CONNECTION_STRING", re.compile(r"\b(?:postgres(?:ql)?|mongodb(?:\+srv)?|mysql|redis)://[^:\s]+:[^@\s]+@[^\s\"'`]+", re.IGNORECASE), None),
     ("JWT", re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"), None),
     ("EMAIL", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), _keep_email),
     ("CARD_NUMBER", re.compile(r"(?<![\d-])\d{4}(?:[ -]?\d{4}){2}[ -]?\d{1,7}(?![\d-])"), _keep_card),
