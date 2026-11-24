@@ -187,7 +187,10 @@ async def _ask(model: str, contents: str, guard: Any, *, system_prompt: str = SY
                 context_evaluator._get_client(), model=model, contents=contents, config=config,
                 feature="SOURCE_CHECK", guard=guard, attempt=attempt + 1,
             )
-            return _Response.model_validate(json.loads(response.text or "{}"))
+            parsed = json.loads(response.text or "{}")
+            if isinstance(parsed, list):
+                parsed = {"claims": parsed}
+            return _Response.model_validate(parsed)
         except (ValueError, ValidationError) as e:
             last = e  # malformed output: one more try
     raise ValueError(f"malformed answer: {last}")

@@ -112,6 +112,7 @@ def _gemini_client() -> Any:
 # every search and index run asking again (and waiting on retries) only to be refused.
 EMBED_DAILY_QUOTA_PAUSE_SECONDS = float(os.getenv("EMBEDDING_DAILY_QUOTA_PAUSE_SECONDS", "1800"))
 _embed_paused_until = 0.0
+_embed_pause_reason = "Embedding quota used up"
 
 
 class EmbeddingQuotaExhausted(RuntimeError):
@@ -122,17 +123,18 @@ def check_embedding_quota() -> None:
     """Raise EmbeddingQuotaExhausted while embeddings are paused for the quota."""
     left = _embed_paused_until - time.time()
     if left > 0:
-        raise EmbeddingQuotaExhausted(f"Embedding quota used up; embeddings paused for another {left:.0f}s")
+        raise EmbeddingQuotaExhausted(f"{_embed_pause_reason}; embeddings paused for another {left:.0f}s")
 
 
 def note_embedding_error(error: Exception) -> None:
     """Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
     least EMBEDDING_DAILY_QUOTA_PAUSE_SECONDS (it won't come back within minutes)."""
-    global _embed_paused_until
+    global _embed_paused_until, _embed_pause_reason
     text = str(error)
     if "AccessDeniedException" in text:
-        _embed_paused_until = max(_embed_paused_until, time.time() + 300)
-        logger.warning("Embedding access denied; pausing calls for 300s. Grant InvokeModel for the embedding model.")
+        _embed_pause_reason = "Embedding access denied"
+        _embed_paused_until = max(_embed_paused_until, time.time() + 3600)
+        logger.warning("Embedding access denied; pausing calls for 3600s. Grant InvokeModel for the embedding model.")
         return
     if not any(code in text for code in ("429", "RESOURCE_EXHAUSTED", "ThrottlingException", "ServiceQuotaExceededException")):
         return
@@ -140,6 +142,7 @@ def note_embedding_error(error: Exception) -> None:
     wait = float(m.group(1)) if m else 60.0
     if "perday" in text.lower().replace(" ", "").replace("_", ""):
         wait = max(wait, EMBED_DAILY_QUOTA_PAUSE_SECONDS)
+    _embed_pause_reason = "Embedding quota used up"
     # Wall-clock time, not monotonic: Docker's VM is suspended while the computer sleeps, and a monotonic clock would
     # not count those hours, so a pause until the daily quota resets would outlast the reset.
     _embed_paused_until = max(_embed_paused_until, time.time() + wait)

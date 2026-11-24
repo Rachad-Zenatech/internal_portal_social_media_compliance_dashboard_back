@@ -111,7 +111,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `store` (def) L172 - Cache an answer for the question of an earlier lookup.
 - `clear` (def) L196 - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
-## services/ai/core/vector_store_service.py (356 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+## services/ai/core/vector_store_service.py (359 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
 - `_setting` (def) L46
 - `database_name` (def) L50
 - `collection_name` (def) L54
@@ -123,21 +123,21 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_uses_bedrock` (def) L94
 - `_embedding_path` (def) L99
 - `_gemini_client` (def) L104
-- `EmbeddingQuotaExhausted` (class) L117 - The embedding quota is used up; raised without calling Gemini while the pause lasts.
-- `check_embedding_quota` (def) L121 - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
-- `note_embedding_error` (def) L128 - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
-- `embed` (def) L149 - Return real vectors or fail explicitly; placeholders must never count as retrieval.
-- `_scope` (def) L172 - An empty scope means every value.
-- `_hash` (def) L178
-- `VectorDoc` (class) L183
-    - `doc_id` (def) L194
-- `upsert` (def) L198 - Add or update documents.
-- `delete` (def) L233
-- `delete_kind_except` (def) L243 - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
-- `_reference_changed` (def) L255 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
-- `search` (def) L265 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
-- `ensure_index` (def) L312 - Create the Atlas vector search index on the collection if it doesn't exist.
-- `status` (def) L337 - Whether the store is configured and reachable, and what's in it (no credentials).
+- `EmbeddingQuotaExhausted` (class) L118 - The embedding quota is used up; raised without calling Gemini while the pause lasts.
+- `check_embedding_quota` (def) L122 - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
+- `note_embedding_error` (def) L129 - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
+- `embed` (def) L152 - Return real vectors or fail explicitly; placeholders must never count as retrieval.
+- `_scope` (def) L175 - An empty scope means every value.
+- `_hash` (def) L181
+- `VectorDoc` (class) L186
+    - `doc_id` (def) L197
+- `upsert` (def) L201 - Add or update documents.
+- `delete` (def) L236
+- `delete_kind_except` (def) L246 - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
+- `_reference_changed` (def) L258 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
+- `search` (def) L268 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
+- `ensure_index` (def) L315 - Create the Atlas vector search index on the collection if it doesn't exist.
+- `status` (def) L340 - Whether the store is configured and reachable, and what's in it (no credentials).
 
 ## services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - `collection_name` (def) L36
