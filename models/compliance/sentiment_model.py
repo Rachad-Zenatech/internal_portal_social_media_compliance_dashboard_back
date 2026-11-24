@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 Level = Literal["NONE", "LOW", "MODERATE", "HIGH"]
 Assessment = Literal["NO_CONCERNS", "REVIEW_SUGGESTED", "SIGNIFICANT_CONCERNS", "INSUFFICIENT_INFORMATION"]
@@ -97,9 +97,14 @@ class Precedent(BaseModel):
 
 class EntryRef(BaseModel):
     """The Messaging Context entry a judgement came from (filled in by the service from the prompt's [C1], [C2]...)."""
-    ref: str = ""
+    ref: Optional[str] = ""
     entry_id: Optional[str] = None
     title: Optional[str] = None
+
+    @field_validator("ref")
+    @classmethod
+    def _blank_missing_ref(cls, value):
+        return value or ""
 
 
 class VoiceLine(EntryRef):

@@ -61,7 +61,7 @@ from services.ai.core.gemini_service import is_rotatable_model_error, without_re
 logger = logging.getLogger(__name__)
 
 # v10: brand alignment also checks images and video against the visual identity in the brand voice entries.
-PROMPT_VERSION = "sentiment-v17-output-budget"
+PROMPT_VERSION = "sentiment-v18-optional-context-ref"
 # Gemini processes an uploaded video before it can be used in a prompt.
 VIDEO_READY_TIMEOUT_SEC = 300
 # Models to analyse with, in order of preference. Gemini's free tier gives each model its own small daily allowance

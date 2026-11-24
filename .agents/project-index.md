@@ -26,7 +26,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/script_doc_model.py (239 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
 - models/compliance/script_review_model.py (236 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
-- models/compliance/sentiment_model.py (322 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
+- models/compliance/sentiment_model.py (327 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - models/compliance/source_link_model.py (56 lines) - Models for submission source links and quick AI link checks.
 - models/compliance/source_trust_model.py (50 lines) - Models for people's calls on sources (does this claim match the page? is the page a good source?) and the standing a site earns from revi...
 - models/compliance/submission_model.py (627 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
@@ -234,7 +234,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/image_source_checks.py (102 lines) - Find candidate sources while keeping each source's compliance verdict separate.
 - services/compliance/submissions/image_source_search.py (186 lines) - Find a cited source on the web: Gemini Google Search grounding first, then search APIs (Serper or Google CSE) when configured, then the s...
 - services/compliance/submissions/image_source_service.py (383 lines) - Scan an image for source citations (URLs or named title + date references), locate the source on the web, and scrape/verify it.
-- services/compliance/submissions/manual_check_service.py (142 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
+- services/compliance/submissions/manual_check_service.py (144 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
 - services/compliance/submissions/media_freshness.py (39 lines) - Check freshness follows media revisions, independently of post detail edits.
 - services/compliance/submissions/media_read_status.py (13 lines) - Unread media recorded in a submission's saved compliance check.
 - services/compliance/submissions/post_steps_service.py (134 lines) - The five steps a creator works through, and how far each post has got.

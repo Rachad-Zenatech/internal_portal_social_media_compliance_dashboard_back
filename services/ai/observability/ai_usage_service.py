@@ -29,9 +29,9 @@ FEATURE_NAMES: Dict[str, str] = {
     "CHAT": "assistant chat replies",
 }
 
-# Defaults sized for the free Gemini tier (20 requests per model per day); raise them with a paid key.
+# Rolling daily caps; each scope remains configurable through the environment.
 _DEFAULTS = {
-    "SENTIMENT": {"PER_USER_DAY": 10, "PER_SUBMISSION_DAY": 5, "GLOBAL_DAY": 15},
+    "SENTIMENT": {"PER_USER_DAY": 20, "PER_SUBMISSION_DAY": 20, "GLOBAL_DAY": 20},
     "TRANSCRIPTION": {"PER_USER_DAY": 10, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 30},
     "PUBLIC_MOOD": {"PER_USER_DAY": 10, "PER_SUBMISSION_DAY": 5, "GLOBAL_DAY": 15},
     "CAPTION": {"PER_USER_DAY": 15, "PER_SUBMISSION_DAY": 6, "GLOBAL_DAY": 30},

@@ -1494,7 +1494,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
     reviewer_ids = await _submit_reviewer_ids(row, publish_after_changes)
     row = {**dict(row), "reviewer_ids": reviewer_ids}
 
-    result, check = manual_check_service.require_current_check(row, await compliance_rulebook_version())
+    result, check = manual_check_service.require_current_check(row, await compliance_rulebook_version(), allow_older_rules=not publish_after_changes)
     if not publish_after_changes:
         manual_check_service.require_send_score(result.score, pending_score=await creator_dismissal_service.send_score(row, check))
 

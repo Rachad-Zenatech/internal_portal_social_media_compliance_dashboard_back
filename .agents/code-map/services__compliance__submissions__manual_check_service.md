@@ -4,16 +4,16 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/manual_check_service.py (142 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
+## services/compliance/submissions/manual_check_service.py (144 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
 - `saved_check` (def) L10
 - `allow_scriptless_video_compliance` (def) L15 - Permit local video fixtures to check their uploaded media without a script.
 - `timestamp` (def) L23
 - `content_is_current` (def) L33
 - `may_finish_check` (def) L47
 - `require_current_check` (def) L52
-- `require_submission_fields` (def) L62
-- `require_send_score` (def) L70
-- `analysis_details_missing` (def) L80
-- `readable_script` (def) L93
-- `require_sentiment_ready` (def) L103 - Video sentiment starts only after a real video is attached; scripts do not require it.
-- `require_compliance_ready` (def) L117 - Check the script while no actual video exists, including after script approval.
+- `require_submission_fields` (def) L64
+- `require_send_score` (def) L72
+- `analysis_details_missing` (def) L82
+- `readable_script` (def) L95
+- `require_sentiment_ready` (def) L105 - Video sentiment starts only after a real video is attached; scripts do not require it.
+- `require_compliance_ready` (def) L119 - Check the script while no actual video exists, including after script approval.
