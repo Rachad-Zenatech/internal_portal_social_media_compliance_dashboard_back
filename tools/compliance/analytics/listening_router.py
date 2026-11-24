@@ -103,7 +103,7 @@ logger = logging.getLogger("listening_router")
 
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
-SCRAPE_TIMEOUT_SECONDS = float(os.getenv("LISTENING_SCRAPE_TIMEOUT_SECONDS", "600"))
+SCRAPE_TIMEOUT_SECONDS = float(os.getenv("LISTENING_SCRAPE_TIMEOUT_SECONDS", "360"))
 
 # What the scrape button last did, for GET /listening/scrape/status (in memory: it starts "idle" after a restart).
 _scrape: Dict[str, Any] = {"state": "idle", "scope": None, "started_at": None, "finished_at": None, "error": None, "collection": None}
@@ -111,6 +111,17 @@ _scrape: Dict[str, Any] = {"state": "idle", "scope": None, "started_at": None, "
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _clear_stale_scrape() -> None:
+    if _scrape.get("state") != "running" or not _scrape.get("started_at"):
+        return
+    try:
+        started = datetime.fromisoformat(str(_scrape["started_at"]).replace("Z", "+00:00"))
+        if (datetime.now(timezone.utc) - started).total_seconds() > SCRAPE_TIMEOUT_SECONDS + 30:
+            _scrape.update(state="failed", finished_at=_now(), error="The scrape timed out and was cleared.")
+    except Exception:
+        pass
 
 
 def _normalize_scope(scope: Any) -> str:
@@ -203,6 +214,7 @@ async def trigger_live_scrape(
     """The scrape button: collect ZenaTech financial coverage and/or today's posts public mood (scope=all|financial|today),
     then refresh topics, trends and the conversation index in the background."""
     chosen_scope = _normalize_scope(scope)
+    _clear_stale_scrape()
     if _scrape.get("state") == "running":
         raise HTTPException(status_code=409, detail="A scrape is already running.")
     _scrape.update(state="running", scope=chosen_scope, started_at=_now(), finished_at=None, error=None, collection=None)
@@ -219,6 +231,7 @@ async def trigger_live_scrape(
 async def scrape_status(user_id: CurrentUser):
     """Whether a scrape is running, and how the last one went: state (idle | running | finished | failed), start and
     finish times, the error if it failed, and the collection summary (status and each source's result) if it finished."""
+    _clear_stale_scrape()
     return dict(_scrape)
 
 

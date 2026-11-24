@@ -159,7 +159,7 @@ to find the right file.
 | .agents/code-map/services__shared__core.md | 8 | 4 KB |
 | .agents/code-map/services__shared__storage.md | 1 | 1 KB |
 | .agents/code-map/tools__ai.md | 3 | 1 KB |
-| .agents/code-map/tools__compliance__analytics.md | 4 | 4 KB |
+| .agents/code-map/tools__compliance__analytics.md | 4 | 5 KB |
 | .agents/code-map/tools__compliance__submissions.md | 14 | 24 KB |
 | .agents/code-map/tools__microsoft_graph.md | 1 | 1 KB |
 | .agents/code-map/tools__notifications.md | 3 | 2 KB |
