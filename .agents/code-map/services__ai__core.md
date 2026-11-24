@@ -21,7 +21,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `GenerateContentConfig` (class) L70
 - `File` (class) L81
 
-## services/ai/core/assistant_chat_service.py (257 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
+## services/ai/core/assistant_chat_service.py (261 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - `_get_client` (def) L56
 - `_sse` (def) L64
 - `PreparedChat` (class) L69
@@ -31,7 +31,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `prepare` (def) L96 - Screen the input and look for a cached answer (no Gemini quota is used here).
 - `_contents` (def) L125
 - `_stream_round` (def) L134 - One model turn, streamed.
-- `stream` (def) L189 - The SSE events for a prepared chat.
+- `stream` (def) L193 - The SSE events for a prepared chat.
 
 ## services/ai/core/bedrock_embeddings.py (52 lines) - Real Titan embeddings, isolated from chat inference profiles and old vector spaces.
 - `model_id` (def) L11
@@ -89,15 +89,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `configure` (def) L8
 - `text_models` (def) L26 - Text judgments may use every explicitly configured general fallback, including those used by rulebook checks.
 
-## services/ai/core/gemini_service.py (196 lines) - gemini service (ai core)
+## services/ai/core/gemini_service.py (201 lines) - gemini service (ai core)
 - `_normalize_ai_model_name` (def) L8 - Normalizes a model name from the environment variable list
 - `_model_failure_cooldown_seconds` (def) L36 - Avoid retrying a model known to be unavailable while a request burst is in progress.
-- `model_is_available` (def) L49 - Return false while a short provider-failure cooldown for this model is active.
-- `record_model_failure` (def) L60
-- `without_retired` (def) L66 - The models that can still be called, in the same order.
-- `get_gemini_fallback_models` (def) L77 - Return ordered fallback model IDs configured for Bedrock routing.
-- `is_rotatable_model_error` (def) L88 - Determines if a given exception represents a rate limit, quota exhaustion,
-- `generate_content_with_fallback` (def) L129 - A robust wrapper around client.models.generate_content that automatically
+- `model_is_available` (def) L54 - Return false while a short provider-failure cooldown for this model is active.
+- `record_model_failure` (def) L65
+- `without_retired` (def) L71 - The models that can still be called, in the same order.
+- `get_gemini_fallback_models` (def) L82 - Return ordered fallback model IDs configured for Bedrock routing.
+- `is_rotatable_model_error` (def) L93 - Determines if a given exception represents a rate limit, quota exhaustion,
+- `generate_content_with_fallback` (def) L134 - A robust wrapper around client.models.generate_content that automatically
 
 ## services/ai/core/model_router.py (104 lines) - Model routing: picks the cheapest suitable model for easy work, and stronger models when needed.
 - `Route` (class) L49
