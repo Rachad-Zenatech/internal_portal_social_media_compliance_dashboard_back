@@ -177,6 +177,7 @@ async def _ask(model: str, contents: str, guard: Any, *, system_prompt: str = SY
         system_instruction=system_prompt,
         response_mime_type="application/json",
         response_schema=RESPONSE_SCHEMA,
+        max_output_tokens=1600,
         temperature=0,
         http_options=types.HttpOptions(timeout=TIMEOUT_SEC * 1000),
     )
@@ -187,7 +188,10 @@ async def _ask(model: str, contents: str, guard: Any, *, system_prompt: str = SY
                 context_evaluator._get_client(), model=model, contents=contents, config=config,
                 feature="SOURCE_CHECK", guard=guard, attempt=attempt + 1,
             )
-            return _Response.model_validate(json.loads(response.text or "{}"))
+            parsed = json.loads(response.text or "{}")
+            if isinstance(parsed, list):
+                parsed = {"claims": parsed}
+            return _Response.model_validate(parsed)
         except (ValueError, ValidationError) as e:
             last = e  # malformed output: one more try
     raise ValueError(f"malformed answer: {last}")
@@ -218,7 +222,8 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
         head.append(f"Published: {published}")
     shown = await source_passages.excerpt(post_text[:MAX_POST_CHARS], source_text)  # a long source: what matters of it
     contents = (
-        "Verify this fixed inventory: " + json.dumps(inventory) + "\n\n<post>\n" + post_text + "\n</post>\n\n<source>\n"
+        "Verify this fixed inventory:" + json.dumps(inventory, separators=(",", ":"))
+        + "\n<post>\n" + post_text + "\n</post>\n<source>\n"
         + "\n".join(head) + "\n\n" + shown + "\n</source>"
     )
     guard = screen_input(contents)

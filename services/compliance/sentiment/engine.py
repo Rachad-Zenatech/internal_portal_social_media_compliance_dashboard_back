@@ -2,7 +2,6 @@
 
 import asyncio
 import io
-import json
 import logging
 import os
 import re
@@ -20,9 +19,11 @@ from postgresql_db.database import fetch_all, fetch_one
 from services.ai.observability import ai_observability
 from services.ai.observability.ai_guardrails import screen_input
 from services.ai.core.gemini_service import is_rotatable_model_error
+from services.compliance.sentiment.response_format import OutputLimitReached, parse_response
 from services.compliance.submissions import review_memory_service
 from services.compliance.sentiment.config import (
     API_RETRIES,
+    MAX_OUTPUT_TOKENS,
     MAX_IMAGES,
     QuotaExhausted,
     ModelUnavailable,
@@ -257,6 +258,7 @@ async def _generate_with(client: genai.Client, model: str, inp: Dict[str, Any], 
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
         response_schema=RESPONSE_SCHEMA,
+        max_output_tokens=MAX_OUTPUT_TOKENS,
         temperature=0,
         # Without a limit, a request queued behind "high demand" can hang indefinitely.
         http_options=types.HttpOptions(timeout=GENERATE_TIMEOUT_SEC * 1000),
@@ -273,7 +275,7 @@ async def _generate_with(client: genai.Client, model: str, inp: Dict[str, Any], 
         try:
             response = await ai_observability.generate(client, model=model, contents=contents, config=config,
                                                         feature="SENTIMENT", guard=guard, attempt=attempt + 1)
-            result = SentimentResult.model_validate(json.loads(response.text or "{}"))
+            result = parse_response(response, config.max_output_tokens)
             if inp.get("video_file_id") and not video:
                 result.information_gaps.append("The video couldn't be attached, so only its text and transcript were assessed.")
             expected = len(inp.get("images") or [])
@@ -286,6 +288,12 @@ async def _generate_with(client: genai.Client, model: str, inp: Dict[str, Any], 
                     f"Only the first {MAX_IMAGES} images were looked at; {inp['images_left_out']} more weren't."
                 )
             return _verify(result, inp, video_attached=video is not None, images_attached=len(images))
+        except OutputLimitReached as e:
+            last_error = e
+            if attempt >= 1:
+                break
+            config.max_output_tokens = min(config.max_output_tokens * 2, max(config.max_output_tokens, 32768))
+            logger.warning("Sentiment output limit reached for %s; retrying with %d tokens", model, config.max_output_tokens)
         except (ValueError, ValidationError) as e:
             # Malformed or schema-invalid output: one more try, then give up.
             last_error = e
@@ -308,6 +316,8 @@ async def _generate_with(client: genai.Client, model: str, inp: Dict[str, Any], 
     if last_error is not None and is_rotatable_model_error(last_error):
         # Still overloaded or rate-limited after every retry: let the next model take over.
         raise ModelUnavailable(model, "was too busy") from last_error
-    raise RuntimeError(f"AI model didn't return a valid assessment: {last_error}")
+    if isinstance(last_error, OutputLimitReached):
+        raise RuntimeError("The sentiment assessment exceeded the response limit. Retry the analysis or increase SENTIMENT_MAX_OUTPUT_TOKENS.") from last_error
+    raise RuntimeError("The AI returned an incomplete sentiment assessment. Please retry the analysis.") from last_error
 
 

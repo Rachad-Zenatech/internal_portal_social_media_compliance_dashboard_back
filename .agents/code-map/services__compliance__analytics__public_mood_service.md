@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/analytics/public_mood_service.py (956 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+## services/compliance/analytics/public_mood_service.py (936 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
 - `_env_float` (def) L79
 - `_get_client` (def) L105
 - `_source_label` (def) L115
@@ -24,25 +24,25 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_latest_snapshots` (def) L354
 - `_with_trend` (def) L366 - Mentions per day, and the change in them, from the stories collected over the last days (every scrape so far, one
 - `_fresh_snapshots` (def) L388 - The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale.
-- `_snapshot_model` (def) L438
-- `_overall_post_recommendation` (def) L474 - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
-- `_load` (def) L497
-- `_topic_kind` (def) L545
-- `_may_show_on` (def) L550 - A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
-- `_gather` (def) L558 - The post, its matched topics and their current snapshots.
-    - `is_own` (def) L587
-- `_input_hash` (def) L622
-- `_summary_model` (def) L633
-- `_with_feedback` (def) L651
-- `get_public_mood` (def) L665
-- `dismiss_topic` (def) L691 - Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones).
-- `restore_topic` (def) L707
-- `rate_summary` (def) L714 - Say whether a summary helped (or take the vote back with no data).
-- `list_topics` (def) L736 - Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly.
-- `list_trend_opportunities` (def) L774 - See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
-- `ingest_x_json` (def) L791 - Save scraped/collected X (Twitter) topics and raw comments as the current feed (the vector database's
-- `_clean_words` (def) L835
-- `update_topic` (def) L839
-- `match_test` (def) L856 - Which topics a piece of text would match and why, with the near misses, for tuning keywords.
-- `_prompt` (def) L904
-- `summarise` (def) L908 - Write (or reuse) the summary for the post's current version against the current moods.
+- `_snapshot_model` (def) L420
+- `_overall_post_recommendation` (def) L456 - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
+- `_load` (def) L479
+- `_topic_kind` (def) L527
+- `_may_show_on` (def) L532 - A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
+- `_gather` (def) L540 - The post, its matched topics and their current snapshots.
+    - `is_own` (def) L569
+- `_input_hash` (def) L604
+- `_summary_model` (def) L615
+- `_with_feedback` (def) L633
+- `get_public_mood` (def) L647
+- `dismiss_topic` (def) L673 - Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones).
+- `restore_topic` (def) L689
+- `rate_summary` (def) L696 - Say whether a summary helped (or take the vote back with no data).
+- `list_topics` (def) L718 - Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly.
+- `list_trend_opportunities` (def) L756 - See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
+- `ingest_x_json` (def) L773 - Save scraped/collected X (Twitter) topics and raw comments as the current feed (the vector database's
+- `_clean_words` (def) L817
+- `update_topic` (def) L821
+- `match_test` (def) L838 - Which topics a piece of text would match and why, with the near misses, for tuning keywords.
+- `_prompt` (def) L886
+- `summarise` (def) L890 - Write (or reuse) the summary for the post's current version against the current moods.

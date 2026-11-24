@@ -1271,6 +1271,7 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
     if not _check_text(row):
         raise HTTPException(status_code=422, detail="Add a title or caption before running the check")
     await manual_check_service.require_compliance_ready(row)
+    await transcription_service.retry_failed_videos(submission_id)
     # Duplicates are settled before the compliance check, not when the post is sent: a true duplicate is refused here,
     # and a repost for another date is confirmed here (sending still refuses a duplicate made by later edits).
     duplicates = await _require_not_duplicate(row, confirm_repost)
@@ -1480,7 +1481,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
     reviewer_ids = await _submit_reviewer_ids(row, publish_after_changes)
     row = {**dict(row), "reviewer_ids": reviewer_ids}
 
-    result, check = manual_check_service.require_current_check(row, await compliance_rulebook_version())
+    result, check = manual_check_service.require_current_check(row, await compliance_rulebook_version(), allow_older_rules=not publish_after_changes)
     if not publish_after_changes:
         manual_check_service.require_send_score(result.score, pending_score=await creator_dismissal_service.send_score(row, check))
 

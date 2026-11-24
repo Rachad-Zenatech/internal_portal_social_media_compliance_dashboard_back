@@ -39,7 +39,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `thumbnail` (def) L260 - A small PNG of the design's first scene, for the picker.
 - `design_kind_ok` (def) L278 - Whether an export of this kind can be the main file of a submission that takes these extensions.
 
-## services/compliance/media/caption_service.py (338 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
+## services/compliance/media/caption_service.py (339 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
 - `get_hashtag_library` (def) L44 - The hashtag library for a post, minus any tag the rules that apply to it would flag.
 - `_wants_cashtag` (def) L56 - The cashtag goes on investor posts, or when the writer asks for it.
 - `_lower_first` (def) L61
@@ -159,20 +159,24 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `locate` (def) L55
     - `read` (def) L62
 
-## services/compliance/media/image_text_service.py (271 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+## services/compliance/media/image_text_service.py (272 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def) L68
 - `_get_client` (def) L72
 - `_claim` (def) L82 - Atomically mark an image as being read unless another worker already is.
 - `_save` (def) L98
 - `_generate` (def) L112 - Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
-- `_clean` (def) L134
-- `_has_ai_metadata` (def) L139 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
-- `_face_boxes` (def) L156 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
-- `read_file` (def) L174 - Read one image's text and save it, then re-check its submission if it's still open.
-- `_run` (def) L220
-- `schedule` (def) L227 - Read each image in the background, unless this process is already reading it.
-- `resume_interrupted` (def) L238 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
-- `schedule_missing` (def) L255 - Read the images among these that were never read, or whose read was abandoned (e.g.
+- `_clean` (def) L135
+- `_has_ai_metadata` (def) L140 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
+- `_face_boxes` (def) L157 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
+- `read_file` (def) L175 - Read one image's text and save it, then re-check its submission if it's still open.
+- `_run` (def) L221
+- `schedule` (def) L228 - Read each image in the background, unless this process is already reading it.
+- `resume_interrupted` (def) L239 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
+- `schedule_missing` (def) L256 - Read the images among these that were never read, or whose read was abandoned (e.g.
+
+## services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
+- `audio_samples` (def) L16
+- `speech_segments` (def) L32 - Run a cached public Whisper model on CPU.
 
 ## services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - `node` (def) L12
@@ -183,17 +187,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `is_sources_label` (def) L10
 - `split` (def) L14 - Return the script body and citations from merged table rows or a plain-text footer.
 
-## services/compliance/media/transcription_service.py (260 lines) - Video Transcription Service Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
-- `_get_client` (def) L65
-- `_to_seconds` (def) L75 - Accept numbers or "MM:SS(.s)" / "HH:MM:SS" strings, which models sometimes return anyway.
-- `_normalize` (def) L88
-- `_wait_until_active` (def) L105 - Gemini processes uploaded videos before they can be referenced in a prompt.
-- `_claim` (def) L119 - Atomically move a video to PROCESSING unless another worker is already transcribing it.
-- `_save` (def) L135
-- `transcribe_file` (def) L151
-- `_run` (def) L199
-- `schedule` (def) L206 - Start background transcription for each video not already being transcribed by this process.
-- `schedule_missing` (def) L217 - Queue videos that were never transcribed, or whose previous attempt was abandoned.
+## services/compliance/media/transcription_service.py (220 lines) - Video Transcription Service Generates timestamped local speech and Bedrock on-screen text for submitted videos.
+- `_to_seconds` (def) L60 - Accept numbers or "MM:SS(.s)" / "HH:MM:SS" strings, which models sometimes return anyway.
+- `_normalize` (def) L73
+- `_claim` (def) L90 - Atomically move a video to PROCESSING unless another worker is already transcribing it.
+- `_save` (def) L106
+- `transcribe_file` (def) L122
+- `_run` (def) L149
+- `schedule` (def) L156 - Start background transcription for each video not already being transcribed by this process.
+- `schedule_missing` (def) L167 - Queue videos that were never transcribed, or whose previous attempt was abandoned.
+- `retry_failed_videos` (def) L214 - Only explicit compliance reruns retry failed transcripts; background polling does not.
 
 ## services/compliance/media/video_finding_service.py (116 lines) - Locate exact flagged wording in video frames without inventing a visual region.
 - `_ffmpeg_binary` (def) L20 - Use the configured Windows executable from WSL when development mounts the drive.
@@ -209,3 +212,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_video_job` (def) L102 - Retrieve current status and progress of a background video job owned by user_id.
 - `list_video_jobs` (def) L112 - List recent video processing jobs belonging to user_id.
 - `run_video_processing_pipeline` (def) L122 - Background task simulating end-to-end video processing through all stages.
+
+## services/compliance/media/video_transcription_provider.py (39 lines) - Real local speech plus timestamped on-screen text, using only the authorized Bedrock visual path.
+- `PartialTranscriptError` (class) L16 - Keep independently verified speech if the on-screen read fails.
+    - `__init__` (def) L18
+- `transcribe` (def) L23 - The speech stays local; only sampled frame images use the authorized Bedrock provider.

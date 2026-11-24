@@ -1,5 +1,5 @@
 """Video Transcription Service
-Generates a timestamped speech transcript for submitted videos with Gemini, in the background.
+Generates timestamped local speech and Bedrock on-screen text for submitted videos.
 
 Status lifecycle on content_submission_files.transcript_status:
 PENDING (queued) -> PROCESSING -> COMPLETED | FAILED
@@ -14,24 +14,19 @@ from pathlib import Path
 from typing import Any, Iterable, List, Optional, Set
 from uuid import UUID
 
-from google import genai
-from google.genai import types
-
 from postgresql_db.database import fetch_one, get_pool
-from services.ai.core.gemini_service import generate_content_with_fallback
+from services.compliance.media import video_transcription_provider
 
 logger = logging.getLogger(__name__)
 
 STORAGE_ROOT = Path(os.getenv("SUBMISSION_STORAGE_DIR", "data/uploads")).resolve()
 # A claim older than this is treated as abandoned (e.g. the server restarted mid-transcription).
 STALE_MINUTES = 15
-FILE_READY_TIMEOUT_SEC = 300
 MAX_CONCURRENT = int(os.getenv("TRANSCRIPTION_MAX_CONCURRENT", "2"))
 
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 _running: Set[UUID] = set()
 _tasks: Set[asyncio.Task] = set()
-_client: Optional[genai.Client] = None
 
 PROMPT = """This video is screened for compliance, so we need every word it says and every word it shows.
 1. Transcribe every word spoken (voiceover, narration and dialogue) with source "speech".
@@ -62,16 +57,6 @@ RESPONSE_SCHEMA = {
 }
 
 
-def _get_client() -> Any:
-    global _client
-    if _client is None:
-        from services.ai.core.bedrock_service import get_ai_client
-        _client = get_ai_client()
-        if not _client:
-            raise RuntimeError("AI is not configured, so videos can't be transcribed.")
-    return _client
-
-
 def _to_seconds(value: Any) -> float:
     """Accept numbers or "MM:SS(.s)" / "HH:MM:SS" strings, which models sometimes return anyway."""
     if isinstance(value, (int, float)):
@@ -100,20 +85,6 @@ def _normalize(raw: Any) -> List[dict]:
         segments.append({"start_sec": round(start, 2), "end_sec": round(max(end, start), 2), "text": text, "source": source})
     segments.sort(key=lambda s: s["start_sec"])
     return segments
-
-
-async def _wait_until_active(client: genai.Client, uploaded: types.File) -> types.File:
-    """Gemini processes uploaded videos before they can be referenced in a prompt."""
-    deadline = asyncio.get_running_loop().time() + FILE_READY_TIMEOUT_SEC
-    current = uploaded
-    while current.state == types.FileState.PROCESSING:
-        if asyncio.get_running_loop().time() > deadline:
-            raise TimeoutError("Gemini took too long to process the video.")
-        await asyncio.sleep(2)
-        current = await asyncio.to_thread(client.files.get, name=uploaded.name)
-    if current.state != types.FileState.ACTIVE:
-        raise RuntimeError(f"Gemini couldn't process the video (state {current.state}).")
-    return current
 
 
 async def _claim(file_id: UUID) -> Optional[dict]:
@@ -153,42 +124,21 @@ async def transcribe_file(file_id: UUID) -> None:
         row = await _claim(file_id)
         if not row:
             return
-        client = None
-        uploaded = None
         try:
             path = (STORAGE_ROOT / row["storage_path"]).resolve()
             if STORAGE_ROOT not in path.parents or not path.is_file():
                 raise FileNotFoundError("The video file is missing from storage.")
-            client = _get_client()
             logger.info("Transcribing %s (%s)", row["original_name"], file_id)
-            # Gemini video upload (commented out for now, replaced with Bedrock):
-            # uploaded = await asyncio.to_thread(
-            #     client.files.upload, file=str(path), config=types.UploadFileConfig(mime_type=row["mime_type"])
-            # )
-            # ready = await _wait_until_active(client, uploaded)
-            uploaded = None
-            response = await generate_content_with_fallback(
-                client,
-                contents=[PROMPT, f"Video filename: {row['original_name']}"],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=RESPONSE_SCHEMA,
-                    temperature=0,
-                ),
-                feature="TRANSCRIPTION",
-            )
-            segments = _normalize(json.loads(response.text or "[]"))
+            raw = await video_transcription_provider.transcribe(path, row["mime_type"], PROMPT, RESPONSE_SCHEMA)
+            segments = _normalize(raw)
+            if raw and not segments:
+                raise ValueError("The transcription response had no valid timestamped segments")
             await _save(file_id, "COMPLETED", transcript=segments)
             logger.info("Transcribed %s into %d segments", file_id, len(segments))
         except Exception as e:
             logger.warning("Transcription failed for %s: %s", file_id, e)
-            await _save(file_id, "FAILED", error=str(e)[:500] or e.__class__.__name__)
-        finally:
-            if client and uploaded:
-                try:
-                    await asyncio.to_thread(client.files.delete, name=uploaded.name)
-                except Exception:
-                    pass
+            await _save(file_id, "FAILED", transcript=getattr(e, "segments", None),
+                        error=str(e)[:500] or e.__class__.__name__)
         # Sentiment analyses wait for the transcript; either outcome lets them run.
         from services.compliance.analytics import sentiment_service
         from services.compliance.submissions import submission_service
@@ -214,7 +164,7 @@ def schedule(file_ids: Iterable[UUID]) -> None:
         task.add_done_callback(_tasks.discard)
 
 
-async def schedule_missing(file_ids: List[UUID]) -> None:
+async def schedule_missing(file_ids: List[UUID], *, retry_failed: bool = False) -> None:
     """Queue videos that were never transcribed, or whose previous attempt was abandoned."""
     if not file_ids:
         return
@@ -226,10 +176,11 @@ async def schedule_missing(file_ids: List[UUID]) -> None:
             SELECT id, submission_id FROM content_submission_files
             WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL
               AND (transcript_status IS NULL
+                   OR ($2::boolean AND transcript_status = 'FAILED')
                    OR (transcript_status IN ('PENDING', 'PROCESSING')
                        AND transcript_updated_at < NOW() - INTERVAL '{STALE_MINUTES} minutes'))
             """,
-            file_ids,
+            file_ids, retry_failed,
         )
     allowed = []
     for f in due:
@@ -250,10 +201,19 @@ async def schedule_missing(file_ids: List[UUID]) -> None:
             SET transcript_status = 'PENDING', transcript_updated_at = NOW()
             WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL
               AND (transcript_status IS NULL
+                   OR ($2::boolean AND transcript_status = 'FAILED')
                    OR (transcript_status IN ('PENDING', 'PROCESSING')
                        AND transcript_updated_at < NOW() - INTERVAL '{STALE_MINUTES} minutes'))
             RETURNING id
             """,
-            file_ids,
+            file_ids, retry_failed,
         )
     schedule(r["id"] for r in rows)
+
+
+async def retry_failed_videos(submission_id: UUID) -> None:
+    """Only explicit compliance reruns retry failed transcripts; background polling does not."""
+    from postgresql_db.database import fetch_all
+    rows = await fetch_all("SELECT id FROM content_submission_files WHERE submission_id=$1 AND deleted_at IS NULL "
+                           "AND mime_type LIKE 'video/%' AND transcript_status='FAILED'", submission_id)
+    await schedule_missing([row["id"] for row in rows], retry_failed=True)

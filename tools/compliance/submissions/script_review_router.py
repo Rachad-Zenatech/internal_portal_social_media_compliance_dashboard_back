@@ -36,6 +36,9 @@ CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 @router.post("/scripts/suggest-fix", response_model=FlagFixSuggestion)
 async def suggest_fix(req: FlagFixRequest, user_id: CurrentUser):
     """A compliant rewrite of one flagged passage of a script, for the creator to use or not."""
+    from services.ai.observability import ai_usage_service
+
+    await ai_usage_service.reserve("SCRIPT_FIX", user_id)
     return await svc.suggest_fix(req)
 
 

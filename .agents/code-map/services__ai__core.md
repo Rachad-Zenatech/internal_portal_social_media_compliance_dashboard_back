@@ -23,52 +23,56 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_embed_one` (def) L27
 - `embed` (def) L43
 
-## services/ai/core/bedrock_service.py (373 lines) - AWS Bedrock AI Service Adapter.
-- `is_bedrock_enabled` (def) L20 - Return True if AWS Bedrock credentials and profile ID are configured.
-- `get_bedrock_profile_id` (def) L27
-- `get_bedrock_region` (def) L31
-- `get_bedrock_key` (def) L35
-- `has_ai_key` (def) L39 - Return True if either AWS Bedrock or Google Gemini is configured.
-- `clean_json_fences` (def) L44 - Strip markdown code fences from JSON output so json.loads succeeds.
-- `BedrockPart` (class) L53
-    - `__init__` (def) L54
-- `BedrockContent` (class) L59
-    - `__init__` (def) L60
-- `BedrockCandidate` (class) L64
-    - `__init__` (def) L65
-- `BedrockUsageMetadata` (class) L69
-    - `__init__` (def) L70
-- `BedrockResponse` (class) L75 - Emulates google.genai.types.GenerateContentResponse for downstream services.
-    - `__init__` (def) L78
-    - `text` (def) L87
-- `BedrockStreamChunk` (class) L91 - Single streamed chunk matching the structure expected by assistant_chat_service.
-    - `__init__` (def) L94
-- `_extract_text_and_media` (def) L101 - Convert Gemini contents (strings, Parts, Contents, dicts) into Bedrock content blocks.
-    - `process_item` (def) L105
-- `_build_converse_params` (def) L195 - Translate model, contents, and config into boto3 converse parameters.
-- `BedrockModels` (class) L248 - Mimics client.models on Google GenAI SDK.
-    - `__init__` (def) L251
-    - `generate_content` (def) L254
-- `BedrockStreamIterator` (class) L288
-    - `__init__` (def) L289
-    - `__aiter__` (def) L292
-    - `_iter` (def) L295
-- `BedrockAioModels` (class) L306 - Mimics client.aio.models for streaming calls.
-    - `__init__` (def) L309
-    - `generate_content_stream` (def) L312
-- `BedrockAio` (class) L328
-    - `__init__` (def) L329
-- `BedrockClientAdapter` (class) L333 - Adapter implementing the client interface used by services calling Gemini.
-    - `__init__` (def) L336
-    - `get_boto_client` (def) L341
-- `get_bedrock_client` (def) L357
-- `get_ai_client` (def) L364 - Return Bedrock client if enabled; otherwise Gemini client if GEMINI_API_KEY is present.
+## services/ai/core/bedrock_service.py (450 lines) - AWS Bedrock AI Service Adapter.
+- `is_expensive_model` (def) L25
+- `get_bedrock_cheap_model` (def) L32
+- `get_bedrock_heavy_model` (def) L42
+- `_resolve_bedrock_model` (def) L55
+- `is_bedrock_enabled` (def) L64 - Return True if AWS Bedrock credentials and profile ID are configured.
+- `get_bedrock_profile_id` (def) L71
+- `get_bedrock_region` (def) L75
+- `get_bedrock_key` (def) L79
+- `has_ai_key` (def) L83 - Return True if either AWS Bedrock or Google Gemini is configured.
+- `clean_json_fences` (def) L88 - Strip markdown code fences from JSON output so json.loads succeeds.
+- `BedrockPart` (class) L97
+    - `__init__` (def) L98
+- `BedrockContent` (class) L103
+    - `__init__` (def) L104
+- `BedrockCandidate` (class) L108
+    - `__init__` (def) L109
+- `BedrockUsageMetadata` (class) L113
+    - `__init__` (def) L114
+- `BedrockResponse` (class) L119 - Emulates google.genai.types.GenerateContentResponse for downstream services.
+    - `__init__` (def) L122
+    - `text` (def) L133
+- `BedrockStreamChunk` (class) L137 - Single streamed chunk matching the structure expected by assistant_chat_service.
+    - `__init__` (def) L140
+- `_extract_text_and_media` (def) L147 - Convert Gemini contents (strings, Parts, Contents, dicts) into Bedrock content blocks.
+    - `process_item` (def) L151
+- `_build_converse_params` (def) L241 - Translate model, contents, and config into boto3 converse parameters.
+- `BedrockModels` (class) L292 - Mimics client.models on Google GenAI SDK.
+    - `__init__` (def) L295
+    - `generate_content` (def) L298
+- `BedrockStreamIterator` (class) L342
+    - `__init__` (def) L343
+    - `__aiter__` (def) L346
+    - `_iter` (def) L349
+- `BedrockAioModels` (class) L360 - Mimics client.aio.models for streaming calls.
+    - `__init__` (def) L363
+    - `generate_content_stream` (def) L366
+- `BedrockAio` (class) L402
+    - `__init__` (def) L403
+- `BedrockClientAdapter` (class) L407 - Adapter implementing the client interface used by services calling Gemini.
+    - `__init__` (def) L410
+    - `get_boto_client` (def) L415
+- `get_bedrock_client` (def) L434
+- `get_ai_client` (def) L441 - Return Bedrock client if enabled; otherwise Gemini client if GEMINI_API_KEY is present.
 
 ## services/ai/core/compliance_request_policy.py (30 lines) - Bound compliance attempts and share outage knowledge without changing judgment prompts or coverage.
 - `configure` (def) L9
 - `text_models` (def) L27 - Text judgments may use every explicitly configured general fallback, including those used by rulebook checks.
 
-## services/ai/core/gemini_service.py (209 lines) - gemini service (ai core)
+## services/ai/core/gemini_service.py (217 lines) - gemini service (ai core)
 - `_normalize_ai_model_name` (def) L10 - Normalizes a model name from the environment variable list
 - `_model_failure_cooldown_seconds` (def) L38 - Avoid retrying a model known to be unavailable while a request burst is in progress.
 - `model_is_available` (def) L51 - Return false while a short provider-failure cooldown for this model is active.
@@ -76,14 +80,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `without_retired` (def) L68 - The models that can still be called, in the same order.
 - `get_gemini_fallback_models` (def) L79 - Retrieves and normalizes the list of available Gemini models
 - `is_rotatable_model_error` (def) L95 - Determines if a given exception represents a rate limit, quota exhaustion,
-- `generate_content_with_fallback` (def) L142 - A robust wrapper around client.models.generate_content that automatically
+- `generate_content_with_fallback` (def) L150 - A robust wrapper around client.models.generate_content that automatically
 
-## services/ai/core/model_router.py (82 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
-- `Route` (class) L43
-- `enabled` (def) L49
-- `tier_models` (def) L53
-- `base_tier` (def) L58
-- `route` (def) L63 - The models to try, in order, for this request, and why that tier was chosen.
+## services/ai/core/model_router.py (104 lines) - Model routing: picks the cheapest suitable model for easy work, and stronger models when needed.
+- `Route` (class) L49
+- `enabled` (def) L55
+- `tier_models` (def) L59
+- `base_tier` (def) L71
+- `route` (def) L76 - The models to try, in order, for this request, and why that tier was chosen.
 
 ## services/ai/core/mood_store.py (121 lines) - The collections public mood learns from, in the same MongoDB database as the vector store.
 - `is_enabled` (def) L43
@@ -111,7 +115,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `store` (def) L172 - Cache an answer for the question of an earlier lookup.
 - `clear` (def) L196 - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
-## services/ai/core/vector_store_service.py (356 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+## services/ai/core/vector_store_service.py (368 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
 - `_setting` (def) L46
 - `database_name` (def) L50
 - `collection_name` (def) L54
@@ -123,21 +127,22 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_uses_bedrock` (def) L94
 - `_embedding_path` (def) L99
 - `_gemini_client` (def) L104
-- `EmbeddingQuotaExhausted` (class) L117 - The embedding quota is used up; raised without calling Gemini while the pause lasts.
-- `check_embedding_quota` (def) L121 - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
-- `note_embedding_error` (def) L128 - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
-- `embed` (def) L149 - Return real vectors or fail explicitly; placeholders must never count as retrieval.
-- `_scope` (def) L172 - An empty scope means every value.
-- `_hash` (def) L178
-- `VectorDoc` (class) L183
-    - `doc_id` (def) L194
-- `upsert` (def) L198 - Add or update documents.
-- `delete` (def) L233
-- `delete_kind_except` (def) L243 - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
-- `_reference_changed` (def) L255 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
-- `search` (def) L265 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
-- `ensure_index` (def) L312 - Create the Atlas vector search index on the collection if it doesn't exist.
-- `status` (def) L337 - Whether the store is configured and reachable, and what's in it (no credentials).
+- `EmbeddingQuotaExhausted` (class) L118 - The embedding quota is used up; raised without calling Gemini while the pause lasts.
+- `check_embedding_quota` (def) L122 - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
+- `embedding_pause_status` (def) L129 - Return (reason, seconds_remaining) when embeddings are paused, else None.
+- `note_embedding_error` (def) L135 - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
+- `embed` (def) L158 - Return real vectors or fail explicitly; placeholders must never count as retrieval.
+- `_scope` (def) L181 - An empty scope means every value.
+- `_hash` (def) L187
+- `VectorDoc` (class) L192
+    - `doc_id` (def) L203
+- `upsert` (def) L207 - Add or update documents.
+- `delete` (def) L242
+- `delete_kind_except` (def) L252 - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
+- `_reference_changed` (def) L264 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
+- `search` (def) L274 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
+- `ensure_index` (def) L324 - Create the Atlas vector search index on the collection if it doesn't exist.
+- `status` (def) L349 - Whether the store is configured and reachable, and what's in it (no credentials).
 
 ## services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - `collection_name` (def) L36

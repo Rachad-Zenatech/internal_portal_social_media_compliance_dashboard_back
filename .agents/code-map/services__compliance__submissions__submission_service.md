@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/submission_service.py (2695 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (2696 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_same_value` (def) L122 - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
 - `content_changed` (def) L141 - Whether saving these fields changes anything the checks read.
 - `_json` (def) L151
@@ -67,51 +67,51 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_run_check` (def) L1250
 - `_mirror_to_script_version` (def) L1254 - A check saved on the post while its script is with the reviewer is also the script version's check, so both
 - `run_initial_check` (def) L1269
-    - `record` (def) L1281
-- `_missing_for_submit` (def) L1311
-- `details_missing` (def) L1357 - What the post still needs before its compliance check, sentiment analysis and public mood can be run.
-- `require_details_complete` (def) L1362 - The three tools read a finished post, so they are refused until its details are filled in.
-- `require_details_complete_for` (def) L1375
-- `_require_not_duplicate` (def) L1379 - The same content and caption, already sent for approval to the same place on the same date, can't be sent
-- `_review_job` (def) L1405
-- `_validate_submit_dates` (def) L1425
-- `_submit_reviewer_ids` (def) L1440
-- `submit_for_review` (def) L1461
-- `_queue_filter` (def) L1603
-- `dashboard_summary` (def) L1626 - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
-- `review_queue_counts` (def) L1719 - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
-- `review_queue` (def) L1745 - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
-- `get_version` (def) L1866 - A past (or the current) submitted version, for looking back at what it was and how it was decided.
-- `get_history` (def) L1915
-- `_reviewer_ids` (def) L1958 - Active users who can review: super admins and roles with "Review & Publish Content".
-- `_suggester_ids` (def) L1991 - Active suggesting reviewers ("Suggest on Content") on any of the brands, who can be attached to a post.
-- `_creator_exclusion` (def) L1996 - Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
-- `reviewer_options` (def) L2002 - The people a creator can send content to: reviewers and super admins (on any of the brands, when given).
-- `_review_recipients` (def) L2019 - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
-- `_score_line` (def) L2033 - The check's score for a message, or that it's still being analysed.
-- `_check_summary` (def) L2042
-- `_notify_reviewers` (def) L2050
-- `decide_review` (def) L2074 - A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
-- `_approved_row_for_reviewer` (def) L2195 - An approved submission the user may manage as a reviewer (not their own upload, unless super admin).
-- `reopen_approved` (def) L2207 - A reviewer takes back an approval (for example a late legal concern) and sends the content to its creator
-- `reschedule_approved` (def) L2273 - A reviewer moves approved content to a new publish time.
-- `_comment_out` (def) L2309
-- `list_comments` (def) L2346
-- `_comment_access` (def) L2356 - Reviewers, suggesting reviewers and the creator can comment and resolve comments.
-- `add_comment` (def) L2364
-- `set_comment_resolved` (def) L2402
-- `delete_comment` (def) L2420
-- `_check_still_current` (def) L2443
-- `_recheck_one` (def) L2447 - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
-- `recheck_open_submissions` (def) L2476 - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
-    - `describe` (def) L2484
-- `recheck_ai_unavailable` (def) L2510 - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
-    - `describe` (def) L2524
-- `retry_failed_reads` (def) L2550 - Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
-- `ai_recheck_loop` (def) L2578 - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
-- `recheck_outdated_on_start` (def) L2599 - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
-- `schedule_rulebook_recheck` (def) L2615 - Rulebook edits mark saved results stale; checks run only when requested on the page.
-- `recheck_after_transcript` (def) L2620 - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
-- `recheck_after_image_text` (def) L2626 - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
-- `recheck_after_document_text` (def) L2631 - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
-- `_recheck_for_file` (def) L2636 - Re-run the check of the open submission a file belongs to, after something about the file was read.
+    - `record` (def) L1282
+- `_missing_for_submit` (def) L1312
+- `details_missing` (def) L1358 - What the post still needs before its compliance check, sentiment analysis and public mood can be run.
+- `require_details_complete` (def) L1363 - The three tools read a finished post, so they are refused until its details are filled in.
+- `require_details_complete_for` (def) L1376
+- `_require_not_duplicate` (def) L1380 - The same content and caption, already sent for approval to the same place on the same date, can't be sent
+- `_review_job` (def) L1406
+- `_validate_submit_dates` (def) L1426
+- `_submit_reviewer_ids` (def) L1441
+- `submit_for_review` (def) L1462
+- `_queue_filter` (def) L1604
+- `dashboard_summary` (def) L1627 - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
+- `review_queue_counts` (def) L1720 - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
+- `review_queue` (def) L1746 - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
+- `get_version` (def) L1867 - A past (or the current) submitted version, for looking back at what it was and how it was decided.
+- `get_history` (def) L1916
+- `_reviewer_ids` (def) L1959 - Active users who can review: super admins and roles with "Review & Publish Content".
+- `_suggester_ids` (def) L1992 - Active suggesting reviewers ("Suggest on Content") on any of the brands, who can be attached to a post.
+- `_creator_exclusion` (def) L1997 - Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
+- `reviewer_options` (def) L2003 - The people a creator can send content to: reviewers and super admins (on any of the brands, when given).
+- `_review_recipients` (def) L2020 - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
+- `_score_line` (def) L2034 - The check's score for a message, or that it's still being analysed.
+- `_check_summary` (def) L2043
+- `_notify_reviewers` (def) L2051
+- `decide_review` (def) L2075 - A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
+- `_approved_row_for_reviewer` (def) L2196 - An approved submission the user may manage as a reviewer (not their own upload, unless super admin).
+- `reopen_approved` (def) L2208 - A reviewer takes back an approval (for example a late legal concern) and sends the content to its creator
+- `reschedule_approved` (def) L2274 - A reviewer moves approved content to a new publish time.
+- `_comment_out` (def) L2310
+- `list_comments` (def) L2347
+- `_comment_access` (def) L2357 - Reviewers, suggesting reviewers and the creator can comment and resolve comments.
+- `add_comment` (def) L2365
+- `set_comment_resolved` (def) L2403
+- `delete_comment` (def) L2421
+- `_check_still_current` (def) L2444
+- `_recheck_one` (def) L2448 - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
+- `recheck_open_submissions` (def) L2477 - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
+    - `describe` (def) L2485
+- `recheck_ai_unavailable` (def) L2511 - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    - `describe` (def) L2525
+- `retry_failed_reads` (def) L2551 - Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
+- `ai_recheck_loop` (def) L2579 - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
+- `recheck_outdated_on_start` (def) L2600 - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
+- `schedule_rulebook_recheck` (def) L2616 - Rulebook edits mark saved results stale; checks run only when requested on the page.
+- `recheck_after_transcript` (def) L2621 - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
+- `recheck_after_image_text` (def) L2627 - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
+- `recheck_after_document_text` (def) L2632 - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
+- `_recheck_for_file` (def) L2637 - Re-run the check of the open submission a file belongs to, after something about the file was read.

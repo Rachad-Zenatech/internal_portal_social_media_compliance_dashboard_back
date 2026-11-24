@@ -101,7 +101,15 @@ def is_rotatable_model_error(e: Exception) -> bool:
         from botocore.exceptions import ClientError
         if isinstance(e, ClientError):
             code = e.response.get("Error", {}).get("Code", "")
-            if code in ("ThrottlingException", "ModelNotReadyException", "TooManyRequestsException", "ServiceUnavailableException"):
+            if code in (
+                "ThrottlingException",
+                "ModelNotReadyException",
+                "TooManyRequestsException",
+                "ServiceUnavailableException",
+                "AccessDeniedException",
+                "ValidationException",
+                "ResourceNotFoundException",
+            ):
                 return True
     except ImportError:
         pass

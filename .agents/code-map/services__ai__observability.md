@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/ai/observability/ai_guardrails.py (249 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
+## services/ai/observability/ai_guardrails.py (250 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
 - `_threshold` (def) L30
 - `GuardResult` (class) L92
     - `blocked` (def) L98
@@ -15,20 +15,24 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_keep_email` (def) L149
 - `_keep_card` (def) L154
 - `_keep_ip` (def) L159
-- `_spans` (def) L181 - Non-overlapping (start, end, kind) of every PII match, earlier kinds winning overlaps.
-- `redact_pii` (def) L195 - The text with personal data and credentials replaced by [REDACTED_<KIND>], and how many of each were found.
-- `StreamRedactor` (class) L210 - Redacts streamed text.
-    - `__init__` (def) L217
-    - `_emit` (def) L221
-    - `feed` (def) L227
-    - `flush` (def) L246
+- `_spans` (def) L182 - Non-overlapping (start, end, kind) of every PII match, earlier kinds winning overlaps.
+- `redact_pii` (def) L196 - The text with personal data and credentials replaced by [REDACTED_<KIND>], and how many of each were found.
+- `StreamRedactor` (class) L211 - Redacts streamed text.
+    - `__init__` (def) L218
+    - `_emit` (def) L222
+    - `feed` (def) L228
+    - `flush` (def) L247
 
-## services/ai/observability/ai_health.py (105 lines) - Whether the AI (Gemini) is working right now, for the banner every signed-in user sees when it isn't.
-- `AiStatus` (class) L57
-- `summarize` (def) L66 - rows: the AI calls in the window, newest first, each with status, kind (the failure kind) and started_at.
-- `status` (def) L89
+## services/ai/observability/ai_health.py (249 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
+- `FeatureIssue` (class) L95
+- `AiStatus` (class) L105
+- `_feature_label` (def) L115
+- `summarize_features` (def) L119 - Identify individual features whose latest calls are failing or hitting quota/overflow.
+- `summarize` (def) L155 - rows: the AI calls in the window, newest first, each with status, kind, feature and started_at.
+- `_runtime_issues` (def) L177
+- `status` (def) L228
 
-## services/ai/observability/ai_observability.py (418 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+## services/ai/observability/ai_observability.py (424 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - `_env_int` (def) L41
 - `Span` (class) L57
 - `_get_queue` (def) L73
@@ -48,10 +52,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `classify_error` (def) L251 - What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
 - `_notify_attempt` (def) L274
 - `generate` (def) L284 - client.models.generate_content in a thread, traced and prompt-logged.
-- `_write` (def) L357
-- `_apply_retention` (def) L370
-- `flush` (def) L382 - Write whatever is still queued (on shutdown, before the pool closes).
-- `writer_loop` (def) L395 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
+- `_write` (def) L363
+- `_apply_retention` (def) L376
+- `flush` (def) L388 - Write whatever is still queued (on shutdown, before the pool closes).
+- `writer_loop` (def) L401 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
 
 ## services/ai/observability/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - `_attrs` (def) L9
@@ -61,14 +65,23 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_trace` (def) L97
 - `list_prompt_logs` (def) L111
 
-## services/ai/observability/ai_usage_service.py (164 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
-- `_env_int` (def) L45
-- `limit` (def) L52
-- `per_user_minute` (def) L56
-- `Usage` (class) L61
-- `AiLimitExceeded` (class) L67
-    - `__init__` (def) L68
-- `_when` (def) L72
-- `_count` (def) L82
-- `reserve` (def) L95 - Record one Gemini call, or raise AiLimitExceeded (HTTP 429) with a message saying when it frees up.
-- `usage_for` (def) L138 - What a person has left, per feature (and for one submission when given), for showing in the UI.
+## services/ai/observability/ai_overview_service.py (422 lines) - Combined AI health, feature-to-core mapping, and usage overview for System & Security.
+- `_routing_tier` (def) L43
+- `_features_by_core` (def) L54
+- `_probe_cloud_cores` (def) L62
+- `_probe_local_cores` (def) L151
+- `_build_features` (def) L260
+- `_query_telemetry` (def) L324
+- `overview` (def) L382 - Return full AI health (what is out/overflow/working), feature-to-core mappings, and usage telemetry.
+
+## services/ai/observability/ai_usage_service.py (169 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
+- `_env_int` (def) L50
+- `limit` (def) L57
+- `per_user_minute` (def) L61
+- `Usage` (class) L66
+- `AiLimitExceeded` (class) L72
+    - `__init__` (def) L73
+- `_when` (def) L77
+- `_count` (def) L87
+- `reserve` (def) L100 - Record one Gemini call, or raise AiLimitExceeded (HTTP 429) with a message saying when it frees up.
+- `usage_for` (def) L143 - What a person has left, per feature (and for one submission when given), for showing in the UI.

@@ -42,7 +42,7 @@ from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
 from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer, army_context_review, visual_review, branding
-from services.compliance.evaluation import context_evaluator, rule_set_policy
+from services.compliance.evaluation import context_evaluator, rule_set_policy, rule18_policy, rule_scope_policy
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
 from services.compliance.evaluation import source_check_service, source_post_checks, compliance_check_result
@@ -741,24 +741,8 @@ def check_scope(req: ComplianceCheckRequest, signals: Optional[post_signals.Post
 
 
 def _rule_applies(rule: ComplianceRule, req: ComplianceCheckRequest, scope: Optional[CheckScope] = None) -> bool:
-    """A rule applies unless it's limited to values the content doesn't have. Content that doesn't
-    say (e.g. no audience set yet) is checked against every rule for that dimension."""
-    scope = scope or check_scope(req)
-
-    def overlaps(rule_values: List[str], content_values: List[str]) -> bool:
-        return not rule_values or not content_values or bool(set(rule_values) & set(content_values))
-
-    region = [] if not req.region or req.region == GLOBAL_REGION else [req.region]
-    # Values the check can't match (from before "applies to" was validated) don't limit the rule.
-    rule_parts = [p for p in (v.strip().lower() for v in rule.applies_to or []) if p in CONTENT_PARTS]
-    return (
-        overlaps(rule.rule_sets, scope.rule_sets)
-        and overlaps(rule.brands, req.brand_codes)
-        and overlaps(rule.audiences, scope.audiences)
-        and overlaps(rule.regions, region)
-        and overlaps(rule.platforms, req.platforms)
-        and overlaps(rule_parts, scope.content_parts)
-    )
+    """Keep the existing entry point while the policy module handles scope matching."""
+    return rule_scope_policy.applies(rule, req, scope or check_scope(req), content_parts=CONTENT_PARTS, global_region=GLOBAL_REGION)
 
 
 async def applicable_rules(req: ComplianceCheckRequest) -> List[ComplianceRule]:
@@ -1292,8 +1276,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     violations.extend(await _semantic_findings(match_req, rules, found, padded_text, disclaimer_padded))
 
     # Compare the fixed claim inventory with available sources; retain partial findings when coverage is incomplete.
-    source_result = await source_check_service.run(
-        req.text, req.sources, source_script=req.source_script, include_image_citations=False)
+    source_result = await rule18_policy.check_sources(req)
     if source_result.ai_failed:
         _ai_incomplete.set(True)
     violations.extend(source_check_service.findings(source_result.checks))
@@ -1462,7 +1445,7 @@ async def rulebook_version() -> Optional[str]:
     generation = rules_cache.generation
     row = await fetch_one("SELECT max(greatest(updated_at, coalesce(deleted_at, updated_at))) AS v FROM compliance_rules")
     rules = row["v"].isoformat() if row and row["v"] else "none"
-    version = f"{rules}|{claim_checks.VERSION}|{post_signals.VERSION}|{SCOPE_VERSION}|{context_evaluator.PROMPT_VERSION}|{HIGHLIGHT_VERSION}|{source_check_service.VERSION}"
+    version = f"{rules}|{claim_checks.VERSION}|{post_signals.VERSION}|{SCOPE_VERSION}|{context_evaluator.PROMPT_VERSION}|{HIGHLIGHT_VERSION}|{source_check_service.VERSION}|{rule18_policy.VERSION}|{visual_review.PROMPT_VERSION}"
     await rules_cache.set_if_unchanged("version", version, generation, RULES_CACHE_TTL)
     return version
 

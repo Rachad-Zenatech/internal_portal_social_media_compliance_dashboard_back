@@ -49,9 +49,11 @@ def may_finish_check(row):
     return bool(check.get("manual_requested_at") and check.get("analysis_pending") and content_is_current(row, check))
 
 
-def require_current_check(row, rulebook_version, *, allow_incomplete=False, validate=True):
+def require_current_check(row, rulebook_version, *, allow_incomplete=False, validate=True, allow_older_rules=False):
+    from services.compliance.submissions.submission_source_state import sources_changed
     check = saved_check(row)
-    if not check or not content_is_current(row, check) or check.get("rulebook_version") != rulebook_version:
+    if (not check or not content_is_current(row, check) or sources_changed(row, check)
+            or (not allow_older_rules and check.get("rulebook_version") != rulebook_version)):
         raise HTTPException(422, "Run the compliance check on the Compliance page before sending or approving this post.")
     if not allow_incomplete and (check.get("analysis_pending") or check.get("ai_unavailable")):
         raise HTTPException(422, "The compliance check has no completed score. Run it on the Compliance page and wait for it to finish.")

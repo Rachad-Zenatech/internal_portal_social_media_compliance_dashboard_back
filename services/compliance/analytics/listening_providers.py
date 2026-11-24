@@ -78,9 +78,12 @@ def _load_local_model() -> Any:
 
 
 async def warm_up_sentiment_model() -> None:
-    """Load both sentiment models in worker threads at startup, so no request waits for them (or freezes the server)."""
+    """Load both sentiment models in worker threads after startup settles, so initial requests aren't starved."""
     import asyncio
 
+    if os.getenv("SENTIMENT_WARMUP_ENABLED", "true").strip().lower() in {"0", "false", "no", "off"}:
+        return
+    await asyncio.sleep(float(os.getenv("SENTIMENT_WARMUP_DELAY_SEC", "5")))
     await asyncio.to_thread(_load_local_model)
     await asyncio.to_thread(load_financial_model)
 
@@ -209,10 +212,24 @@ def feed_in_database(file_path: Optional[Path] = None) -> bool:
     return file_path is None and _x_feed_store().is_enabled()
 
 
+import time as _time
+
+_FEED_CACHE: Optional[tuple] = None  # (expires_at, store_obj, data)
+_STAMP_CACHE: Optional[tuple] = None  # (expires_at, store_obj, stamp)
+_FEED_CACHE_TTL = 5.0
+
+
 async def load_feed(file_path: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     """The latest collected feed ({"collected_at", "collection", "topics": [...]}), or None if there is none yet."""
+    global _FEED_CACHE
     if feed_in_database(file_path):
-        return await _x_feed_store().read_feed()
+        store = _x_feed_store()
+        now = _time.monotonic()
+        if _FEED_CACHE and _FEED_CACHE[0] > now and _FEED_CACHE[1] is store:
+            return _FEED_CACHE[2]
+        data = await store.read_feed()
+        _FEED_CACHE = (now + _FEED_CACHE_TTL, store, data)
+        return data
     path = file_path or DEFAULT_X_JSON_PATH
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -225,6 +242,9 @@ async def load_feed(file_path: Optional[Path] = None) -> Optional[Dict[str, Any]
 
 async def save_feed(payload: Dict[str, Any], file_path: Optional[Path] = None) -> str:
     """Store a collected feed as the current one; says where it went."""
+    global _FEED_CACHE, _STAMP_CACHE
+    _FEED_CACHE = None
+    _STAMP_CACHE = None
     if feed_in_database(file_path):
         store = _x_feed_store()
         await store.write_feed(payload)
@@ -237,8 +257,15 @@ async def save_feed(payload: Dict[str, Any], file_path: Optional[Path] = None) -
 
 async def feed_stamp(file_path: Optional[Path] = None) -> Optional[datetime]:
     """When the current feed was stored: the cue that topics and snapshots built from an earlier one are out of date."""
+    global _STAMP_CACHE
     if feed_in_database(file_path):
-        return await _x_feed_store().written_at()
+        store = _x_feed_store()
+        now = _time.monotonic()
+        if _STAMP_CACHE and _STAMP_CACHE[0] > now and _STAMP_CACHE[1] is store:
+            return _STAMP_CACHE[2]
+        stamp = await store.written_at()
+        _STAMP_CACHE = (now + _FEED_CACHE_TTL, store, stamp)
+        return stamp
     try:
         return datetime.fromtimestamp((file_path or DEFAULT_X_JSON_PATH).stat().st_mtime, tz=timezone.utc)
     except OSError:

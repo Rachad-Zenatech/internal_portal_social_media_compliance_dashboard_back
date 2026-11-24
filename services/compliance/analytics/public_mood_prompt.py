@@ -65,8 +65,8 @@ def build_summary_prompt(
             "baseline_recommendation": s.recommendation,
             "baseline_reason": s.recommendation_reason,
             "sample_posts": [
-                {"sentiment": p.sentiment, "confidence": p.confidence, "text": p.text}
-                for p in s.top_posts
+                {"sentiment": p.sentiment, "confidence": p.confidence, "text": (p.text or "")[:240]}
+                for p in s.top_posts[:4]
             ],
         })
     baseline_rec, baseline_reason = overall_recommendation(mood.topics)
@@ -100,5 +100,5 @@ Text (title, caption, uploaded script, video transcript, and/or image text):
 \"\"\"{row["text"]}\"\"\"
 
 LISTENING DATA ({mood.source}{" (sample data)" if mood.is_mock else ""})
-{json.dumps(topics, indent=1)}
+{json.dumps(topics, separators=(",", ":"))}
 """

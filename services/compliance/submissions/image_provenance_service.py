@@ -49,10 +49,12 @@ def update_fields(row, payload):
 
 async def retry_image_read(submission_id: UUID, file_id: UUID, user_id: UUID) -> SubmissionFile:
     """Queue an image's OCR and anonymous face read again, including a stalled attempt."""
+    from services.ai.observability import ai_usage_service
     from services.compliance.media import image_text_service
     from services.compliance.submissions import submission_service
 
     await submission_service._get_owned_row(submission_id, user_id)
+    await ai_usage_service.reserve("IMAGE_TEXT", user_id, submission_id)
     f = await fetch_one(
         "UPDATE content_submission_files SET image_text_status = NULL, image_text_error = NULL, "
         "image_text_updated_at = NOW() WHERE id = $1 AND submission_id = $2 AND deleted_at IS NULL AND mime_type LIKE 'image/%' "

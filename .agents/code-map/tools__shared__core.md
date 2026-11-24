@@ -8,18 +8,22 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_safe_parse_json` (def) L10
 - `list_audit_logs` (def) L22 [GET /logs]
 
-## tools/shared/core/observability.py (117 lines) - observability (shared core)
+## tools/shared/core/observability.py (126 lines) - observability (shared core)
 - `ClientErrorReport` (class) L16
 - `ClientPerformanceReport` (class) L24
 - `report_client_error` (def) L31 [POST /observability/client-error]
 - `report_client_performance` (def) L53 [POST /observability/client-performance]
 - `get_token_usage` (def) L75 [GET /observability/usage/tokens] - Tokens, calls, errors and latency per feature and model over the last `hours`.
 - `get_ai_summary` (def) L81 [GET /observability/ai/summary] - Per feature and model: calls, errors, p50/p95 latency, tokens; plus cache hits, guard verdicts, tool calls.
-- `list_ai_traces` (def) L87 [GET /observability/ai/traces] - Recent traces, newest first, each with its span count, total time and any errors.
-- `get_ai_trace` (def) L97 [GET /observability/ai/traces/{trace_id}] - Every span of one trace (model calls, embeddings, retrieval, tool calls, guard, cache) and its prompt logs.
-- `list_ai_prompt_logs` (def) L106 [GET /observability/ai/prompt-logs] - Prompt and response of each model call (PII-redacted), newest first.
+- `get_ai_overview` (def) L87 [GET /observability/ai/overview] - Unified System & Security AI snapshot: outages/overflows, feature-to-core mapping, and usage.
+- `list_ai_traces` (def) L96 [GET /observability/ai/traces] - Recent traces, newest first, each with its span count, total time and any errors.
+- `get_ai_trace` (def) L106 [GET /observability/ai/traces/{trace_id}] - Every span of one trace (model calls, embeddings, retrieval, tool calls, guard, cache) and its prompt logs.
+- `list_ai_prompt_logs` (def) L115 [GET /observability/ai/prompt-logs] - Prompt and response of each model call (PII-redacted), newest first.
 
-## tools/shared/core/search.py (176 lines) - Static system pages for quick navigation search with explicit permission codes
-- `SearchResult` (class) L10
-- `global_search` (def) L28 [GET ]
-    - `has_perm` (def) L49
+## tools/shared/core/search.py (157 lines) - Static system pages for quick navigation search with explicit permission codes
+- `SearchResult` (class) L11
+- `_has_search_perm` (def) L32
+- `_search_users` (def) L45
+- `_search_roles` (def) L71
+- `_search_audits` (def) L97
+- `global_search` (def) L123 [GET ]

@@ -5,6 +5,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     APP_ENV=production \
     TESSERACT_CMD=/usr/bin/tesseract \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    HF_HOME=/app/data/hf_cache \
+    SENTIMENT_MODEL=vader \
+    FINANCIAL_SENTIMENT_MODEL=vader \
+    SENTIMENT_WARMUP_ENABLED=false \
     MCP_HOST=0.0.0.0 \
     MCP_PORT=7006
 
@@ -58,5 +62,5 @@ EXPOSE 8009 7006
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8009/health/live')" || exit 1
 
-# Start both FastAPI (background) and MCP server (foreground)
-CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port 8009 --workers 1 & python server.py"]
+# Serve FastAPI and the mounted /mcp endpoint in one foreground uvicorn process so memory isn't doubled and crashes restart cleanly.
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8009", "--workers", "1"]

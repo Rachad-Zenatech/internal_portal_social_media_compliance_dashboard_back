@@ -66,7 +66,7 @@ class FormattedClaimScoringTests(unittest.IsolatedAsyncioTestCase):
             patch.object(cs, "_semantic_findings", AsyncMock(return_value=[])),
             patch.object(cs, "rulebook_version", AsyncMock(return_value="test")),
         ):
-            result = await cs.check_compliance(ComplianceCheckRequest(text="Text in image 1: " + original))
+            result = await cs.check_compliance(ComplianceCheckRequest(text="Text in image 1: " + original, content_type="SOCIAL_POST"))
         self.assertFalse(result.ai_unavailable)
         self.assertEqual(result.score, 100 - cs.EVIDENCE_PENALTY)
         self.assertEqual(result.evidence_count, 1)
@@ -84,7 +84,7 @@ class FormattedClaimScoringTests(unittest.IsolatedAsyncioTestCase):
             patch.object(cs, "_semantic_findings", AsyncMock(return_value=[])),
             patch.object(cs, "rulebook_version", AsyncMock(return_value="test")),
         ):
-            result = await cs.check_compliance(ComplianceCheckRequest(text="Range is 30 km"))
+            result = await cs.check_compliance(ComplianceCheckRequest(text="Range is 30 km", content_type="SOCIAL_POST"))
         self.assertTrue(result.ai_unavailable)
         self.assertFalse(result.is_compliant)
         save.assert_not_awaited()

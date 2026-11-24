@@ -4,43 +4,43 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/analytics/listening_providers.py (467 lines) - Social listening providers: where "public mood" data comes from.
+## services/compliance/analytics/listening_providers.py (494 lines) - Social listening providers: where "public mood" data comes from.
 - `clean_headline` (def) L43 - The headline without its outlet, lowercased, letters and digits only: equal for the same story.
 - `volume_change` (def) L53 - Percent change in mentions: the last three complete days against the three before them, from `daily` (oldest
 - `_load_local_model` (def) L71 - The trained sentiment model, loaded once.
-- `warm_up_sentiment_model` (def) L80 - Load both sentiment models in worker threads at startup, so no request waits for them (or freezes the server).
-- `_load_local_model_locked` (def) L88
-- `_model_probs` (def) L95 - {'POSITIVE': p, 'NEUTRAL': p, 'NEGATIVE': p} from the trained model, or None to fall back to VADER.
-- `classify_comment_sentiment` (def) L100 - Classify an individual X comment/post as POSITIVE, NEGATIVE, or NEUTRAL with confidence (0-100%).
-- `classify_topic_sentiment` (def) L111 - Score one item using FinBERT for financial topics and the general sentiment model otherwise.
-- `sentiment_models_label` (def) L117 - Display summary of the configured general and financial sentiment models.
-- `evaluate_publishing_decision` (def) L122 - Decide whether the team should POST, WAIT (review), or HOLD (escalate to human reviewer)
-- `ListeningUnavailable` (class) L191 - The listening source can't be reached or isn't configured.
-- `_x_feed_store` (def) L203
-- `feed_in_database` (def) L208
-- `load_feed` (def) L212 - The latest collected feed ({"collected_at", "collection", "topics": [...]}), or None if there is none yet.
-- `save_feed` (def) L226 - Store a collected feed as the current one; says where it went.
-- `feed_stamp` (def) L238 - When the current feed was stored: the cue that topics and snapshots built from an earlier one are out of date.
-- `ListeningProvider` (class) L248
-    - `feed_stamp` (def) L252 - When this source's data was last collected, if it is collected rather than fetched live.
-    - `collection_info` (def) L256
-    - `list_topics` (def) L259 - Topics the account tracks: [{external_id, name, description, keywords}].
-    - `snapshot` (def) L264 - Recent sentiment for a topic: positive/neutral/negative percentages, mention volume and change,
-- `UnconfiguredProvider` (class) L278 - Used when there is nowhere to read public mood from.
-    - `list_topics` (def) L285
-    - `snapshot` (def) L288
-- `analyze_raw_x_topic` (def) L296 - Score every comment in an X topic payload (FinBERT for financial topics, Twitter-RoBERTa otherwise, with VADER
-- `XJsonListeningProvider` (class) L363 - Reads the collected X (Twitter) posts and news trends, and classifies each with the sentiment model.
-    - `__init__` (def) L370
-    - `_feed` (def) L375
-    - `_load_feed` (def) L383
-    - `feed_stamp` (def) L389
-    - `collection_info` (def) L392 - How the last collection went (status per source and overall), when the scraper recorded it.
-    - `list_topics` (def) L400
-    - `snapshot` (def) L413
-- `SproutProvider` (class) L428 - Sprout Social Listening over its API.
-    - `__init__` (def) L434
-    - `list_topics` (def) L438
-    - `snapshot` (def) L441
-- `reset_provider_cache` (def) L448
-- `get_provider` (def) L453
+- `warm_up_sentiment_model` (def) L80 - Load both sentiment models in worker threads after startup settles, so initial requests aren't starved.
+- `_load_local_model_locked` (def) L91
+- `_model_probs` (def) L98 - {'POSITIVE': p, 'NEUTRAL': p, 'NEGATIVE': p} from the trained model, or None to fall back to VADER.
+- `classify_comment_sentiment` (def) L103 - Classify an individual X comment/post as POSITIVE, NEGATIVE, or NEUTRAL with confidence (0-100%).
+- `classify_topic_sentiment` (def) L114 - Score one item using FinBERT for financial topics and the general sentiment model otherwise.
+- `sentiment_models_label` (def) L120 - Display summary of the configured general and financial sentiment models.
+- `evaluate_publishing_decision` (def) L125 - Decide whether the team should POST, WAIT (review), or HOLD (escalate to human reviewer)
+- `ListeningUnavailable` (class) L194 - The listening source can't be reached or isn't configured.
+- `_x_feed_store` (def) L206
+- `feed_in_database` (def) L211
+- `load_feed` (def) L222 - The latest collected feed ({"collected_at", "collection", "topics": [...]}), or None if there is none yet.
+- `save_feed` (def) L243 - Store a collected feed as the current one; says where it went.
+- `feed_stamp` (def) L258 - When the current feed was stored: the cue that topics and snapshots built from an earlier one are out of date.
+- `ListeningProvider` (class) L275
+    - `feed_stamp` (def) L279 - When this source's data was last collected, if it is collected rather than fetched live.
+    - `collection_info` (def) L283
+    - `list_topics` (def) L286 - Topics the account tracks: [{external_id, name, description, keywords}].
+    - `snapshot` (def) L291 - Recent sentiment for a topic: positive/neutral/negative percentages, mention volume and change,
+- `UnconfiguredProvider` (class) L305 - Used when there is nowhere to read public mood from.
+    - `list_topics` (def) L312
+    - `snapshot` (def) L315
+- `analyze_raw_x_topic` (def) L323 - Score every comment in an X topic payload (FinBERT for financial topics, Twitter-RoBERTa otherwise, with VADER
+- `XJsonListeningProvider` (class) L390 - Reads the collected X (Twitter) posts and news trends, and classifies each with the sentiment model.
+    - `__init__` (def) L397
+    - `_feed` (def) L402
+    - `_load_feed` (def) L410
+    - `feed_stamp` (def) L416
+    - `collection_info` (def) L419 - How the last collection went (status per source and overall), when the scraper recorded it.
+    - `list_topics` (def) L427
+    - `snapshot` (def) L440
+- `SproutProvider` (class) L455 - Sprout Social Listening over its API.
+    - `__init__` (def) L461
+    - `list_topics` (def) L465
+    - `snapshot` (def) L468
+- `reset_provider_cache` (def) L475
+- `get_provider` (def) L480

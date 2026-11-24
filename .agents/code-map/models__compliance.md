@@ -184,7 +184,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `SuggesterActivity` (class) L218 - One thing the suggesting reviewer did: a comment, or a saved suggestion.
 - `SuggesterDashboard` (class) L228
 
-## models/compliance/sentiment_model.py (322 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
+## models/compliance/sentiment_model.py (327 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - `Tone` (class) L19
 - `BrandAlignment` (class) L26
 - `AudienceInterpretation` (class) L31
@@ -193,27 +193,28 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `AudioAssessment` (class) L73 - How the video sounds, when one was attached.
 - `Precedent` (class) L83 - A past review of similar content that the analysis was given as precedent.
 - `EntryRef` (class) L98 - The Messaging Context entry a judgement came from (filled in by the service from the prompt's [C1], [C2]...).
-- `VoiceLine` (class) L105 - A line of the post that follows, or drifts from, the brand voice.
-- `BrandVoiceReport` (class) L114
-- `ClaimCheck` (class) L122 - A claim in the post against the facts on file.
-- `FactsReport` (class) L130
-- `ActionableContext` (class) L137 - Post-specific evidence and an actionable edit for a context judgement.
-- `NormCheck` (class) L144 - One thing a platform norm asks for (length, opening, hashtags...) and how the post does.
-- `NormsReport` (class) L152
-- `AudienceReading` (class) L158
-- `AudiencesReport` (class) L164
-- `ContextReport` (class) L170 - How the post measures against its Messaging Context, kind by kind, each judgement naming its entry.
-- `VisualAlignment` (class) L180 - Whether the post's graphic (images or video) says the same thing as its captions.
-- `SentimentResult` (class) L187
-- `FindingFeedback` (class) L212 - Reviewers' votes on one finding, and the viewer's own.
-- `FindingFeedbackIn` (class) L220
-- `AnalysedImage` (class) L225
-- `SentimentComparison` (class) L230 - How an analysis differs from the one before it (an earlier version, or an earlier run of this draft).
-- `ContextUse` (class) L246 - A Messaging Context entry and what the analysis did with it, for the transparency table.
-- `SentimentAnalysis` (class) L260
-- `FeedbackSummaryRow` (class) L292 - How reviewers rated one kind of finding: mostly "not an issue" means that kind is mostly noise.
-- `EvalCaseIn` (class) L301 - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
-- `EvalCase` (class) L309
+    - `_blank_missing_ref` (def) L106
+- `VoiceLine` (class) L110 - A line of the post that follows, or drifts from, the brand voice.
+- `BrandVoiceReport` (class) L119
+- `ClaimCheck` (class) L127 - A claim in the post against the facts on file.
+- `FactsReport` (class) L135
+- `ActionableContext` (class) L142 - Post-specific evidence and an actionable edit for a context judgement.
+- `NormCheck` (class) L149 - One thing a platform norm asks for (length, opening, hashtags...) and how the post does.
+- `NormsReport` (class) L157
+- `AudienceReading` (class) L163
+- `AudiencesReport` (class) L169
+- `ContextReport` (class) L175 - How the post measures against its Messaging Context, kind by kind, each judgement naming its entry.
+- `VisualAlignment` (class) L185 - Whether the post's graphic (images or video) says the same thing as its captions.
+- `SentimentResult` (class) L192
+- `FindingFeedback` (class) L217 - Reviewers' votes on one finding, and the viewer's own.
+- `FindingFeedbackIn` (class) L225
+- `AnalysedImage` (class) L230
+- `SentimentComparison` (class) L235 - How an analysis differs from the one before it (an earlier version, or an earlier run of this draft).
+- `ContextUse` (class) L251 - A Messaging Context entry and what the analysis did with it, for the transparency table.
+- `SentimentAnalysis` (class) L265
+- `FeedbackSummaryRow` (class) L297 - How reviewers rated one kind of finding: mostly "not an issue" means that kind is mostly noise.
+- `EvalCaseIn` (class) L306 - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
+- `EvalCase` (class) L314
 
 ## models/compliance/source_link_model.py (56 lines) - Models for submission source links and quick AI link checks.
 - `SourceLinksMixin` (class) L14
