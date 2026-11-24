@@ -34,8 +34,12 @@ def load_hf_model_from_hub(model_name: str) -> Any:
         import torch  # noqa: F401
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-        tok = AutoTokenizer.from_pretrained(name)
-        mdl = AutoModelForSequenceClassification.from_pretrained(name).eval()
+        try:
+            tok = AutoTokenizer.from_pretrained(name, local_files_only=True)
+            mdl = AutoModelForSequenceClassification.from_pretrained(name, local_files_only=True).eval()
+        except Exception:
+            tok = AutoTokenizer.from_pretrained(name)
+            mdl = AutoModelForSequenceClassification.from_pretrained(name).eval()
         return (tok, mdl)
     except Exception as exc:
         logger.warning("Sentiment model %s unavailable, using VADER: %s", name, exc)

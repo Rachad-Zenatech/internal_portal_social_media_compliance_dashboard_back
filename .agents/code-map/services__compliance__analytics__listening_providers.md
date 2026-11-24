@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/analytics/listening_providers.py (467 lines) - Social listening providers: where "public mood" data comes from.
+## services/compliance/analytics/listening_providers.py (482 lines) - Social listening providers: where "public mood" data comes from.
 - `clean_headline` (def) L43 - The headline without its outlet, lowercased, letters and digits only: equal for the same story.
 - `volume_change` (def) L53 - Percent change in mentions: the last three complete days against the three before them, from `daily` (oldest
 - `_load_local_model` (def) L71 - The trained sentiment model, loaded once.
@@ -18,29 +18,29 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ListeningUnavailable` (class) L191 - The listening source can't be reached or isn't configured.
 - `_x_feed_store` (def) L203
 - `feed_in_database` (def) L208
-- `load_feed` (def) L212 - The latest collected feed ({"collected_at", "collection", "topics": [...]}), or None if there is none yet.
-- `save_feed` (def) L226 - Store a collected feed as the current one; says where it went.
-- `feed_stamp` (def) L238 - When the current feed was stored: the cue that topics and snapshots built from an earlier one are out of date.
-- `ListeningProvider` (class) L248
-    - `feed_stamp` (def) L252 - When this source's data was last collected, if it is collected rather than fetched live.
-    - `collection_info` (def) L256
-    - `list_topics` (def) L259 - Topics the account tracks: [{external_id, name, description, keywords}].
-    - `snapshot` (def) L264 - Recent sentiment for a topic: positive/neutral/negative percentages, mention volume and change,
-- `UnconfiguredProvider` (class) L278 - Used when there is nowhere to read public mood from.
-    - `list_topics` (def) L285
-    - `snapshot` (def) L288
-- `analyze_raw_x_topic` (def) L296 - Score every comment in an X topic payload (FinBERT for financial topics, Twitter-RoBERTa otherwise, with VADER
-- `XJsonListeningProvider` (class) L363 - Reads the collected X (Twitter) posts and news trends, and classifies each with the sentiment model.
-    - `__init__` (def) L370
-    - `_feed` (def) L375
-    - `_load_feed` (def) L383
-    - `feed_stamp` (def) L389
-    - `collection_info` (def) L392 - How the last collection went (status per source and overall), when the scraper recorded it.
-    - `list_topics` (def) L400
-    - `snapshot` (def) L413
-- `SproutProvider` (class) L428 - Sprout Social Listening over its API.
-    - `__init__` (def) L434
-    - `list_topics` (def) L438
-    - `snapshot` (def) L441
-- `reset_provider_cache` (def) L448
-- `get_provider` (def) L453
+- `load_feed` (def) L218 - The latest collected feed ({"collected_at", "collection", "topics": [...]}), or None if there is none yet.
+- `save_feed` (def) L239 - Store a collected feed as the current one; says where it went.
+- `feed_stamp` (def) L253 - When the current feed was stored: the cue that topics and snapshots built from an earlier one are out of date.
+- `ListeningProvider` (class) L263
+    - `feed_stamp` (def) L267 - When this source's data was last collected, if it is collected rather than fetched live.
+    - `collection_info` (def) L271
+    - `list_topics` (def) L274 - Topics the account tracks: [{external_id, name, description, keywords}].
+    - `snapshot` (def) L279 - Recent sentiment for a topic: positive/neutral/negative percentages, mention volume and change,
+- `UnconfiguredProvider` (class) L293 - Used when there is nowhere to read public mood from.
+    - `list_topics` (def) L300
+    - `snapshot` (def) L303
+- `analyze_raw_x_topic` (def) L311 - Score every comment in an X topic payload (FinBERT for financial topics, Twitter-RoBERTa otherwise, with VADER
+- `XJsonListeningProvider` (class) L378 - Reads the collected X (Twitter) posts and news trends, and classifies each with the sentiment model.
+    - `__init__` (def) L385
+    - `_feed` (def) L390
+    - `_load_feed` (def) L398
+    - `feed_stamp` (def) L404
+    - `collection_info` (def) L407 - How the last collection went (status per source and overall), when the scraper recorded it.
+    - `list_topics` (def) L415
+    - `snapshot` (def) L428
+- `SproutProvider` (class) L443 - Sprout Social Listening over its API.
+    - `__init__` (def) L449
+    - `list_topics` (def) L453
+    - `snapshot` (def) L456
+- `reset_provider_cache` (def) L463
+- `get_provider` (def) L468
