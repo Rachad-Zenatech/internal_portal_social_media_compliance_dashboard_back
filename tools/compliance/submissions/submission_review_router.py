@@ -7,11 +7,18 @@ from models.compliance.submission_model import (
     ReviewCommentCreate, ReviewCommentUpdate, ReviewDecisionRequest, Submission,
 )
 from services.compliance.submissions import delegation_service
+from services.compliance.submissions import post_approval_suggestions
+from models.compliance.post_approval_model import PublishingAccess
 from services.compliance.submissions import submission_service as svc
 from services.shared.auth.auth_service import get_current_user_id_dependency
 
 router = APIRouter()
 CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
+
+
+@router.get("/{submission_id}/publishing-access", response_model=PublishingAccess)
+async def publishing_access(submission_id: UUID, user_id: CurrentUser):
+    return await post_approval_suggestions.publishing_for_viewer(submission_id, user_id)
 
 
 @router.post("/{submission_id}/review", response_model=Submission)

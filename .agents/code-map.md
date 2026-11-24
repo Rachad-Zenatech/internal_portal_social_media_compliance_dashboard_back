@@ -13,7 +13,7 @@ to find the right file.
 | .agents/code-map/mcp_tools.md | 3 | 1 KB |
 | .agents/code-map/mcp_tools__compliance.md | 1 | 1 KB |
 | .agents/code-map/mcp_tools__shared.md | 1 | 1 KB |
-| .agents/code-map/models__compliance.md | 22 | 17 KB |
+| .agents/code-map/models__compliance.md | 23 | 17 KB |
 | .agents/code-map/models__notifications.md | 2 | 1 KB |
 | .agents/code-map/models__shared.md | 3 | 2 KB |
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |
@@ -138,9 +138,11 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions__manual_check_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__media_freshness.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__media_read_status.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__post_approval_suggestions.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__post_steps_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__request_coalescer.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_approval_service.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__review_comment_writes.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_deadline_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__submissions__review_hierarchy_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_memory_service.md | 1 | 2 KB |

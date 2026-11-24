@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, model_validator
 from models.compliance.submission_steps_model import StepState, SubmissionSteps
 from models.compliance.image_provenance_model import ImageProvenanceFields
 from models.compliance.review_score_model import ReviewScoreFields
+from models.compliance.post_approval_model import PostApprovalSuggestionFields
 from models.compliance.source_link_model import SourceLinksMixin, SourceLinksUpdateMixin
 from models.compliance.submission_input_model import ContentType as ContentType, SubmissionCreate as SubmissionCreate, VideoScriptOptions
 from models.compliance.duplicate_model import (
@@ -185,7 +186,7 @@ class AnalysisProgress(BaseModel):
     from_history: bool = False
 
 
-class SubmissionSummary(BaseModel):
+class SubmissionSummary(PostApprovalSuggestionFields):
     id: UUID
     reference_code: str
     title: str
@@ -252,7 +253,7 @@ class SubmissionSummary(BaseModel):
     steps: Optional[SubmissionSteps] = None
 
 
-class Submission(SourceLinksMixin, ImageProvenanceFields, ReviewScoreFields):
+class Submission(SourceLinksMixin, ImageProvenanceFields, ReviewScoreFields, PostApprovalSuggestionFields):
     id: UUID
     reference_code: str
     title: str
@@ -510,7 +511,7 @@ class SubmissionHistory(BaseModel):
     events: List[SubmissionEvent]
 
 
-class ReviewQueueItem(ReviewScoreFields):
+class ReviewQueueItem(ReviewScoreFields, PostApprovalSuggestionFields):
     """A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it."""
     id: UUID
     reference_code: str

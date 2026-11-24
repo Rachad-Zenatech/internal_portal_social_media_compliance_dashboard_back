@@ -67,6 +67,7 @@ from services.compliance.submissions.submission_snapshot import build_snapshot
 from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
 from services.compliance.submissions import creator_dismissal_service, flag_review_service
+from services.compliance.submissions import post_approval_suggestions, review_comment_writes
 from services.shared.storage.s3_storage_service import ensure_local_file, s3_enabled, s3_key_for, upload_file_to_s3
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
@@ -610,7 +611,7 @@ async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, s
     progress = await analysis_progress_service.for_submissions([s.id for s in summaries if s.analysis_pending])
     for s in summaries:
         s.analysis_progress = progress.get(s.id)
-    return summaries
+    return await post_approval_suggestions.enrich(summaries, rows, user_id)
 
 
 async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
@@ -644,7 +645,7 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
     if not is_creator:
         creator = await fetch_one("SELECT full_name FROM users WHERE id = $1", row["created_by"])
         sub.created_by_name = creator["full_name"] if creator else None
-    return sub
+    return (await post_approval_suggestions.enrich([sub], [row], user_id))[0]
 
 
 def _update_audiences(fields, payload):
@@ -1817,7 +1818,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
     )
     edges = await delegation_service.edges_for([r["id"] for r in rows if r["status"] == "IN_REVIEW"])
     already = await delegation_service.delegated_by(user_id, {r["id"]: r["current_version"] for r in rows})
-    return [
+    return await post_approval_suggestions.enrich([
         ReviewQueueItem(
             id=r["id"],
             reference_code=r["reference_code"],
@@ -1861,7 +1862,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             script_status=(r["script_status"] or "DRAFT") if script_stage_on(r) else None,
         )
         for r in rows
-    ]
+    ], rows, user_id)
 
 
 async def get_version(submission_id: UUID, version: int, user_id: UUID) -> VersionView:
@@ -2104,15 +2105,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
             raise HTTPException(status_code=422, detail="Add a note or comments saying what needs to change")
         new_status, label = "CHANGES_REQUESTED", "Changes requested"
     else:
-        if req.publish_now:
-            publish_at, label = now, "Approved to publish now"
-        else:
-            publish_at = req.publish_at or row["publish_at"]
-            if not publish_at:
-                raise HTTPException(status_code=422, detail="Pick a date and time to schedule it")
-            if publish_at < now:
-                raise HTTPException(status_code=422, detail="Pick a publish time in the future, or publish it now")
-            label = f"Approved and scheduled for {publish_at.astimezone(timezone.utc):%b %d, %H:%M} UTC"
+        publish_at, label = post_approval_suggestions.approval_timing(row, req, now)
         new_status = "APPROVED"
         # Rules the automated check can't test (image editing, image rights, ...): the approving reviewer
         # confirms each one, and that's recorded with the decision.
@@ -2202,6 +2195,7 @@ async def _approved_row_for_reviewer(submission_id: UUID, user_id: UUID) -> Dict
         raise HTTPException(status_code=409, detail="Only approved content can be rescheduled or reopened")
     if row["created_by"] == user_id and not await _is_super_admin(user_id):
         raise HTTPException(status_code=403, detail="You can't manage the approval of your own content")
+    await post_approval_suggestions.require_manager(row, user_id)
     return row
 
 
@@ -2359,6 +2353,7 @@ async def _comment_access(submission_id: UUID, user_id: UUID) -> Dict[str, Any]:
     row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
     if row["created_by"] != user_id and not await _can_suggest(user_id):
         raise HTTPException(status_code=403, detail="Only reviewers and the person who uploaded it can comment")
+    await post_approval_suggestions.require_comment(row, user_id)
     return row
 
 
@@ -2383,7 +2378,7 @@ async def add_comment(submission_id: UUID, user_id: UUID, data: ReviewCommentCre
         data.reply_to_id, submission_id,
     ):
         raise HTTPException(status_code=422, detail="The comment you're replying to isn't on this post any more")
-    saved = await fetch_one(
+    saved = await review_comment_writes.write(submission_id, user_id,
         """
         INSERT INTO content_review_comments
             (submission_id, version_number, author_id, category, body, start_sec, end_sec, from_reviewer, reply_to_id,
@@ -2402,7 +2397,7 @@ async def add_comment(submission_id: UUID, user_id: UUID, data: ReviewCommentCre
 
 async def set_comment_resolved(submission_id: UUID, comment_id: UUID, user_id: UUID, resolved: bool) -> ReviewComment:
     await _comment_access(submission_id, user_id)
-    updated = await fetch_one(
+    updated = await review_comment_writes.write(submission_id, user_id,
         """
         UPDATE content_review_comments
         SET resolved_at = CASE WHEN $3 THEN NOW() ELSE NULL END,
@@ -2419,9 +2414,9 @@ async def set_comment_resolved(submission_id: UUID, comment_id: UUID, user_id: U
 
 
 async def delete_comment(submission_id: UUID, comment_id: UUID, user_id: UUID) -> None:
-    await _get_owned_row(submission_id, user_id, manager_can_read=True)
+    await _comment_access(submission_id, user_id)
     is_super = await _is_super_admin(user_id)
-    deleted = await fetch_one(
+    deleted = await review_comment_writes.write(submission_id, user_id,
         """
         UPDATE content_review_comments SET deleted_at = NOW(), updated_at = NOW()
         WHERE id = $1 AND submission_id = $2 AND deleted_at IS NULL AND (author_id = $3 OR $4)
