@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 
 from services.ai.observability import ai_observability
 from services.compliance.submissions import submission_service as svc
-from services.compliance.submissions.submission_cancellation import run_until_disconnected
+from services.compliance.submissions.disconnected_analysis import run_until_disconnected
 
 logger = logging.getLogger(__name__)
 
