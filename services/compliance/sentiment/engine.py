@@ -209,9 +209,17 @@ def _is_unavailable(e: Exception) -> bool:
 
 
 def _models_to_try(inp: Dict[str, Any], fallback: bool = True) -> List[str]:
-    """The input's own model first, then the rest of the chain (unless fallback is off, e.g. to test one model)."""
+    """Use the cheapest model for routine posts, and stronger models first when high_stakes=True."""
     first = _model_for(inp)
-    return [first] + ([m for m in MODEL_CHAIN if m != first] if fallback else [])
+    if not fallback:
+        return [first]
+    if os.getenv("SENTIMENT_MODEL", "").strip() or os.getenv("SENTIMENT_MODELS", "").strip():
+        return [first] + [m for m in MODEL_CHAIN if m != first]
+    from services.ai.core import model_router
+    routed = model_router.route("SENTIMENT", high_stakes=bool(inp.get("high_stakes"))).models
+    if first and first not in ("default", "") and first not in routed:
+        routed = routed + [first]
+    return routed or ([first] if first else list(MODEL_CHAIN))
 
 
 async def _generate(client: genai.Client, inp: Dict[str, Any], video: Optional[types.File],

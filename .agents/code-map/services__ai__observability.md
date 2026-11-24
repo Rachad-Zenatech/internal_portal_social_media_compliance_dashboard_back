@@ -57,13 +57,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `flush` (def) L388 - Write whatever is still queued (on shutdown, before the pool closes).
 - `writer_loop` (def) L401 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
 
-## services/ai/observability/ai_observability_service.py (125 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
+## services/ai/observability/ai_observability_service.py (152 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - `_attrs` (def) L9
 - `usage_summary` (def) L13
 - `summary` (def) L36
 - `list_traces` (def) L76
 - `get_trace` (def) L97
 - `list_prompt_logs` (def) L111
+- `list_ai_errors` (def) L127 - Recent AI errors and blocked calls within `hours`, optionally filtered by feature and/or model.
 
 ## services/ai/observability/ai_overview_service.py (422 lines) - Combined AI health, feature-to-core mapping, and usage overview for System & Security.
 - `_routing_tier` (def) L43

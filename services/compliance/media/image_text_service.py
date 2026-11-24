@@ -119,8 +119,15 @@ async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None,
         http_options=types.HttpOptions(timeout=TIMEOUT_SEC * 1000),
     )
     client = _get_client()
+    if models is not None:
+        raw_models = models
+    elif os.getenv("IMAGE_TEXT_MODELS", "").strip():
+        raw_models = MODELS
+    else:
+        from services.ai.core import model_router
+        raw_models = model_router.route(feature, attachments=1).models or MODELS
     last_error: Optional[Exception] = None
-    for model in dict.fromkeys(without_retired(models if models is not None else MODELS)):
+    for model in dict.fromkeys(without_retired(raw_models)):
         try:
             return await ai_observability.generate(client, model=model, contents=contents, config=config, feature=feature)
         except Exception as e:

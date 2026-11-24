@@ -29,9 +29,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
 
-from google import genai
-from google.genai import types
-
 from services.ai.observability.ai_observability import span
 
 logger = logging.getLogger(__name__)
