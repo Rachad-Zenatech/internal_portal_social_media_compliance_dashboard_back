@@ -1273,19 +1273,18 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
         raise HTTPException(status_code=422, detail="Add a title or caption before running the check")
     await manual_check_service.require_compliance_ready(row)
     await transcription_service.retry_failed_videos(submission_id)
-    # Duplicates are settled before the compliance check, not when the post is sent: a true duplicate is refused here,
-    # and a repost for another date is confirmed here (sending still refuses a duplicate made by later edits).
+    await image_text_service.retry_failed_images(submission_id)
+    # Settle duplicates before checking, including confirmation of reposts for another date.
     duplicates = await _require_not_duplicate(row, confirm_repost)
     attempts: Dict[str, Dict[str, Any]] = {}
     outer = ai_observability.attempt_listener.get()
+    check_started_at = datetime.now(timezone.utc)
     started = time.perf_counter()
-
     def record(event: Dict[str, Any]) -> None:
         if event.get("event") == "attempt" and event.get("id"):
             attempts[event["id"]] = {k: event.get(k) for k in ("id", "status", "model", "feature", "attempt", "tier", "error_kind", "error", "duration_ms")}
         if outer is not None:
             outer(event)
-
     token = ai_observability.attempt_listener.set(record)
     refresh_token = source_recheck.refresh.set(refresh_sources)
     try:
@@ -1300,6 +1299,8 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            if not await _check_still_current(conn, row, check_started_at):
+                raise HTTPException(status_code=409, detail="The post changed during the check. Run it again on the latest content.")
             await conn.execute("UPDATE content_submissions SET latest_check = $2::jsonb, updated_at = NOW() WHERE id = $1",
                                submission_id, json.dumps(check))
             await _mirror_to_script_version(conn, submission_id, check)
@@ -2123,9 +2124,8 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            current = await conn.fetchval(
-                "SELECT status FROM content_submissions WHERE id = $1 FOR UPDATE", submission_id
-            )
+            from services.compliance.submissions.caption_review_service import decision_status
+            current = await decision_status(conn, row)
             if current != "IN_REVIEW":
                 raise HTTPException(status_code=409, detail="Someone else just decided on this; refresh to see it")
             await conn.execute(

@@ -16,15 +16,15 @@ def test_weak_newsroom_matches_do_not_trigger_comparisons():
     compare.assert_not_called()
 
 
-def test_cited_source_is_checked_before_automatic_newsroom_matches():
+def test_supported_cited_source_does_not_skip_relevant_newsroom_matches():
     claim = {"claim": "Drone payload is 50 kg", "where": "caption"}
     sources = [(SourceCheck(reference="official", kind="URL", where="source_links", status="READ"), ("official", "Payload is 50 kg.")),
                (SourceCheck(reference="news", kind="URL", where="newsroom", status="READ"), ("news", "Payload is 50 kg."))]
     compare = AsyncMock(return_value=[SourceClaim(**claim, verdict="SUPPORTED", confidence=.95)])
     with patch.object(routing.source_passages, "rank", AsyncMock(return_value=[[.6, .9]])):
         assert asyncio.run(routing.verify([claim], sources, compare)) == set()
-    assert compare.await_count == 1
-    assert compare.await_args.args[0].reference == "official"
+    assert compare.await_count == 2
+    assert {call.args[0].reference for call in compare.await_args_list} == {"official", "news"}
 
 
 def test_article_union_does_not_expand_each_claims_fallbacks():

@@ -4,8 +4,8 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/creator_dismissal_service.py (66 lines) - Creator dismissal requests that must follow a submission into review.
-- `carry_pending_requests` (def) L9 - Move draft requests to the review version created when the post is sent.
-- `repair_pending_review_requests` (def) L21 - Repair requests created before draft requests were carried into review.
-- `pending_send_score` (def) L27 - Potential routing score; no request changes the actual score or approves a flag.
-- `send_score` (def) L52 - Only this creator's pending requests on the current version can unlock review routing.
+## services/compliance/submissions/creator_dismissal_service.py (67 lines) - Creator dismissal requests that must follow a submission into review.
+- `carry_pending_requests` (def) L10 - Move draft requests to the review version created when the post is sent.
+- `repair_pending_review_requests` (def) L22 - Repair requests created before draft requests were carried into review.
+- `pending_send_score` (def) L28 - Potential routing score; no request changes the actual score or approves a flag.
+- `send_score` (def) L53 - Only this creator's pending requests on the current version can unlock review routing.

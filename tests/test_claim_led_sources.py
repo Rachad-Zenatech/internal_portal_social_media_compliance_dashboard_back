@@ -86,7 +86,7 @@ class ClaimRoutingTests(unittest.IsolatedAsyncioTestCase):
     async def test_full_run_passes_only_assigned_inventory_to_each_source(self):
         claims = [item("Drone payload is 50 kg"), item("Battery lasts 10 hours")]
         calls = []
-        async def compare(text, label, title, url, published, source_text, *, inventory):
+        async def compare(text, label, title, url, published, source_text, *, inventory, failure_reasons=None):
             calls.append((label, inventory))
             return [sc._Result(**claim, verdict="SUPPORTED", evidence=claim["claim"], confidence=.95) for claim in inventory], "mock"
         async def checked(results, source_text):

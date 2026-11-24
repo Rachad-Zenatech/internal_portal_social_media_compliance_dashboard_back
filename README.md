@@ -259,7 +259,10 @@ flowchart LR
 ```
 
 ### RAG (retrieval at query time)
-- `vector_store_service` embeds text with Gemini (`gemini-embedding-2`) into MongoDB Atlas Vector Search. It is off until `MONGODB_URI` is set, and every caller carries on without it.
+- `vector_store_service` uses a separately configured embedding provider; Claude still handles the reviews. The existing default is Bedrock. For Gemini embeddings, configure `EMBEDDING_PROVIDER=gemini`, `GEMINI_API_KEY`, `GEMINI_EMBEDDING_MODEL=gemini-embedding-2` and `GEMINI_EMBEDDING_DIMENSIONS=768`.
+- Gemini's free tier has quotas, and the API key's project determines billing and data-use terms. `GEMINI_EMBEDDING_REQUESTS_PER_MINUTE` defaults to 60 embedded inputs per minute, reserving one third for background indexing and the rest for interactive retrieval. Only background jobs wait for capacity; reviews use available references when the foreground budget is busy. Passage matching and vector-query embedding waits are bounded at 3 and 5 seconds. No paid-provider fallback is used. Indexing saves each completed batch so quota interruptions preserve progress.
+- Provider/model/dimension changes create a separate vector field and Atlas index. Existing vectors are not reused across incompatible models. Vector storage is off until `MONGODB_URI` is set, and callers continue without retrieval when it is unavailable.
+- If Atlas has no free index slots, `VECTOR_INDEX_OVERRIDE` can name an existing index in this app's collection. Its existing fields are preserved and the selected provider's separate vector field is added; old vectors are never relabeled as the new model's vectors.
 - What's indexed:
   - the compliance rulebook and Messaging Context (brand voice, facts, platform norms, audience profiles), via `reference_index_service`, re-synced after every change and on start;
   - past review decisions (`review_memory_service`);

@@ -89,6 +89,21 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `configure` (def) L8
 - `text_models` (def) L26 - Text judgments may use every explicitly configured general fallback, including those used by rulebook checks.
 
+## services/ai/core/embedding_service.py (147 lines) - Choose an embedding provider independently of the Claude review models.
+- `EmbeddingCapacityBusy` (class) L18 - Interactive retrieval must not queue behind a background index rebuild.
+- `_capacity` (def) L22
+- `_pace` (def) L28 - Reserve separate rolling capacity; only background indexing is allowed to wait.
+- `provider` (def) L48
+- `model_id` (def) L55
+- `dimensions` (def) L62
+- `vector_path` (def) L71
+- `is_configured` (def) L78
+- `GeminiEmbeddingError` (class) L85
+    - `__init__` (def) L86
+- `_vectors` (def) L91
+- `_request` (def) L106
+- `embed` (def) L127
+
 ## services/ai/core/gemini_service.py (201 lines) - gemini service (ai core)
 - `_normalize_ai_model_name` (def) L8 - Normalizes a model name from the environment variable list
 - `_model_failure_cooldown_seconds` (def) L36 - Avoid retrying a model known to be unavailable while a request burst is in progress.
@@ -132,32 +147,33 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `store` (def) L164 - Cache an answer for the question of an earlier lookup.
 - `clear` (def) L188 - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
-## services/ai/core/vector_store_service.py (347 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
-- `_setting` (def) L43
-- `database_name` (def) L47
-- `collection_name` (def) L51
-- `index_name` (def) L55
-- `embedding_model` (def) L59
-- `is_enabled` (def) L64
-- `named_collection` (def) L71 - Another collection in the same database, over the same connection, or None when MONGODB_URI isn't set.
-- `_collection` (def) L89 - The project's collection, or None when MONGODB_URI isn't set.
-- `_embedding_path` (def) L94
-- `EmbeddingQuotaExhausted` (class) L106 - The embedding quota is used up; raised without calling Gemini while the pause lasts.
-- `check_embedding_quota` (def) L110 - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
-- `embedding_pause_status` (def) L117 - Return (reason, seconds_remaining) when embeddings are paused, else None.
-- `note_embedding_error` (def) L123 - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
-- `embed` (def) L146 - Return real vectors or fail explicitly; placeholders must never count as retrieval.
-- `_scope` (def) L160 - An empty scope means every value.
-- `_hash` (def) L166
-- `VectorDoc` (class) L171
-    - `doc_id` (def) L182
-- `upsert` (def) L186 - Add or update documents.
-- `delete` (def) L221
-- `delete_kind_except` (def) L231 - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
-- `_reference_changed` (def) L243 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
-- `search` (def) L253 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
-- `ensure_index` (def) L303 - Create the Atlas vector search index on the collection if it doesn't exist.
-- `status` (def) L328 - Whether the store is configured and reachable, and what's in it (no credentials).
+## services/ai/core/vector_store_service.py (379 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+- `_setting` (def) L44
+- `database_name` (def) L48
+- `collection_name` (def) L52
+- `index_name` (def) L56
+- `embedding_model` (def) L60
+- `is_enabled` (def) L65
+- `named_collection` (def) L72 - Another collection in the same database, over the same connection, or None when MONGODB_URI isn't set.
+- `_collection` (def) L90 - The project's collection, or None when MONGODB_URI isn't set.
+- `_embedding_path` (def) L95
+- `EmbeddingQuotaExhausted` (class) L108 - The embedding quota is used up; raised without calling Gemini while the pause lasts.
+- `check_embedding_quota` (def) L112 - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
+- `embedding_pause_status` (def) L119 - Return (reason, seconds_remaining) when embeddings are paused, else None.
+- `note_embedding_error` (def) L125 - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
+- `embed` (def) L152 - Return real vectors or fail explicitly; placeholders must never count as retrieval.
+- `_scope` (def) L166 - An empty scope means every value.
+- `_hash` (def) L172
+- `VectorDoc` (class) L177
+    - `doc_id` (def) L188
+- `upsert` (def) L192 - Checkpoint small batches so a free-tier quota pause preserves already indexed material.
+- `_upsert_batch` (def) L202 - Add or update documents.
+- `delete` (def) L237
+- `delete_kind_except` (def) L247 - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
+- `_reference_changed` (def) L259 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
+- `search` (def) L269 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
+- `ensure_index` (def) L320 - Create the Atlas vector search index on the collection if it doesn't exist.
+- `status` (def) L360 - Whether the store is configured and reachable, and what's in it (no credentials).
 
 ## services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - `collection_name` (def) L36

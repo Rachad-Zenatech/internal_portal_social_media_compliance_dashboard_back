@@ -4,26 +4,26 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/flag_review_service.py (445 lines) - Reviewers' calls on automated compliance flags.
-- `_json` (def) L36
-- `_out` (def) L40
-- `_creator_request_out` (def) L61
-- `creator_requests_for` (def) L72
-- `request_dismissal` (def) L82
-- `approve_creator_request` (def) L100
-- `reject_creator_request` (def) L111 - Decline the request and use the normal review decision to return the post for changes.
-- `list_for` (def) L146
-- `_reviewable` (def) L154 - The submission, if this user may make calls on its flags now: a reviewer, while it's in review.
-- `dismiss` (def) L168
-- `_save_verdict` (def) L217 - Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag.
-- `undo` (def) L226
-- `_verdict_out` (def) L252
-- `verdicts_for` (def) L267 - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
-- `confirm` (def) L278 - A reviewer says a flag is right.
-- `unconfirm` (def) L312
-- `score_after_dismissals` (def) L327 - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
-- `ApprovalStanding` (class) L350
-    - `score_too_low` (def) L360
-- `approval_standing` (def) L364 - Per submission, what stands between its current version and approval: open critical flags and the score
-- `open_critical_counts` (def) L411 - Per submission: critical (red) flags on its current version that nobody has dismissed.
-- `rule_stats` (def) L416 - How often each rule flagged a submitted version, and how often reviewers dismissed it.
+## services/compliance/submissions/flag_review_service.py (444 lines) - Reviewers' calls on automated compliance flags.
+- `_json` (def) L37
+- `_out` (def) L41
+- `_creator_request_out` (def) L62
+- `creator_requests_for` (def) L73
+- `request_dismissal` (def) L83
+- `approve_creator_request` (def) L101
+- `reject_creator_request` (def) L112 - Decline the request and use the normal review decision to return the post for changes.
+- `list_for` (def) L147
+- `_reviewable` (def) L155 - The submission, if this user may make calls on its flags now: a reviewer, while it's in review.
+- `dismiss` (def) L169
+- `_save_verdict` (def) L218 - Keep a reviewer's call on a finding as a labelled example, replacing their earlier call on the same flag.
+- `undo` (def) L227
+- `_verdict_out` (def) L253
+- `verdicts_for` (def) L268 - Reviewers' calls on this submission's flags (right, or a false alarm), on every version.
+- `confirm` (def) L279 - A reviewer says a flag is right.
+- `unconfirm` (def) L313
+- `score_after_dismissals` (def) L328 - The rulebook score counting only the flags nobody has dismissed (by rule id): each dismissed flag gives its
+- `ApprovalStanding` (class) L351
+    - `score_too_low` (def) L361
+- `approval_standing` (def) L365 - Per submission, what stands between its current version and approval: open critical flags and the score
+- `open_critical_counts` (def) L410 - Per submission: critical (red) flags on its current version that nobody has dismissed.
+- `rule_stats` (def) L415 - How often each rule flagged a submitted version, and how often reviewers dismissed it.

@@ -83,13 +83,13 @@ def numbers(text: str) -> List[str]:
 
 
 async def _embed(text: str) -> List[float]:
-    from services.ai.core import bedrock_embeddings, vector_store_service
+    from services.ai.core import embedding_service, vector_store_service
 
-    model = bedrock_embeddings.model_id()
+    model = embedding_service.model_id()
     vector_store_service.check_embedding_quota()  # skipped while the embedding quota is used up
-    async with span("embedding", "bedrock.embed_content", model=model, texts=1, chars=len(text), purpose="semantic_cache"):
+    async with span("embedding", "embeddings.embed_content", model=model, texts=1, chars=len(text), purpose="semantic_cache"):
         try:
-            values = (await bedrock_embeddings.embed([text]))[0][:DIMENSIONS]
+            values = (await embedding_service.embed([text], task_type="SEMANTIC_SIMILARITY"))[0][:DIMENSIONS]
         except Exception as e:
             vector_store_service.note_embedding_error(e)
             raise

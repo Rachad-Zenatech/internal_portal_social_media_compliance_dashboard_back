@@ -1,8 +1,8 @@
 """Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on
 (brand voice, company facts, platform norms, audience profiles and, later, past review decisions).
 
-Uses MONGODB_URI and the shared `zenatech_ai` database. Bedrock uses real Titan embeddings
-and a model/dimension-specific field and index, so old zero vectors and Gemini vectors cannot be mixed.
+Uses MONGODB_URI and the shared `zenatech_ai` database. Gemini or Bedrock supplies real embeddings
+in provider/model/dimension-specific fields and indexes, so incompatible vectors cannot be mixed.
 This project keeps its documents in its own collection and never changes other portals' data.
 
 Off until MONGODB_URI is set: is_enabled() is False, search() returns nothing and writes are skipped, so nothing
@@ -20,6 +20,7 @@ Document shape (one per piece of reference material):
 """
 
 import asyncio
+import copy
 import hashlib
 import logging
 import os
@@ -53,11 +54,11 @@ def collection_name() -> str:
 
 
 def index_name() -> str:
-    return _setting("VECTOR_INDEX_NAME", "vector_index") + "_" + _embedding_path()
+    return os.getenv("VECTOR_INDEX_OVERRIDE", "").strip() or _setting("VECTOR_INDEX_NAME", "vector_index") + "_" + _embedding_path()
 
 
 def embedding_model() -> str:
-    from services.ai.core.bedrock_embeddings import model_id
+    from services.ai.core.embedding_service import model_id
     return model_id()
 
 
@@ -92,7 +93,7 @@ def _collection():
 
 
 def _embedding_path():
-    from services.ai.core.bedrock_embeddings import vector_path
+    from services.ai.core.embedding_service import vector_path
     return vector_path()
 
 
@@ -101,6 +102,7 @@ def _embedding_path():
 EMBED_DAILY_QUOTA_PAUSE_SECONDS = float(os.getenv("EMBEDDING_DAILY_QUOTA_PAUSE_SECONDS", "1800"))
 _embed_paused_until = 0.0
 _embed_pause_reason = "Embedding quota used up"
+_embed_paused_model = None
 
 
 class EmbeddingQuotaExhausted(RuntimeError):
@@ -110,25 +112,28 @@ class EmbeddingQuotaExhausted(RuntimeError):
 def check_embedding_quota() -> None:
     """Raise EmbeddingQuotaExhausted while embeddings are paused for the quota."""
     left = _embed_paused_until - time.time()
-    if left > 0:
+    if left > 0 and _embed_paused_model in (None, embedding_model()):
         raise EmbeddingQuotaExhausted(f"{_embed_pause_reason}; embeddings paused for another {left:.0f}s")
 
 
 def embedding_pause_status() -> Optional[tuple[str, int]]:
     """Return (reason, seconds_remaining) when embeddings are paused, else None."""
     left = _embed_paused_until - time.time()
-    return (_embed_pause_reason, int(left)) if left > 0 else None
+    return (_embed_pause_reason, int(left)) if left > 0 and _embed_paused_model in (None, embedding_model()) else None
 
 
 def note_embedding_error(error: Exception) -> None:
     """Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
     least EMBEDDING_DAILY_QUOTA_PAUSE_SECONDS (it won't come back within minutes)."""
-    global _embed_paused_until, _embed_pause_reason
+    global _embed_paused_until, _embed_pause_reason, _embed_paused_model
+    if _embed_paused_model != embedding_model():
+        _embed_paused_until = 0
     text = str(error)
-    if "AccessDeniedException" in text:
+    if "AccessDeniedException" in text or getattr(error, "code", None) in (401, 403):
+        _embed_paused_model = embedding_model()
         _embed_pause_reason = "Embedding access denied"
         _embed_paused_until = max(_embed_paused_until, time.time() + 3600)
-        logger.warning("Embedding access denied; pausing calls for 3600s. Grant InvokeModel for the embedding model.")
+        logger.warning("Embedding access denied; pausing calls for 3600s. Check the embedding provider's permissions.")
         return
     if not any(code in text for code in ("429", "RESOURCE_EXHAUSTED", "ThrottlingException", "ServiceQuotaExceededException")):
         return
@@ -137,21 +142,22 @@ def note_embedding_error(error: Exception) -> None:
     if "perday" in text.lower().replace(" ", "").replace("_", ""):
         wait = max(wait, EMBED_DAILY_QUOTA_PAUSE_SECONDS)
     _embed_pause_reason = "Embedding quota used up"
+    _embed_paused_model = embedding_model()
     # Wall-clock time, not monotonic: Docker's VM is suspended while the computer sleeps, and a monotonic clock would
     # not count those hours, so a pause until the daily quota resets would outlast the reset.
     _embed_paused_until = max(_embed_paused_until, time.time() + wait)
     logger.warning("Embedding quota reached; skipping embeddings for %.0fs", wait)
 
 
-async def embed(texts: List[str]) -> List[List[float]]:
+async def embed(texts: List[str], *, task_type="RETRIEVAL_DOCUMENT", background=False) -> List[List[float]]:
     """Return real vectors or fail explicitly; placeholders must never count as retrieval."""
     if not texts:
         return []
     check_embedding_quota()
     try:
         async with span("embedding", "vector_store.embed", model=embedding_model(), texts=len(texts)):
-            from services.ai.core.bedrock_embeddings import embed as bedrock_embed
-            return await bedrock_embed(texts)
+            from services.ai.core.embedding_service import embed as provider_embed
+            return await provider_embed(texts, task_type=task_type, background=background)
     except Exception as error:
         note_embedding_error(error)
         raise
@@ -184,6 +190,16 @@ class VectorDoc:
 
 
 async def upsert(docs: List[VectorDoc]) -> Dict[str, int]:
+    """Checkpoint small batches so a free-tier quota pause preserves already indexed material."""
+    counts = {"embedded": 0, "unchanged": 0}
+    for start in range(0, len(docs), 20):
+        result = await _upsert_batch(docs[start:start + 20])
+        for name in counts:
+            counts[name] += result[name]
+    return counts
+
+
+async def _upsert_batch(docs: List[VectorDoc]) -> Dict[str, int]:
     """Add or update documents. Only new or changed text is embedded; scope and meta are refreshed on every
     document either way; everything is written in one bulk call."""
     collection = _collection()
@@ -199,7 +215,7 @@ async def upsert(docs: List[VectorDoc]) -> Dict[str, int]:
     changed = [d for d in docs if existing.get(d.doc_id) != hashes[d.doc_id]]
     vectors = dict(zip(
         (d.doc_id for d in changed),
-        await embed([f"{d.title}\n{d.text}".strip() for d in changed]) if changed else [],
+        await embed([f"{d.title}\n{d.text}".strip() for d in changed], background=True) if changed else [],
     ))
     now = datetime.now(timezone.utc)
     ops = []
@@ -276,7 +292,8 @@ async def search(
         filters.append({"platforms": {"$in": [*platforms, ALL]}})
     try:
         async with span("retrieval", "vector_store.search", kinds=kinds, limit=limit, min_score=min_score) as s:
-            query_vector = (await embed([query]))[0]
+            query_vector = (await asyncio.wait_for(embed([query], task_type="RETRIEVAL_QUERY"),
+                           timeout=float(os.getenv("VECTOR_QUERY_EMBED_TIMEOUT_SEC", "5"))))[0]
             stage: Dict[str, Any] = {
                 "index": index_name(), "path": _embedding_path(), "queryVector": query_vector,
                 "numCandidates": max(50, limit * 10), "limit": limit,
@@ -307,11 +324,26 @@ async def ensure_index() -> Dict[str, Any]:
     if collection is None:
         return {"created": False, "reason": "MONGODB_URI isn't set"}
     existing = [ix async for ix in collection.list_search_indexes(index_name())]
+    from services.ai.core.embedding_service import dimensions as configured_dimensions
+    dimensions = configured_dimensions()
     if existing:
+        definition = copy.deepcopy(existing[0].get("latestDefinition") or {})
+        fields = definition.get("fields")
+        if not isinstance(fields, list):
+            raise ValueError("Existing vector index has no readable field definition; leaving it unchanged")
+        current = next((field for field in fields if field.get("path") == _embedding_path()), None)
+        if current is not None and current.get("numDimensions") != dimensions:
+            raise ValueError("Existing vector field has incompatible dimensions; leaving the index unchanged")
+        missing_filters = [path for path in FILTER_PATHS if not any(f.get("path") == path and f.get("type") == "filter" for f in fields)]
+        if current is None or missing_filters:
+            if current is None:
+                fields.append({"type": "vector", "path": _embedding_path(), "numDimensions": dimensions, "similarity": "cosine"})
+            fields.extend({"type": "filter", "path": path} for path in missing_filters)
+            await collection.update_search_index(index_name(), definition)
+            return {"created": False, "updated": True, "dimensions": dimensions}
         return {"created": False, "reason": "already exists", "status": existing[0].get("status")}
     from pymongo.operations import SearchIndexModel
 
-    dimensions = len((await embed(["dimension probe"]))[0])
     definition = {
         "fields": [
             {"type": "vector", "path": _embedding_path(), "numDimensions": dimensions, "similarity": "cosine"},

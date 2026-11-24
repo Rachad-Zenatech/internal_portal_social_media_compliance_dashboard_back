@@ -28,7 +28,7 @@ async def check_still_current(conn, row, started):
     if not cur:
         return False
     marker = "media_edited_at" if "media_edited_at" in row else "content_edited_at"
-    if any(cur.get(key) != row.get(key) for key in ("status", "current_version", marker)):
+    if any(cur.get(key) != row.get(key) for key in ("status", "current_version", marker, "content_edited_at")):
         return False
     saved = cur.get("latest_check") or {}
     saved = json.loads(saved) if isinstance(saved, str) else saved

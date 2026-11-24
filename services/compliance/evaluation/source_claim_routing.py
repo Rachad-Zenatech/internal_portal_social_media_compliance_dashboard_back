@@ -33,8 +33,21 @@ async def plans(inventory, readings):
 
 
 async def verify(inventory, readings, compare):
-    """Group first-choice assignments; supported claims never get sent to unrelated additional sources."""
+    """Check cited sources and relevant newsroom evidence independently, in parallel."""
     choices = await plans(inventory, readings)
+    cited = [[i for i in sources if not newsroom_facts.is_newsroom(readings[i][0])] for sources in choices]
+    newsroom = [[i for i in sources if newsroom_facts.is_newsroom(readings[i][0])] for sources in choices]
+    results = await asyncio.gather(
+        _verify_choices(inventory, readings, compare, cited),
+        _verify_choices(inventory, readings, compare, newsroom),
+    )
+    errors = set().union(*(failed for failed, _ in results))
+    settled = set().union(*(done for _, done in results))
+    return errors - settled
+
+
+async def _verify_choices(inventory, readings, compare, choices):
+    """Stop fallback within each source group once that group settles the claim."""
     remaining = set(range(len(inventory)))
     errors = set()
     while remaining:
@@ -59,4 +72,6 @@ async def verify(inventory, readings, compare):
                 elif claim.verdict in {"SUPPORTED", "CONTRADICTED"}:
                     remaining.discard(index)
                     errors.discard(index)
-    return {key(inventory[i]) for i in remaining & errors}
+    failed = {key(inventory[i]) for i in remaining & errors}
+    settled = {key(inventory[i]) for i in set(range(len(inventory))) - remaining}
+    return failed, settled

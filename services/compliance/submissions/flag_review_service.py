@@ -28,6 +28,7 @@ from models.compliance.flag_review_model import (
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.shared.core.audit_service import log_audit_event
 from services.compliance.submissions import finding_precedent_service, check_snapshot_feedback
+from services.compliance.submissions.caption_review_service import feedback_is_current_sql
 
 # The least rulebook score (counting only flags nobody has dismissed) content needs to be approved.
 MIN_APPROVAL_SCORE = max(90, int(os.getenv("MIN_APPROVAL_SCORE", "90")))
@@ -75,7 +76,7 @@ async def creator_requests_for(submission_id: UUID, user_id: UUID) -> List[Creat
     if row["status"] == "IN_REVIEW" and row["current_version"] > 0:
         from services.compliance.submissions import creator_dismissal_service
         await creator_dismissal_service.repair_pending_review_requests(submission_id, row["current_version"])
-    rows = await fetch_all(_CREATOR_REQUEST_SELECT + " WHERE r.submission_id = $1 ORDER BY r.version_number DESC, r.requested_at", submission_id)
+    rows = await fetch_all(_CREATOR_REQUEST_SELECT + " WHERE r.submission_id = $1 AND " + feedback_is_current_sql("r", "requested_at") + " ORDER BY r.version_number DESC, r.requested_at", submission_id)
     return [_creator_request_out(r) for r in rows]
 
 
@@ -147,7 +148,7 @@ async def list_for(submission_id: UUID, user_id: UUID) -> List[FlagReview]:
     from services.compliance.submissions import submission_service
 
     await submission_service._get_owned_row(submission_id, user_id, manager_can_read=True)
-    rows = await fetch_all(_SELECT + " WHERE f.submission_id = $1 ORDER BY f.version_number DESC, f.decided_at", submission_id)
+    rows = await fetch_all(_SELECT + " WHERE f.submission_id = $1 AND " + feedback_is_current_sql("f") + " ORDER BY f.version_number DESC, f.decided_at", submission_id)
     return [_out(r) for r in rows]
 
 
@@ -270,7 +271,7 @@ async def verdicts_for(submission_id: UUID, user_id: UUID) -> List[FindingVerdic
 
     await submission_service._get_owned_row(submission_id, user_id, manager_can_read=True)
     rows = await fetch_all(
-        _VERDICT_SELECT + " WHERE f.submission_id = $1 ORDER BY f.version_number DESC, f.decided_at", submission_id
+        _VERDICT_SELECT + " WHERE f.submission_id = $1 AND " + feedback_is_current_sql("f") + " ORDER BY f.version_number DESC, f.decided_at", submission_id
     )
     return [_verdict_out(r) for r in rows]
 
@@ -284,7 +285,7 @@ async def confirm(submission_id: UUID, rule_id: UUID, user_id: UUID, req: FlagCo
     if not v:
         raise HTTPException(status_code=404, detail="That rule isn't flagged on the version in review")
     if await fetch_one(
-        "SELECT 1 AS x FROM flag_reviews WHERE submission_id = $1 AND version_number = $2 AND rule_id = $3",
+        "SELECT 1 AS x FROM flag_reviews f WHERE submission_id = $1 AND version_number = $2 AND rule_id = $3 AND " + feedback_is_current_sql("f"),
         submission_id, row["current_version"], rule_id,
     ):
         raise HTTPException(status_code=409, detail="This flag was dismissed. Restore it first if it is right after all")
@@ -371,8 +372,7 @@ async def approval_standing(rows: Iterable[Dict[str, Any]]) -> Dict[UUID, Approv
         """
         SELECT f.submission_id, f.rule_id FROM flag_reviews f
         JOIN content_submissions s ON s.id = f.submission_id AND s.current_version = f.version_number
-        WHERE f.submission_id = ANY($1::uuid[])
-        """,
+        WHERE f.submission_id = ANY($1::uuid[]) AND """ + feedback_is_current_sql("f"),
         [r["id"] for r in rows],
     )
     done: Dict[UUID, Set[str]] = {}
@@ -382,8 +382,7 @@ async def approval_standing(rows: Iterable[Dict[str, Any]]) -> Dict[UUID, Approv
         """
         SELECT v.submission_id, v.rule_id FROM finding_verdicts v
         JOIN content_submissions s ON s.id = v.submission_id AND s.current_version = v.version_number
-        WHERE v.submission_id = ANY($1::uuid[]) AND v.verdict = 'CORRECT'
-        """,
+        WHERE v.submission_id = ANY($1::uuid[]) AND v.verdict = 'CORRECT' AND """ + feedback_is_current_sql("v"),
         [r["id"] for r in rows],
     )
     agreed: Dict[UUID, Set[str]] = {}

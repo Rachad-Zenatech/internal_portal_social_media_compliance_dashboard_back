@@ -10,7 +10,7 @@ async def require_approval(row, user_id, is_super):
     # "needs review", so there'd be no score to hold to the minimum.
     saved = subs._json(row["latest_check"]) or {}
     current_rulebook = await subs.compliance_rulebook_version()
-    if saved and saved.get("rulebook_version") != current_rulebook:
+    if saved and (saved.get("rulebook_version") != current_rulebook or saved.get("review_caption_edited")):
         # Keep approval safe when the rules changed after the check: refresh the stored result before applying
         # the detailed approval gates below.
         await subs._recheck_one(dict(row), lambda before, result, check: None)
@@ -18,6 +18,8 @@ async def require_approval(row, user_id, is_super):
         if row["status"] != "IN_REVIEW":
             raise HTTPException(status_code=409, detail="The post changed while it was re-checked; open it again")
         saved = subs._json(row["latest_check"]) or {}
+    if saved.get("review_caption_edited"):
+        raise HTTPException(status_code=409, detail="The caption changed during its compliance check. Review the latest wording and try approval again.")
     subs.manual_check_service.require_current_check(row, current_rulebook, allow_incomplete=True, validate=False)
     if subs.analysis_pending(saved):
         raise HTTPException(

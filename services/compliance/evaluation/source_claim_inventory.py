@@ -116,6 +116,8 @@ async def extract(text, ask, models, limit):
                 partial = candidate
         except Exception as error:
             logger.warning("Claim extraction could not finish: model=%s error_type=%s", model, type(error).__name__)
+            if getattr(error, 'code', None) == 'OUTPUT_LIMIT':
+                break
     return partial
 
 

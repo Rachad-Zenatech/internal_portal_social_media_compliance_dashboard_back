@@ -1274,7 +1274,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     _ai_incomplete.set(False)
     violations.extend(await _semantic_findings(match_req, rules, found, padded_text, disclaimer_padded))
 
-    # Compare the fixed claim inventory with available sources; retain partial findings when coverage is incomplete.
+    semantic_incomplete = _ai_incomplete.get()
     source_result = await rule18_policy.check_sources(req)
     if source_result.ai_failed:
         _ai_incomplete.set(True)
@@ -1292,7 +1292,6 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     army_context_review.include(req, rules, violations, candidates)
     await context_evaluator.evaluate(candidates, req.text, brand=req.brand_code)
     source_check_service.clear_supported(violations, source_result.checks)
-    # The check is incomplete when a context rule couldn't be read, or the meaning check couldn't run at all.
     visual_checks = await visual_review.review(req, rules, violations)
     ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations) or any(c["status"] == "UNAVAILABLE" for c in visual_checks)
     synthetic_media_disclosure.ensure_review(match_req, rules, violations)
@@ -1307,7 +1306,8 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         scope, rules, violations, breaches, unsupported, to_check, signals,
         ai_unavailable, notes, source_result.checks, await rulebook_version(),
     )
-    return response.model_copy(update={"visual_checks": visual_checks})
+    from services.compliance.evaluation.compliance_diagnostics import stages
+    return response.model_copy(update={"visual_checks": visual_checks, "incomplete_stages": stages(semantic_incomplete, source_result, violations, visual_checks)})
 
 
 

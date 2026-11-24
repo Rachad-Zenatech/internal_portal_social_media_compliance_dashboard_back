@@ -68,30 +68,30 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_mirror_to_script_version` (def) L1255 - A check saved on the post while its script is with the reviewer is also the script version's check, so both
 - `run_initial_check` (def) L1270
     - `record` (def) L1283
-- `_missing_for_submit` (def) L1313
-- `details_missing` (def) L1359 - What the post still needs before its compliance check, sentiment analysis and public mood can be run.
-- `require_details_complete` (def) L1364 - The three tools read a finished post, so they are refused until its details are filled in.
-- `require_details_complete_for` (def) L1377
-- `_require_not_duplicate` (def) L1381 - The same content and caption, already sent for approval to the same place on the same date, can't be sent
-- `_review_job` (def) L1407
-- `_validate_submit_dates` (def) L1427
-- `_submit_reviewer_ids` (def) L1442
-- `submit_for_review` (def) L1463
-- `_queue_filter` (def) L1605
-- `dashboard_summary` (def) L1628 - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
-- `review_queue_counts` (def) L1721 - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
-- `review_queue` (def) L1747 - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
-- `get_version` (def) L1868 - A past (or the current) submitted version, for looking back at what it was and how it was decided.
-- `get_history` (def) L1917
-- `_reviewer_ids` (def) L1960 - Active users who can review: super admins and roles with "Review & Publish Content".
-- `_suggester_ids` (def) L1993 - Active suggesting reviewers ("Suggest on Content") on any of the brands, who can be attached to a post.
-- `_creator_exclusion` (def) L1998 - Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
-- `reviewer_options` (def) L2004 - The people a creator can send content to: reviewers and super admins (on any of the brands, when given).
-- `_review_recipients` (def) L2021 - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
-- `_score_line` (def) L2035 - The check's score for a message, or that it's still being analysed.
-- `_check_summary` (def) L2044
-- `_notify_reviewers` (def) L2052
-- `decide_review` (def) L2076 - A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
+- `_missing_for_submit` (def) L1314
+- `details_missing` (def) L1360 - What the post still needs before its compliance check, sentiment analysis and public mood can be run.
+- `require_details_complete` (def) L1365 - The three tools read a finished post, so they are refused until its details are filled in.
+- `require_details_complete_for` (def) L1378
+- `_require_not_duplicate` (def) L1382 - The same content and caption, already sent for approval to the same place on the same date, can't be sent
+- `_review_job` (def) L1408
+- `_validate_submit_dates` (def) L1428
+- `_submit_reviewer_ids` (def) L1443
+- `submit_for_review` (def) L1464
+- `_queue_filter` (def) L1606
+- `dashboard_summary` (def) L1629 - Recent activity and last-30-days compliance insights, over the content the viewer can see: everyone's on
+- `review_queue_counts` (def) L1722 - How many posts are in each Screener tab, for the tab labels (mine=True: only the user's own).
+- `review_queue` (def) L1748 - Submitted posts of every type for one Content Screener tab: everyone's for reviewers, Content Managers and
+- `get_version` (def) L1869 - A past (or the current) submitted version, for looking back at what it was and how it was decided.
+- `get_history` (def) L1918
+- `_reviewer_ids` (def) L1961 - Active users who can review: super admins and roles with "Review & Publish Content".
+- `_suggester_ids` (def) L1994 - Active suggesting reviewers ("Suggest on Content") on any of the brands, who can be attached to a post.
+- `_creator_exclusion` (def) L1999 - Who is left out of the reviewers a post can go to: its creator, except a super admin, who can already review
+- `reviewer_options` (def) L2005 - The people a creator can send content to: reviewers and super admins (on any of the brands, when given).
+- `_review_recipients` (def) L2022 - Who gets a post's review notifications: the reviewers it was sent to (still able to review), or every
+- `_score_line` (def) L2036 - The check's score for a message, or that it's still being analysed.
+- `_check_summary` (def) L2045
+- `_notify_reviewers` (def) L2053
+- `decide_review` (def) L2077 - A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
 - `_approved_row_for_reviewer` (def) L2189 - An approved submission the user may manage as a reviewer (not their own upload, unless super admin).
 - `reopen_approved` (def) L2202 - A reviewer takes back an approval (for example a late legal concern) and sends the content to its creator
 - `reschedule_approved` (def) L2268 - A reviewer moves approved content to a new publish time.
