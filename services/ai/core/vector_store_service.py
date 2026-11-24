@@ -29,9 +29,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
 
-from google import genai
-from google.genai import types
-
 from services.ai.observability.ai_observability import span
 
 logger = logging.getLogger(__name__)
@@ -56,14 +53,12 @@ def collection_name() -> str:
 
 
 def index_name() -> str:
-    return _setting("VECTOR_INDEX_NAME", "vector_index") + ("_" + _embedding_path() if _uses_bedrock() else "")
+    return _setting("VECTOR_INDEX_NAME", "vector_index") + "_" + _embedding_path()
 
 
 def embedding_model() -> str:
-    if _uses_bedrock():
-        from services.ai.core.bedrock_embeddings import model_id
-        return model_id()
-    return _setting("VECTOR_EMBEDDING_MODEL", "gemini-embedding-2")
+    from services.ai.core.bedrock_embeddings import model_id
+    return model_id()
 
 
 def is_enabled() -> bool:
@@ -71,7 +66,6 @@ def is_enabled() -> bool:
 
 
 _client = None
-_gemini: Optional[genai.Client] = None
 
 
 def named_collection(name: str):
@@ -91,27 +85,16 @@ def _collection():
     return named_collection(collection_name())
 
 
-def _uses_bedrock():
-    from services.ai.core.bedrock_service import is_bedrock_enabled
-    return is_bedrock_enabled()
-
-
 def _embedding_path():
     from services.ai.core.bedrock_embeddings import vector_path
-    return vector_path() if _uses_bedrock() else "embedding"
-
-
-def _gemini_client() -> Any:
-    global _gemini
-    if _gemini is None:
-        _gemini = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    return _gemini
+    return vector_path()
 
 
 # Once Gemini says the embedding quota is used up, embedding calls are skipped until it should be back, instead of
 # every search and index run asking again (and waiting on retries) only to be refused.
 EMBED_DAILY_QUOTA_PAUSE_SECONDS = float(os.getenv("EMBEDDING_DAILY_QUOTA_PAUSE_SECONDS", "1800"))
 _embed_paused_until = 0.0
+_embed_pause_reason = "Embedding quota used up"
 
 
 class EmbeddingQuotaExhausted(RuntimeError):
@@ -122,17 +105,24 @@ def check_embedding_quota() -> None:
     """Raise EmbeddingQuotaExhausted while embeddings are paused for the quota."""
     left = _embed_paused_until - time.time()
     if left > 0:
-        raise EmbeddingQuotaExhausted(f"Embedding quota used up; embeddings paused for another {left:.0f}s")
+        raise EmbeddingQuotaExhausted(f"{_embed_pause_reason}; embeddings paused for another {left:.0f}s")
+
+
+def embedding_pause_status() -> Optional[tuple[str, int]]:
+    """Return (reason, seconds_remaining) when embeddings are paused, else None."""
+    left = _embed_paused_until - time.time()
+    return (_embed_pause_reason, int(left)) if left > 0 else None
 
 
 def note_embedding_error(error: Exception) -> None:
     """Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
     least EMBEDDING_DAILY_QUOTA_PAUSE_SECONDS (it won't come back within minutes)."""
-    global _embed_paused_until
+    global _embed_paused_until, _embed_pause_reason
     text = str(error)
     if "AccessDeniedException" in text:
-        _embed_paused_until = max(_embed_paused_until, time.time() + 300)
-        logger.warning("Embedding access denied; pausing calls for 300s. Grant InvokeModel for the embedding model.")
+        _embed_pause_reason = "Embedding access denied"
+        _embed_paused_until = max(_embed_paused_until, time.time() + 3600)
+        logger.warning("Embedding access denied; pausing calls for 3600s. Grant InvokeModel for the embedding model.")
         return
     if not any(code in text for code in ("429", "RESOURCE_EXHAUSTED", "ThrottlingException", "ServiceQuotaExceededException")):
         return
@@ -140,6 +130,7 @@ def note_embedding_error(error: Exception) -> None:
     wait = float(m.group(1)) if m else 60.0
     if "perday" in text.lower().replace(" ", "").replace("_", ""):
         wait = max(wait, EMBED_DAILY_QUOTA_PAUSE_SECONDS)
+    _embed_pause_reason = "Embedding quota used up"
     # Wall-clock time, not monotonic: Docker's VM is suspended while the computer sleeps, and a monotonic clock would
     # not count those hours, so a pause until the daily quota resets would outlast the reset.
     _embed_paused_until = max(_embed_paused_until, time.time() + wait)
@@ -153,17 +144,8 @@ async def embed(texts: List[str]) -> List[List[float]]:
     check_embedding_quota()
     try:
         async with span("embedding", "vector_store.embed", model=embedding_model(), texts=len(texts)):
-            if _uses_bedrock():
-                from services.ai.core.bedrock_embeddings import embed as bedrock_embed
-                return await bedrock_embed(texts)
-            vectors = []
-            for start in range(0, len(texts), EMBED_BATCH):
-                contents = [types.Content(parts=[types.Part(text=t)]) for t in texts[start:start + EMBED_BATCH]]
-                res = await _gemini_client().aio.models.embed_content(model=embedding_model(), contents=contents)
-                vectors.extend(list(e.values or []) for e in res.embeddings or [])
-            if len(vectors) != len(texts) or any(not v or not any(v) for v in vectors):
-                raise RuntimeError("Embedding provider returned missing or zero vectors")
-            return vectors
+            from services.ai.core.bedrock_embeddings import embed as bedrock_embed
+            return await bedrock_embed(texts)
     except Exception as error:
         note_embedding_error(error)
         raise
@@ -304,6 +286,9 @@ async def search(
             found = [r for r in rows if r.get("score", 0) >= min_score]
             s.attributes.update(results=len(found), top_score=round(found[0]["score"], 4) if found else None)
             return found
+    except EmbeddingQuotaExhausted as e:
+        logger.debug("Vector search skipped while embeddings paused: %s", e)
+        return []
     except Exception as e:
         logger.warning("Vector search failed (continuing without it): %s", e)
         return []

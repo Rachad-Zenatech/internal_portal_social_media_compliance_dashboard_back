@@ -20,23 +20,28 @@ from fastapi import HTTPException
 
 from postgresql_db.database import get_pool
 
-Feature = Literal["SENTIMENT", "TRANSCRIPTION", "PUBLIC_MOOD", "CAPTION", "CHAT"]
+Feature = Literal["SENTIMENT", "TRANSCRIPTION", "PUBLIC_MOOD", "CAPTION", "CHAT", "SOURCE_CHECK", "IMAGE_TEXT", "SCRIPT_FIX"]
 FEATURE_NAMES: Dict[str, str] = {
     "SENTIMENT": "sentiment analyses",
     "TRANSCRIPTION": "video transcriptions",
     "PUBLIC_MOOD": "public mood summaries",
     "CAPTION": "caption suggestions",
     "CHAT": "assistant chat replies",
+    "SOURCE_CHECK": "source link checks",
+    "IMAGE_TEXT": "image reads",
+    "SCRIPT_FIX": "script fix suggestions",
 }
 
-# Rolling daily caps; each scope remains configurable through the environment.
+# Default to uncapped (0 = unlimited) so AI features aren't blocked; set AI_LIMIT_* env vars to cap if desired.
 _DEFAULTS = {
-    "SENTIMENT": {"PER_USER_DAY": 20, "PER_SUBMISSION_DAY": 20, "GLOBAL_DAY": 20},
-    "TRANSCRIPTION": {"PER_USER_DAY": 10, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 30},
-    "PUBLIC_MOOD": {"PER_USER_DAY": 10, "PER_SUBMISSION_DAY": 5, "GLOBAL_DAY": 15},
-    "CAPTION": {"PER_USER_DAY": 15, "PER_SUBMISSION_DAY": 6, "GLOBAL_DAY": 30},
-    # The assistant chat shares the same Gemini quota, so it gets a small share of it.
-    "CHAT": {"PER_USER_DAY": 10, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 20},
+    "SENTIMENT": {"PER_USER_DAY": 0, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 0},
+    "TRANSCRIPTION": {"PER_USER_DAY": 0, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 0},
+    "PUBLIC_MOOD": {"PER_USER_DAY": 0, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 0},
+    "CAPTION": {"PER_USER_DAY": 0, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 0},
+    "CHAT": {"PER_USER_DAY": 0, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 0},
+    "SOURCE_CHECK": {"PER_USER_DAY": 0, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 0},
+    "IMAGE_TEXT": {"PER_USER_DAY": 0, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 0},
+    "SCRIPT_FIX": {"PER_USER_DAY": 0, "PER_SUBMISSION_DAY": 0, "GLOBAL_DAY": 0},
 }
 DAY = timedelta(hours=24)
 MINUTE = timedelta(minutes=1)
@@ -54,7 +59,7 @@ def limit(feature: Feature, scope: str) -> int:
 
 
 def per_user_minute() -> int:
-    return _env_int("AI_LIMIT_PER_USER_MINUTE", 3)
+    return _env_int("AI_LIMIT_PER_USER_MINUTE", 0)
 
 
 @dataclass

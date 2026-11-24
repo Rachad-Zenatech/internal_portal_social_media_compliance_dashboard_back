@@ -21,8 +21,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException, UploadFile
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 from pydantic import BaseModel, Field
 
 from models.compliance.brand_voice_model import BrandColor, BrandTypeface, BrandVoice, BrandVoiceIn, PaletteRow
@@ -44,7 +43,7 @@ STALE_PROCESSING_MIN = 15
 AUTO_SOURCE = "BRAND_MANUAL"
 
 _tasks: Set[asyncio.Task] = set()
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 
 
 # --------------------------------------------------------------------------------------------------------------------

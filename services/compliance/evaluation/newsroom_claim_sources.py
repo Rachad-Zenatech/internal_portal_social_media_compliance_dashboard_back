@@ -1,7 +1,15 @@
-"""Retrieve specific company facts for each claim, without a post-wide eight-article cutoff."""
+"""Retrieve specific company facts for each claim, excluding weak incidental matches."""
+import os
+
 from models.compliance.compliance_model import SourceCheck
 from postgresql_db.database import fetch_all
 from . import newsroom_facts, source_passages, source_identity
+
+MIN_RELEVANCE = float(os.getenv("SOURCE_NEWSROOM_MIN_RELEVANCE", "0.25"))
+
+
+def relevant(score, best):
+    return score >= MIN_RELEVANCE and score >= best * .6
 
 
 async def readings(inventory):
@@ -14,9 +22,9 @@ async def readings(inventory):
     scores = await source_passages.rank([item["claim"] for item in inventory], passages)
     selected = {}
     for ranking in scores:
-        minimum = max(ranking, default=0.) * .6
+        best = max(ranking, default=0.)
         for index in sorted(range(len(rows)), key=lambda i: (-ranking[i], i))[:2]:
-            if ranking[index] <= 0 or ranking[index] < minimum:
+            if not relevant(ranking[index], best):
                 continue
             row = rows[index]
             url = row["url"] or newsroom_facts.NEWSROOM_URL

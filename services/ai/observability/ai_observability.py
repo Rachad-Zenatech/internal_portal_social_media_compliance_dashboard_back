@@ -305,7 +305,13 @@ async def generate(client: Any, *, model: str, contents: Any, config: Any = None
         _notify_attempt({"event": "attempt", "id": attempt_id, "status": "RUNNING", "model": model, "feature": feature,
                          "attempt": attributes.get("attempt"), "tier": attributes.get("route_tier")})
         try:
-            response = await asyncio.to_thread(client.models.generate_content, model=model, contents=contents, config=config)
+            http_ms = getattr(getattr(config, "http_options", None), "timeout", None)
+            default_timeout = float(os.getenv("AI_CALL_TIMEOUT_SEC", "90"))
+            call_timeout = (float(http_ms) / 1000.0 + 5.0) if http_ms and float(http_ms) > 0 else default_timeout
+            response = await asyncio.wait_for(
+                asyncio.to_thread(client.models.generate_content, model=model, contents=contents, config=config),
+                timeout=call_timeout,
+            )
         except Exception as e:
             if compliance:
                 gemini_service.record_model_failure(model, e)
@@ -313,7 +319,7 @@ async def generate(client: Any, *, model: str, contents: Any, config: Any = None
             _notify_attempt({"event": "attempt", "id": attempt_id, "status": "FAILED", "model": model, "feature": feature,
                              "error_kind": s.attributes["error_kind"], "error": str(e)[:160],
                              "duration_ms": round((time.perf_counter() - started) * 1000)})
-            log_prompt(**logged, response=None, status="ERROR", error_type=type(e).__name__,
+            log_prompt(**logged, response=str(e)[:1000], status="ERROR", error_type=type(e).__name__,
                        latency_ms=round((time.perf_counter() - started) * 1000, 2))
             raise
         input_tokens, output_tokens = token_counts(response)

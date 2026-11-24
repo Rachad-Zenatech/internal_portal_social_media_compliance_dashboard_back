@@ -35,8 +35,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 from pydantic import BaseModel, Field, ValidationError
 
 from models.compliance.compliance_model import ComplianceRule, ComplianceViolation, ContextEvaluation
@@ -69,7 +68,7 @@ CACHE_TTL_SEC = int(os.getenv("CONTEXT_EVAL_CACHE_TTL_SECONDS", str(24 * 3600)))
 CONTEXT_LINES = 1
 
 _cache = AsyncInMemoryCache(maxsize=4000)
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 
 STATUS_BY_MODEL = {
     "VIOLATION": "VIOLATION",
@@ -245,15 +244,22 @@ def _precedent(p: Dict[str, Any]) -> Dict[str, Any]:
             "similarity": p.get("score")}
 
 
-async def _ask(model: str, items: List[Dict[str, Any]], guard: Any) -> _Response:
+async def _ask(model: str, payload_obj: Any, guard: Any) -> _Response:
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM_PROMPT,
         response_mime_type="application/json",
         response_schema=RESPONSE_SCHEMA,
+        max_output_tokens=1400,
         temperature=0,
         http_options=types.HttpOptions(timeout=TIMEOUT_SEC * 1000),
     )
-    contents = f"Judge these {len(items)} flagged passage(s).\n<items>\n{json.dumps(items, ensure_ascii=False)}\n</items>"
+    if isinstance(payload_obj, list):
+        body = json.dumps(payload_obj, ensure_ascii=False, separators=(",", ":"))
+        count = len(payload_obj)
+    else:
+        body = json.dumps(payload_obj, ensure_ascii=False, separators=(",", ":"))
+        count = len(payload_obj.get("items") or [])
+    contents = f"Judge these {count} flagged passage(s).\n<items>\n{body}\n</items>"
     last: Optional[Exception] = None
     for attempt in range(2):
         try:
@@ -267,13 +273,44 @@ async def _ask(model: str, items: List[Dict[str, Any]], guard: Any) -> _Response
     raise ValueError(f"malformed answer: {last}")
 
 
+def _batch_payload(batch: List[Tuple[int, Candidate]]) -> Dict[str, Any]:
+    """Deduplicate identical rules once per batch and strip empty fields to cut token bloat."""
+    rules: Dict[str, Dict[str, Any]] = {}
+    items: List[Dict[str, Any]] = []
+    for i, c in batch:
+        raw = _item(i, c)
+        rnum = raw["rule"]["number"]
+        if rnum not in rules:
+            rules[rnum] = {k: v for k, v in raw["rule"].items() if v not in (None, "", [])}
+        entry = {
+            "id": raw["id"],
+            "rule_number": rnum,
+            "what_was_found": raw["what_was_found"],
+            "trigger_phrases": raw["trigger_phrases"],
+            "passage": raw["passage"],
+            "context": raw["context"],
+        }
+        if raw.get("submission_details"):
+            entry["submission_details"] = raw["submission_details"]
+        if raw.get("past_reviewer_decisions"):
+            entry["past_reviewer_decisions"] = raw["past_reviewer_decisions"]
+        items.append(entry)
+    return {"rules": rules, "items": items}
+
+
 async def _judge(batch: List[Tuple[int, Candidate]], guard: Any) -> Tuple[Dict[int, _Result], Optional[str]]:
     """One request for a batch, trying each model in turn. Returns the answers by index and the model that gave them."""
     wanted = {str(i): i for i, _ in batch}
     remaining = list(batch)
     answers: Dict[int, _Result] = {}
     answered_by: Optional[str] = None
-    models = compliance_request_policy.text_models(MODELS)
+    if os.getenv("CONTEXT_EVAL_MODELS", "").strip():
+        candidate_models = MODELS
+    else:
+        from services.ai.core import model_router
+        prompt_chars = sum(len(c.passage or "") + len(c.context or "") for _, c in remaining)
+        candidate_models = model_router.route("CONTEXT_EVAL", prompt_chars=prompt_chars).models or MODELS
+    models = compliance_request_policy.text_models(candidate_models)
     # Keep partial judgments, but do not immediately repeat known provider failures.
     for sweep in range(2):
         if not any(gemini_service.model_is_available(model) for model in models):
@@ -284,7 +321,7 @@ async def _judge(batch: List[Tuple[int, Candidate]], guard: Any) -> Tuple[Dict[i
             if not gemini_service.model_is_available(model):
                 continue
             try:
-                response = await _ask(model, [_item(i, c) for i, c in remaining], guard)
+                response = await _ask(model, _batch_payload(remaining), guard)
             except Exception as e:
                 # Quota, a busy or retired model, a timeout or a malformed answer: the next model gets a go.
                 level = logging.INFO if (is_rotatable_model_error(e) or isinstance(e, ValueError)) else logging.WARNING

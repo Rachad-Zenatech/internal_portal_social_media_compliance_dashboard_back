@@ -24,8 +24,7 @@ from uuid import UUID
 
 import httpx
 from fastapi import HTTPException
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 
 from models.compliance.context_model import PolicyPageStatus, PolicyProposal, PolicyProposalApprove, PolicyWatch
 from postgresql_db.database import fetch_all, fetch_one, get_pool
@@ -85,7 +84,7 @@ RESPONSE_SCHEMA = {
     "required": ["affects_norm", "changes"],
 }
 
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 _task: Optional["asyncio.Task[None]"] = None
 
 

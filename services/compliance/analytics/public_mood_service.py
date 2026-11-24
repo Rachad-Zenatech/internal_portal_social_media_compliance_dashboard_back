@@ -25,8 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 from pydantic import ValidationError
 
 from models.compliance.public_mood_model import (
@@ -165,7 +164,7 @@ async def _sync_topics(force: bool = False) -> None:
                 """,
                 provider.name, [t["external_id"] for t in topics],
             )
-    await _sync_topic_vectors()
+    asyncio.create_task(_sync_topic_vectors(), name="sync-topic-vectors")
 
 
 async def _sync_topic_vectors() -> None:
@@ -401,38 +400,20 @@ async def _fresh_snapshots(topics: List[Dict[str, Any]], force: bool = False) ->
         ]
     if not stale:
         return latest
-    fetched = []
-    for t in stale:
-        try:
-            s = await provider.snapshot(t["external_id"], WINDOW_DAYS)
-        except ListeningUnavailable as e:
-            logger.warning("Couldn't refresh listening topic %s: %s", t["name"], e)
-            continue
-        s = await _with_trend(s, t)
-        change = s.get("volume_change_pct")
-        fetched.append({
-            **s,
-            "topic_id": str(t["id"]),
-            "is_spike": change is not None and change >= SPIKE_CHANGE_PCT,
-        })
-    if fetched:
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO topic_snapshots (topic_id, window_days, positive_pct, neutral_pct, negative_pct, volume,
-                                             volume_change_pct, is_spike, daily_volume, top_posts, is_mock)
-                SELECT s.topic_id, $2, s.positive, s.neutral, s.negative, s.volume, s.volume_change_pct, s.is_spike,
-                       ARRAY(SELECT jsonb_array_elements_text(s.daily_volume)::int), s.top_posts, $3
-                FROM jsonb_to_recordset($1::jsonb) AS s(
-                    topic_id uuid, positive numeric, neutral numeric, negative numeric, volume int,
-                    volume_change_pct numeric, is_spike boolean, daily_volume jsonb, top_posts jsonb
-                )
-                """,
-                json.dumps(fetched), WINDOW_DAYS, provider.is_mock,
-            )
-        latest = await _latest_snapshots([t["id"] for t in topics])
-    return latest
+    from services.compliance.analytics import public_mood_snapshots
+
+    if not force:
+        public_mood_snapshots.schedule_snapshot_refresh(
+            topics, stale, latest, provider,
+            window_days=WINDOW_DAYS, spike_change_pct=SPIKE_CHANGE_PCT,
+            with_trend=_with_trend, latest_loader=_latest_snapshots,
+        )
+        return latest
+    return await public_mood_snapshots.refresh_stale_snapshots(
+        topics, stale, latest, provider,
+        window_days=WINDOW_DAYS, spike_change_pct=SPIKE_CHANGE_PCT,
+        with_trend=_with_trend, latest_loader=_latest_snapshots,
+    )
 
 
 def _snapshot_model(s: Dict[str, Any]) -> TopicSnapshot:
@@ -849,7 +830,7 @@ async def update_topic(topic_id: UUID, data: ListeningTopicUpdate, user_id: UUID
     if not row:
         raise HTTPException(status_code=404, detail="Topic not found")
     _meaning_cache.clear()
-    await _sync_topic_vectors()
+    asyncio.create_task(_sync_topic_vectors(), name="sync-topic-vectors")
     return next(t for t in await list_topics() if t.id == topic_id)
 
 
@@ -926,9 +907,7 @@ async def summarise(submission_id: UUID, user_id: UUID) -> PublicMood:
 
     await ai_usage_service.reserve("PUBLIC_MOOD", user_id, submission_id)
     config = types.GenerateContentConfig(
-        response_mime_type="application/json",
-        response_schema=RESPONSE_SCHEMA,
-        temperature=0,
+        response_mime_type="application/json", response_schema=RESPONSE_SCHEMA, max_output_tokens=900, temperature=0,
     )
     try:
         response = await generate_content_with_fallback(_get_client(), _prompt(row, mood), config, feature="PUBLIC_MOOD",

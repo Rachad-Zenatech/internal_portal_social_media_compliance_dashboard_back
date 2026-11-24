@@ -10,8 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 from pydantic import ValidationError
 
 from models.compliance.sentiment_model import Precedent, SentimentResult
@@ -48,47 +47,13 @@ logger = logging.getLogger(__name__)
 # Gemini
 # ---------------------------------------------------------------------------
 
-async def _upload_video(client: genai.Client, file_id: str) -> Optional[types.File]:
-    """Upload the submission's video to Gemini so the analysis can watch it. None if it can't be attached
-    (missing file, upload or processing failure); the analysis then goes ahead on the text alone."""
-    from services.compliance.media.transcription_service import STORAGE_ROOT  # local import, as transcription imports this module
-
-    row = await fetch_one(
-        "SELECT storage_path, mime_type FROM content_submission_files WHERE id = $1 AND deleted_at IS NULL",
-        UUID(file_id),
-    )
-    if not row:
-        return None
-    path = (STORAGE_ROOT / row["storage_path"]).resolve()
-    if STORAGE_ROOT not in path.parents or not path.is_file():
-        logger.warning("Video %s for sentiment analysis is missing from storage", file_id)
-        return None
-    uploaded = None
-    # Gemini video upload (commented out for now; Bedrock evaluates content directly):
-    # try:
-    #     uploaded = await asyncio.to_thread(
-    #         client.files.upload, file=str(path), config=types.UploadFileConfig(mime_type=row["mime_type"])
-    #     )
-    #     waited = 0
-    #     while uploaded.state and uploaded.state.name == "PROCESSING" and waited < VIDEO_READY_TIMEOUT_SEC:
-    #         await asyncio.sleep(3)
-    #         waited += 3
-    #         uploaded = await asyncio.to_thread(client.files.get, name=uploaded.name)
-    #     if uploaded.state and uploaded.state.name != "ACTIVE":
-    #         raise RuntimeError(f"video is {uploaded.state.name.lower()} after {waited}s")
-    #     return uploaded
-    # except Exception as e:
-    #     logger.warning("Couldn't attach video %s to sentiment analysis: %s", file_id, e)
-    #     if uploaded:
-    #         await _delete_upload(client, uploaded)
+async def _upload_video(client: Any, file_id: str) -> Optional[types.File]:
+    """Video upload stub for compatibility; Bedrock inspects sampled frames directly."""
     return None
 
 
-async def _delete_upload(client: genai.Client, uploaded: types.File) -> None:
-    try:
-        await asyncio.to_thread(client.files.delete, name=uploaded.name)
-    except Exception:
-        pass
+async def _delete_upload(client: Any, uploaded: types.File) -> None:
+    return None
 
 
 def _image_bytes(path: Any, mime_type: str) -> Tuple[bytes, str]:
@@ -209,12 +174,20 @@ def _is_unavailable(e: Exception) -> bool:
 
 
 def _models_to_try(inp: Dict[str, Any], fallback: bool = True) -> List[str]:
-    """The input's own model first, then the rest of the chain (unless fallback is off, e.g. to test one model)."""
+    """Use the cheapest model for routine posts, and stronger models first when high_stakes=True."""
     first = _model_for(inp)
-    return [first] + ([m for m in MODEL_CHAIN if m != first] if fallback else [])
+    if not fallback:
+        return [first]
+    if os.getenv("SENTIMENT_MODEL", "").strip() or os.getenv("SENTIMENT_MODELS", "").strip():
+        return [first] + [m for m in MODEL_CHAIN if m != first]
+    from services.ai.core import model_router
+    routed = model_router.route("SENTIMENT", high_stakes=bool(inp.get("high_stakes"))).models
+    if first and first not in ("default", "") and first not in routed:
+        routed = routed + [first]
+    return routed or ([first] if first else list(MODEL_CHAIN))
 
 
-async def _generate(client: genai.Client, inp: Dict[str, Any], video: Optional[types.File],
+async def _generate(client: Any, inp: Dict[str, Any], video: Optional[types.File],
                     images: Optional[List[types.Part]] = None,
                     precedents: Optional[List[Dict[str, Any]]] = None, fallback: bool = True) -> SentimentResult:
     """Analyse with the first model in the chain that has allowance left and still exists. Only when every model's
@@ -243,7 +216,7 @@ async def _generate(client: genai.Client, inp: Dict[str, Any], video: Optional[t
     raise RuntimeError("None of the sentiment models are available: " + ", ".join(models))
 
 
-async def _generate_with(client: genai.Client, model: str, inp: Dict[str, Any], video: Optional[types.File],
+async def _generate_with(client: Any, model: str, inp: Dict[str, Any], video: Optional[types.File],
                          images: Optional[List[types.Part]] = None,
                          precedents: Optional[List[Dict[str, Any]]] = None) -> SentimentResult:
     """One model: retries brief rate limits and outages, and once on malformed output."""

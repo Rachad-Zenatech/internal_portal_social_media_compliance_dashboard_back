@@ -57,7 +57,7 @@ from services.compliance.evaluation import source_identity
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v16-claim-routed-evidence"
+PROMPT_VERSION = "source-v17-relevant-newsroom-fallbacks"
 VERSION = f"sources-2|{citation_finder.VERSION}|{PROMPT_VERSION}|{source_claim_inventory.VERSION}|evidence-union-1"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 # Gemini models (commented out for now, replaced with Bedrock):
@@ -171,12 +171,13 @@ def _post_key(post_text: str) -> str:
 
 
 async def _ask(model: str, contents: str, guard: Any, *, system_prompt: str = SYSTEM_PROMPT) -> _Response:
-    from google.genai import types
+    from services.ai.core import ai_types as types
 
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
         response_mime_type="application/json",
         response_schema=RESPONSE_SCHEMA,
+        max_output_tokens=1600,
         temperature=0,
         http_options=types.HttpOptions(timeout=TIMEOUT_SEC * 1000),
     )
@@ -187,7 +188,10 @@ async def _ask(model: str, contents: str, guard: Any, *, system_prompt: str = SY
                 context_evaluator._get_client(), model=model, contents=contents, config=config,
                 feature="SOURCE_CHECK", guard=guard, attempt=attempt + 1,
             )
-            return _Response.model_validate(json.loads(response.text or "{}"))
+            parsed = json.loads(response.text or "{}")
+            if isinstance(parsed, list):
+                parsed = {"claims": parsed}
+            return _Response.model_validate(parsed)
         except (ValueError, ValidationError) as e:
             last = e  # malformed output: one more try
     raise ValueError(f"malformed answer: {last}")
@@ -219,16 +223,22 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
         head.append(f"Published: {published}")
     shown = await source_passages.excerpt("\n".join(item["claim"] for item in inventory), source_text)
     contents = (
-        "Verify this fixed inventory: " + json.dumps(inventory) + "\n\n<post>\n" + post_text + "\n</post>\n\n<source>\n"
+        "Verify this fixed inventory:" + json.dumps(inventory, separators=(",", ":"))
+        + "\n<post>\n" + post_text + "\n</post>\n<source>\n"
         + "\n".join(head) + "\n\n" + shown + "\n</source>"
     )
     guard = screen_input(contents)
+    if os.getenv("SOURCE_CHECK_MODELS", "").strip():
+        models_to_try = MODELS
+    else:
+        from services.ai.core import model_router
+        models_to_try = model_router.route("SOURCE_CHECK", prompt_chars=len(contents)).models or MODELS
     for sweep in range(2):
-        if not any(model_is_available(model) for model in MODELS):
+        if not any(model_is_available(model) for model in models_to_try):
             break
         if sweep:
             await asyncio.sleep(RETRY_PAUSE_SEC)
-        for model in MODELS:
+        for model in models_to_try:
             if not model_is_available(model):
                 continue
             try:

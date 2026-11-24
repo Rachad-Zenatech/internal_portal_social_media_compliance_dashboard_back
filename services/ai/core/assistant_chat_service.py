@@ -23,9 +23,7 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Dict, List, Optional
 from uuid import UUID
 
-from google import genai
-from google.genai import types
-
+from services.ai.core import ai_types as types
 from services.ai.observability import ai_observability
 from services.ai.core import model_router
 from services.ai.core import semantic_cache
@@ -133,7 +131,7 @@ def _contents(prepared: PreparedChat) -> List[types.Content]:
     return contents
 
 
-async def _stream_round(client: genai.Client, models: List[str], contents: List[types.Content],
+async def _stream_round(client: Any, models: List[str], contents: List[types.Content],
                         config: types.GenerateContentConfig, prepared: PreparedChat, round_no: int,
                         redactor: StreamRedactor, out: Dict[str, Any]) -> AsyncIterator[str]:
     """One model turn, streamed. Falls back to the next model only while nothing has been sent yet. Collects the

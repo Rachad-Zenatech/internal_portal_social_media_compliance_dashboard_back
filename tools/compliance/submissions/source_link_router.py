@@ -18,12 +18,18 @@ router = APIRouter()
 @router.post("/{submission_id}/check-source-link", response_model=SourceCheck)
 async def check_source_link(submission_id: UUID, data: SourceLinkCheckRequest, user_id: CurrentUser):
     """Quickly fetch one source URL and check whether it supports the post's current material."""
+    from services.ai.observability import ai_usage_service
+
+    await ai_usage_service.reserve("SOURCE_CHECK", user_id, submission_id)
     return await source_link_service.check_submission_source_link(submission_id, data.url, user_id)
 
 
 @router.post("/{submission_id}/check-pasted-source", response_model=SourceCheck)
 async def check_pasted_source(submission_id: UUID, data: PastedSourceCheckRequest, user_id: CurrentUser):
     """Check the post's claims against a whole article pasted in, and where in it each claim is found."""
+    from services.ai.observability import ai_usage_service
+
+    await ai_usage_service.reserve("SOURCE_CHECK", user_id, submission_id)
     return await source_link_service.check_submission_pasted_source(
         submission_id, user_id, data.text, title=data.title, url=data.url,
     )

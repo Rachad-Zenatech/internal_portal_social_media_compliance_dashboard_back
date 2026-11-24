@@ -72,7 +72,7 @@ from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
 from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness, image_provenance_service
-from services.compliance.submissions import submission_fields, media_read_status, submission_list_query, submission_check_runner
+from services.compliance.submissions import submission_fields, media_read_status, submission_list_query, submission_check_runner, draft_deletion
 from services.compliance.evaluation import source_recheck
 from services.compliance.media import document_text_service
 from services.compliance.media import image_text_service, video_finding_service
@@ -552,12 +552,12 @@ async def create_submission(data: SubmissionCreate, user_id: UUID) -> Submission
             row = await conn.fetchrow(
                 """
                 INSERT INTO content_submissions (title, content_type, created_by, updated_by, script_required)
-                VALUES ($1, $2::varchar, $3, $3, $2::varchar = 'VIDEO')
+                VALUES ($1, $2::varchar, $3, $3, $2::varchar = 'VIDEO' AND $4::boolean)
                 RETURNING id, reference_code
                 """,
                 data.title.strip(),
                 data.content_type,
-                user_id,
+                user_id, data.script_required is not False,
             )
             await _add_event(conn, row["id"], "CREATED", f"Draft {row['reference_code']} created", user_id)
     await log_audit_event("content_submission", str(row["id"]), "CREATE_SUBMISSION", user_id,
@@ -730,7 +730,6 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
             raise HTTPException(status_code=422, detail="Some of those people can't review content on this brand")
         fields["reviewer_ids"] = kept + picked
     submission_fields.apply_clear_fields(fields, data.clear_fields)
-
     if not fields:
         return await _to_submission(row)
 
@@ -746,6 +745,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
                 # Fail fast if another request holds this row (e.g. a stuck upload), instead of hanging until the
                 # 120s command timeout and returning a 500.
                 await conn.execute("SET LOCAL lock_timeout = '8s'")
+                await submission_fields.lock_script_mode(conn, submission_id, payload)
                 await conn.execute(
                     f"UPDATE content_submissions SET {sets}{edited}, updated_by = ${len(params)}, updated_at = NOW() WHERE id = $1",
                     *params,
@@ -805,26 +805,13 @@ async def delete_draft(submission_id: UUID, user_id: UUID) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            # Lock and re-check, so a draft submitted a moment ago isn't deleted from under its review.
-            current = await conn.fetchval(
-                "SELECT status FROM content_submissions WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", submission_id
-            )
-            if current != "DRAFT":
-                raise HTTPException(status_code=409, detail="This draft was just submitted or deleted")
-            if row["current_version"] == 0:
-                await conn.execute("DELETE FROM content_submissions WHERE id = $1", submission_id)
-            else:
-                await conn.execute(
-                    "UPDATE content_submissions SET deleted_at = NOW(), deleted_by = $2, updated_at = NOW() WHERE id = $1",
-                    submission_id, user_id,
-                )
-                await _add_event(conn, submission_id, "DELETED", "Draft deleted", user_id, None)
-    if row["current_version"] == 0:
+            kept_history = await draft_deletion.delete_record(conn, submission_id, user_id)
+    if not kept_history:
         # Never-submitted drafts have no version history that could reference these files.
         shutil.rmtree(STORAGE_ROOT / str(submission_id), ignore_errors=True)
     await log_audit_event("content_submission", str(submission_id), "DELETE_SUBMISSION_DRAFT", user_id,
                           {"reference_code": row["reference_code"], "title": row["title"],
-                           "created_by": str(row["created_by"]), "kept_history": row["current_version"] > 0})
+                           "created_by": str(row["created_by"]), "kept_history": kept_history})
 
     if not is_creator:
         # Someone else removed their work: tell the creator who and what.

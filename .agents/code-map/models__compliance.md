@@ -231,41 +231,44 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `SourceTrust` (class) L30 - What reviewers have said about a site, across every post checked against it.
 - `SourceConfirmationsResponse` (class) L43
 
-## models/compliance/submission_model.py (627 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
-- `BrandOption` (class) L58
-- `AccountOption` (class) L63
-- `SubmissionOptions` (class) L75
-- `ReviewerOption` (class) L85 - Someone a creator can send content to for review.
-- `SubmissionCreate` (class) L94
-- `SubmissionUpdate` (class) L99
-- `TranscriptSegment` (class) L137
-- `SubmissionFile` (class) L145
-- `AnalysisStep` (class) L171 - One part of the post still being read before the rulebook check can score it.
-- `AnalysisProgress` (class) L182 - How far the post's reading has got and when the score is expected.
-- `SubmissionSummary` (class) L194
-- `Submission` (class) L261
-- `SubmissionVersion` (class) L330
-- `VersionView` (class) L337 - One submitted version as it was: what was sent, its video, its automated check and its decision.
-- `ReviewJob` (class) L349
-- `ReviewDecisionRequest` (class) L371 - A reviewer's decision on the version currently in review.
-    - `publish_after_changes_only_for_changes` (def) L380
-- `ReopenRequest` (class) L398 - A reviewer takes back an approval and sends the content to its creator with what to change.
-- `RescheduleRequest` (class) L407 - A reviewer moves approved content to a different publish time.
-- `DelegateRequest` (class) L412 - A reviewer hands the post in review to someone else; they stay on it and still see its status.
-- `Delegation` (class) L421 - One hand-off of a post in review, with where the post stands now.
-- `ReviewCommentCreate` (class) L446
-    - `_region_is_whole` (def) L462
-- `ReviewCommentUpdate` (class) L473
-- `ReviewComment` (class) L477
-- `SubmissionEvent` (class) L504
-- `SubmissionHistory` (class) L513
-- `ReviewQueueItem` (class) L519 - A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it.
-- `ReviewQueueCounts` (class) L574
-- `DashboardActivity` (class) L585 - One recent thing that happened to content the viewer can see.
-- `DashboardFinding` (class) L597 - A rulebook rule and how often it was flagged on content sent for review.
-- `DashboardSummary` (class) L604 - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
-- `SubmitRequest` (class) L618
-- `SubmitResult` (class) L624
+## models/compliance/submission_input_model.py (19 lines) - Post creation inputs and the optional video script review setting.
+- `VideoScriptOptions` (class) L11
+- `SubmissionCreate` (class) L16
+
+## models/compliance/submission_model.py (621 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+- `BrandOption` (class) L56
+- `AccountOption` (class) L61
+- `SubmissionOptions` (class) L73
+- `ReviewerOption` (class) L83 - Someone a creator can send content to for review.
+- `SubmissionUpdate` (class) L93
+- `TranscriptSegment` (class) L131
+- `SubmissionFile` (class) L139
+- `AnalysisStep` (class) L165 - One part of the post still being read before the rulebook check can score it.
+- `AnalysisProgress` (class) L176 - How far the post's reading has got and when the score is expected.
+- `SubmissionSummary` (class) L188
+- `Submission` (class) L255
+- `SubmissionVersion` (class) L324
+- `VersionView` (class) L331 - One submitted version as it was: what was sent, its video, its automated check and its decision.
+- `ReviewJob` (class) L343
+- `ReviewDecisionRequest` (class) L365 - A reviewer's decision on the version currently in review.
+    - `publish_after_changes_only_for_changes` (def) L374
+- `ReopenRequest` (class) L392 - A reviewer takes back an approval and sends the content to its creator with what to change.
+- `RescheduleRequest` (class) L401 - A reviewer moves approved content to a different publish time.
+- `DelegateRequest` (class) L406 - A reviewer hands the post in review to someone else; they stay on it and still see its status.
+- `Delegation` (class) L415 - One hand-off of a post in review, with where the post stands now.
+- `ReviewCommentCreate` (class) L440
+    - `_region_is_whole` (def) L456
+- `ReviewCommentUpdate` (class) L467
+- `ReviewComment` (class) L471
+- `SubmissionEvent` (class) L498
+- `SubmissionHistory` (class) L507
+- `ReviewQueueItem` (class) L513 - A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it.
+- `ReviewQueueCounts` (class) L568
+- `DashboardActivity` (class) L579 - One recent thing that happened to content the viewer can see.
+- `DashboardFinding` (class) L591 - A rulebook rule and how often it was flagged on content sent for review.
+- `DashboardSummary` (class) L598 - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
+- `SubmitRequest` (class) L612
+- `SubmitResult` (class) L618
 
 ## models/compliance/submission_steps_model.py (22 lines) - Creator progress through submission and revision steps.
 - `SubmissionSteps` (class) L8 - How far a post has got through the five steps a creator works through (see post_steps_service).

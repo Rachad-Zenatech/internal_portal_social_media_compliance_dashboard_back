@@ -143,20 +143,26 @@ def _matches_today_post(ext: str, today_by_id: Dict[str, Dict[str, Any]]) -> Opt
 
 async def get_nav_public_mood(refresh: bool = False, scrape_state: str = "idle") -> NavPublicMoodResponse:
     """Return both nav scrapings: Financial ZenaTech sentiment + Today's Posts public mood."""
+    import asyncio
     from services.compliance.analytics import public_mood_service as pms
 
-    feed: Dict[str, Any] = {}
-    try:
-        feed = await load_feed() or {}
-    except ListeningUnavailable:
-        feed = {}
+    async def _safe_feed() -> Dict[str, Any]:
+        try:
+            return await load_feed() or {}
+        except ListeningUnavailable:
+            return {}
 
-    try:
-        topics = await pms.list_topics(refresh=refresh)
-    except ListeningUnavailable:
-        topics = []
+    async def _safe_topics():
+        try:
+            return await pms.list_topics(refresh=refresh)
+        except ListeningUnavailable:
+            return []
 
-    today_candidates = await post_queries.list_today_post_candidates()
+    feed, topics, today_candidates = await asyncio.gather(
+        _safe_feed(),
+        _safe_topics(),
+        post_queries.list_today_post_candidates(),
+    )
     today_by_id = {str(p["id"]): p for p in today_candidates}
 
     feed_by_ext: Dict[str, Dict[str, Any]] = {}

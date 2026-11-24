@@ -20,8 +20,7 @@ from uuid import UUID
 
 import asyncpg
 from fastapi import HTTPException
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 
 from models.compliance.compliance_model import (
     AddedRuleSet,
@@ -75,7 +74,7 @@ SCOPE_VERSION = "scope-23-real-vectors-preserve-findings|brand-audience-1"
 
 AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
-_gemini_client: Optional[genai.Client] = None
+_gemini_client: Optional[Any] = None
 
 
 def _get_gemini_client() -> Optional[Any]:

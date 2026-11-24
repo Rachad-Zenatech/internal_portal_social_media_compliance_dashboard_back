@@ -113,7 +113,7 @@ def read_local(path: Path) -> Optional[str]:
 
 
 async def _read_pdf(path: Path) -> str:
-    from google.genai import types
+    from services.ai.core import ai_types as types
 
     from services.compliance.media import image_text_service
 

@@ -10,7 +10,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "postgresql_db/schemas/setup_compliance_schema.py": {
-      "max_lines": 1159,
+      "max_lines": 1106,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/analytics/conversation_evidence.py": {
@@ -18,7 +18,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/analytics/public_mood_service.py": {
-      "max_lines": 955,
+      "max_lines": 937,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/brand_voice_service.py": {
@@ -26,7 +26,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/compliance_service.py": {
-      "max_lines": 1541,
+      "max_lines": 1515,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/script_batch_service.py": {
@@ -38,11 +38,11 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/sentiment/jobs.py": {
-      "max_lines": 530,
+      "max_lines": 517,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
-      "max_lines": 2761,
+      "max_lines": 2708,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/notifications/rabbitmq_service.py": {
@@ -60,7 +60,7 @@
   },
   "blocks": {
     "postgresql_db/schemas/setup_compliance_schema.py#setup": {
-      "max_lines": 186,
+      "max_lines": 132,
       "kind": "py_function"
     },
     "postgresql_db/schemas/setup_listening_schema.py#setup": {
@@ -73,10 +73,6 @@
     },
     "services/notifications/rabbitmq_hub_status.py#HubStatusMixin._build_hub_live_status": {
       "max_lines": 222,
-      "kind": "py_function"
-    },
-    "tools/shared/core/search.py#global_search": {
-      "max_lines": 147,
       "kind": "py_function"
     }
   }

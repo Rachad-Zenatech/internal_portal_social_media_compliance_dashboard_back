@@ -1,6 +1,6 @@
 """Verify only assigned claim/source pairs; use alternatives when a primary source does not settle a claim."""
 import asyncio
-from . import source_passages, newsroom_facts, source_claim_coverage
+from . import source_passages, newsroom_facts, newsroom_claim_sources, source_claim_coverage
 
 
 def key(item):
@@ -22,8 +22,13 @@ async def plans(inventory, readings):
         best = {}
         for owner, score in zip(owners, scores):
             best[owner] = max(best.get(owner, 0.), score)
-        candidates = [i for i in best if best[i] > 0 or not newsroom_facts.is_newsroom(readings[i][0])]
-        out.append(sorted(candidates, key=lambda i: (-best[i], newsroom_facts.is_newsroom(readings[i][0]), i)))
+        cited = [i for i in best if not newsroom_facts.is_newsroom(readings[i][0])]
+        automatic = [i for i in best if newsroom_facts.is_newsroom(readings[i][0])]
+        peak = max((best[i] for i in automatic), default=0.)
+        automatic = [i for i in automatic if newsroom_claim_sources.relevant(best[i], peak)]
+        # A union of articles retrieved for different claims must not become every claim's fallback list.
+        out.append(sorted(cited, key=lambda i: (-best[i], i))
+                   + sorted(automatic, key=lambda i: (-best[i], i))[:2])
     return out
 
 

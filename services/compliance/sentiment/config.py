@@ -29,8 +29,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 from pydantic import ValidationError
 
 from models.compliance.compliance_model import ComplianceCheckRequest, ComplianceRule
@@ -91,8 +90,8 @@ FRAME_WIDTH = 480
 # A post's images (the main ones first, e.g. carousel slides, then extra images such as a cover) are sent with the
 # prompt. Large or unsupported ones (e.g. GIF) are converted to a smaller JPEG first, keeping the request small.
 MAX_IMAGES = 10
-IMAGE_INLINE_MAX_BYTES = 1_500_000
-IMAGE_MAX_WIDTH = 1600
+IMAGE_INLINE_MAX_BYTES = int(os.getenv("AI_IMAGE_INLINE_MAX_BYTES", "450000"))
+IMAGE_MAX_WIDTH = int(os.getenv("AI_IMAGE_MAX_WIDTH", "1024"))
 GEMINI_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
 MAX_CONCURRENT = int(os.getenv("SENTIMENT_MAX_CONCURRENT", "2"))
 # A claim older than this is treated as abandoned (e.g. the server restarted mid-analysis).
@@ -102,8 +101,8 @@ API_RETRIES = 3
 # The most one Gemini analysis call may take (a normal one takes about 20 seconds); after that the model counts as
 # too busy and the next one in the chain takes over.
 GENERATE_TIMEOUT_SEC = int(os.getenv("SENTIMENT_TIMEOUT_SEC", "120"))
-MAX_OUTPUT_TOKENS = int(os.getenv("SENTIMENT_MAX_OUTPUT_TOKENS", "16384"))
-MAX_TEXT_CHARS = 30_000
+MAX_OUTPUT_TOKENS = int(os.getenv("SENTIMENT_MAX_OUTPUT_TOKENS", "4096"))
+MAX_TEXT_CHARS = int(os.getenv("SENTIMENT_MAX_TEXT_CHARS", "15000"))
 
 CEO_RULE_SET = "Shaun CEO Thought Leadership"
 DEFENSE_RULE_SET = "ZenaDrone Defense"
@@ -138,7 +137,7 @@ AUDIENCE_NAMES = {
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 _running: Set[UUID] = set()
 _tasks: Set[asyncio.Task] = set()
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 
 # From the Defense Thought Leadership Rulebook (Part I, "The controversy dial" and "Voice standard").
 CONTROVERSY_GUIDE = """CONTROVERSY DIAL (company rulebook). Levels 3-4 are the intended range for thought leadership;

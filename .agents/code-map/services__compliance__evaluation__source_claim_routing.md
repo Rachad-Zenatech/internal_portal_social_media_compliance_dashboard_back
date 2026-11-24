@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_claim_routing.py (58 lines) - Verify only assigned claim/source pairs; use alternatives when a primary source does not settle a claim.
+## services/compliance/evaluation/source_claim_routing.py (63 lines) - Verify only assigned claim/source pairs; use alternatives when a primary source does not settle a claim.
 - `key` (def) L6
 - `plans` (def) L10
-- `verify` (def) L30 - Group first-choice assignments; supported claims never get sent to unrelated additional sources.
+- `verify` (def) L35 - Group first-choice assignments; supported claims never get sent to unrelated additional sources.
