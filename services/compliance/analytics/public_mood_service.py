@@ -25,8 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 from pydantic import ValidationError
 
 from models.compliance.public_mood_model import (

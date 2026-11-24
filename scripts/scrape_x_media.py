@@ -14,7 +14,8 @@ import re
 from typing import Any, Dict, List, Optional
 
 import httpx
-from google.genai import types
+from services.ai.core import ai_types as types
+from services.ai.core.bedrock_service import has_ai_key
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ async def _download(client: httpx.AsyncClient, url: str) -> Optional[types.Part]
 
 async def add_image_text(items: List[Dict[str, Any]]) -> int:
     """Set item["image_text"] on items that have image_urls. Returns how many items got text. Never raises."""
-    if not IMAGE_TEXT_ON or not os.getenv("GEMINI_API_KEY"):
+    if not IMAGE_TEXT_ON or not has_ai_key():
         return 0
     from services.compliance.media import image_text_service as reader
     read = 0

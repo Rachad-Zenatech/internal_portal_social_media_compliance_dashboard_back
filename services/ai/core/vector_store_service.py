@@ -29,9 +29,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
 
-from google import genai
-from google.genai import types
-
 from services.ai.observability.ai_observability import span
 
 logger = logging.getLogger(__name__)
@@ -56,14 +53,12 @@ def collection_name() -> str:
 
 
 def index_name() -> str:
-    return _setting("VECTOR_INDEX_NAME", "vector_index") + ("_" + _embedding_path() if _uses_bedrock() else "")
+    return _setting("VECTOR_INDEX_NAME", "vector_index") + "_" + _embedding_path()
 
 
 def embedding_model() -> str:
-    if _uses_bedrock():
-        from services.ai.core.bedrock_embeddings import model_id
-        return model_id()
-    return _setting("VECTOR_EMBEDDING_MODEL", "gemini-embedding-2")
+    from services.ai.core.bedrock_embeddings import model_id
+    return model_id()
 
 
 def is_enabled() -> bool:
@@ -71,7 +66,6 @@ def is_enabled() -> bool:
 
 
 _client = None
-_gemini: Optional[genai.Client] = None
 
 
 def named_collection(name: str):
@@ -91,21 +85,9 @@ def _collection():
     return named_collection(collection_name())
 
 
-def _uses_bedrock():
-    from services.ai.core.bedrock_service import is_bedrock_enabled
-    return is_bedrock_enabled()
-
-
 def _embedding_path():
     from services.ai.core.bedrock_embeddings import vector_path
-    return vector_path() if _uses_bedrock() else "embedding"
-
-
-def _gemini_client() -> Any:
-    global _gemini
-    if _gemini is None:
-        _gemini = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    return _gemini
+    return vector_path()
 
 
 # Once Gemini says the embedding quota is used up, embedding calls are skipped until it should be back, instead of
@@ -162,17 +144,8 @@ async def embed(texts: List[str]) -> List[List[float]]:
     check_embedding_quota()
     try:
         async with span("embedding", "vector_store.embed", model=embedding_model(), texts=len(texts)):
-            if _uses_bedrock():
-                from services.ai.core.bedrock_embeddings import embed as bedrock_embed
-                return await bedrock_embed(texts)
-            vectors = []
-            for start in range(0, len(texts), EMBED_BATCH):
-                contents = [types.Content(parts=[types.Part(text=t)]) for t in texts[start:start + EMBED_BATCH]]
-                res = await _gemini_client().aio.models.embed_content(model=embedding_model(), contents=contents)
-                vectors.extend(list(e.values or []) for e in res.embeddings or [])
-            if len(vectors) != len(texts) or any(not v or not any(v) for v in vectors):
-                raise RuntimeError("Embedding provider returned missing or zero vectors")
-            return vectors
+            from services.ai.core.bedrock_embeddings import embed as bedrock_embed
+            return await bedrock_embed(texts)
     except Exception as error:
         note_embedding_error(error)
         raise

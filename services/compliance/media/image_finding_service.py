@@ -9,7 +9,7 @@ import re
 import shutil
 import sys
 
-from google.genai import types
+from services.ai.core import ai_types as types
 
 from models.compliance.compliance_model import ImageFindingRegion
 from services.compliance.evaluation.finding_evidence import highlight_terms

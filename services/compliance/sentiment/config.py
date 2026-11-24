@@ -29,8 +29,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 from pydantic import ValidationError
 
 from models.compliance.compliance_model import ComplianceCheckRequest, ComplianceRule
@@ -138,7 +137,7 @@ AUDIENCE_NAMES = {
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 _running: Set[UUID] = set()
 _tasks: Set[asyncio.Task] = set()
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 
 # From the Defense Thought Leadership Rulebook (Part I, "The controversy dial" and "Voice standard").
 CONTROVERSY_GUIDE = """CONTROVERSY DIAL (company rulebook). Levels 3-4 are the intended range for thought leadership;

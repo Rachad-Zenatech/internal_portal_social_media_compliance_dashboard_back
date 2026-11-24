@@ -2,7 +2,7 @@
 import re
 import subprocess
 
-from google.genai import types
+from services.ai.core import ai_types as types
 from services.compliance.media.canva_mock_render import _ffmpeg
 
 MAX_FRAMES = 12

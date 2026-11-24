@@ -16,8 +16,7 @@ from typing import Any, Iterable, List, Optional, Set
 from uuid import UUID
 
 import httpx
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.observability import ai_observability
@@ -48,7 +47,7 @@ TIMEOUT_SEC = int(os.getenv("IMAGE_TEXT_TIMEOUT_SEC", "60"))
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 _running: Set[UUID] = set()
 _tasks: Set[asyncio.Task] = set()
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 
 PROMPT = """This image is part of a social media post that is screened for compliance, so we need every word it shows.
 Transcribe all readable text in the image exactly as written: headlines, body text, figures and amounts, dates,
@@ -119,8 +118,15 @@ async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None,
         http_options=types.HttpOptions(timeout=TIMEOUT_SEC * 1000),
     )
     client = _get_client()
+    if models is not None:
+        raw_models = models
+    elif os.getenv("IMAGE_TEXT_MODELS", "").strip():
+        raw_models = MODELS
+    else:
+        from services.ai.core import model_router
+        raw_models = model_router.route(feature, attachments=1).models or MODELS
     last_error: Optional[Exception] = None
-    for model in dict.fromkeys(without_retired(models if models is not None else MODELS)):
+    for model in dict.fromkeys(without_retired(raw_models)):
         try:
             return await ai_observability.generate(client, model=model, contents=contents, config=config, feature=feature)
         except Exception as e:

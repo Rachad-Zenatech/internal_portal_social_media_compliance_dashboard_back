@@ -35,8 +35,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from google import genai
-from google.genai import types
+from services.ai.core import ai_types as types
 from pydantic import BaseModel, Field, ValidationError
 
 from models.compliance.compliance_model import ComplianceRule, ComplianceViolation, ContextEvaluation
@@ -69,7 +68,7 @@ CACHE_TTL_SEC = int(os.getenv("CONTEXT_EVAL_CACHE_TTL_SECONDS", str(24 * 3600)))
 CONTEXT_LINES = 1
 
 _cache = AsyncInMemoryCache(maxsize=4000)
-_client: Optional[genai.Client] = None
+_client: Optional[Any] = None
 
 STATUS_BY_MODEL = {
     "VIOLATION": "VIOLATION",
@@ -305,7 +304,13 @@ async def _judge(batch: List[Tuple[int, Candidate]], guard: Any) -> Tuple[Dict[i
     remaining = list(batch)
     answers: Dict[int, _Result] = {}
     answered_by: Optional[str] = None
-    models = compliance_request_policy.text_models(MODELS)
+    if os.getenv("CONTEXT_EVAL_MODELS", "").strip():
+        candidate_models = MODELS
+    else:
+        from services.ai.core import model_router
+        prompt_chars = sum(len(c.passage or "") + len(c.context or "") for _, c in remaining)
+        candidate_models = model_router.route("CONTEXT_EVAL", prompt_chars=prompt_chars).models or MODELS
+    models = compliance_request_policy.text_models(candidate_models)
     # Keep partial judgments, but do not immediately repeat known provider failures.
     for sweep in range(2):
         if not any(gemini_service.model_is_available(model) for model in models):

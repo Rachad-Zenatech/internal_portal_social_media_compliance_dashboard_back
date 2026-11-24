@@ -8,7 +8,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from google.genai import types
+from services.ai.core import ai_types as types
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 
 from models.compliance.compliance_model import ComplianceViolation, ContextEvaluation
@@ -58,20 +58,9 @@ async def _asset_part(asset):
             data, mime = await asyncio.to_thread(_image_bytes, path, mime)
             part = types.Part.from_bytes(data=data, mime_type=mime)
         elif mime.startswith("video/"):
-            from services.ai.core.bedrock_service import is_bedrock_enabled
-            if is_bedrock_enabled():
-                from services.compliance.evaluation.visual_video_frames import sample_parts
-                yield await asyncio.to_thread(sample_parts, path)
-                return
-            if path.stat().st_size <= MAX_VIDEO_BYTES:
-                data = await asyncio.to_thread(path.read_bytes)
-                part = types.Part.from_bytes(data=data, mime_type=mime)
-            else:
-                client = image_text_service._get_client()
-                uploaded = await _upload_video(client, str(asset["id"]))
-                if not uploaded or not uploaded.uri:
-                    raise ValueError("Video could not be attached for visual review")
-                part = types.Part.from_uri(file_uri=uploaded.uri, mime_type=mime)
+            from services.compliance.evaluation.visual_video_frames import sample_parts
+            yield await asyncio.to_thread(sample_parts, path)
+            return
         else:
             raise ValueError("Unsupported visual asset")
         yield part
@@ -223,10 +212,14 @@ async def review(req, rules, findings):
                 assessments, model, input_mode = cached
                 entry["input_mode"] = input_mode
             else:
+                from services.ai.core import model_router
+                routed_models = MODELS if os.getenv("VISUAL_COMPLIANCE_MODELS", "").strip() else (
+                    model_router.route("VISUAL_COMPLIANCE", prompt_chars=len(payload_json), attachments=len(req._visual_media)).models or MODELS
+                )
                 async with image_text_service._semaphore, _asset_part(asset) as part:
                     response = await image_text_service._generate(
                         [part, PROMPT + payload_json],
-                        feature="VISUAL_COMPLIANCE", response_schema=SCHEMA, models=MODELS, max_output_tokens=1200)
+                        feature="VISUAL_COMPLIANCE", response_schema=SCHEMA, models=routed_models, max_output_tokens=1200)
                 from services.ai.core.bedrock_service import is_bedrock_enabled
                 input_mode = ("SAMPLED_FRAMES" if asset["mime_type"].startswith("video/")
                               and is_bedrock_enabled() else "FULL_ASSET")

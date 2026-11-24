@@ -81,8 +81,8 @@ def get_bedrock_key() -> Optional[str]:
 
 
 def has_ai_key() -> bool:
-    """Return True if either AWS Bedrock or Google Gemini is configured."""
-    return is_bedrock_enabled() or bool(os.getenv("GEMINI_API_KEY", "").strip())
+    """Return True if AWS Bedrock is configured."""
+    return is_bedrock_enabled()
 
 
 def clean_json_fences(text: str) -> str:
@@ -439,11 +439,5 @@ def get_bedrock_client() -> BedrockClientAdapter:
 
 
 def get_ai_client() -> Any:
-    """Return Bedrock client if enabled; otherwise Gemini client if GEMINI_API_KEY is present."""
-    if is_bedrock_enabled():
-        return get_bedrock_client()
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    if api_key:
-        from google import genai
-        return genai.Client(api_key=api_key)
-    return None
+    """Return Bedrock client if enabled, else None."""
+    return get_bedrock_client() if is_bedrock_enabled() else None

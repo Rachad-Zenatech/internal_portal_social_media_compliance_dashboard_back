@@ -19,7 +19,7 @@ import logging
 import os
 from typing import Any, Callable, Dict, List, Optional
 
-from google.genai import types
+from services.ai.core import ai_types as types
 
 from scripts.scrape_x_media import add_image_text, media_fields  # noqa: F401 (media_fields is re-exported)
 

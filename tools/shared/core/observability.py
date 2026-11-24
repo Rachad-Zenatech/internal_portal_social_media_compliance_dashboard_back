@@ -93,6 +93,17 @@ async def get_ai_overview(
     return await ai_overview_service.overview(hours=hours, user_id=user_id)
 
 
+@router.get('/observability/ai/errors', dependencies=_ai_logs_viewer)
+async def list_ai_errors(
+    hours: int = Query(24, ge=1, le=24 * 30),
+    feature: Optional[str] = Query(None, max_length=40),
+    model: Optional[str] = Query(None, max_length=120),
+    limit: int = Query(100, ge=1, le=200),
+):
+    """All error/blocked AI calls in the selected window, optionally filtered by feature/model."""
+    return await ai_observability_service.list_ai_errors(hours=hours, feature=feature, model=model, limit=limit)
+
+
 @router.get('/observability/ai/traces', dependencies=_ai_logs_viewer)
 async def list_ai_traces(
     limit: int = Query(50, ge=1, le=200),

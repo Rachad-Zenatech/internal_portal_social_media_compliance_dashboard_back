@@ -319,7 +319,7 @@ async def generate(client: Any, *, model: str, contents: Any, config: Any = None
             _notify_attempt({"event": "attempt", "id": attempt_id, "status": "FAILED", "model": model, "feature": feature,
                              "error_kind": s.attributes["error_kind"], "error": str(e)[:160],
                              "duration_ms": round((time.perf_counter() - started) * 1000)})
-            log_prompt(**logged, response=None, status="ERROR", error_type=type(e).__name__,
+            log_prompt(**logged, response=str(e)[:1000], status="ERROR", error_type=type(e).__name__,
                        latency_ms=round((time.perf_counter() - started) * 1000, 2))
             raise
         input_tokens, output_tokens = token_counts(response)

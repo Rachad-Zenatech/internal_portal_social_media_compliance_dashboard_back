@@ -5,7 +5,7 @@ import json
 import logging
 import math
 
-from google.genai import types
+from services.ai.core import ai_types as types
 
 from services.compliance.media import image_text_service
 

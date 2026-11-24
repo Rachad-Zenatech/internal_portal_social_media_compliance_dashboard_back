@@ -35,14 +35,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `one` (def) L97
 - `enrich_items` (def) L113 - Read the text in the images and flag the links of everything that will be kept (`per_topic` items each).
 
-## scripts/scrape_x_media.py (152 lines) - Source links and image text for scraped X posts and news items.
-- `image_urls_from_block` (def) L31 - Pictures in a rendered post (avatars, emoji and icons are not the post's images).
-- `source_links_from_block` (def) L40 - The post's own link first, then any outside link it contains.
-- `media_fields` (def) L49 - source_links, image_urls and (to be filled in later) image_text for one collected item.
-- `snowflake_time` (def) L55 - When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits).
-- `_extract_tweets_from_rendered_profile` (def) L64 - Parse X posts from a rendered public X profile: text, link and real post time (from the post id).
-- `_download` (def) L109
-- `add_image_text` (def) L121 - Set item["image_text"] on items that have image_urls.
+## scripts/scrape_x_media.py (153 lines) - Source links and image text for scraped X posts and news items.
+- `image_urls_from_block` (def) L32 - Pictures in a rendered post (avatars, emoji and icons are not the post's images).
+- `source_links_from_block` (def) L41 - The post's own link first, then any outside link it contains.
+- `media_fields` (def) L50 - source_links, image_urls and (to be filled in later) image_text for one collected item.
+- `snowflake_time` (def) L56 - When an X post was made: its id encodes the time (milliseconds since X's 2010 epoch in the top bits).
+- `_extract_tweets_from_rendered_profile` (def) L65 - Parse X posts from a rendered public X profile: text, link and real post time (from the post id).
+- `_download` (def) L110
+- `add_image_text` (def) L122 - Set item["image_text"] on items that have image_urls.
 
 ## scripts/scrape_x_playwright.py (459 lines) - Live Playwright Financial ZenaTech & Today's Posts News Scraper + Sentiment Analyzer.
 - `_page_status` (def) L74 - Why a page gave what it gave: SUCCESS, EMPTY (loaded, nothing there), AUTH_REQUIRED or RATE_LIMITED.

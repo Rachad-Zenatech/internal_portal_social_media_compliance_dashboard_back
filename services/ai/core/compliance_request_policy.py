@@ -1,7 +1,6 @@
 """Bound compliance attempts and share outage knowledge without changing judgment prompts or coverage."""
 import os
-from google.genai import types
-from services.ai.core import gemini_service
+from services.ai.core import ai_types as types, gemini_service
 
 FEATURES = frozenset({"COMPLIANCE_CHECK", "CONTEXT_EVAL", "SOURCE_CHECK", "VISUAL_COMPLIANCE"})
 

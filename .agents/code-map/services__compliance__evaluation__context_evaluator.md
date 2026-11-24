@@ -4,19 +4,19 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/context_evaluator.py (450 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
-- `_Result` (class) L128
-- `_Response` (class) L138
-- `_enum` (def) L142
-- `Candidate` (class) L171 - A rule match to be read in context: the finding, the rule, the line it's in and the lines around it.
-- `_get_client` (def) L183
-- `_norm` (def) L193
-- `_key` (def) L197
-- `_visible_test_claim` (def) L208 - A visible claim in a proposed image is still reviewable despite a fixture label beside it.
-- `_item` (def) L214
-- `_precedent` (def) L240
-- `_ask` (def) L248
-- `_batch_payload` (def) L277 - Deduplicate identical rules once per batch and strip empty fields to cut token bloat.
-- `_judge` (def) L302 - One request for a batch, trying each model in turn.
-- `_apply` (def) L336 - Put the model's answer on the finding, through the safeguards.
-- `evaluate` (def) L420 - Read each candidate in context and set its status (in place).
+## services/compliance/evaluation/context_evaluator.py (455 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+- `_Result` (class) L127
+- `_Response` (class) L137
+- `_enum` (def) L141
+- `Candidate` (class) L170 - A rule match to be read in context: the finding, the rule, the line it's in and the lines around it.
+- `_get_client` (def) L182
+- `_norm` (def) L192
+- `_key` (def) L196
+- `_visible_test_claim` (def) L207 - A visible claim in a proposed image is still reviewable despite a fixture label beside it.
+- `_item` (def) L213
+- `_precedent` (def) L239
+- `_ask` (def) L247
+- `_batch_payload` (def) L276 - Deduplicate identical rules once per batch and strip empty fields to cut token bloat.
+- `_judge` (def) L301 - One request for a batch, trying each model in turn.
+- `_apply` (def) L341 - Put the model's answer on the finding, through the safeguards.
+- `evaluate` (def) L425 - Read each candidate in context and set its status (in place).

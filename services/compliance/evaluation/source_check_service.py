@@ -171,7 +171,7 @@ def _post_key(post_text: str) -> str:
 
 
 async def _ask(model: str, contents: str, guard: Any, *, system_prompt: str = SYSTEM_PROMPT) -> _Response:
-    from google.genai import types
+    from services.ai.core import ai_types as types
 
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
@@ -227,12 +227,17 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
         + "\n".join(head) + "\n\n" + shown + "\n</source>"
     )
     guard = screen_input(contents)
+    if os.getenv("SOURCE_CHECK_MODELS", "").strip():
+        models_to_try = MODELS
+    else:
+        from services.ai.core import model_router
+        models_to_try = model_router.route("SOURCE_CHECK", prompt_chars=len(contents)).models or MODELS
     for sweep in range(2):
-        if not any(model_is_available(model) for model in MODELS):
+        if not any(model_is_available(model) for model in models_to_try):
             break
         if sweep:
             await asyncio.sleep(RETRY_PAUSE_SEC)
-        for model in MODELS:
+        for model in models_to_try:
             if not model_is_available(model):
                 continue
             try:

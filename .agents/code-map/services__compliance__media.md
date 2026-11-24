@@ -159,20 +159,20 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `locate` (def) L55
     - `read` (def) L62
 
-## services/compliance/media/image_text_service.py (272 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
-- `is_image_file` (def) L68
-- `_get_client` (def) L72
-- `_claim` (def) L82 - Atomically mark an image as being read unless another worker already is.
-- `_save` (def) L98
-- `_generate` (def) L112 - Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
-- `_clean` (def) L135
-- `_has_ai_metadata` (def) L140 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
-- `_face_boxes` (def) L157 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
-- `read_file` (def) L175 - Read one image's text and save it, then re-check its submission if it's still open.
-- `_run` (def) L221
-- `schedule` (def) L228 - Read each image in the background, unless this process is already reading it.
-- `resume_interrupted` (def) L239 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
-- `schedule_missing` (def) L256 - Read the images among these that were never read, or whose read was abandoned (e.g.
+## services/compliance/media/image_text_service.py (278 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+- `is_image_file` (def) L67
+- `_get_client` (def) L71
+- `_claim` (def) L81 - Atomically mark an image as being read unless another worker already is.
+- `_save` (def) L97
+- `_generate` (def) L111 - Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
+- `_clean` (def) L141
+- `_has_ai_metadata` (def) L146 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
+- `_face_boxes` (def) L163 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
+- `read_file` (def) L181 - Read one image's text and save it, then re-check its submission if it's still open.
+- `_run` (def) L227
+- `schedule` (def) L234 - Read each image in the background, unless this process is already reading it.
+- `resume_interrupted` (def) L245 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
+- `schedule_missing` (def) L262 - Read the images among these that were never read, or whose read was abandoned (e.g.
 
 ## services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - `audio_samples` (def) L16

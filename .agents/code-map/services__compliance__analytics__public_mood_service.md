@@ -4,45 +4,45 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/analytics/public_mood_service.py (936 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
-- `_env_float` (def) L79
-- `_get_client` (def) L105
-- `_source_label` (def) L115
-- `_sync_topics` (def) L127 - Refresh the topic list from the listening source when it's older than a day (or empty, or asked to, or
-- `_sync_topic_vectors` (def) L171 - Keep one vector document per live topic (only new or changed text is embedded), and none for removed ones.
-- `sync_conversations` (def) L199 - Record and index the scraped conversations now (embedding can take a minute or more under the quota).
-- `record_conversations` (def) L205 - Only record the collected items (quick).
-- `index_conversations` (def) L210 - Bring the vector index up to date with the recorded items (slow under the embedding quota).
-- `_index_conversations_soon` (def) L218 - The same, in the background and one run at a time, for callers that shouldn't wait (an import).
-- `_sync_conversation_vectors` (def) L225 - Record the scraped feed's articles and posts (kept even when a later feed lacks them) and, unless index=False,
-- `_effective_keywords` (def) L240 - The source's keywords minus the ones the team switched off, plus the team's own.
-- `_load_topics` (def) L247 - Live topics from the current source, with the keywords that count for matching.
-- `_meaning_scores` (def) L270 - How close the post is in meaning to each topic: the raw score, and its margin over the post's median score
-- `_unambiguous` (def) L311 - A phrase ("drone delivery") or a coined name ("ZenaDrone") rarely means anything else; a single everyday
-- `_match` (def) L317 - Topics the post is about, strongest first: (topic, keywords found, similarity, close in meaning).
-- `_is_fresh` (def) L347
-- `_latest_snapshots` (def) L354
-- `_with_trend` (def) L366 - Mentions per day, and the change in them, from the stories collected over the last days (every scrape so far, one
-- `_fresh_snapshots` (def) L388 - The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale.
-- `_snapshot_model` (def) L420
-- `_overall_post_recommendation` (def) L456 - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
-- `_load` (def) L479
-- `_topic_kind` (def) L527
-- `_may_show_on` (def) L532 - A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
-- `_gather` (def) L540 - The post, its matched topics and their current snapshots.
-    - `is_own` (def) L569
-- `_input_hash` (def) L604
-- `_summary_model` (def) L615
-- `_with_feedback` (def) L633
-- `get_public_mood` (def) L647
-- `dismiss_topic` (def) L673 - Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones).
-- `restore_topic` (def) L689
-- `rate_summary` (def) L696 - Say whether a summary helped (or take the vote back with no data).
-- `list_topics` (def) L718 - Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly.
-- `list_trend_opportunities` (def) L756 - See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
-- `ingest_x_json` (def) L773 - Save scraped/collected X (Twitter) topics and raw comments as the current feed (the vector database's
-- `_clean_words` (def) L817
-- `update_topic` (def) L821
-- `match_test` (def) L838 - Which topics a piece of text would match and why, with the near misses, for tuning keywords.
-- `_prompt` (def) L886
-- `summarise` (def) L890 - Write (or reuse) the summary for the post's current version against the current moods.
+## services/compliance/analytics/public_mood_service.py (935 lines) - Public mood: what people online currently think about the topics a post touches, and what that means for it.
+- `_env_float` (def) L78
+- `_get_client` (def) L104
+- `_source_label` (def) L114
+- `_sync_topics` (def) L126 - Refresh the topic list from the listening source when it's older than a day (or empty, or asked to, or
+- `_sync_topic_vectors` (def) L170 - Keep one vector document per live topic (only new or changed text is embedded), and none for removed ones.
+- `sync_conversations` (def) L198 - Record and index the scraped conversations now (embedding can take a minute or more under the quota).
+- `record_conversations` (def) L204 - Only record the collected items (quick).
+- `index_conversations` (def) L209 - Bring the vector index up to date with the recorded items (slow under the embedding quota).
+- `_index_conversations_soon` (def) L217 - The same, in the background and one run at a time, for callers that shouldn't wait (an import).
+- `_sync_conversation_vectors` (def) L224 - Record the scraped feed's articles and posts (kept even when a later feed lacks them) and, unless index=False,
+- `_effective_keywords` (def) L239 - The source's keywords minus the ones the team switched off, plus the team's own.
+- `_load_topics` (def) L246 - Live topics from the current source, with the keywords that count for matching.
+- `_meaning_scores` (def) L269 - How close the post is in meaning to each topic: the raw score, and its margin over the post's median score
+- `_unambiguous` (def) L310 - A phrase ("drone delivery") or a coined name ("ZenaDrone") rarely means anything else; a single everyday
+- `_match` (def) L316 - Topics the post is about, strongest first: (topic, keywords found, similarity, close in meaning).
+- `_is_fresh` (def) L346
+- `_latest_snapshots` (def) L353
+- `_with_trend` (def) L365 - Mentions per day, and the change in them, from the stories collected over the last days (every scrape so far, one
+- `_fresh_snapshots` (def) L387 - The latest snapshot for each topic, fetching new ones only for topics whose snapshot has gone stale.
+- `_snapshot_model` (def) L419
+- `_overall_post_recommendation` (def) L455 - Combine matched topics' recommendations into a single post-level POST / WAIT / HOLD decision.
+- `_load` (def) L478
+- `_topic_kind` (def) L526
+- `_may_show_on` (def) L531 - A search built from one draft's content (post-<id>) belongs to that draft only: another draft that shares a
+- `_gather` (def) L539 - The post, its matched topics and their current snapshots.
+    - `is_own` (def) L568
+- `_input_hash` (def) L603
+- `_summary_model` (def) L614
+- `_with_feedback` (def) L632
+- `get_public_mood` (def) L646
+- `dismiss_topic` (def) L672 - Leave a topic out for this post, remembering which keywords tied it there (to spot noisy ones).
+- `restore_topic` (def) L688
+- `rate_summary` (def) L695 - Say whether a summary helped (or take the vote back with no data).
+- `list_topics` (def) L717 - Every live topic with its current mood (refreshing stale snapshots) and how often it was matched wrongly.
+- `list_trend_opportunities` (def) L755 - See what is trending right now on X/Social Listening, whether sentiment is positive or negative,
+- `ingest_x_json` (def) L772 - Save scraped/collected X (Twitter) topics and raw comments as the current feed (the vector database's
+- `_clean_words` (def) L816
+- `update_topic` (def) L820
+- `match_test` (def) L837 - Which topics a piece of text would match and why, with the near misses, for tuning keywords.
+- `_prompt` (def) L885
+- `summarise` (def) L889 - Write (or reuse) the summary for the post's current version against the current moods.
