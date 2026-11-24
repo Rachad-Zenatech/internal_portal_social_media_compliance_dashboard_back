@@ -322,14 +322,30 @@ class BedrockModels:
             else:
                 raise
 
-        raw_text = ""
-        output_msg = resp.get("output", {}).get("message", {})
-        for c in output_msg.get("content", []):
-            if "text" in c:
-                raw_text += c["text"]
-
         is_json = getattr(config, "response_mime_type", None) == "application/json"
-        clean_text = clean_json_fences(raw_text) if is_json or raw_text.strip().startswith("```") else raw_text
+        for attempt in range(2):
+            output_msg = resp.get("output", {}).get("message", {})
+            raw_text = "".join(c.get("text", "") for c in output_msg.get("content", []))
+            clean_text = clean_json_fences(raw_text) if is_json or raw_text.strip().startswith("```") else raw_text
+            if not is_json:
+                break
+            try:
+                json.loads(clean_text)
+                malformed = False
+            except ValueError:
+                malformed = True
+            truncated = resp.get("stopReason") == "max_tokens"
+            if not malformed and not truncated:
+                break
+            if attempt == 1:
+                if truncated:
+                    raise ValueError("Bedrock JSON response exceeded its output token limit")
+                break
+            current_budget = params["inferenceConfig"]["maxTokens"]
+            params["inferenceConfig"]["maxTokens"] = max(current_budget, min(8192, max(4096, current_budget * 2)))
+            logger.warning("Retrying incomplete or malformed Bedrock JSON response (stop_reason=%s, max_tokens=%s)",
+                           resp.get("stopReason"), params["inferenceConfig"]["maxTokens"])
+            resp = boto.converse(**params)
         usage = resp.get("usage", {})
 
         parsed = None
