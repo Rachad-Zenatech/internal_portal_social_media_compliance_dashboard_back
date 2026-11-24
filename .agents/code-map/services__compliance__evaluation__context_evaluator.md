@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/context_evaluator.py (450 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+## services/compliance/evaluation/context_evaluator.py (456 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - `_Result` (class) L128
 - `_Response` (class) L138
 - `_enum` (def) L142
@@ -18,5 +18,5 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_ask` (def) L248
 - `_batch_payload` (def) L277 - Deduplicate identical rules once per batch and strip empty fields to cut token bloat.
 - `_judge` (def) L302 - One request for a batch, trying each model in turn.
-- `_apply` (def) L336 - Put the model's answer on the finding, through the safeguards.
-- `evaluate` (def) L420 - Read each candidate in context and set its status (in place).
+- `_apply` (def) L342 - Put the model's answer on the finding, through the safeguards.
+- `evaluate` (def) L426 - Read each candidate in context and set its status (in place).

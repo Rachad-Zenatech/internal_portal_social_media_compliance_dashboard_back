@@ -24,7 +24,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ModelUnavailable` (class) L461 - The model can't be used right now: it doesn't exist for this key (e.g.
     - `__init__` (def) L465
 
-## services/compliance/sentiment/engine.py (324 lines) - Gemini execution and model failover chain for sentiment analysis.
+## services/compliance/sentiment/engine.py (332 lines) - Gemini execution and model failover chain for sentiment analysis.
 - `_upload_video` (def) L51 - Upload the submission's video to Gemini so the analysis can watch it.
 - `_delete_upload` (def) L87
 - `_image_bytes` (def) L94 - An image ready to send: as is when Gemini reads it and it's small, otherwise a smaller JPEG (first frame of
@@ -34,9 +34,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_is_daily_quota` (def) L188
 - `_is_timeout` (def) L193
 - `_is_unavailable` (def) L206
-- `_models_to_try` (def) L211 - The input's own model first, then the rest of the chain (unless fallback is off, e.g.
-- `_generate` (def) L217 - Analyse with the first model in the chain that has allowance left and still exists.
-- `_generate_with` (def) L246 - One model: retries brief rate limits and outages, and once on malformed output.
+- `_models_to_try` (def) L211 - Use the cheapest model for routine posts, and stronger models first when high_stakes=True.
+- `_generate` (def) L225 - Analyse with the first model in the chain that has allowance left and still exists.
+- `_generate_with` (def) L254 - One model: retries brief rate limits and outages, and once on malformed output.
 
 ## services/compliance/sentiment/evidence.py (254 lines) - Verification of quotes and rule references in sentiment findings.
 - `_norm` (def) L17

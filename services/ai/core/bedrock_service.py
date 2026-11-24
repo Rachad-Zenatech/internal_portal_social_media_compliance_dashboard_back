@@ -17,6 +17,49 @@ from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_CHEAP_MODEL = "us.anthropic.claude-haiku-5-5"
+DEFAULT_HEAVY_MODEL = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+_FALLBACK_CLIENT_ERRORS = ("AccessDeniedException", "ValidationException", "ResourceNotFoundException", "ThrottlingException")
+
+
+def is_expensive_model(name: Optional[str]) -> bool:
+    low = (name or "").strip().lower()
+    if not low or "haiku" in low or "lite" in low:
+        return False
+    return any(tok in low for tok in ("sonnet", "opus", "-pro", "pro-"))
+
+
+def get_bedrock_cheap_model() -> str:
+    explicit = (os.getenv("BEDROCK_CHEAP_PROFILE_ID") or "").strip()
+    if explicit:
+        return explicit
+    profile = get_bedrock_profile_id()
+    if profile and not is_expensive_model(profile):
+        return profile
+    return DEFAULT_CHEAP_MODEL
+
+
+def get_bedrock_heavy_model() -> str:
+    explicit = (os.getenv("BEDROCK_HEAVY_PROFILE_ID") or "").strip()
+    if explicit:
+        return explicit
+    tier_env = [m.strip() for m in os.getenv("AI_ROUTE_TIER_HEAVY", "").split(",") if m.strip()]
+    if tier_env:
+        return tier_env[0]
+    profile = get_bedrock_profile_id()
+    if profile and is_expensive_model(profile):
+        return profile
+    return DEFAULT_HEAVY_MODEL
+
+
+def _resolve_bedrock_model(model: Optional[str], content_blocks: List[Dict[str, Any]], system_text: str) -> str:
+    if model and "gemini" not in model.lower():
+        return model
+    text_chars = len(system_text) + sum(len(b.get("text", "")) for b in content_blocks if isinstance(b, dict))
+    media_count = sum(1 for b in content_blocks if isinstance(b, dict) and ("image" in b or "document" in b))
+    wants_heavy = "pro" in (model or "").lower() or text_chars > 60_000 or media_count >= 5
+    return get_bedrock_heavy_model() if wants_heavy else get_bedrock_cheap_model()
+
 
 def is_bedrock_enabled() -> bool:
     """Return True if AWS Bedrock credentials and profile ID are configured."""
@@ -201,9 +244,6 @@ def _build_converse_params(
     config: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """Translate model, contents, and config into boto3 converse parameters."""
-    profile_id = get_bedrock_profile_id()
-    model_id = profile_id if (not model or "gemini" in model.lower()) else model
-
     system_instruction = getattr(config, "system_instruction", None)
     system_text = ""
     if system_instruction:
@@ -232,6 +272,7 @@ def _build_converse_params(
     system = [{"text": system_text}] if system_text else None
 
     content_blocks, _ = _extract_text_and_media(contents)
+    model_id = _resolve_bedrock_model(model, content_blocks, system_text)
     messages = [{"role": "user", "content": content_blocks}]
 
     max_tokens = getattr(config, "max_output_tokens", None) or 2048
@@ -263,7 +304,17 @@ class BedrockModels:
     ) -> BedrockResponse:
         boto = self._adapter.get_boto_client()
         params = _build_converse_params(model, contents, config)
-        resp = boto.converse(**params)
+        profile_id = get_bedrock_profile_id()
+        try:
+            resp = boto.converse(**params)
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if profile_id and params["modelId"] != profile_id and code in _FALLBACK_CLIENT_ERRORS:
+                logger.info("Bedrock %s failed (%s); falling back to profile %s", params["modelId"], code, profile_id)
+                params["modelId"] = profile_id
+                resp = boto.converse(**params)
+            else:
+                raise
 
         raw_text = ""
         output_msg = resp.get("output", {}).get("message", {})
@@ -321,13 +372,26 @@ class BedrockAioModels:
     ):
         boto = self._adapter.get_boto_client()
         params = _build_converse_params(model, contents, config)
+        profile_id = get_bedrock_profile_id()
 
         loop = asyncio.get_running_loop()
         stream_timeout = float(os.getenv("BEDROCK_STREAM_TIMEOUT_SEC", "120"))
-        stream_resp = await asyncio.wait_for(
-            loop.run_in_executor(None, lambda: boto.converse_stream(**params)),
-            timeout=stream_timeout,
-        )
+        try:
+            stream_resp = await asyncio.wait_for(
+                loop.run_in_executor(None, lambda: boto.converse_stream(**params)),
+                timeout=stream_timeout,
+            )
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if profile_id and params["modelId"] != profile_id and code in _FALLBACK_CLIENT_ERRORS:
+                logger.info("Bedrock stream %s failed (%s); falling back to profile %s", params["modelId"], code, profile_id)
+                params["modelId"] = profile_id
+                stream_resp = await asyncio.wait_for(
+                    loop.run_in_executor(None, lambda: boto.converse_stream(**params)),
+                    timeout=stream_timeout,
+                )
+            else:
+                raise
         events = await asyncio.wait_for(
             loop.run_in_executor(None, lambda: list(stream_resp["stream"])),
             timeout=stream_timeout,

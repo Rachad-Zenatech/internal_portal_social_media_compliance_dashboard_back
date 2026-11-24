@@ -23,7 +23,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_embed_one` (def) L27
 - `embed` (def) L43
 
-## services/ai/core/bedrock_service.py (427 lines) - AWS Bedrock AI Service Adapter.
+## services/ai/core/bedrock_service.py (450 lines) - AWS Bedrock AI Service Adapter.
 - `is_expensive_model` (def) L25
 - `get_bedrock_cheap_model` (def) L32
 - `get_bedrock_heavy_model` (def) L42
@@ -53,26 +53,26 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `BedrockModels` (class) L292 - Mimics client.models on Google GenAI SDK.
     - `__init__` (def) L295
     - `generate_content` (def) L298
-- `BedrockStreamIterator` (class) L332
-    - `__init__` (def) L333
-    - `__aiter__` (def) L336
-    - `_iter` (def) L339
-- `BedrockAioModels` (class) L350 - Mimics client.aio.models for streaming calls.
-    - `__init__` (def) L353
-    - `generate_content_stream` (def) L356
-- `BedrockAio` (class) L379
-    - `__init__` (def) L380
-- `BedrockClientAdapter` (class) L384 - Adapter implementing the client interface used by services calling Gemini.
-    - `__init__` (def) L387
-    - `get_boto_client` (def) L392
-- `get_bedrock_client` (def) L411
-- `get_ai_client` (def) L418 - Return Bedrock client if enabled; otherwise Gemini client if GEMINI_API_KEY is present.
+- `BedrockStreamIterator` (class) L342
+    - `__init__` (def) L343
+    - `__aiter__` (def) L346
+    - `_iter` (def) L349
+- `BedrockAioModels` (class) L360 - Mimics client.aio.models for streaming calls.
+    - `__init__` (def) L363
+    - `generate_content_stream` (def) L366
+- `BedrockAio` (class) L402
+    - `__init__` (def) L403
+- `BedrockClientAdapter` (class) L407 - Adapter implementing the client interface used by services calling Gemini.
+    - `__init__` (def) L410
+    - `get_boto_client` (def) L415
+- `get_bedrock_client` (def) L434
+- `get_ai_client` (def) L441 - Return Bedrock client if enabled; otherwise Gemini client if GEMINI_API_KEY is present.
 
 ## services/ai/core/compliance_request_policy.py (30 lines) - Bound compliance attempts and share outage knowledge without changing judgment prompts or coverage.
 - `configure` (def) L9
 - `text_models` (def) L27 - Text judgments may use every explicitly configured general fallback, including those used by rulebook checks.
 
-## services/ai/core/gemini_service.py (209 lines) - gemini service (ai core)
+## services/ai/core/gemini_service.py (217 lines) - gemini service (ai core)
 - `_normalize_ai_model_name` (def) L10 - Normalizes a model name from the environment variable list
 - `_model_failure_cooldown_seconds` (def) L38 - Avoid retrying a model known to be unavailable while a request burst is in progress.
 - `model_is_available` (def) L51 - Return false while a short provider-failure cooldown for this model is active.
@@ -80,14 +80,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `without_retired` (def) L68 - The models that can still be called, in the same order.
 - `get_gemini_fallback_models` (def) L79 - Retrieves and normalizes the list of available Gemini models
 - `is_rotatable_model_error` (def) L95 - Determines if a given exception represents a rate limit, quota exhaustion,
-- `generate_content_with_fallback` (def) L142 - A robust wrapper around client.models.generate_content that automatically
+- `generate_content_with_fallback` (def) L150 - A robust wrapper around client.models.generate_content that automatically
 
-## services/ai/core/model_router.py (82 lines) - Model routing: picks which Gemini models a request tries first, by feature and by how demanding the request is.
-- `Route` (class) L43
-- `enabled` (def) L49
-- `tier_models` (def) L53
-- `base_tier` (def) L58
-- `route` (def) L63 - The models to try, in order, for this request, and why that tier was chosen.
+## services/ai/core/model_router.py (104 lines) - Model routing: picks the cheapest suitable model for easy work, and stronger models when needed.
+- `Route` (class) L49
+- `enabled` (def) L55
+- `tier_models` (def) L59
+- `base_tier` (def) L71
+- `route` (def) L76 - The models to try, in order, for this request, and why that tier was chosen.
 
 ## services/ai/core/mood_store.py (121 lines) - The collections public mood learns from, in the same MongoDB database as the vector store.
 - `is_enabled` (def) L43

@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/visual_review.py (249 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
+## services/compliance/evaluation/visual_review.py (253 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
 - `Assessment` (class) L31
 - `_asset_part` (def) L45 - Only internally selected storage paths can be attached; never accept paths from API input.
 - `_parse` (def) L83 - Missing/duplicate rules and malformed output must never look like a successful clear.
