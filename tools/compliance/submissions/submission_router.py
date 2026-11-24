@@ -224,45 +224,10 @@ async def run_initial_check_stream(submission_id: UUID, user_id: CurrentUser, re
     """The same check as /check, streamed as newline-delimited JSON so the page can show its progress: an
     {"event": "attempt"} line as each AI model call starts and ends (fallbacks included), then {"event": "done",
     "submission": ...} with the saved result, or {"event": "failed", "status": ..., "detail": ...}."""
+    from tools.compliance.submissions.check_stream import stream_initial_check
+
     await svc._get_owned_row(submission_id, user_id)  # access check before the stream starts
-    queue: asyncio.Queue = asyncio.Queue()
-    open_ = {"value": True}
-
-    def listen(event: Dict) -> None:
-        # Background work the check starts (reading an image's text) keeps the listener after the check is done.
-        if open_["value"]:
-            queue.put_nowait(event)
-
-    async def work() -> None:
-        ai_observability.attempt_listener.set(listen)
-        try:
-            sub = await run_until_disconnected(request, svc.run_initial_check(submission_id, user_id, confirm_repost=bool(body and body.confirm_repost), refresh_sources=bool(body and body.refresh_sources)))
-            queue.put_nowait({"event": "done", "submission": sub.model_dump(mode="json")})
-        except asyncio.CancelledError:
-            queue.put_nowait({"event": "failed", "status": 499, "detail": "Compliance check stopped"})
-            raise
-        except HTTPException as e:
-            queue.put_nowait({"event": "failed", "status": e.status_code, "detail": e.detail})
-        except Exception:
-            logger.exception("Streamed compliance check failed for %s", submission_id)
-            queue.put_nowait({"event": "failed", "status": 500, "detail": "The compliance check couldn't run"})
-
-    # Navigation keeps the request alive; Stop aborts the connection and cancels its work.
-    task = asyncio.create_task(work(), name=f"check-stream-{submission_id}")
-
-    async def lines():
-        try:
-            while True:
-                event = await queue.get()
-                yield json.dumps(event, default=str) + "\n"
-                if event["event"] in ("done", "failed"):
-                    break
-        finally:
-            open_["value"] = False
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-
-    return StreamingResponse(lines(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache"})
+    return stream_initial_check(submission_id, user_id, request, body)
 
 
 @router.get("/{submission_id}/context-suggestions", response_model=Dict[str, List[str]])
