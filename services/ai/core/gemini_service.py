@@ -37,12 +37,17 @@ def _model_failure_cooldown_seconds(error: Exception) -> int:
     """Avoid retrying a model known to be unavailable while a request burst is in progress."""
     status_code = str(getattr(error, "code", "") or getattr(error, "status_code", ""))
     message = f"{status_code} {error}".lower()
-    if "404" in message or "not found" in message or "not available" in message:
+    if any(part in message for part in ("404", "not found", "not available", "resourcenotfound", "accessdenied")):
         return 300
-    if any(part in message for part in ("429", "500", "503", "504", "resource_exhausted", "quota", "high demand", "deadline")):
+    if any(part in message for part in (
+        "429", "500", "503", "504", "resource_exhausted", "quota", "high demand", "deadline",
+        "throttl", "too many requests", "toomanyrequests", "serviceunavailable", "modelnotready",
+    )):
         return 60
     if isinstance(error, TimeoutError) or "timeout" in type(error).__name__.lower() or "timed out" in message:
         return 30
+    if is_rotatable_model_error(error):
+        return 60
     return 0
 
 

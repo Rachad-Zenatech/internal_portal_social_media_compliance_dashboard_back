@@ -98,9 +98,12 @@ async def _extract_fallback_source(data: bytes, mime_type: str) -> List[ImageSou
         temperature=0,
         http_options=types.HttpOptions(timeout=image_text_service.TIMEOUT_SEC * 1000),
     )
+    from services.ai.core.gemini_service import model_is_available, record_model_failure
+
     client = image_text_service._get_client()
     part = types.Part.from_bytes(data=data, mime_type=mime_type)
-    for model in image_text_service.MODELS:
+    active_models = [m for m in image_text_service.MODELS if model_is_available(m)] or image_text_service.MODELS
+    for model in active_models:
         try:
             resp = await ai_observability.generate(
                 client, model=model, contents=[part, _EXTRACT_SOURCE_PROMPT],
@@ -119,6 +122,7 @@ async def _extract_fallback_source(data: bytes, mime_type: str) -> List[ImageSou
             if not is_rotatable_model_error(e):
                 logger.warning("Fallback image source extraction failed: %s", e)
                 return []
+            record_model_failure(model, e)
     return []
 
 

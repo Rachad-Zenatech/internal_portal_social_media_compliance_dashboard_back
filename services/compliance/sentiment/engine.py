@@ -192,7 +192,10 @@ async def _generate(client: Any, inp: Dict[str, Any], video: Optional[types.File
                     precedents: Optional[List[Dict[str, Any]]] = None, fallback: bool = True) -> SentimentResult:
     """Analyse with the first model in the chain that has allowance left and still exists. Only when every model's
     daily limit is used up does it raise QuotaExhausted (so the run can be scheduled for after the reset)."""
+    from services.ai.core.gemini_service import model_is_available
+
     models = _models_to_try(inp, fallback)
+    models = [m for m in models if model_is_available(m)] or models
     skipped: List[str] = []
     out_of_quota: List[str] = []
     for model in models:

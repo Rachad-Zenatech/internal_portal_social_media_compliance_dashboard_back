@@ -24,7 +24,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ModelUnavailable` (class) L460 - The model can't be used right now: it doesn't exist for this key (e.g.
     - `__init__` (def) L464
 
-## services/compliance/sentiment/engine.py (297 lines) - Gemini execution and model failover chain for sentiment analysis.
+## services/compliance/sentiment/engine.py (300 lines) - Gemini execution and model failover chain for sentiment analysis.
 - `_upload_video` (def) L50 - Video upload stub for compatibility; Bedrock inspects sampled frames directly.
 - `_delete_upload` (def) L55
 - `_image_bytes` (def) L59 - An image ready to send: as is when Gemini reads it and it's small, otherwise a smaller JPEG (first frame of
@@ -36,7 +36,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_is_unavailable` (def) L171
 - `_models_to_try` (def) L176 - Use the cheapest model for routine posts, and stronger models first when high_stakes=True.
 - `_generate` (def) L190 - Analyse with the first model in the chain that has allowance left and still exists.
-- `_generate_with` (def) L219 - One model: retries brief rate limits and outages, and once on malformed output.
+- `_generate_with` (def) L222 - One model: retries brief rate limits and outages, and once on malformed output.
 
 ## services/compliance/sentiment/evidence.py (254 lines) - Verification of quotes and rule references in sentiment findings.
 - `_norm` (def) L17

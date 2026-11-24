@@ -94,14 +94,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
 - `setup` (def) L13
 
-## postgresql_db/schemas/setup_submissions_schema.py (297 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
+## postgresql_db/schemas/setup_submissions_schema.py (298 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - `setup` (def) L18
 - `_sync_script_checks` (def) L48
 - `_retire_product_brands` (def) L79 - Hide the old product brands and move everything filed under them to SOFTWARE, and Shaun's accounts and posts
-- `_account_key` (def) L186 - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
-- `_retire_demo_social_accounts` (def) L210 - Remove the earlier demo accounts.
-- `_seed_demo_social_accounts` (def) L243 - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
-- `_main` (def) L286
+- `_account_key` (def) L187 - The stable id a listed account is matched by (so the list can grow without duplicating earlier ones).
+- `_retire_demo_social_accounts` (def) L211 - Remove the earlier demo accounts.
+- `_seed_demo_social_accounts` (def) L244 - Insert the team's listed social accounts that aren't there yet, each matched by its stable id so accounts added
+- `_main` (def) L287
 
 ## postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - `setup` (def) L13

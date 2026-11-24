@@ -125,14 +125,19 @@ async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None,
     else:
         from services.ai.core import model_router
         raw_models = model_router.route(feature, attachments=1).models or MODELS
+    from services.ai.core.gemini_service import model_is_available, record_model_failure
+
     last_error: Optional[Exception] = None
-    for model in dict.fromkeys(without_retired(raw_models)):
+    candidates = list(dict.fromkeys(without_retired(raw_models)))
+    active_models = [m for m in candidates if model_is_available(m)] or candidates
+    for model in active_models:
         try:
             return await ai_observability.generate(client, model=model, contents=contents, config=config, feature=feature)
         except Exception as e:
             timed_out = isinstance(e, (httpx.TimeoutException, TimeoutError)) or "timed out" in str(e).lower()
             if not timed_out and not is_rotatable_model_error(e):
                 raise
+            record_model_failure(model, e)
             logger.info("Image text: %s unavailable (%s), trying the next model", model, str(e)[:120])
             last_error = e
     raise RuntimeError(f"No image-text model is available right now: {last_error}")
