@@ -6,7 +6,7 @@
   },
   "files": {
     "models/compliance/submission_model.py": {
-      "max_lines": 626,
+      "max_lines": 621,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "postgresql_db/schemas/setup_compliance_schema.py": {
@@ -18,15 +18,15 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/analytics/public_mood_service.py": {
-      "max_lines": 937,
+      "max_lines": 934,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/brand_voice_service.py": {
-      "max_lines": 706,
+      "max_lines": 705,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/compliance_service.py": {
-      "max_lines": 1515,
+      "max_lines": 1514,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/script_batch_service.py": {
@@ -34,11 +34,11 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/script_review_service.py": {
-      "max_lines": 1054,
+      "max_lines": 1002,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/sentiment/jobs.py": {
-      "max_lines": 517,
+      "max_lines": 516,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {

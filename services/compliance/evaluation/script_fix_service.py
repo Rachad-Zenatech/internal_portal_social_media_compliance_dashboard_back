@@ -9,6 +9,7 @@ from fastapi import HTTPException
 
 from models.compliance.script_review_model import FlagFixRequest, FlagFixSuggestion
 from services.ai.core import ai_types as types
+from services.ai.core.ai_error_diagnostics import classify_error, user_message
 from services.ai.core.gemini_service import generate_content_with_fallback
 
 logger = logging.getLogger(__name__)
@@ -53,12 +54,9 @@ async def suggest_fix(req: FlagFixRequest) -> FlagFixSuggestion:
             generate_content_with_fallback(sentiment._get_client(), prompt, config, feature="SCRIPT_FIX"), timeout=60
         )
         data = json.loads(response.text or "{}")
-    except (ValueError, asyncio.TimeoutError) as e:
-        logger.warning("Fix suggestion failed: %s", e)
-        raise HTTPException(status_code=502, detail="The suggestion didn't come back. Try again.")
-    except RuntimeError as e:
-        logger.warning("Fix suggestion failed: %s", e)
-        raise HTTPException(status_code=503, detail="The AI service is busy or out of quota. Try again later.")
+    except Exception as exc:
+        logger.exception("Script fix suggestion failed (reason=%s)", classify_error(exc)[0])
+        raise HTTPException(status_code=502, detail=user_message(exc)) from exc
     rewrite = (data.get("rewrite") or "").strip()
     if not rewrite:
         raise HTTPException(status_code=502, detail="No suggestion came back. Try again.")

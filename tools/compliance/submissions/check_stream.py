@@ -9,6 +9,7 @@ from uuid import UUID
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from services.ai.core.ai_error_diagnostics import classify_error, user_message
 from services.ai.observability import ai_observability
 from services.compliance.submissions import submission_service as svc
 from services.compliance.submissions.disconnected_analysis import run_until_disconnected
@@ -43,9 +44,9 @@ def stream_initial_check(submission_id: UUID, user_id: UUID, request: Request, b
             raise
         except HTTPException as e:
             queue.put_nowait({"event": "failed", "status": e.status_code, "detail": e.detail})
-        except Exception:
-            logger.exception("Streamed compliance check failed for %s", submission_id)
-            queue.put_nowait({"event": "failed", "status": 500, "detail": "The compliance check couldn't run"})
+        except Exception as exc:
+            logger.exception("Streamed compliance check failed for %s (reason=%s)", submission_id, classify_error(exc)[0])
+            queue.put_nowait({"event": "failed", "status": 500, "detail": user_message(exc)})
 
     task = asyncio.create_task(work(), name=f"check-stream-{submission_id}")
 

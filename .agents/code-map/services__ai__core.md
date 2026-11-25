@@ -4,6 +4,10 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
+## services/ai/core/ai_error_diagnostics.py (39 lines) - Safe, actionable descriptions of AI failures for users and server logs.
+- `classify_error` (def) L9 - Classify known failures without returning raw provider messages or secrets.
+- `user_message` (def) L35
+
 ## services/ai/core/ai_types.py (85 lines) - Native AI request/content DTOs replacing google.genai.types for AWS Bedrock.
 - `Blob` (class) L7
 - `FunctionCall` (class) L12
@@ -104,7 +108,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_request` (def) L106
 - `embed` (def) L127
 
-## services/ai/core/gemini_service.py (201 lines) - gemini service (ai core)
+## services/ai/core/gemini_service.py (204 lines) - gemini service (ai core)
 - `_normalize_ai_model_name` (def) L8 - Normalizes a model name from the environment variable list
 - `_model_failure_cooldown_seconds` (def) L36 - Avoid retrying a model known to be unavailable while a request burst is in progress.
 - `model_is_available` (def) L54 - Return false while a short provider-failure cooldown for this model is active.

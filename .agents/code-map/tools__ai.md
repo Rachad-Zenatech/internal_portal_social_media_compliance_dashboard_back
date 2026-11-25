@@ -7,12 +7,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
 - `ai_status` (def) L10 [GET /ai/status] - The AI's state: available, or why it isn't (key, quota, models, busy).
 
-## tools/ai/chat_router.py (64 lines) - Streaming AI chat endpoint.
-- `MessageItem` (class) L20
-- `ChatRequest` (class) L25
-- `_unavailable_response` (def) L30
-- `ai_chat` (def) L37 [POST /ai/chat]
-    - `stream_generator` (def) L51
+## tools/ai/chat_router.py (65 lines) - Streaming AI chat endpoint.
+- `MessageItem` (class) L21
+- `ChatRequest` (class) L26
+- `_unavailable_response` (def) L31
+- `ai_chat` (def) L38 [POST /ai/chat]
+    - `stream_generator` (def) L52
 
 ## tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - `_super_admin` (def) L16

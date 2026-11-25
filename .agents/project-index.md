@@ -83,13 +83,14 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
 - server.py (472 lines) - server
+- services/ai/core/ai_error_diagnostics.py (39 lines) - Safe, actionable descriptions of AI failures for users and server logs.
 - services/ai/core/ai_types.py (85 lines) - Native AI request/content DTOs replacing google.genai.types for AWS Bedrock.
 - services/ai/core/assistant_chat_service.py (261 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/bedrock_embeddings.py (52 lines) - Real Titan embeddings, isolated from chat inference profiles and old vector spaces.
 - services/ai/core/bedrock_service.py (470 lines) - AWS Bedrock AI Service Adapter.
 - services/ai/core/compliance_request_policy.py (29 lines) - Bound compliance attempts and share outage knowledge without changing judgment prompts or coverage.
 - services/ai/core/embedding_service.py (147 lines) - Choose an embedding provider independently of the Claude review models.
-- services/ai/core/gemini_service.py (201 lines) - gemini service (ai core)
+- services/ai/core/gemini_service.py (204 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (104 lines) - Model routing: picks the cheapest suitable model for easy work, and stronger models when needed.
 - services/ai/core/mood_store.py (121 lines) - The collections public mood learns from, in the same MongoDB database as the vector store.
 - services/ai/core/response_errors.py (15 lines) - Safe, structured response failures shared by providers and feature validators.
@@ -165,7 +166,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_doc_service.py (501 lines) - Script documents.
 - services/compliance/evaluation/script_doc_split.py (37 lines) - Splitting a script document into the scripts it holds.
 - services/compliance/evaluation/script_doc_templates.py (133 lines) - Script templates: a table of beats, each with what is seen, what is said and the text on screen.
-- services/compliance/evaluation/script_fix_service.py (66 lines) - AI-assisted compliant passage rewrites for flagged script lines.
+- services/compliance/evaluation/script_fix_service.py (64 lines) - AI-assisted compliant passage rewrites for flagged script lines.
 - services/compliance/evaluation/script_hub_submissions.py (68 lines) - Submitted Create Post scripts projected into the script hub without a second review workflow.
 - services/compliance/evaluation/script_match.py (153 lines) - Script vs video.
 - services/compliance/evaluation/script_queue_service.py (32 lines) - Queue membership shared by script lists and their tab counts.
@@ -237,7 +238,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/sentiment/feedback.py (146 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
 - services/compliance/sentiment/finding_identity.py (19 lines) - Identity matching between findings from successive sentiment analyses.
 - services/compliance/sentiment/input_builder.py (393 lines) - Input building and prompt construction for sentiment analysis.
-- services/compliance/sentiment/jobs.py (518 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
+- services/compliance/sentiment/jobs.py (517 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - services/compliance/sentiment/media.py (68 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/sentiment/response_format.py (33 lines) - Validate completed sentiment output without mistaking truncation for an empty assessment.
 - services/compliance/submissions/analysis_progress_service.py (195 lines) - How long a post's rulebook check has left.
@@ -317,7 +318,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/core/startup_service.py (72 lines) - Server startup helpers for schema updates and tracked background tasks.
 - services/shared/storage/s3_storage_service.py (166 lines) - AWS S3 storage helper (ported from administration backend) with local-cache hydration.
 - tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
-- tools/ai/chat_router.py (64 lines) - Streaming AI chat endpoint.
+- tools/ai/chat_router.py (65 lines) - Streaming AI chat endpoint.
 - tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
 - tools/compliance/analytics/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).
 - tools/compliance/analytics/listening_router.py (293 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
@@ -325,7 +326,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/analytics/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
 - tools/compliance/submissions/analysis_cancellation_router.py (17 lines) - Manual cancellation of background post analyses.
 - tools/compliance/submissions/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.
-- tools/compliance/submissions/check_stream.py (73 lines) - NDJSON streaming helper for compliance check progress with 15s keepalive.
+- tools/compliance/submissions/check_stream.py (74 lines) - NDJSON streaming helper for compliance check progress with 15s keepalive.
 - tools/compliance/submissions/compliance_router.py (172 lines) - Compliance Rules & Governance Router Endpoints for managing ("build on it and remove") and checking compliance rules.
 - tools/compliance/submissions/context_router.py (141 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
 - tools/compliance/submissions/post_text_review_router.py (23 lines) - Attributed reviewer edits to text-only posts.

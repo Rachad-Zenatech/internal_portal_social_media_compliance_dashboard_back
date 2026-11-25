@@ -148,6 +148,7 @@ async def generate_content_with_fallback(
     """
     from services.ai.observability import ai_observability
     from services.ai.core import model_router
+    from services.ai.core.ai_error_diagnostics import classify_error
     from services.ai.core.bedrock_service import get_bedrock_client
 
     # Replace with Bedrock client (Gemini client commented out for now):
@@ -187,6 +188,8 @@ async def generate_content_with_fallback(
             return response
 
         except Exception as e:
+            logger.warning("AI request failed (feature=%s, model=%s, attempt=%s, reason=%s)",
+                           feature, model_name, i + 1, classify_error(e)[0], exc_info=True)
             last_exception = e
             if is_rotatable_model_error(e):
                 record_model_failure(model_name, e)

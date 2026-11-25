@@ -14,11 +14,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `update_path` (def) L35 [PUT /{path_id}]
 - `delete_path` (def) L40 [DELETE /{path_id}]
 
-## tools/compliance/submissions/check_stream.py (73 lines) - NDJSON streaming helper for compliance check progress with 15s keepalive.
-- `stream_initial_check` (def) L19 - Stream AI check attempts as NDJSON and send 15s keepalives under CloudFront's 30s timeout.
-    - `listen` (def) L24
-    - `work` (def) L28
-    - `lines` (def) L52
+## tools/compliance/submissions/check_stream.py (74 lines) - NDJSON streaming helper for compliance check progress with 15s keepalive.
+- `stream_initial_check` (def) L20 - Stream AI check attempts as NDJSON and send 15s keepalives under CloudFront's 30s timeout.
+    - `listen` (def) L25
+    - `work` (def) L29
+    - `lines` (def) L53
 
 ## tools/compliance/submissions/compliance_router.py (172 lines) - Compliance Rules & Governance Router Endpoints for managing ("build on it and remove") and checking compliance rules.
 - `list_rules` (def) L32 [GET /rules] - List compliance rules with multi-criteria filtering.
