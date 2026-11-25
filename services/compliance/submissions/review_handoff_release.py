@@ -14,14 +14,23 @@ async def release_one(conn, row, now):
     from services.compliance.submissions import review_deadline_service as deadlines
     data = row["outcome"] or {}
     data = json.loads(data) if isinstance(data, str) else data
+    legacy = data.get("request")
+    if legacy:
+        data = {**legacy, "revision_due": legacy.get("revision_due_at")}
+    planned = datetime.fromisoformat(legacy["publish_at"]) if legacy and legacy.get("publish_at") else row["publish_at"]
     changes = row["decision"] == "REQUEST_CHANGES"
     due = datetime.fromisoformat(data["revision_due"]) if changes and data.get("revision_due") else None
     if changes and (due is None or due <= now):
         due = deadlines.due_date("REVISION", None, now=now, days=data.get("revision_days"))
     status = "CHANGES_REQUESTED" if changes else "APPROVED"
     await conn.execute("""UPDATE content_submissions SET status = $2, due_at = $3, due_kind = $4,
+        publish_after_changes = $5, publish_at = $6,
         due_reminded_at = NULL, due_overdue_notified_at = NULL, updated_at = NOW() WHERE id = $1""",
-        row["id"], status, due, "REVISION" if due else None)
+        row["id"], status, due, "REVISION" if due else None,
+        bool(data.get("publish_after_changes", row["publish_after_changes"])) if changes else False, planned)
+    await conn.execute("""UPDATE content_review_jobs SET status = $3, completed_at = NOW()
+        WHERE submission_id = $1 AND version_number = $2 AND status = 'AWAITING_REVIEW'
+          AND decision IN ('APPROVE', 'REQUEST_CHANGES')""", row["id"], row["current_version"], status)
     await subs._add_event(conn, row["id"], "REVIEW_HANDOFF_RELEASED", "Suggestion deadline reached; sent to the creator",
                           row["decided_by"], {**data, "version": row["current_version"], "status": status,
                                               "decision": row["decision"], "handoff_pending": False})
@@ -50,7 +59,7 @@ async def release_due():
                     ORDER BY decided_at DESC NULLS LAST, id DESC LIMIT 1
                 ) j ON true
                 LEFT JOIN LATERAL (SELECT data FROM content_submission_events
-                    WHERE submission_id = s.id AND event_type = 'REVIEW_DECISION'
+                    WHERE submission_id = s.id AND event_type IN ('REVIEW_DECISION', 'REVIEW_DECISION_HELD')
                       AND data->>'version' = s.current_version::text ORDER BY id DESC LIMIT 1) e ON true
                 WHERE s.status = 'IN_REVIEW' AND s.deleted_at IS NULL AND s.approval_needed_by <= NOW()
                 ORDER BY s.approval_needed_by, s.id LIMIT 50 FOR UPDATE OF s SKIP LOCKED

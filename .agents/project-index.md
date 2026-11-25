@@ -74,7 +74,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
 - scripts/push_local_to_rds.py (159 lines) - Migrate the local Docker PostgreSQL database (or a .dump file) to AWS RDS.
-- scripts/review_handoff_eval.py (216 lines) - Offline deadline checks plus isolated PostgreSQL handoff/concurrency regressions.
+- scripts/review_handoff_eval.py (238 lines) - Offline deadline checks plus isolated PostgreSQL handoff/concurrency regressions.
 - scripts/scrape_x_links.py (123 lines) - Is what an item links to about the topic it was collected for? Every outside link of a collected item (see scrape_x_media.source_links) i...
 - scripts/scrape_x_media.py (153 lines) - Source links and image text for scraped X posts and news items.
 - scripts/scrape_x_playwright.py (459 lines) - Live Playwright Financial ZenaTech & Today's Posts News Scraper + Sentiment Analyzer.
@@ -288,7 +288,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/review_comment_writes.py (18 lines) - Serialize comments with approval so stale tabs cannot write after the deadline.
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - services/compliance/submissions/review_handoff.py (103 lines) - Save a review outcome now; hand the post to its creator after suggestions close.
-- services/compliance/submissions/review_handoff_release.py (87 lines) - Restart-safe, atomic delivery of decided posts once their suggestion deadline passes.
+- services/compliance/submissions/review_handoff_release.py (96 lines) - Restart-safe, atomic delivery of decided posts once their suggestion deadline passes.
 - services/compliance/submissions/review_hierarchy_service.py (40 lines) - Review access inherited by Content Managers through the saved role hierarchy.
 - services/compliance/submissions/review_memory_service.py (233 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.

@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS content_submissions (
 CREATE TABLE IF NOT EXISTS content_review_jobs (
  id bigserial PRIMARY KEY, submission_id uuid, version_number integer, status text,
  decision text, decided_by uuid, decided_at timestamptz);
+ALTER TABLE content_review_jobs ADD COLUMN IF NOT EXISTS completed_at timestamptz;
 CREATE TABLE IF NOT EXISTS content_submission_events (
  id bigserial PRIMARY KEY, submission_id uuid, event_type text, message text, data jsonb,
  actor_user_id uuid, created_at timestamptz DEFAULT NOW());
@@ -150,6 +151,27 @@ class DatabaseTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(emails[0]["event_kind"], "REVIEW_HANDOFF_RELEASED")
                 self.assertEqual(policy.outcome_label(emails[0]), "Post approved" if data.decision == "APPROVE"
                                  else "Make changes, then publish" if data.publish_after_changes else "Changes requested")
+
+    async def test_earlier_pending_decisions_keep_their_original_outcome(self):
+        for data in (request("APPROVE"), request(publish_after_changes=True), request()):
+            with self.subTest(decision=data.decision, publish_after_changes=data.publish_after_changes):
+                identity = await self.post()
+                await self.pool.execute("""UPDATE content_review_jobs SET decision=$2,decided_by=$3,
+                    decided_at=NOW() WHERE submission_id=$1""", identity, data.decision, self.reviewer)
+                async with self.pool.acquire() as conn:
+                    await self.event(conn, identity, "REVIEW_DECISION_HELD", "Earlier recorded decision", self.reviewer,
+                                     {"version": 1, "request": {**vars(data), "revision_due_at": None}})
+                self.assertEqual(await release.release_due(), 0)
+                await self.expire(identity)
+                self.assertEqual(await release.release_due(), 1)
+                expected = "APPROVED" if data.decision == "APPROVE" else "CHANGES_REQUESTED"
+                row = await self.pool.fetchrow("SELECT * FROM content_submissions WHERE id=$1", identity)
+                self.assertEqual(row["status"], expected)
+                self.assertEqual(row["publish_after_changes"], data.publish_after_changes)
+                job = await self.pool.fetchrow("SELECT * FROM content_review_jobs WHERE submission_id=$1", identity)
+                self.assertEqual(job["status"], expected)
+                self.assertIsNotNone(job["completed_at"])
+                self.assertEqual(await release.release_due(), 0)
 
     async def test_concurrent_reviewers_cannot_replace_the_first_decision(self):
         identity = await self.post()

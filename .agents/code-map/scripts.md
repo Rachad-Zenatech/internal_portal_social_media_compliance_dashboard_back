@@ -27,22 +27,23 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `verify_rds` (def) L113
 - `main` (def) L124
 
-## scripts/review_handoff_eval.py (216 lines) - Offline deadline checks plus isolated PostgreSQL handoff/concurrency regressions.
-- `request` (def) L57
-- `DeadlineTests` (class) L62
-    - `test_exact_deadline_and_missing_deadline` (def) L63
-    - `test_changes_deadline_cannot_precede_creator_handoff` (def) L69
-- `DatabaseTests` (class) L81
-    - `asyncSetUp` (def) L82
-    - `event` (def) L98
-    - `post` (def) L102
-    - `save` (def) L111
-    - `expire` (def) L124
-    - `test_all_three_outcomes_stay_held_then_release_once` (def) L127
-    - `test_concurrent_reviewers_cannot_replace_the_first_decision` (def) L154
-    - `test_failed_handoff_rolls_back_and_can_retry` (def) L163
-    - `test_only_comments_remain_and_they_close_at_the_deadline` (def) L181
-    - `test_past_deadlines_keep_immediate_handoff_behavior` (def) L203
+## scripts/review_handoff_eval.py (238 lines) - Offline deadline checks plus isolated PostgreSQL handoff/concurrency regressions.
+- `request` (def) L58
+- `DeadlineTests` (class) L63
+    - `test_exact_deadline_and_missing_deadline` (def) L64
+    - `test_changes_deadline_cannot_precede_creator_handoff` (def) L70
+- `DatabaseTests` (class) L82
+    - `asyncSetUp` (def) L83
+    - `event` (def) L99
+    - `post` (def) L103
+    - `save` (def) L112
+    - `expire` (def) L125
+    - `test_all_three_outcomes_stay_held_then_release_once` (def) L128
+    - `test_earlier_pending_decisions_keep_their_original_outcome` (def) L155
+    - `test_concurrent_reviewers_cannot_replace_the_first_decision` (def) L176
+    - `test_failed_handoff_rolls_back_and_can_retry` (def) L185
+    - `test_only_comments_remain_and_they_close_at_the_deadline` (def) L203
+    - `test_past_deadlines_keep_immediate_handoff_behavior` (def) L225
 
 ## scripts/scrape_x_links.py (123 lines) - Is what an item links to about the topic it was collected for? Every outside link of a collected item (see scrape_x_media.source_links) i...
 - `_entry` (def) L40
