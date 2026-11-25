@@ -369,3 +369,5 @@ class ComplianceCheckResponse(BaseModel):
     source_checks: List[SourceCheck] = Field(default_factory=list)
     # Printed source-attribution boxes detected in post images, shown as "Source" overlays in the UI.
     source_regions: List[ImageFindingRegion] = Field(default_factory=list)
+    # Printed disclaimer/caveat boxes detected in post images, shown as "Disclaimer" overlays in the UI.
+    disclaimer_regions: List[ImageFindingRegion] = Field(default_factory=list)

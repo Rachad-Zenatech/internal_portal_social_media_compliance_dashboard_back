@@ -2,6 +2,7 @@
 import hashlib
 import json
 import logging
+import re
 
 from postgresql_db import database as db
 from services.ai.observability.ai_guardrails import screen_input
@@ -83,6 +84,9 @@ async def get(text, extract):
     return json.loads(value) if isinstance(value, str) else value
 
 
+_ASTERISK_DISCLAIMER = re.compile(r"^\*+\s*[^*]+?\s*\*+$")
+
+
 async def extract(text, ask, models, limit):
     """Only save successful, grounded identification; never cache an AI failure as empty."""
     contents = "<post>\n" + text + "\n</post>"
@@ -101,7 +105,7 @@ async def extract(text, ask, models, limit):
                     rejected += 1
                     continue
                 if (getattr(item, "assertion_kind", None) in {"INCIDENTAL_TEXT", "NON_ASSERTION"}
-                        or is_identifier(claim) or is_reference_only(claim)):
+                        or is_identifier(claim) or is_reference_only(claim) or _ASTERISK_DISCLAIMER.match(claim)):
                     continue
                 for original, where in excerpts:
                     if source_claim_policy.incidental(original, where):

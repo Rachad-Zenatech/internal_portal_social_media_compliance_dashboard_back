@@ -25,7 +25,7 @@ async def run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         result = await subs.check_compliance(request)
     all_video_segments = [*segments, *visual_segments]
     non_image_text = material.text.split("Text in image ", 1)[0]
-    result.source_regions = await subs.video_finding_service.locate_media_findings(
+    result.source_regions, result.disclaimer_regions = await subs.video_finding_service.locate_media_findings(
         images, video, all_video_segments, result.violations, non_image_text=non_image_text
     )
     compliance_check_result.recalculate_totals(result)

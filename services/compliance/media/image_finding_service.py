@@ -180,19 +180,24 @@ def _source_block_boxes(words):
     return source_boxes
 
 
-async def _vision_source_regions(file_id, data, mime, raw_text):
-    """Fallback when local OCR misses tiny footer text: locate printed source credits via vision."""
-    blocks = citation_finder.source_blocks(raw_text or "")
-    if not blocks:
-        return []
-    prompt = (
-        "Locate ONLY these exact printed source citation block(s) in the attached image: "
-        + json.dumps(blocks)
-        + ". Return one tight bounding box [top, left, bottom, right] in coordinates 0 to 1000 "
-        "covering EVERY character from the first letter on the left to the final character/punctuation "
-        "on the right edge of each listed citation. Do not clip the right end of any line, and do not "
-        "include unrelated sentences above or below the citation. Set finding to the 0-based index."
-    )
+_DISCLAIMER_LINE = re.compile(
+    r"(?:^\s*\*+\s*[^*\n]+?\s*\*+\s*$"
+    r"|\b(?:no\s+u\.?s\.?\s+military\s+endorsement|endorsement\s+is\s+implied|industry\s+commentary"
+    r"|for\s+illustrative\s+purposes|forward[- ]looking\s+statements?|not\s+medical\s+advice)\b)",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _disclaimer_lines(raw_text: str) -> list[str]:
+    out = []
+    for line in (raw_text or "").splitlines():
+        clean = re.sub(r"^\s*Text in image \d+\s*:\s*", "", line, flags=re.IGNORECASE).strip()
+        if clean and _DISCLAIMER_LINE.search(clean):
+            out.append(clean)
+    return out
+
+
+async def _locate_vision_blocks(file_id, data, mime, prompt):
     async with image_text_service._semaphore:
         response = await image_text_service._generate(
             [types.Part.from_bytes(data=data, mime_type=mime), prompt],
@@ -213,6 +218,37 @@ async def _vision_source_regions(file_id, data, mime, raw_text):
         if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in out:
             out.append(region)
     return out
+
+
+async def _vision_source_regions(file_id, data, mime, raw_text):
+    """Fallback when local OCR misses tiny footer text: locate printed source credits via vision."""
+    blocks = citation_finder.source_blocks(raw_text or "")
+    if not blocks:
+        return []
+    prompt = (
+        "Locate ONLY these exact printed source citation block(s) in the attached image: "
+        + json.dumps(blocks)
+        + ". Return one tight bounding box [top, left, bottom, right] in coordinates 0 to 1000 "
+        "covering EVERY character from the first letter on the left to the final character/punctuation "
+        "on the right edge of each listed citation. Do not clip the right end of any line, and do not "
+        "include unrelated sentences above or below the citation. Set finding to the 0-based index."
+    )
+    return await _locate_vision_blocks(file_id, data, mime, prompt)
+
+
+async def _vision_disclaimer_regions(file_id, data, mime, raw_text):
+    """Locate printed disclaimers/caveats (including * ... * wrapped disclaimers) via vision."""
+    lines = _disclaimer_lines(raw_text or "")
+    if not lines:
+        return []
+    prompt = (
+        "Locate ONLY these exact printed disclaimer/caveat line(s) in the attached image: "
+        + json.dumps(lines)
+        + ". Return one tight bounding box [top, left, bottom, right] in coordinates 0 to 1000 "
+        "covering EVERY character on the line from left to right (including any leading/trailing asterisks). "
+        "Do not include unrelated lines above or below. Set finding to the 0-based index."
+    )
+    return await _locate_vision_blocks(file_id, data, mime, prompt)
 
 
 def _inside_any_box(box, containers):
@@ -274,12 +310,25 @@ def _clear_source_window_findings(findings, suppressed_ids, non_image_text):
     return cleared_any
 
 
+def _filter_excluded_regions(findings, image_id, excluded, suppressed_ids):
+    if not excluded:
+        return
+    for finding in findings:
+        kept = []
+        for r in finding.image_regions:
+            if r.file_id == image_id and _region_in_sources(r, excluded):
+                suppressed_ids.add(id(finding))
+            else:
+                kept.append(r)
+        finding.image_regions[:] = kept
+
+
 async def locate_image_findings(images, findings, non_image_text=""):
-    """Locate flagged wording, ignore findings inside printed source windows, and return detected source regions."""
+    """Locate flagged wording, ignore findings inside source/disclaimer windows, and return their regions."""
     from services.compliance.sentiment.engine import _image_bytes
     from services.compliance.media.transcription_service import STORAGE_ROOT
 
-    source_regions = []
+    source_regions, disclaimer_regions = [], []
     suppressed_ids = set()
     for image in images:
         if image["image_text_status"] != "COMPLETED":
@@ -308,18 +357,15 @@ async def locate_image_findings(images, findings, non_image_text=""):
             ]
             if not img_sources:
                 img_sources = await _vision_source_regions(image["id"], data, mime, image["image_text"] or "")
+            img_disclaimers = await _vision_disclaimer_regions(image["id"], data, mime, image["image_text"] or "")
             for region in img_sources:
                 if region not in source_regions:
                     source_regions.append(region)
-            if img_sources:
-                for finding in findings:
-                    kept = []
-                    for r in finding.image_regions:
-                        if r.file_id == image["id"] and _region_in_sources(r, img_sources):
-                            suppressed_ids.add(id(finding))
-                        else:
-                            kept.append(r)
-                    finding.image_regions[:] = kept
+            for region in img_disclaimers:
+                if region not in disclaimer_regions:
+                    disclaimer_regions.append(region)
+            excluded = [*img_sources, *img_disclaimers]
+            _filter_excluded_regions(findings, image["id"], excluded, suppressed_ids)
             if not candidates:
                 continue
             unmatched = []
@@ -327,10 +373,12 @@ async def locate_image_findings(images, findings, non_image_text=""):
                 found_regions = _ocr_regions(image["id"], words, highlight_terms(finding))
                 if found_regions:
                     finding.image_regions.extend(
-                        region for region in found_regions if region not in finding.image_regions
+                        region for region in found_regions if region not in finding.image_regions and not _region_in_sources(region, img_disclaimers)
                     )
+                    if not finding.image_regions and img_disclaimers:
+                        suppressed_ids.add(id(finding))
                 else:
-                    if img_sources and any(text_spans(t, text) for t in highlight_terms(finding)):
+                    if excluded and any(text_spans(t, text) for t in highlight_terms(finding)):
                         suppressed_ids.add(id(finding))
                     unmatched.append(finding)
             if not unmatched:
@@ -355,12 +403,12 @@ async def locate_image_findings(images, findings, non_image_text=""):
             if not isinstance(regions, list):
                 logger.warning("Image localization: file=%s model response has no region list", image["id"])
                 continue
-            accepted = _attach_regions(image["id"], text, unmatched, regions, img_sources, suppressed_ids)
+            accepted = _attach_regions(image["id"], text, unmatched, regions, excluded, suppressed_ids)
             missing = {n for n, f in enumerate(unmatched) if not any(r.file_id == image["id"] for r in f.image_regions)}
             if missing:
                 enlarged = await image_finding_zoom.locate(data, prompt, SCHEMA)
                 enlarged = [item for item in enlarged if type(item.get("finding")) is int and item["finding"] in missing]
-                accepted += _attach_regions(image["id"], text, unmatched, enlarged, img_sources, suppressed_ids)
+                accepted += _attach_regions(image["id"], text, unmatched, enlarged, excluded, suppressed_ids)
             logger.info("Image localization: file=%s model_regions=%d accepted_regions=%d",
                         image["id"], len(regions), accepted)
             if not accepted:
@@ -370,7 +418,7 @@ async def locate_image_findings(images, findings, non_image_text=""):
             # Localization must never lose a valid check or fabricate a highlight.
             logger.warning("Could not locate compliance findings in image %s", image["id"], exc_info=True)
     _clear_source_window_findings(findings, suppressed_ids, non_image_text)
-    return source_regions
+    return source_regions, disclaimer_regions
 
 
 def _attach_regions(file_id, text, findings, items, source_regions=(), suppressed=None):
