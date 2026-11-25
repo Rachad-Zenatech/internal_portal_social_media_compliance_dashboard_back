@@ -276,6 +276,11 @@ class CheckSignals(BaseModel):
 
 class SourceClaim(BaseModel):
     """One claim the post makes, and whether the source it cites backs it up."""
+    claim_id: Optional[str] = None
+    post_start: Optional[int] = None
+    post_end: Optional[int] = None
+    image_index: Optional[int] = None
+    context: Optional[str] = None
     claim: str
     # SUPPORTED: the source says it. CONTRADICTED: the source says something different, or less. NOT_FOUND: the source
     # covers the subject but not this. UNCLEAR: could be read either way, so a person decides.
@@ -283,6 +288,9 @@ class SourceClaim(BaseModel):
     where: Literal["caption", "image"] = "caption"
     # What the source says about it, in the model's words or a short quote: not always word for word.
     evidence: Optional[str] = None
+    evidence_quotes: List[str] = Field(default_factory=list)
+    model_verdict: Optional[str] = None
+    validation_reason: Optional[str] = None
     # Where in the article/source the evidence appears (section heading, paragraph, page, etc.).
     source_location: Optional[str] = None
     # The source's own words at that place, word for word, for a person to read next to the claim and confirm.
@@ -321,6 +329,7 @@ class AddedRuleSet(BaseModel):
 
 
 class ComplianceCheckResponse(BaseModel):
+    source_review_audit: List[dict] = Field(default_factory=list)
     visual_checks: list[dict] = Field(default_factory=list)
     incomplete_stages: List[IncompleteCheckStage] = Field(default_factory=list)
     is_compliant: bool

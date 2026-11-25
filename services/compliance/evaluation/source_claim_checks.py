@@ -4,12 +4,16 @@ penalty additionally requires a confident, explicit conflict grounded in a sourc
 """
 
 import os
+import logging
 import re
 from typing import Any, List, Sequence
 
 from models.compliance.compliance_model import SourceClaim
 from .source_image_claims import evidence_covers, is_identifier
 from .citation_finder import is_reference_only
+from . import source_evidence
+
+logger = logging.getLogger(__name__)
 
 CONTRADICTION_MIN_CONFIDENCE = float(os.getenv("SOURCE_CHECK_CONTRADICTION_MIN_CONFIDENCE", "0.85"))
 SUPPORT_MIN_CONFIDENCE = float(os.getenv("SOURCE_CHECK_MIN_CONFIDENCE", "0.7"))
@@ -91,10 +95,11 @@ def _add(note: Any, extra: str) -> str:
 
 def grounded_conflict(result, evidence, source_text):
     """A contradiction penalty needs a specific, confident conflict grounded in the source itself."""
+    excerpts = source_evidence.quotes(result, source_text)
     quote = " ".join((evidence or "").strip().strip(chr(34) + chr(39) + chr(0x201c) + chr(0x201d)).split()).casefold()
     return (getattr(result, "contradiction_kind", None) in {"EXPLICIT_CONFLICT", "MATERIAL_OVERSTATEMENT"}
             and result.confidence >= CONTRADICTION_MIN_CONFIDENCE
-            and bool(quote) and quote in " ".join(source_text.split()).casefold())
+            and (bool(excerpts) or (bool(quote) and quote in " ".join(source_text.split()).casefold())))
 
 
 def _to_claims(results: Sequence[Any], source_text: str) -> List[SourceClaim]:
@@ -106,31 +111,41 @@ def _to_claims(results: Sequence[Any], source_text: str) -> List[SourceClaim]:
         verdict = r.verdict if r.verdict in ("SUPPORTED", "CONTRADICTED", "NOT_FOUND", "UNCLEAR") else "UNCLEAR"
         note = (r.note or "").strip() or None
         evidence = (r.evidence or "").strip() or None
+        quotes = source_evidence.quotes(r, source_text)
+        reason = None
         if verdict == "CONTRADICTED":
             if getattr(r, "contradiction_kind", None) == "NOT_STATED" or (note and _SOURCE_OMISSION.fullmatch(note)):
-                verdict = "NOT_FOUND"
+                verdict, reason = "NOT_FOUND", "SOURCE_OMISSION"
             elif not grounded_conflict(r, evidence, source_text):
                 verdict = "UNCLEAR"
+                reason = "UNGROUNDED_CONFLICT"
                 note = _add(note, "A confident conflict was not established by a direct source passage; a reviewer should confirm.")
         if verdict == "SUPPORTED":
             lacking = missing_figures(r.claim, source_text)
             if not evidence or r.confidence < SUPPORT_MIN_CONFIDENCE:
                 verdict = "UNCLEAR"
+                reason = "LOW_CONFIDENCE_OR_NO_EVIDENCE"
                 note = _add(note, "It wasn't clear enough that the source says this, so a person should confirm.")
             elif lacking:
                 verdict = "UNCLEAR"
+                reason = "MISSING_FIGURES"
                 note = _add(note, f"The source's text doesn't contain {', '.join(lacking)}, so a person should confirm it.")
-            elif evidence_overlap(evidence, source_text) < EVIDENCE_MIN_OVERLAP:
+            elif (getattr(r, "evidence_quotes", []) and not quotes) or (
+                    not quotes and evidence_overlap(evidence, source_text) < EVIDENCE_MIN_OVERLAP):
                 verdict = "UNCLEAR"
+                reason = "UNGROUNDED_EVIDENCE"
                 note = _add(note, "The evidence given couldn't be found in the source's text, so a person should confirm it.")
-        if verdict == "SUPPORTED" and r.where == "image" and not evidence_covers(r.claim, evidence or "", source_text):
+        if verdict == "SUPPORTED" and r.where == "image" and not evidence_covers(r.claim, " ".join(quotes) if quotes else evidence or "", source_text):
             verdict = "UNCLEAR"
+            reason = "CAPABILITY_NOT_ESTABLISHED"
             note = _add(note, "The evidence does not establish this specific capability, so a person should confirm it.")
         loc = (r.source_location or "").strip() or None
         out.append(SourceClaim(
+            **{name: getattr(r, name, None) for name in ("claim_id", "post_start", "post_end", "image_index", "context")},
             claim=(r.claim or "").strip()[:400], verdict=verdict, where="image" if r.where == "image" else "caption",
             evidence=evidence[:600] if evidence else None, source_location=loc[:240] if loc else None,
-            note=note[:400] if note else None,
+            note=note[:400] if note else None, evidence_quotes=quotes,
+            model_verdict=r.verdict, validation_reason=reason,
             confidence=round(r.confidence, 2),
         ))
     return [c for c in out if c.claim]
