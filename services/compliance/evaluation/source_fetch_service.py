@@ -11,7 +11,7 @@ The link comes from whoever wrote the post, so it is treated as hostile:
 A page the plain request can't read (bot protection, built by JavaScript) is tried once more in a headless browser
 (source_browser_fetch), under the same address checks.
 
-Nothing here uses AI. A page that can't be read (blocked, not found, needs a login or JavaScript, too large) comes back
+PDFs use local text/table extraction and OCR first, then AI if needed. A page that cannot be read comes back
 with a plain reason the author can act on. Pages are remembered for a few minutes, so checking again costs nothing.
 """
 
@@ -30,7 +30,7 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 
-from services.compliance.evaluation import source_settings, source_pdf_reader
+from services.compliance.evaluation import source_settings, source_pdf_reader, source_pdf_ai
 
 logger = logging.getLogger(__name__)
 
@@ -325,10 +325,12 @@ async def _fetch(url: str) -> FetchedSource:
     title = published = None
     if source_pdf_reader.is_pdf(data, kind, final):
         text = await asyncio.to_thread(source_pdf_reader.read, data)
-        if not text.strip():
-            return _fail(url, "UNSUPPORTED", "This PDF has no extractable text, is encrypted or could not be parsed. "
+        if not source_pdf_reader.has_text(text, MIN_TEXT_CHARS):
+            text = await source_pdf_ai.read(data, final)
+        if not source_pdf_reader.has_text(text, MIN_TEXT_CHARS):
+            return _fail(url, "UNSUPPORTED", "Neither local PDF extraction/OCR nor the AI backup could read this document. "
                                              "Attach an unlocked copy or paste the relevant source text.")
-        text = _tidy(text)
+        text = source_pdf_reader.clean(text)
         title = source_pdf_reader.title(final)
     elif kind in ("text/html", "application/xhtml+xml", "") or "html" in kind:
         text, title, published = html_to_text(_decode(data, content_type))

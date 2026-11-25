@@ -84,3 +84,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_count` (def) L47
 - `reserve` (def) L60 - Record an AI request for usage reporting without enforcing a cap.
 - `usage_for` (def) L70 - What a person has left, per feature (and for one submission when given), for showing in the UI.
+
+## services/ai/observability/attempt_progress.py (35 lines) - Attach task-local display details to model attempt events, including retries.
+- `attempt_progress` (def) L8
+- `capture_attempts` (def) L21
+    - `record` (def) L25

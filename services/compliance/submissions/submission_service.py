@@ -1279,22 +1279,15 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
     await image_text_service.retry_failed_images(submission_id)
     # Settle duplicates before checking, including confirmation of reposts for another date.
     duplicates = await _require_not_duplicate(row, confirm_repost)
-    attempts: Dict[str, Dict[str, Any]] = {}
-    outer = ai_observability.attempt_listener.get()
+    from services.ai.observability.attempt_progress import capture_attempts
     check_started_at = datetime.now(timezone.utc)
     started = time.perf_counter()
-    def record(event: Dict[str, Any]) -> None:
-        if event.get("event") == "attempt" and event.get("id"):
-            attempts[event["id"]] = {k: event.get(k) for k in ("id", "status", "model", "feature", "attempt", "tier", "error_kind", "error", "duration_ms")}
-        if outer is not None:
-            outer(event)
-    token = ai_observability.attempt_listener.set(record)
-    refresh_token = source_recheck.refresh.set(refresh_sources)
-    try:
-        result, check = await _run_check(row)
-    finally:
-        source_recheck.refresh.reset(refresh_token)
-        ai_observability.attempt_listener.reset(token)
+    with capture_attempts() as attempts:
+        refresh_token = source_recheck.refresh.set(refresh_sources)
+        try:
+            result, check = await _run_check(row)
+        finally:
+            source_recheck.refresh.reset(refresh_token)
     check.update(manual_requested_at=check["checked_at"], checked_content_edited_at=str(row.get("content_edited_at")) if row.get("content_edited_at") else None)
     check["models"] = {"attempts": list(attempts.values()), "duration_ms": round((time.perf_counter() - started) * 1000)}
     if duplicates.repost:

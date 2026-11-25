@@ -104,6 +104,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/observability/ai_observability_service.py (152 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - services/ai/observability/ai_overview_service.py (404 lines) - Combined AI health, feature-to-core mapping, and usage overview for System & Security.
 - services/ai/observability/ai_usage_service.py (96 lines) - Record AI usage without imposing application-level usage caps.
+- services/ai/observability/attempt_progress.py (35 lines) - Attach task-local display details to model attempt events, including retries.
 - services/compliance/analytics/conversation_evidence.py (857 lines) - Conversation evidence for public mood: the news articles and X posts a post is compared with, and the saved assessment of what they say a...
 - services/compliance/analytics/conversation_feedback.py (202 lines) - Reviewer input on a conversation assessment, kept against the exact assessment the reviewer was looking at.
 - services/compliance/analytics/conversation_review_actions.py (68 lines) - Reviewer feedback on retrieved conversations (unrelated, wrong sentiment, recommendation corrections).
@@ -197,6 +198,11 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_identity.py (57 lines) - Identify repeated source URLs without conflating different reports from one publisher.
 - services/compliance/evaluation/source_image_claims.py (83 lines) - Keep short capability lists visible, and require evidence about the specific capability.
 - services/compliance/evaluation/source_passages.py (269 lines) - Passages of a source: what the model reads of a long source, and where in the source each claim really is.
+- services/compliance/evaluation/source_pdf_ai.py (113 lines) - AI transcription backup for downloaded PDF sources that native extraction cannot read.
+- services/compliance/evaluation/source_pdf_layout.py (77 lines) - Preserve PDF pages, repeated values and aligned cells without inventing table contents.
+- services/compliance/evaluation/source_pdf_local.py (71 lines) - Bounded source PDF extraction with Poppler, table structure and local OCR.
+- services/compliance/evaluation/source_pdf_ocr.py (89 lines) - Local OCR for missing PDF pages, with word positions and confidence checks.
+- services/compliance/evaluation/source_pdf_pages.py (42 lines) - Split source PDFs with Poppler in bounded subprocesses, independent of text extraction.
 - services/compliance/evaluation/source_pdf_reader.py (39 lines) - Recognize downloaded PDF sources independently of filename or server MIME mistakes.
 - services/compliance/evaluation/source_post_checks.py (30 lines) - Check the combined post, retaining caption and image context as the source panel does.
 - services/compliance/evaluation/source_recheck.py (36 lines) - Refresh source comparisons on request and keep a record of resolved findings.
@@ -277,7 +283,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/submission_check_runner.py (67 lines) - Run and snapshot the complete post check without changing its scoring policy.
 - services/compliance/submissions/submission_fields.py (67 lines) - Field shaping for submission summaries and draft type changes.
 - services/compliance/submissions/submission_list_query.py (94 lines) - SQL for the submission list, including previews and analysis status.
-- services/compliance/submissions/submission_service.py (2694 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2687 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/compliance/submissions/submission_source_state.py (23 lines) - Track the saved source-link inputs of a compliance run, including legacy checks.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
