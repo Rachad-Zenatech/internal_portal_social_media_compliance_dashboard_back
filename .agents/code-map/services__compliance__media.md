@@ -142,7 +142,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `result` (def) L70
 - `sanitize_caption_html` (def) L77 - The caption HTML with only safe formatting left.
 
-## services/compliance/media/image_finding_service.py (444 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+## services/compliance/media/image_finding_service.py (453 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - `normalized` (def) L33
 - `text_spans` (def) L37 - Whole-word occurrences in normalized OCR text, including text that wraps over lines.
 - `overlaps_flagged_text` (def) L45 - A returned line may include context on either side of the flagged words.
@@ -152,15 +152,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_source_block_boxes` (def) L125 - Group a printed source cue and nearby same-font continuation lines into exclusion boxes.
 - `_disclaimer_lines` (def) L191
 - `_locate_vision_blocks` (def) L200
-- `_vision_source_regions` (def) L223 - Fallback when local OCR misses tiny footer text: locate printed source credits via vision.
-- `_vision_disclaimer_regions` (def) L239 - Locate printed disclaimers/caveats (including * ...
-- `_inside_any_box` (def) L254
-- `_ocr_regions` (def) L260 - Find flagged phrases in OCR words and return one tight region per affected text line.
-- `_region_in_sources` (def) L289
-- `_clear_source_window_findings` (def) L295 - Ignore findings whose only localized occurrence fell inside a printed source window.
-- `_filter_excluded_regions` (def) L313
-- `locate_image_findings` (def) L326 - Locate flagged wording, ignore findings inside source/disclaimer windows, and return their regions.
-- `_attach_regions` (def) L424
+- `_vision_source_regions` (def) L232 - Fallback when local OCR misses tiny footer text: locate printed source credits via vision.
+- `_vision_disclaimer_regions` (def) L248 - Locate printed disclaimers/caveats (including * ...
+- `_inside_any_box` (def) L263
+- `_ocr_regions` (def) L269 - Find flagged phrases in OCR words and return one tight region per affected text line.
+- `_region_in_sources` (def) L298
+- `_clear_source_window_findings` (def) L304 - Ignore findings whose only localized occurrence fell inside a printed source window.
+- `_filter_excluded_regions` (def) L322
+- `locate_image_findings` (def) L335 - Locate flagged wording, ignore findings inside source/disclaimer windows, and return their regions.
+- `_attach_regions` (def) L433
 
 ## services/compliance/media/image_finding_zoom.py (82 lines) - Recover small-text locations from enlarged sections; map boxes back to the original image.
 - `sections` (def) L15

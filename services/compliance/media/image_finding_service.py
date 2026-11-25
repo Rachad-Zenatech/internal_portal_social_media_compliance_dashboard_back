@@ -208,13 +208,22 @@ async def _locate_vision_blocks(file_id, data, mime, prompt):
         items = await image_finding_zoom.locate(data, prompt, SCHEMA)
     if not isinstance(items, list):
         return []
-    out = []
+    grouped = {}
     for item in items:
         if not isinstance(item, dict) or not isinstance(item.get("box"), list) or len(item["box"]) != 4:
             continue
-        top, left, bottom, right = item["box"]
-        padded = [max(0.0, top - 3.0), max(0.0, left - 6.0), min(1000.0, bottom + 3.0), min(1000.0, right + 45.0)]
-        region = region_from_box(file_id, padded)
+        box = item["box"]
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in box):
+            continue
+        key = item.get("finding", 0)
+        grouped.setdefault(key, []).append(box)
+    out = []
+    for boxes in grouped.values():
+        top = max(0.0, min(b[0] for b in boxes) - 3.0)
+        left = max(0.0, min(b[1] for b in boxes) - 6.0)
+        bottom = min(1000.0, max(b[2] for b in boxes) + 3.0)
+        right = min(1000.0, max(b[3] for b in boxes) + 55.0)
+        region = region_from_box(file_id, [top, left, bottom, right])
         if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in out:
             out.append(region)
     return out
@@ -228,10 +237,10 @@ async def _vision_source_regions(file_id, data, mime, raw_text):
     prompt = (
         "Locate ONLY these exact printed source citation block(s) in the attached image: "
         + json.dumps(blocks)
-        + ". Return one tight bounding box [top, left, bottom, right] in coordinates 0 to 1000 "
-        "covering EVERY character from the first letter on the left to the final character/punctuation "
-        "on the right edge of each listed citation. Do not clip the right end of any line, and do not "
-        "include unrelated sentences above or below the citation. Set finding to the 0-based index."
+        + ". Return one tight bounding box [top, left, bottom, right] in coordinates 0 to 1000 for EACH "
+        "visual line of the citation (all lines of the same citation sharing the same 0-based finding index), "
+        "covering EVERY character from the first letter on the left to the final character/punctuation on the "
+        "right edge of that line (e.g. the year and comma at the end). Do not include unrelated sentences above or below."
     )
     return await _locate_vision_blocks(file_id, data, mime, prompt)
 
