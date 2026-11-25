@@ -4,13 +4,13 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/brand_manual_sections.py (85 lines) - Show complete brand manuals directly from the uploaded PDF without AI summaries or guesses.
+## services/compliance/evaluation/brand_manual_sections.py (93 lines) - Show complete brand manuals directly from the uploaded PDF without AI summaries or guesses.
 - `_normalise` (def) L13
 - `_page_lines` (def) L17
-- `_line_text` (def) L23
-- `_title` (def) L27
-- `read_sections` (def) L41 - Keep every page and all its text, including image-only pages and diagrams.
-- `render_page` (def) L54
-- `_manual` (def) L63
-- `sections` (def) L69
-- `page_image` (def) L77
+- `_line_text` (def) L25
+- `_title` (def) L29
+- `read_sections` (def) L44 - Keep every page and all its text, including image-only pages and diagrams.
+- `render_page` (def) L60
+- `_manual` (def) L71
+- `sections` (def) L77
+- `page_image` (def) L85

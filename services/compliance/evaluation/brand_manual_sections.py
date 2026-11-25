@@ -3,11 +3,11 @@ import asyncio
 from collections import Counter
 from statistics import median
 
-import pymupdf
 from fastapi import HTTPException
 
 from models.compliance.brand_voice_model import BrandManualSection
 from services.compliance.evaluation import brand_voice_service as voices
+from services.compliance.media.pdf_process import isolated
 
 
 def _normalise(text):
@@ -15,6 +15,8 @@ def _normalise(text):
 
 
 def _page_lines(page):
+    import pymupdf
+
     flags = pymupdf.TEXTFLAGS_DICT & ~pymupdf.TEXT_PRESERVE_IMAGES
     blocks = page.get_text("dict", flags=flags, sort=True)["blocks"]
     return [line for block in blocks if block.get("type") == 0 for line in block["lines"]]
@@ -38,8 +40,11 @@ def _title(page, lines, repeated):
     return f"Page {page.number + 1}"
 
 
+@isolated("manual_sections")
 def read_sections(data: bytes):
     """Keep every page and all its text, including image-only pages and diagrams."""
+    import pymupdf
+
     with pymupdf.open(stream=data, filetype="pdf") as document:
         if document.needs_pass:
             raise ValueError("The PDF is password protected")
@@ -51,7 +56,10 @@ def read_sections(data: bytes):
                 for page in document]
 
 
+@isolated("manual_page")
 def render_page(data: bytes, number: int):
+    import pymupdf
+
     with pymupdf.open(stream=data, filetype="pdf") as document:
         if number < 1 or number > len(document):
             raise HTTPException(status_code=404, detail="Manual page not found")

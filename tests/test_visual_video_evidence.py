@@ -62,7 +62,8 @@ def test_review_records_missing_coverage_without_a_rule_finding(tmp_path):
                           sources=[], _visual_media=[asset])
     response = SimpleNamespace(text=json.dumps({"assessments": [answer()]}), model_version="mock")
     findings = []
-    with patch("services.compliance.media.transcription_service.STORAGE_ROOT", tmp_path), \
+    # This asset test needs the storage path, not the optional speech-model dependencies.
+    with patch.dict("sys.modules", {"services.compliance.media.transcription_service": SimpleNamespace(STORAGE_ROOT=tmp_path)}), \
          patch("services.ai.core.bedrock_service.is_bedrock_enabled", return_value=True), \
          patch.object(frames, "sample_parts", return_value=["actual samples"]), \
          patch.object(review.image_text_service, "_generate", AsyncMock(return_value=response)):

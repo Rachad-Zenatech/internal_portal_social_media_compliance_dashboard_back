@@ -101,7 +101,7 @@ API_RETRIES = 3
 # The most one Gemini analysis call may take (a normal one takes about 20 seconds); after that the model counts as
 # too busy and the next one in the chain takes over.
 GENERATE_TIMEOUT_SEC = int(os.getenv("SENTIMENT_TIMEOUT_SEC", "120"))
-MAX_OUTPUT_TOKENS = int(os.getenv("SENTIMENT_MAX_OUTPUT_TOKENS", "4096"))
+MAX_OUTPUT_TOKENS = max(2048, min(32768, int(os.getenv("SENTIMENT_MAX_OUTPUT_TOKENS", "8192"))))
 MAX_TEXT_CHARS = int(os.getenv("SENTIMENT_MAX_TEXT_CHARS", "15000"))
 
 CEO_RULE_SET = "Shaun CEO Thought Leadership"

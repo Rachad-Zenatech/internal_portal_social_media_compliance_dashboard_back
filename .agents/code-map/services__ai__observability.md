@@ -23,39 +23,39 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `feed` (def) L228
     - `flush` (def) L247
 
-## services/ai/observability/ai_health.py (251 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
-- `FeatureIssue` (class) L95
-- `AiStatus` (class) L105
-- `_feature_label` (def) L115
-- `summarize_features` (def) L119 - Identify individual features whose latest calls are failing or hitting quota/overflow.
-- `summarize` (def) L155 - Summarize completed calls, ordering overlapping requests by completion rather than start.
-- `_runtime_issues` (def) L178
-- `status` (def) L229
+## services/ai/observability/ai_health.py (263 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
+- `FeatureIssue` (class) L98
+- `AiStatus` (class) L108
+- `_feature_label` (def) L118
+- `summarize_features` (def) L122 - Identify individual features whose latest calls are failing or hitting quota/overflow.
+- `summarize` (def) L160 - Summarize completed calls, ordering overlapping requests by completion rather than start.
+- `_runtime_issues` (def) L190
+- `status` (def) L241
 
-## services/ai/observability/ai_observability.py (424 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
-- `_env_int` (def) L41
-- `Span` (class) L57
-- `_get_queue` (def) L73
-- `_enqueue` (def) L80
-- `current_span` (def) L91
-- `current_trace_id` (def) L95
-- `within` (def) L101 - Continue a trace started elsewhere (e.g.
-- `_user_id` (def) L113
-- `span` (def) L123 - Time a unit of AI work.
-- `describe_contents` (def) L151 - Readable text of a Gemini request (attachments become placeholders) and how many attachments it has.
-    - `part_text` (def) L156
-- `_clip` (def) L199
-- `int_or_none` (def) L208
-- `token_counts` (def) L212
-- `response_text` (def) L218
-- `log_prompt` (def) L226
-- `classify_error` (def) L251 - What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
-- `_notify_attempt` (def) L274
-- `generate` (def) L284 - client.models.generate_content in a thread, traced and prompt-logged.
-- `_write` (def) L363
-- `_apply_retention` (def) L376
-- `flush` (def) L388 - Write whatever is still queued (on shutdown, before the pool closes).
-- `writer_loop` (def) L401 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
+## services/ai/observability/ai_observability.py (443 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
+- `_env_int` (def) L42
+- `Span` (class) L58
+- `_get_queue` (def) L74
+- `_enqueue` (def) L81
+- `current_span` (def) L92
+- `current_trace_id` (def) L96
+- `within` (def) L102 - Continue a trace started elsewhere (e.g.
+- `_user_id` (def) L114
+- `span` (def) L124 - Time a unit of AI work.
+- `describe_contents` (def) L152 - Readable text of a Gemini request (attachments become placeholders) and how many attachments it has.
+    - `part_text` (def) L157
+- `_clip` (def) L200
+- `int_or_none` (def) L209
+- `token_counts` (def) L213
+- `response_text` (def) L219
+- `log_prompt` (def) L227
+- `classify_error` (def) L252 - What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
+- `_notify_attempt` (def) L279
+- `generate` (def) L289 - client.models.generate_content in a thread, traced and prompt-logged.
+- `_write` (def) L382
+- `_apply_retention` (def) L395
+- `flush` (def) L407 - Write whatever is still queued (on shutdown, before the pool closes).
+- `writer_loop` (def) L420 - Wait for records and write each burst in one batch; hourly (when idle) apply retention.
 
 ## services/ai/observability/ai_observability_service.py (152 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - `_attrs` (def) L9

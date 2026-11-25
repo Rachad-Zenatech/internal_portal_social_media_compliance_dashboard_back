@@ -12,6 +12,7 @@ import re
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 import boto3
+from services.ai.core.response_errors import OutputLimitError
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
@@ -337,11 +338,14 @@ class BedrockModels:
             truncated = resp.get("stopReason") == "max_tokens"
             if not malformed and not truncated:
                 break
-            if attempt == 1:
-                if truncated:
-                    raise ValueError("Bedrock JSON response exceeded its output token limit")
-                break
             current_budget = params["inferenceConfig"]["maxTokens"]
+            if truncated and (attempt == 1 or current_budget >= 8192):
+                raise OutputLimitError(
+                    token_limit=current_budget,
+                    response=BedrockResponse(clean_text, resp.get("usage", {}), stop_reason="max_tokens"),
+                )
+            if attempt == 1:
+                break
             params["inferenceConfig"]["maxTokens"] = max(current_budget, min(8192, max(4096, current_budget * 2)))
             logger.warning("Retrying incomplete or malformed Bedrock JSON response (stop_reason=%s, max_tokens=%s)",
                            resp.get("stopReason"), params["inferenceConfig"]["maxTokens"])

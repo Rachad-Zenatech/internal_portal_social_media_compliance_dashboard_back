@@ -18,7 +18,8 @@ WINDOW = timedelta(minutes=30)
 QUIET_AFTER_OK = timedelta(minutes=2)
 CACHE_SECONDS = 15
 
-_PRIORITY = ["KEY", "QUOTA", "MODEL", "BUSY", "OTHER"]
+_PRIORITY = ["KEY", "QUOTA", "MODEL", "BUSY", "OUTPUT_LIMIT", "RESPONSE_INVALID", "OTHER"]
+_RESPONSE_FAILURES = {"OUTPUT_LIMIT", "RESPONSE_INVALID"}
 _OVERFLOW_KINDS = {"QUOTA", "BUSY"}
 
 _FEATURE_LABELS: Dict[str, str] = {
@@ -65,6 +66,8 @@ _FEATURE_AFFECTS: Dict[str, List[str]] = {
 }
 
 _TEXT = {
+    "OUTPUT_LIMIT": ("The AI assessment was cut short", "The response reached its output limit before finishing."),
+    "RESPONSE_INVALID": ("The AI assessment could not be read", "The returned assessment did not pass validation."),
     "KEY": (
         "The AI key isn't working",
         "It may have expired or been revoked. Ask an admin to renew the AWS Bedrock key.",
@@ -120,6 +123,8 @@ def summarize_features(rows: List[Dict[str, Any]], now: datetime) -> List[Featur
     """Identify individual features whose latest calls are failing or hitting quota/overflow."""
     by_feat: Dict[str, List[Dict[str, Any]]] = {}
     for r in rows:
+        if r.get('status') == 'CANCELLED':
+            continue
         feat = (r.get("feature") or "").strip().upper()
         if feat and feat != "GENERAL":
             by_feat.setdefault(feat, []).append(r)
@@ -158,6 +163,7 @@ def summarize(rows: List[Dict[str, Any]], now: datetime, key_set: bool = True) -
     if not key_set:
         return AiStatus(available=False, reason="KEY", title="The AI key isn't set",
                         message="No AWS Bedrock key is configured. " + _EFFECT)
+    rows = [r for r in rows if r.get('status') != 'CANCELLED']
     features = summarize_features(rows, now)
     if not rows or rows[0]["status"] == "OK":
         return AiStatus(degraded_features=features)
@@ -165,7 +171,13 @@ def summarize(rows: List[Dict[str, Any]], now: datetime, key_set: bool = True) -
     if last_ok is not None and now - last_ok < QUIET_AFTER_OK:
         return AiStatus(degraded_features=features)
     failed = [r for r in rows if r["status"] != "OK" and (last_ok is None or r.get("finished_at", r["started_at"]) > last_ok)]
-    kinds = {r.get("kind") or "OTHER" for r in failed}
+    provider_failures = [r for r in failed if r.get("kind") not in _RESPONSE_FAILURES]
+    kinds = {r.get("kind") or "OTHER" for r in provider_failures}
+    affected = {r.get("feature") for r in provider_failures if r.get("feature") not in (None, "", "GENERAL")}
+    # A response-format failure is local to its assessment. Other feature/model failures
+    # need corroboration across independent features before declaring a shared outage.
+    if "KEY" not in kinds and len(affected) < 2:
+        return AiStatus(degraded_features=features)
     reason = next((k for k in _PRIORITY if k in kinds), "OTHER")
     title, message = _TEXT[reason]
     return AiStatus(
@@ -235,7 +247,7 @@ async def status() -> AiStatus:
         SELECT status, attributes->>'error_kind' AS kind, attributes->>'feature' AS feature, started_at,
                started_at + duration_ms * INTERVAL '1 millisecond' AS finished_at
         FROM ai_trace_spans
-        WHERE kind = 'model' AND (name = 'bedrock.generate_content' OR name = 'gemini.generate_content') AND started_at > $1
+        WHERE kind = 'model' AND status <> 'CANCELLED' AND (name = 'bedrock.generate_content' OR name = 'gemini.generate_content') AND started_at > $1
         ORDER BY finished_at DESC LIMIT 300
         """,
         now - WINDOW,

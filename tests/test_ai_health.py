@@ -64,3 +64,62 @@ class AiHealthFeatureTests(unittest.TestCase):
         result = ai_health.summarize(rows, now)
         self.assertEqual(result.degraded_features[0].feature, "SENTIMENT")
         self.assertEqual(result.degraded_features[0].reason, "QUOTA")
+
+class CancelledHealthTests(unittest.TestCase):
+    def test_cancelled_request_does_not_turn_a_healthy_provider_into_an_outage(self):
+        now = datetime.now(timezone.utc)
+        rows = [
+            {'status':'CANCELLED','kind':None,'feature':'VISUAL_COMPLIANCE','started_at':now-timedelta(minutes=4)},
+            {'status':'OK','kind':None,'feature':'VISUAL_COMPLIANCE','started_at':now-timedelta(minutes=5)},
+        ]
+        health = ai_health.summarize(rows, now, key_set=True)
+        self.assertTrue(health.available)
+        self.assertEqual(health.degraded_features, [])
+
+    def test_only_cancelled_calls_do_not_claim_a_provider_outage(self):
+        now = datetime.now(timezone.utc)
+        self.assertTrue(ai_health.summarize([{'status':'CANCELLED','feature':'SOURCE_CHECK','started_at':now}],now).available)
+
+    def test_real_provider_errors_are_not_hidden_by_a_cancellation(self):
+        now = datetime.now(timezone.utc)
+        rows = [{'status':'CANCELLED','feature':'SOURCE_CHECK','started_at':now},
+                {'status':'ERROR','kind':'KEY','feature':'SOURCE_CHECK','started_at':now-timedelta(seconds=10)}]
+        self.assertFalse(ai_health.summarize(rows,now).available)
+
+
+class ScopedFailureTests(unittest.TestCase):
+    def row(self, now, feature, status="ERROR", kind="OTHER", seconds=0):
+        return dict(status=status, kind=kind, feature=feature, started_at=now-timedelta(seconds=seconds))
+
+    def test_production_sentiment_failures_do_not_disable_other_features(self):
+        now = datetime.now(timezone.utc)
+        rows = [self.row(now, "SENTIMENT"), self.row(now, "SENTIMENT", seconds=55),
+                self.row(now, "COMPLIANCE_CHECK", "OK", None, 540)]
+        result = ai_health.summarize(rows, now)
+        self.assertTrue(result.available)
+        self.assertEqual([i.feature for i in result.degraded_features], ["SENTIMENT"])
+
+    def test_response_limits_across_features_are_not_provider_outages(self):
+        now = datetime.now(timezone.utc)
+        rows = [self.row(now, "SENTIMENT", kind="OUTPUT_LIMIT"),
+                self.row(now, "SOURCE_CHECK", kind="RESPONSE_INVALID")]
+        result = ai_health.summarize(rows, now)
+        self.assertTrue(result.available)
+        self.assertEqual(len(result.degraded_features), 2)
+
+    def test_correlated_provider_failures_still_raise_global_banner(self):
+        now = datetime.now(timezone.utc)
+        result = ai_health.summarize([self.row(now, "SENTIMENT", kind="BUSY"),
+                                     self.row(now, "COMPLIANCE_CHECK", kind="BUSY", seconds=3)], now)
+        self.assertFalse(result.available)
+        self.assertEqual(result.reason, "BUSY")
+
+    def test_quota_on_one_model_feature_is_not_global(self):
+        now = datetime.now(timezone.utc)
+        result = ai_health.summarize([self.row(now, "SENTIMENT", kind="QUOTA")], now)
+        self.assertTrue(result.available)
+        self.assertEqual(result.degraded_features[0].status, "OVERFLOW")
+
+    def test_configured_key_failure_is_still_global(self):
+        now = datetime.now(timezone.utc)
+        self.assertFalse(ai_health.summarize([], now, key_set=False).available)

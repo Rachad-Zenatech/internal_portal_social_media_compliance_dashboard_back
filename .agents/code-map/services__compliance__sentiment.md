@@ -24,7 +24,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ModelUnavailable` (class) L441 - The model can't be used right now: it doesn't exist for this key (e.g.
     - `__init__` (def) L445
 
-## services/compliance/sentiment/engine.py (301 lines) - Gemini execution and model failover chain for sentiment analysis.
+## services/compliance/sentiment/engine.py (308 lines) - Gemini execution and model failover chain for sentiment analysis.
 - `_upload_video` (def) L50 - Video upload stub for compatibility; Bedrock inspects sampled frames directly.
 - `_delete_upload` (def) L55
 - `_image_bytes` (def) L59 - An image ready to send: as is when Gemini reads it and it's small, otherwise a smaller JPEG (first frame of
@@ -107,6 +107,5 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `video_frame` (def) L18 - A JPEG of the analysed video at a moment (cached on disk), so a finding can show what was on screen.
 - `analysed_image` (def) L50 - One of the images an analysis looked at (1 = the first), as (path, mime type), so a finding can show it.
 
-## services/compliance/sentiment/response_format.py (21 lines) - Validate completed sentiment output without mistaking truncation for an empty assessment.
-- `OutputLimitReached` (class) L7 - The provider used its output budget before completing the assessment.
-- `parse_response` (def) L11
+## services/compliance/sentiment/response_format.py (33 lines) - Validate completed sentiment output without mistaking truncation for an empty assessment.
+- `parse_response` (def) L12
