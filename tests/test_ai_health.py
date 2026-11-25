@@ -40,3 +40,27 @@ class AiHealthFeatureTests(unittest.TestCase):
         st = ai_health.summarize(rows, now, key_set=True)
         self.assertTrue(st.available)
         self.assertEqual(st.degraded_features, [])
+
+    def test_overlapping_success_clears_later_started_failure(self):
+        now = datetime.now(timezone.utc)
+        rows = [
+            {"status": "ERROR", "kind": "OTHER", "feature": "SENTIMENT",
+             "started_at": now - timedelta(seconds=20), "finished_at": now - timedelta(seconds=10)},
+            {"status": "OK", "kind": None, "feature": "SENTIMENT",
+             "started_at": now - timedelta(seconds=30), "finished_at": now},
+        ]
+        result = ai_health.summarize(rows, now)
+        self.assertTrue(result.available)
+        self.assertEqual(result.degraded_features, [])
+
+    def test_failure_after_success_remains_visible(self):
+        now = datetime.now(timezone.utc)
+        rows = [
+            {"status": "OK", "kind": None, "feature": "SENTIMENT",
+             "started_at": now - timedelta(seconds=30), "finished_at": now - timedelta(seconds=20)},
+            {"status": "ERROR", "kind": "QUOTA", "feature": "SENTIMENT",
+             "started_at": now - timedelta(seconds=40), "finished_at": now},
+        ]
+        result = ai_health.summarize(rows, now)
+        self.assertEqual(result.degraded_features[0].feature, "SENTIMENT")
+        self.assertEqual(result.degraded_features[0].reason, "QUOTA")

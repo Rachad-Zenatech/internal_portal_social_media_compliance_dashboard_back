@@ -128,8 +128,8 @@ def summarize_features(rows: List[Dict[str, Any]], now: datetime) -> List[Featur
     for feat, frows in by_feat.items():
         if frows[0]["status"] == "OK":
             continue
-        last_ok = next((r["started_at"] for r in frows if r["status"] == "OK"), None)
-        failed = [r for r in frows if r["status"] != "OK" and (last_ok is None or r["started_at"] > last_ok)]
+        last_ok = next((r.get("finished_at", r["started_at"]) for r in frows if r["status"] == "OK"), None)
+        failed = [r for r in frows if r["status"] != "OK" and (last_ok is None or r.get("finished_at", r["started_at"]) > last_ok)]
         if not failed:
             continue
         # Surface immediately on >= 2 consecutive failures or any overflow (QUOTA/BUSY), or after QUIET_AFTER_OK.
@@ -153,17 +153,18 @@ def summarize_features(rows: List[Dict[str, Any]], now: datetime) -> List[Featur
 
 
 def summarize(rows: List[Dict[str, Any]], now: datetime, key_set: bool = True) -> AiStatus:
-    """rows: the AI calls in the window, newest first, each with status, kind, feature and started_at."""
+    """Summarize completed calls, ordering overlapping requests by completion rather than start."""
+    rows = sorted(rows, key=lambda r: r.get("finished_at", r["started_at"]), reverse=True)
     if not key_set:
         return AiStatus(available=False, reason="KEY", title="The AI key isn't set",
                         message="No AWS Bedrock key is configured. " + _EFFECT)
     features = summarize_features(rows, now)
     if not rows or rows[0]["status"] == "OK":
         return AiStatus(degraded_features=features)
-    last_ok = next((r["started_at"] for r in rows if r["status"] == "OK"), None)
+    last_ok = next((r.get("finished_at", r["started_at"]) for r in rows if r["status"] == "OK"), None)
     if last_ok is not None and now - last_ok < QUIET_AFTER_OK:
         return AiStatus(degraded_features=features)
-    failed = [r for r in rows if r["status"] != "OK" and (last_ok is None or r["started_at"] > last_ok)]
+    failed = [r for r in rows if r["status"] != "OK" and (last_ok is None or r.get("finished_at", r["started_at"]) > last_ok)]
     kinds = {r.get("kind") or "OTHER" for r in failed}
     reason = next((k for k in _PRIORITY if k in kinds), "OTHER")
     title, message = _TEXT[reason]
@@ -231,10 +232,11 @@ async def status() -> AiStatus:
     now = datetime.now(timezone.utc)
     rows = await fetch_all(
         """
-        SELECT status, attributes->>'error_kind' AS kind, attributes->>'feature' AS feature, started_at
+        SELECT status, attributes->>'error_kind' AS kind, attributes->>'feature' AS feature, started_at,
+               started_at + duration_ms * INTERVAL '1 millisecond' AS finished_at
         FROM ai_trace_spans
         WHERE kind = 'model' AND (name = 'bedrock.generate_content' OR name = 'gemini.generate_content') AND started_at > $1
-        ORDER BY started_at DESC LIMIT 300
+        ORDER BY finished_at DESC LIMIT 300
         """,
         now - WINDOW,
     )
