@@ -138,15 +138,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `find` (def) L105
 - `count` (def) L118
 
-## services/ai/core/opensearch_client.py (106 lines) - Async AWS OpenSearch (including OpenSearch Serverless `aoss`) HTTP client with SigV4 signing.
-- `opensearch_host` (def) L16
-- `opensearch_index` (def) L23
-- `is_opensearch_enabled` (def) L27
-- `_region_and_service` (def) L31
-- `_signed_headers` (def) L44
-- `request` (def) L58
-- `request_json` (def) L81
-- `bulk` (def) L95 - Execute NDJSON bulk operations against OpenSearch.
+## services/ai/core/opensearch_client.py (112 lines) - Async AWS OpenSearch (including OpenSearch Serverless `aoss`) HTTP client with SigV4 signing.
+- `opensearch_host` (def) L17
+- `opensearch_index` (def) L24
+- `is_opensearch_enabled` (def) L28
+- `_region_and_service` (def) L32
+- `_signed_headers` (def) L45
+- `request` (def) L64
+- `request_json` (def) L87
+- `bulk` (def) L101 - Execute NDJSON bulk operations against OpenSearch.
 
 ## services/ai/core/response_errors.py (15 lines) - Safe, structured response failures shared by providers and feature validators.
 - `OutputLimitError` (class) L4 - A model answered but exhausted its response budget; this is not a provider outage.

@@ -1,5 +1,6 @@
 """Async AWS OpenSearch (including OpenSearch Serverless `aoss`) HTTP client with SigV4 signing."""
 
+import hashlib
 import json
 import os
 from typing import Any, Dict, List, Optional
@@ -49,7 +50,12 @@ def _signed_headers(method: str, url: str, body: bytes) -> Dict[str, str]:
         raise RuntimeError("AWS credentials are not available for OpenSearch SigV4 signing.")
     frozen = creds.get_frozen_credentials()
     parsed = urlparse(url)
-    headers: Dict[str, str] = {"Host": parsed.netloc, "Content-Type": "application/json"}
+    payload_hash = hashlib.sha256(body).hexdigest()
+    headers: Dict[str, str] = {
+        "Host": parsed.netloc,
+        "Content-Type": "application/json",
+        "x-amz-content-sha256": payload_hash,
+    }
     req = AWSRequest(method=method.upper(), url=url, data=body, headers=headers)
     SigV4Auth(frozen, service, region).add_auth(req)
     return dict(req.headers.items())
