@@ -162,9 +162,10 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions__source_trust_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__submission_check_material.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__submission_check_runner.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__submission_content_revision.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__submission_fields.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__submission_list_query.md | 1 | 1 KB |
-| .agents/code-map/services__compliance__submissions__submission_service.md | 1 | 10 KB |
+| .agents/code-map/services__compliance__submissions__submission_service.md | 1 | 9 KB |
 | .agents/code-map/services__compliance__submissions__submission_snapshot.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__submission_source_state.md | 1 | 1 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |

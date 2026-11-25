@@ -68,6 +68,9 @@ from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
 from services.compliance.submissions import creator_dismissal_service, flag_review_service
 from services.compliance.submissions import post_approval_suggestions, review_comment_writes, review_handoff
+from services.compliance.submissions.submission_content_revision import (
+    content_changed, same_value as _same_value, NON_CONTENT_FIELDS as _NOT_CONTENT_FIELDS,
+)
 from services.shared.storage.s3_storage_service import ensure_local_file, s3_enabled, s3_key_for, upload_file_to_s3
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
@@ -117,35 +120,6 @@ MAIN_EXT_BY_TYPE = {
 }
 # Types whose main asset is required to submit; posts and articles can be text-only. An ad needs its creative.
 MAIN_FILE_REQUIRED = {"VIDEO", "IMAGE", "CAROUSEL", "AD"}
-# Saved fields that don't change what the compliance check, sentiment analysis or public mood read.
-_NOT_CONTENT_FIELDS = {"approval_needed_by", "reviewer_ids", "reviewer_route"}
-
-
-def _same_value(new: Any, old: Any) -> bool:
-    """Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts)."""
-    if isinstance(new, list) and isinstance(old, list):
-        return [str(x) for x in new] == [str(x) for x in old]
-    if isinstance(old, datetime) and isinstance(new, str):
-        try:
-            parsed = datetime.fromisoformat(new.replace("Z", "+00:00"))
-        except ValueError:
-            return False
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=old.tzinfo)
-        return parsed == old
-    if isinstance(new, UUID) or isinstance(old, UUID):
-        return str(new) == str(old)
-    if isinstance(new, dict):
-        return new == (_json(old) or {})
-    return new == old
-
-
-def content_changed(row: Dict[str, Any], fields: Dict[str, Any]) -> bool:
-    """Whether saving these fields changes anything the checks read. A save that only repeats what is already there
-    (every save from the editor sends the whole form) leaves the checks up to date."""
-    return any(c not in _NOT_CONTENT_FIELDS and not _same_value(v, row.get(c)) for c, v in fields.items())
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
