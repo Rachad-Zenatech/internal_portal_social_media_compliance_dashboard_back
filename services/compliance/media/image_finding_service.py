@@ -174,7 +174,7 @@ def _source_block_boxes(words):
             max(0.0, min(b[0] for b in group) - 2.0),
             max(0.0, min(b[1] for b in group) - 4.0),
             min(1000.0, max(b[2] for b in group) + 2.0),
-            min(1000.0, max(b[3] for b in group) + 48.0),
+            min(1000.0, max(b[3] for b in group) + 65.0),
         ])
         i = j
     return source_boxes
@@ -222,7 +222,7 @@ async def _locate_vision_blocks(file_id, data, mime, prompt):
         top = max(0.0, min(b[0] for b in boxes) - 3.0)
         left = max(0.0, min(b[1] for b in boxes) - 6.0)
         bottom = min(1000.0, max(b[2] for b in boxes) + 3.0)
-        right = min(1000.0, max(b[3] for b in boxes) + 55.0)
+        right = min(1000.0, max(b[3] for b in boxes) + 70.0)
         region = region_from_box(file_id, [top, left, bottom, right])
         if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in out:
             out.append(region)
