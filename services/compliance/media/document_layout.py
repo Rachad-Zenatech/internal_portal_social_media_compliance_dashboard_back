@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from xml.etree import ElementTree
 
 from services.compliance.media.script_sources import is_sources_label
+from services.compliance.media.pdf_process import isolated
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +294,7 @@ def _join_cells(a: str, b: str) -> str:
     return f"{a} {b}"
 
 
+@isolated("layout")
 def pdf_to_text(data: bytes) -> Optional[str]:
     """A digital PDF with its headings, bold wording, tables and pages marked, or None when it has no text layer
     (a scan) or can't be read here, so the AI reader takes it."""

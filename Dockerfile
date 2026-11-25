@@ -2,6 +2,7 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1 \
     APP_ENV=production \
     TESSERACT_CMD=/usr/bin/tesseract \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \

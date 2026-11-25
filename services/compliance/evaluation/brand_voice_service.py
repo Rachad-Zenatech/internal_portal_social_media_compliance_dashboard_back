@@ -1,13 +1,8 @@
 """Brand voice per brand, read from its brand manual.
-
-A reviewer (or a rulebook editor) uploads a brand's manual as a PDF. It's read in the background:
-- straight from the PDF: the colour codes it prints, the fonts it's set in and the images it holds (logo candidates);
-- by Gemini: the voice and tone, do's and don'ts, the named colour palette, the typefaces and which image is the logo.
-When the AI can't run (quota, outage), what the PDF itself gives is kept (status PARTIAL) and the rest can be filled in
-by hand. Every field stays editable.
-
-The result is kept as the brand's Brand Voice entry in the Messaging Context (auto_source BRAND_MANUAL), so the content
-analysis and caption suggestions use it like any other brand voice entry.
+PDF extraction supplies colour codes, fonts and logo candidates; AI supplies voice,
+tone, palettes and typography. Native PDF work runs in isolated child processes.
+If AI is unavailable, extracted facts remain editable with status PARTIAL.
+The saved Brand Voice entry in Messaging Context informs analysis and captions.
 """
 
 import asyncio
@@ -27,6 +22,7 @@ from pydantic import BaseModel, Field
 from models.compliance.brand_voice_model import BrandColor, BrandTypeface, BrandVoice, BrandVoiceIn, PaletteRow
 from postgresql_db.database import fetch_all, fetch_one
 from services.compliance.media.file_mime_policy import safe_file_mime
+from services.compliance.media.pdf_process import isolated
 from services.shared.core.audit_service import log_audit_event
 from services.shared.storage.s3_storage_service import s3_enabled, s3_key_for, upload_file_to_s3
 logger = logging.getLogger(__name__)
@@ -330,6 +326,7 @@ def _sections(doc) -> List[Tuple[int, float, float, float, float, bytes]]:
     return out
 
 
+@isolated("brand_logo")
 def crop_logo(data: bytes, section: Tuple[int, float, float, float, float, bytes], box: List[int]) -> Optional[bytes]:
     """Cut the logo out of the page at high resolution, from a box [ymin, xmin, ymax, xmax] (0-1000) in a section."""
     import pymupdf as fitz
@@ -355,6 +352,7 @@ def crop_logo(data: bytes, section: Tuple[int, float, float, float, float, bytes
         doc.close()
 
 
+@isolated("brand_facts")
 def read_pdf(data: bytes) -> PdfFacts:
     """What the PDF gives without AI: its text, the colour codes it prints, its fonts and its images."""
     import pymupdf as fitz

@@ -50,39 +50,39 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_check` (def) L198
 - `suggest` (def) L220
 
-## services/compliance/media/document_layout.py (433 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
-- `page_marker` (def) L38
-- `_format_runs` (def) L42 - Runs of (text, bold) as one line, each bold stretch wrapped in ** (spacing kept outside the marks).
-- `_cell` (def) L61
-- `_row` (def) L65
-- `_is_on` (def) L71 - A toggle property such as <w:b/>: on unless it says val="0" or "false".
-- `_style_names` (def) L78
-- `_is_heading_style` (def) L91
-- `_Docx` (class) L96
-    - `__init__` (def) L97
-    - `_runs` (def) L110 - A paragraph's (text, bold) runs, the positions in them where a page break falls, and whether every word
-    - `paragraph` (def) L143
-    - `emit` (def) L159
-    - `break_page` (def) L167
-    - `table` (def) L174
-    - `block` (def) L185
-- `docx_to_text` (def) L195 - A .docx with its headings, bold wording, tables and page breaks marked (see the module's notes).
-- `_span_bold` (def) L208
-- `_body_size` (def) L212 - The most common text size, by characters: what the body is set in.
-- `_centre_in` (def) L223
-- `_inside` (def) L228
-- `_cell_text` (def) L232 - The words inside a box, read from the page (so the spacing comes out right); all bold wraps them in **.
-- `_table_rows` (def) L244 - A table as marked rows.
-- `_table_rows_by_cells` (def) L266 - The fallback for tables without a clear first column: find_tables' own rows, empty columns dropped and a row
-- `_join_cells` (def) L285 - Two halves of one cell.
-- `pdf_to_text` (def) L296 - A digital PDF with its headings, bold wording, tables and pages marked, or None when it has no text layer
-- `_line_key` (def) L334 - A line with its digits blanked, so "Page 3" and "Page 4" read as the same running header.
-- `_line_text` (def) L339
-- `_repeated_lines` (def) L343 - Lines that head or foot most pages (a running title, "Page 3"): shown as page breaks already, so left out.
-- `_style` (def) L354 - The size and colour of a line's last words, which is what its text is set in after any bold label.
-- `_starts_item` (def) L364 - A line that begins its own paragraph however wide the one before it was: a label (written with ** in the file),
-- `_block_lines` (def) L370 - A text block as paragraphs: its visual lines joined, except where the style changes or a short line ends one.
-- `plain_text` (def) L416 - The wording alone: page marks dropped, headings, bold and italics unmarked, list markers dropped, table cells
+## services/compliance/media/document_layout.py (435 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
+- `page_marker` (def) L39
+- `_format_runs` (def) L43 - Runs of (text, bold) as one line, each bold stretch wrapped in ** (spacing kept outside the marks).
+- `_cell` (def) L62
+- `_row` (def) L66
+- `_is_on` (def) L72 - A toggle property such as <w:b/>: on unless it says val="0" or "false".
+- `_style_names` (def) L79
+- `_is_heading_style` (def) L92
+- `_Docx` (class) L97
+    - `__init__` (def) L98
+    - `_runs` (def) L111 - A paragraph's (text, bold) runs, the positions in them where a page break falls, and whether every word
+    - `paragraph` (def) L144
+    - `emit` (def) L160
+    - `break_page` (def) L168
+    - `table` (def) L175
+    - `block` (def) L186
+- `docx_to_text` (def) L196 - A .docx with its headings, bold wording, tables and page breaks marked (see the module's notes).
+- `_span_bold` (def) L209
+- `_body_size` (def) L213 - The most common text size, by characters: what the body is set in.
+- `_centre_in` (def) L224
+- `_inside` (def) L229
+- `_cell_text` (def) L233 - The words inside a box, read from the page (so the spacing comes out right); all bold wraps them in **.
+- `_table_rows` (def) L245 - A table as marked rows.
+- `_table_rows_by_cells` (def) L267 - The fallback for tables without a clear first column: find_tables' own rows, empty columns dropped and a row
+- `_join_cells` (def) L286 - Two halves of one cell.
+- `pdf_to_text` (def) L298 - A digital PDF with its headings, bold wording, tables and pages marked, or None when it has no text layer
+- `_line_key` (def) L336 - A line with its digits blanked, so "Page 3" and "Page 4" read as the same running header.
+- `_line_text` (def) L341
+- `_repeated_lines` (def) L345 - Lines that head or foot most pages (a running title, "Page 3"): shown as page breaks already, so left out.
+- `_style` (def) L356 - The size and colour of a line's last words, which is what its text is set in after any bold label.
+- `_starts_item` (def) L366 - A line that begins its own paragraph however wide the one before it was: a label (written with ** in the file),
+- `_block_lines` (def) L372 - A text block as paragraphs: its visual lines joined, except where the style changes or a short line ends one.
+- `plain_text` (def) L418 - The wording alone: page marks dropped, headings, bold and italics unmarked, list markers dropped, table cells
 
 ## services/compliance/media/document_text_service.py (245 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - `UnreadableDocument` (class) L58 - A document we can't read, with a message the creator can act on.
@@ -182,6 +182,13 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - `audio_samples` (def) L16
 - `speech_segments` (def) L32 - Run a cached public Whisper model on CPU.
+
+## services/compliance/media/pdf_process.py (89 lines) - Run native PDF operations in disposable processes, never in API worker threads.
+- `PdfProcessingError` (class) L27 - A PDF worker crashed, timed out, or could not read the document.
+- `run` (def) L31
+- `isolated` (def) L60
+    - `decorate` (def) L61
+- `_main` (def) L69
 
 ## services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - `node` (def) L12
