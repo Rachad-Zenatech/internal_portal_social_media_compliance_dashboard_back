@@ -72,6 +72,7 @@ class GenerateContentConfig(BaseModel):
     response_mime_type: Optional[str] = None
     response_schema: Optional[Any] = None
     max_output_tokens: Optional[int] = None
+    retry_invalid_json: bool = True
     temperature: Optional[float] = None
     http_options: Optional[HttpOptions] = None
     tools: Optional[List[Any]] = None

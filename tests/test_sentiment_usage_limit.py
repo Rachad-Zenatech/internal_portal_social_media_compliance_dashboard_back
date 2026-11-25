@@ -15,12 +15,23 @@ class SentimentLimitTests(unittest.TestCase):
             self.assertEqual(usage.limit("PUBLIC_MOOD", "PER_SUBMISSION_DAY"), 0)
             self.assertEqual(usage.per_user_minute(), 0)
 
-    def test_environment_overrides_still_apply(self):
-        with patch.dict(os.environ, {"AI_LIMIT_SENTIMENT_PER_SUBMISSION_DAY": "25"}):
-            self.assertEqual(usage.limit("SENTIMENT", "PER_SUBMISSION_DAY"), 25)
+    def test_environment_caps_no_longer_apply(self):
+        with patch.dict(os.environ, {"AI_LIMIT_SENTIMENT_PER_SUBMISSION_DAY": "25", "AI_LIMIT_PER_USER_MINUTE": "1"}):
+            self.assertEqual(usage.limit("SENTIMENT", "PER_SUBMISSION_DAY"), 0)
+            self.assertEqual(usage.per_user_minute(), 0)
 
 
 class SentimentUsageDisplayTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reserve_records_usage_even_with_caps_configured(self):
+        pool, conn = MagicMock(), MagicMock()
+        conn.execute = AsyncMock()
+        pool.acquire.return_value.__aenter__.return_value = conn
+        with patch.dict(os.environ, {"AI_LIMIT_SENTIMENT_GLOBAL_DAY": "1"}), \
+             patch.object(usage, "get_pool", return_value=pool):
+            await usage.reserve("SENTIMENT", uuid4(), uuid4())
+        conn.execute.assert_awaited_once()
+        self.assertIn("INSERT INTO ai_usage_events", conn.execute.await_args.args[0])
+
     async def test_uncapped_usage_returns_zero_limit_and_none_remaining(self):
         pool = MagicMock()
         pool.acquire.return_value.__aenter__.return_value = object()

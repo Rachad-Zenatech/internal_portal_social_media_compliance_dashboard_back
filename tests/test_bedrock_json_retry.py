@@ -40,3 +40,10 @@ class BedrockJsonRetryTests(unittest.TestCase):
         self.adapter._boto_client.converse.return_value = response('{}')
         self.adapter.models.generate_content(model="test-model", contents="test", config=self.config)
         self.adapter._boto_client.converse.assert_called_once()
+
+    def test_caller_can_handle_truncation_without_adapter_retry(self):
+        self.config.retry_invalid_json = False
+        self.adapter._boto_client.converse.return_value = response('{"value":', "max_tokens")
+        result = self.adapter.models.generate_content(model="test-model", contents="test", config=self.config)
+        self.assertEqual(result.stop_reason, "max_tokens")
+        self.adapter._boto_client.converse.assert_called_once()

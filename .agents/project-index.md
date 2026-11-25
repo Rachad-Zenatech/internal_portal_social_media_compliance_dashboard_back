@@ -80,7 +80,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
 - server.py (472 lines) - server
-- services/ai/core/ai_types.py (84 lines) - Native AI request/content DTOs replacing google.genai.types for AWS Bedrock.
+- services/ai/core/ai_types.py (85 lines) - Native AI request/content DTOs replacing google.genai.types for AWS Bedrock.
 - services/ai/core/assistant_chat_service.py (261 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - services/ai/core/bedrock_embeddings.py (52 lines) - Real Titan embeddings, isolated from chat inference profiles and old vector spaces.
 - services/ai/core/bedrock_service.py (466 lines) - AWS Bedrock AI Service Adapter.
@@ -96,7 +96,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/observability/ai_observability.py (424 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - services/ai/observability/ai_observability_service.py (152 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - services/ai/observability/ai_overview_service.py (404 lines) - Combined AI health, feature-to-core mapping, and usage overview for System & Security.
-- services/ai/observability/ai_usage_service.py (169 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
+- services/ai/observability/ai_usage_service.py (96 lines) - Record AI usage without imposing application-level usage caps.
 - services/compliance/analytics/conversation_evidence.py (857 lines) - Conversation evidence for public mood: the news articles and X posts a post is compared with, and the saved assessment of what they say a...
 - services/compliance/analytics/conversation_feedback.py (202 lines) - Reviewer input on a conversation assessment, kept against the exact assessment the reviewer was looking at.
 - services/compliance/analytics/conversation_review_actions.py (68 lines) - Reviewer feedback on retrieved conversations (unrelated, wrong sentiment, recommendation corrections).
@@ -218,7 +218,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/sentiment/background_tasks.py (27 lines) - Own the lifecycle of sentiment background tasks independently of API requests.
 - services/compliance/sentiment/cancellation.py (66 lines) - Persist manual stops and cancel sentiment work, including work on another API worker.
 - services/compliance/sentiment/config.py (468 lines) - Content Sentiment Analysis Service (Module A) Gemini reads a submission's title, caption and video transcript (and watches the video itse...
-- services/compliance/sentiment/engine.py (300 lines) - Gemini execution and model failover chain for sentiment analysis.
+- services/compliance/sentiment/engine.py (301 lines) - Gemini execution and model failover chain for sentiment analysis.
 - services/compliance/sentiment/evidence.py (254 lines) - Verification of quotes and rule references in sentiment findings.
 - services/compliance/sentiment/feedback.py (146 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
 - services/compliance/sentiment/finding_identity.py (19 lines) - Identity matching between findings from successive sentiment analyses.

@@ -235,6 +235,7 @@ async def _generate_with(client: Any, model: str, inp: Dict[str, Any], video: Op
         response_mime_type="application/json",
         response_schema=RESPONSE_SCHEMA,
         max_output_tokens=MAX_OUTPUT_TOKENS,
+        retry_invalid_json=False,
         temperature=0,
         # Without a limit, a request queued behind "high demand" can hang indefinitely.
         http_options=types.HttpOptions(timeout=GENERATE_TIMEOUT_SEC * 1000),

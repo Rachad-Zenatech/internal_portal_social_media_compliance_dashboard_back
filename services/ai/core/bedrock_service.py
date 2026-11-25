@@ -327,7 +327,7 @@ class BedrockModels:
             output_msg = resp.get("output", {}).get("message", {})
             raw_text = "".join(c.get("text", "") for c in output_msg.get("content", []))
             clean_text = clean_json_fences(raw_text) if is_json or raw_text.strip().startswith("```") else raw_text
-            if not is_json:
+            if not is_json or not getattr(config, "retry_invalid_json", True):
                 break
             try:
                 json.loads(clean_text)

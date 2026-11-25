@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/ai/core/ai_types.py (84 lines) - Native AI request/content DTOs replacing google.genai.types for AWS Bedrock.
+## services/ai/core/ai_types.py (85 lines) - Native AI request/content DTOs replacing google.genai.types for AWS Bedrock.
 - `Blob` (class) L7
 - `FunctionCall` (class) L12
 - `FunctionResponse` (class) L17
@@ -19,7 +19,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `HttpOptions` (class) L61
 - `AutomaticFunctionCallingConfig` (class) L66
 - `GenerateContentConfig` (class) L70
-- `File` (class) L81
+- `File` (class) L82
 
 ## services/ai/core/assistant_chat_service.py (261 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
 - `_get_client` (def) L56

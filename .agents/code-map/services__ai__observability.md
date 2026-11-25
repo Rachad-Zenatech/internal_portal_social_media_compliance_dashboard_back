@@ -75,14 +75,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_query_telemetry` (def) L306
 - `overview` (def) L364 - Return full AI health (what is out/overflow/working), feature-to-core mappings, and usage telemetry.
 
-## services/ai/observability/ai_usage_service.py (169 lines) - AI Usage Limits Caps how often Gemini runs, so one person (or a stuck loop) can't use up the provider quota or run up cost.
-- `_env_int` (def) L50
-- `limit` (def) L57
-- `per_user_minute` (def) L61
-- `Usage` (class) L66
-- `AiLimitExceeded` (class) L72
-    - `__init__` (def) L73
-- `_when` (def) L77
-- `_count` (def) L87
-- `reserve` (def) L100 - Record one Gemini call, or raise AiLimitExceeded (HTTP 429) with a message saying when it frees up.
-- `usage_for` (def) L143 - What a person has left, per feature (and for one submission when given), for showing in the UI.
+## services/ai/observability/ai_usage_service.py (96 lines) - Record AI usage without imposing application-level usage caps.
+- `limit` (def) L27
+- `per_user_minute` (def) L31
+- `Usage` (class) L36
+- `AiLimitExceeded` (class) L42
+    - `__init__` (def) L43
+- `_count` (def) L47
+- `reserve` (def) L60 - Record an AI request for usage reporting without enforcing a cap.
+- `usage_for` (def) L70 - What a person has left, per feature (and for one submission when given), for showing in the UI.
