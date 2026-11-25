@@ -186,7 +186,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/shared_script_service.py (191 lines) - Shared documents for script pages.
 - services/compliance/evaluation/shared_script_sync.py (165 lines) - Keeping this portal in step with the Share Document server's script reviews.
 - services/compliance/evaluation/source_assertions.py (54 lines) - Keep grounded, atomic claim excerpts and stable identities without dropping qualifications.
-- services/compliance/evaluation/source_browser_fetch.py (96 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
+- services/compliance/evaluation/source_browser_fetch.py (116 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
 - services/compliance/evaluation/source_check_service.py (451 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_claim_checks.py (152 lines) - Ground source support and contradiction judgments; uncertainty remains for review.
 - services/compliance/evaluation/source_claim_coverage.py (59 lines) - Identify claims even without sources; keep missing evidence distinct from a false claim.
@@ -202,7 +202,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_comparison_cache.py (42 lines) - Share exact-content source verdicts across users, workers, restarts and ordinary reruns.
 - services/compliance/evaluation/source_comparison_prompt.py (59 lines) - Meaning-based source comparison contract, separate from orchestration.
 - services/compliance/evaluation/source_evidence.py (17 lines) - Ground source quotations separately from a model's semantic explanation.
-- services/compliance/evaluation/source_fetch_service.py (350 lines) - Source fetcher: opens a link a post cites and returns its readable text.
+- services/compliance/evaluation/source_fetch_service.py (361 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - services/compliance/evaluation/source_findings.py (37 lines) - Stable source-finding identities and construction, independent of source retrieval.
 - services/compliance/evaluation/source_identity.py (57 lines) - Identify repeated source URLs without conflating different reports from one publisher.
 - services/compliance/evaluation/source_image_claims.py (83 lines) - Keep short capability lists visible, and require evidence about the specific capability.

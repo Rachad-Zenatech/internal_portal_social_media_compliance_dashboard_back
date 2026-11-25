@@ -62,21 +62,34 @@ async def fetch(url: str) -> Optional[sf.FetchedSource]:
         else:
             await route.continue_()
 
+    html: Optional[str] = None
+    pdf_bytes: Optional[bytes] = None
+    final = url
+
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             try:
-                context = await new_stealth_context(browser, java_script_enabled=True)
+                context = await new_stealth_context(browser, java_script_enabled=True, accept_downloads=False)
                 await context.route("**/*", guard)
                 page = await context.new_page()
                 response = await page.goto(url, wait_until="domcontentloaded", timeout=TIMEOUT_MS)
                 if response is None or response.status >= 400:
                     return None
-                if "html" not in (response.headers.get("content-type") or "html"):
-                    return None  # PDFs and other files are the plain fetch's job
-                await page.wait_for_timeout(SETTLE_MS)
-                html = await page.content()
-                final = page.url
+                content_type = (response.headers.get("content-type") or "html").split(";")[0].strip().lower()
+                if "html" in content_type:
+                    await page.wait_for_timeout(SETTLE_MS)
+                    html = await page.content()
+                    final = page.url
+                else:
+                    declared = response.headers.get("content-length")
+                    if declared and declared.isdigit() and int(declared) > sf.MAX_BYTES:
+                        return None
+                    body = await response.body()
+                    final = response.url
+                    if len(body) > sf.MAX_BYTES or not sf.source_pdf_reader.is_pdf(body, content_type, final):
+                        return None
+                    pdf_bytes = body
             finally:
                 await browser.close()
     except Exception as e:
@@ -84,8 +97,15 @@ async def fetch(url: str) -> Optional[sf.FetchedSource]:
         return None
 
     if not await _host_allowed(final, verdicts):
+        pdf_bytes = None
         return None
-    text, title, published = await asyncio.to_thread(sf.html_to_text, html)
+    if pdf_bytes is not None:
+        try:
+            res = await sf.extract_pdf_source(url, final, pdf_bytes)
+        finally:
+            pdf_bytes = None
+        return res if res.ok else None
+    text, title, published = await asyncio.to_thread(sf.html_to_text, html or "")
     if len(text) < sf.MIN_TEXT_CHARS:
         return None
     text = text[:sf.MAX_TEXT_CHARS]

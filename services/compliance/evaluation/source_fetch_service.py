@@ -300,6 +300,24 @@ async def fetch(url: str) -> FetchedSource:
     return result
 
 
+async def extract_pdf_source(url: str, final: str, data: bytes) -> FetchedSource:
+    """Extract readable text from downloaded PDF bytes, using local OCR then AI fallback."""
+    if len(data) > MAX_BYTES:
+        return _fail(url, "TOO_LARGE", "The page is too large to read. Attach the part that matters as a document.")
+    text = await asyncio.to_thread(source_pdf_reader.read, data)
+    if not source_pdf_reader.has_text(text, MIN_TEXT_CHARS):
+        text = await source_pdf_ai.read(data, final)
+    if not source_pdf_reader.has_text(text, MIN_TEXT_CHARS):
+        return _fail(url, "UNSUPPORTED", "Neither local PDF extraction/OCR nor the AI backup could read this document. "
+                                         "Attach an unlocked copy or paste the relevant source text.")
+    text = source_pdf_reader.clean(text)[:MAX_TEXT_CHARS]
+    title = source_pdf_reader.title(final)
+    return FetchedSource(
+        url=url, ok=True, status=OK, final_url=final, title=title, published=None, text=text,
+        content_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+    )
+
+
 async def _fetch(url: str) -> FetchedSource:
     try:
         data, content_type, final = await _download(url)
@@ -324,14 +342,7 @@ async def _fetch(url: str) -> FetchedSource:
     kind = content_type.split(";")[0].strip().lower()
     title = published = None
     if source_pdf_reader.is_pdf(data, kind, final):
-        text = await asyncio.to_thread(source_pdf_reader.read, data)
-        if not source_pdf_reader.has_text(text, MIN_TEXT_CHARS):
-            text = await source_pdf_ai.read(data, final)
-        if not source_pdf_reader.has_text(text, MIN_TEXT_CHARS):
-            return _fail(url, "UNSUPPORTED", "Neither local PDF extraction/OCR nor the AI backup could read this document. "
-                                             "Attach an unlocked copy or paste the relevant source text.")
-        text = source_pdf_reader.clean(text)
-        title = source_pdf_reader.title(final)
+        return await extract_pdf_source(url, final, data)
     elif kind in ("text/html", "application/xhtml+xml", "") or "html" in kind:
         text, title, published = html_to_text(_decode(data, content_type))
     elif kind.startswith("text/"):
