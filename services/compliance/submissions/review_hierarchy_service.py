@@ -1,4 +1,19 @@
 """Review access inherited by Content Managers through the saved role hierarchy."""
+import os
+
+
+def _is_dev() -> bool:
+    return os.getenv("APP_ENV", "development").strip().lower() != "production"
+
+
+def _dev_admin_sql(user_param: str) -> str:
+    return (
+        f"EXISTS (SELECT 1 FROM users u WHERE u.id = {user_param} AND u.deleted_at IS NULL AND ("
+        f"u.is_super_admin OR EXISTS ("
+        f"SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id "
+        f"WHERE ur.user_id = u.id AND ur.is_active = true AND r.is_active = true "
+        f"AND r.deleted_at IS NULL AND r.code IN ('SUPER_ADMIN', 'ADMIN'))))"
+    )
 
 
 def managed_reviewers_sql(user_param: str) -> str:
@@ -35,5 +50,28 @@ def sent_to(user_param: str = "$1") -> str:
 
 def reviewer_sees(user_param: str, scope_param: str) -> str:
     """Named reviewers and their managers retain access across brand scopes."""
-    return (f"((({scope_param}::text[] IS NULL OR s.brand_codes && {scope_param}::text[]) AND {sent_to(user_param)})"
+    base = (f"((({scope_param}::text[] IS NULL OR s.brand_codes && {scope_param}::text[]) AND {sent_to(user_param)})"
             f" OR {user_param} = ANY(s.reviewer_ids) OR {manager_access_sql(user_param)})")
+    if _is_dev():
+        return f"({base} OR {_dev_admin_sql(user_param)})"
+    return base
+
+
+async def is_dev_admin(user_id) -> bool:
+    """In non-production environments, any ADMIN or SUPER_ADMIN can view all team posts."""
+    if not _is_dev():
+        return False
+    from postgresql_db.database import fetch_one
+
+    row = await fetch_one(
+        """
+        SELECT (u.is_super_admin OR EXISTS (
+            SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+            WHERE ur.user_id = u.id AND ur.is_active = true AND r.is_active = true
+              AND r.deleted_at IS NULL AND r.code IN ('SUPER_ADMIN', 'ADMIN')
+        )) AS ok
+        FROM users u WHERE u.id = $1 AND u.deleted_at IS NULL
+        """,
+        user_id,
+    )
+    return bool(row and row["ok"])

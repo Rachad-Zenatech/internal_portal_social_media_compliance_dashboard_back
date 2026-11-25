@@ -23,8 +23,10 @@ Judge meaning, including faithful paraphrases and ordinary entailment. Exact wor
 A general explanatory statement can follow from an explicitly described mechanism, function, precaution or example;
 do not demand that the source use the same abstract category or summary vocabulary. Reject support only for a material
 unsupported extension of meaning, scope or certainty, and identify that extension in the note.
-Clinical or regulatory requirements and quantified guarantees still need appropriate evidence; a prototype testing plan
-alone does not establish a mandatory whole-system validation requirement.
+When a technical or official source establishes multiple required criteria or tests for an outcome, a cautious
+paraphrase stating that one criterion alone does not establish that outcome is SUPPORTED; likewise, when a source
+states that a method or capability must be validated, summarizing that the operation requires validation is SUPPORTED.
+Clinical or regulatory approvals of a specific product and quantified guarantees still need direct evidence.
 Return SUPPORTED only when one offered source excerpt supports the entire assertion with its original scope and certainty.
 For SUPPORTED, source_id and excerpt_id MUST identify an offered excerpt, and source_quote MUST be a verbatim contiguous
 quote from that excerpt supporting the assertion. Never combine unrelated sources to manufacture support.

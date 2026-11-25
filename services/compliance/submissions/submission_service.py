@@ -61,7 +61,7 @@ from services.compliance.submissions import approval_path_service, source_link_s
 from services.notifications.submission_notifications import notify_submission as _notify
 from services.compliance.submissions import delegation_service
 from services.compliance.submissions.review_hierarchy_service import (
-    manager_access_sql, reviewer_sees as _reviewer_sees, sent_to as _sent_to,
+    is_dev_admin as _is_dev_admin, manager_access_sql, reviewer_sees as _reviewer_sees, sent_to as _sent_to,
 )
 from services.compliance.submissions.submission_snapshot import build_snapshot
 from services.compliance.submissions import duplicate_service
@@ -269,15 +269,15 @@ async def _is_suggester(user_id: UUID) -> bool:
 async def _can_see_team_content(user_id: UUID) -> bool:
     """Content Managers, reviewers and suggesting reviewers can read other people's submissions (a suggesting reviewer
     only those sent to them by name: see _brand_scope)."""
-    return await _can_manage_team_content(user_id) or await _can_suggest(user_id)
+    return await _can_manage_team_content(user_id) or await _can_suggest(user_id) or await _is_dev_admin(user_id)
 
 
 async def _brand_scope(user_id: UUID) -> Optional[List[str]]:
     """The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
     hasn't been assigned to specific brands. Other people's content outside these brands is hidden from them. A
     suggesting reviewer works on no brand (an empty list): they see only what was sent to them by name."""
-    if await _is_suggester(user_id):
-        return []
+    if await _is_dev_admin(user_id): return None
+    if await _is_suggester(user_id): return []
 
     async def load() -> Optional[Tuple[str, ...]]:
         row = await fetch_one(
@@ -316,7 +316,7 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
-    if row["created_by"] != user_id and not await _is_super_admin(user_id):
+    if row["created_by"] != user_id and not await _is_super_admin(user_id) and not await _is_dev_admin(user_id):
         if not (manager_can_read and await _can_see_team_content(user_id)):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
         scope = await _brand_scope(user_id)
@@ -544,17 +544,14 @@ async def create_submission(data: SubmissionCreate, user_id: UUID) -> Submission
 async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, scope: str = "mine") -> List[SubmissionSummary]:
     """The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers."""
     # Independent lookups at once: one database round trip of waiting instead of five in a row.
-    is_manager, is_reviewer, is_super, brand_scope, rules = await asyncio.gather(
-        _can_manage_team_content(user_id), _can_review(user_id), _is_super_admin(user_id), _brand_scope(user_id), approval_path_service.load_rules())
-    if scope == "all" and not (is_manager or is_reviewer):
+    is_manager, is_reviewer, is_super, is_dev_admin, brand_scope, rules = await asyncio.gather(
+        _can_manage_team_content(user_id), _can_review(user_id), _is_super_admin(user_id),
+        _is_dev_admin(user_id), _brand_scope(user_id), approval_path_service.load_rules())
+    if scope == "all" and not (is_manager or is_reviewer or is_dev_admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only see your own content")
     rows = await fetch_all(
         submission_list_query.list_query(_ACCOUNTS_COLUMN, _pending_sql, _unavailable_sql),
-        user_id,
-        status_filter,
-        scope == "all",
-        # Everyone else's content only for the brands the viewer works on.
-        brand_scope,
+        user_id, status_filter, scope == "all", brand_scope,
     )
     revision = await revision_steps.for_submissions(rows)
     summaries = []
