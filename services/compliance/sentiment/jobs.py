@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 from fastapi import HTTPException, status
-
+from services.ai.core.ai_error_diagnostics import classify_error, user_message
 from models.compliance.sentiment_model import (
     ContextUse,
     SentimentAnalysis,
@@ -115,9 +115,8 @@ async def run_analysis(analysis_id: UUID) -> None:
             logger.warning("Sentiment analysis %s: daily quota for %s used up until %s", analysis_id, e.model, e.reset_at)
             await _finish(analysis_id, submission_id, claimed["requested_by"], None, str(e), model, retry_at=e.reset_at)
         except Exception as e:
-            logger.warning("Sentiment analysis %s failed (attempt %s): %s", analysis_id, claimed["attempts"], e)
-            await _finish(analysis_id, submission_id, claimed["requested_by"], None, str(e)[:500] or e.__class__.__name__, model)
-
+            logger.exception("Sentiment analysis %s failed (attempt %s, reason=%s)", analysis_id, claimed["attempts"], classify_error(e)[0])
+            await _finish(analysis_id, submission_id, claimed["requested_by"], None, user_message(e), model)
 
 async def _run(analysis_id: UUID) -> None:
     await _run_background(analysis_id, run_analysis)

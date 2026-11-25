@@ -4,5 +4,5 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_fix_service.py (66 lines) - AI-assisted compliant passage rewrites for flagged script lines.
-- `suggest_fix` (def) L42 - A compliant rewrite of one flagged passage, for the creator to use or not.
+## services/compliance/evaluation/script_fix_service.py (64 lines) - AI-assisted compliant passage rewrites for flagged script lines.
+- `suggest_fix` (def) L43 - A compliant rewrite of one flagged passage, for the creator to use or not.
