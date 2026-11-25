@@ -31,9 +31,10 @@ async def get_current_user_id(
     request: Request,
     authorization: Optional[str] = Header(None),
     access_token: Optional[str] = Cookie(None, alias=AUTH_COOKIE_NAME),
+    zenatech_token: Optional[str] = Cookie(None, alias="zenatech_access_token"),
 ) -> UUID:
     return await get_current_user_id_dependency(
-        authorization=authorization, access_token=access_token, zenatech_token=None, query_token=None, request=request
+        authorization=authorization, access_token=access_token, zenatech_token=zenatech_token, query_token=None, request=request
     )
 
 @router.get("/me/permissions")
