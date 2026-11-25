@@ -27,6 +27,23 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `verify_rds` (def) L113
 - `main` (def) L124
 
+## scripts/review_handoff_eval.py (214 lines) - Offline deadline checks plus isolated PostgreSQL handoff/concurrency regressions.
+- `request` (def) L55
+- `DeadlineTests` (class) L60
+    - `test_exact_deadline_and_missing_deadline` (def) L61
+    - `test_changes_deadline_cannot_precede_creator_handoff` (def) L67
+- `DatabaseTests` (class) L79
+    - `asyncSetUp` (def) L80
+    - `event` (def) L96
+    - `post` (def) L100
+    - `save` (def) L109
+    - `expire` (def) L122
+    - `test_all_three_outcomes_stay_held_then_release_once` (def) L125
+    - `test_concurrent_reviewers_cannot_replace_the_first_decision` (def) L152
+    - `test_failed_handoff_rolls_back_and_can_retry` (def) L161
+    - `test_only_comments_remain_and_they_close_at_the_deadline` (def) L179
+    - `test_past_deadlines_keep_immediate_handoff_behavior` (def) L201
+
 ## scripts/scrape_x_links.py (123 lines) - Is what an item links to about the topic it was collected for? Every outside link of a collected item (see scrape_x_media.source_links) i...
 - `_entry` (def) L40
 - `_ask_ai` (def) L44 - Gemini's call on a link the keywords couldn't settle, or None when no model could answer.
