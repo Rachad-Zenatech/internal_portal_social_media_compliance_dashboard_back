@@ -41,7 +41,7 @@ _indexed: set = set()
 
 
 def is_enabled() -> bool:
-    return store.is_enabled()
+    return store.mongo_enabled()
 
 
 def collection(name: str):

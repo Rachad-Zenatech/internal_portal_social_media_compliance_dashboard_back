@@ -138,6 +138,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `find` (def) L105
 - `count` (def) L118
 
+## services/ai/core/opensearch_client.py (112 lines) - Async AWS OpenSearch (including OpenSearch Serverless `aoss`) HTTP client with SigV4 signing.
+- `opensearch_host` (def) L17
+- `opensearch_index` (def) L24
+- `is_opensearch_enabled` (def) L28
+- `_region_and_service` (def) L32
+- `_signed_headers` (def) L45
+- `request` (def) L64
+- `request_json` (def) L87
+- `bulk` (def) L101 - Execute NDJSON bulk operations against OpenSearch.
+
 ## services/ai/core/response_errors.py (15 lines) - Safe, structured response failures shared by providers and feature validators.
 - `OutputLimitError` (class) L4 - A model answered but exhausted its response budget; this is not a provider outage.
     - `__init__` (def) L7
@@ -156,33 +166,34 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `store` (def) L164 - Cache an answer for the question of an earlier lookup.
 - `clear` (def) L188 - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
-## services/ai/core/vector_store_service.py (379 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
-- `_setting` (def) L44
-- `database_name` (def) L48
-- `collection_name` (def) L52
-- `index_name` (def) L56
-- `embedding_model` (def) L60
-- `is_enabled` (def) L65
-- `named_collection` (def) L72 - Another collection in the same database, over the same connection, or None when MONGODB_URI isn't set.
-- `_collection` (def) L90 - The project's collection, or None when MONGODB_URI isn't set.
-- `_embedding_path` (def) L95
-- `EmbeddingQuotaExhausted` (class) L108 - The embedding quota is used up; raised without calling Gemini while the pause lasts.
-- `check_embedding_quota` (def) L112 - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
-- `embedding_pause_status` (def) L119 - Return (reason, seconds_remaining) when embeddings are paused, else None.
-- `note_embedding_error` (def) L125 - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
-- `embed` (def) L152 - Return real vectors or fail explicitly; placeholders must never count as retrieval.
-- `_scope` (def) L166 - An empty scope means every value.
-- `_hash` (def) L172
-- `VectorDoc` (class) L177
-    - `doc_id` (def) L188
-- `upsert` (def) L192 - Checkpoint small batches so a free-tier quota pause preserves already indexed material.
-- `_upsert_batch` (def) L202 - Add or update documents.
-- `delete` (def) L237
-- `delete_kind_except` (def) L247 - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
-- `_reference_changed` (def) L259 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
-- `search` (def) L269 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
-- `ensure_index` (def) L320 - Create the Atlas vector search index on the collection if it doesn't exist.
-- `status` (def) L360 - Whether the store is configured and reachable, and what's in it (no credentials).
+## services/ai/core/vector_store_service.py (434 lines) - Vector store: AWS OpenSearch vector search for reference material the content analysis can draw on (brand voice, company facts, platform ...
+- `_setting` (def) L34
+- `database_name` (def) L38
+- `collection_name` (def) L42
+- `index_name` (def) L46
+- `embedding_model` (def) L50
+- `is_enabled` (def) L55
+- `mongo_enabled` (def) L59
+- `named_collection` (def) L66 - Another collection in the MongoDB database, over the same connection, or None when MONGODB_URI isn't set.
+- `_embedding_path` (def) L84
+- `EmbeddingQuotaExhausted` (class) L97 - The embedding quota is used up; raised without calling Gemini while the pause lasts.
+- `check_embedding_quota` (def) L101 - Raise EmbeddingQuotaExhausted while embeddings are paused for the quota.
+- `embedding_pause_status` (def) L108 - Return (reason, seconds_remaining) when embeddings are paused, else None.
+- `note_embedding_error` (def) L114 - Pause embeddings when the error is Gemini's quota refusal: for as long as it says, and for a daily limit at
+- `embed` (def) L141 - Return real vectors or fail explicitly; placeholders must never count as retrieval.
+- `_scope` (def) L155 - An empty scope means every value.
+- `_hash` (def) L161
+- `VectorDoc` (class) L166
+    - `doc_id` (def) L177
+- `_find_existing_by_doc_ids` (def) L181
+- `upsert` (def) L202 - Checkpoint small batches so a quota pause preserves already indexed material.
+- `_upsert_batch` (def) L212 - Add or update documents in OpenSearch.
+- `delete` (def) L248
+- `delete_kind_except` (def) L262 - Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source.
+- `_reference_changed` (def) L288 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
+- `search` (def) L298 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
+- `ensure_index` (def) L364 - Create the OpenSearch k-NN index if it doesn't exist.
+- `status` (def) L415 - Whether OpenSearch is configured and reachable, and what's in the index (no credentials).
 
 ## services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - `collection_name` (def) L36

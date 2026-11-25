@@ -89,9 +89,9 @@ def _probe_cloud_cores(
             bedrock_status = "OK" if llm_calls > 0 else "READY"
 
     embed_pause = vector_store_service.embedding_pause_status()
-    mongo_enabled = vector_store_service.is_enabled()
-    embed_status, embed_note = "UNCONFIGURED", "MONGODB_URI not set (vector store disabled)"
-    if mongo_enabled and embedding_service.is_configured():
+    vector_enabled = vector_store_service.is_enabled()
+    embed_status, embed_note = "UNCONFIGURED", "OPENSEARCH_HOST not set (vector store disabled)"
+    if vector_enabled and embedding_service.is_configured():
         if embed_pause:
             reason_msg, left_sec = embed_pause
             embed_status = "OUT" if "denied" in reason_msg.lower() else "OVERFLOW"
@@ -117,9 +117,9 @@ def _probe_cloud_cores(
         {
             "core": "titan_embeddings",
             "name": _CORE_LABELS["titan_embeddings"],
-            "provider": f"{'Google Gemini' if embedding_service.provider() == 'gemini' else 'AWS Bedrock'} + MongoDB Atlas",
+            "provider": f"{'Google Gemini' if embedding_service.provider() == 'gemini' else 'AWS Bedrock'} + OpenSearch",
             "status": embed_status,
-            "configured": mongo_enabled and embedding_service.is_configured(),
+            "configured": vector_enabled and embedding_service.is_configured(),
             "model": f"{embedding_service.model_id()} ({embedding_service.dimensions()}d)",
             "detail": "Semantic RAG for rulebook, review precedent & semantic cache",
             "note": embed_note,

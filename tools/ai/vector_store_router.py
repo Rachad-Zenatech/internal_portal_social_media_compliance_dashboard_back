@@ -1,4 +1,4 @@
-"""Vector store admin: check the MongoDB connection and create the search index (super admins only)."""
+"""Vector store admin: check the AWS OpenSearch connection and create the search index (super admins only)."""
 
 from typing import Annotated, Any, Dict
 from uuid import UUID
@@ -40,7 +40,7 @@ async def sync_review_memory(_user_id: Annotated[UUID, Depends(_super_admin)]) -
     """Store every decided review as precedent for sentiment analysis (only new or changed content is embedded).
     It also runs at startup and after each decision, so this is only needed after a bulk change."""
     if not vector_store_service.is_enabled():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The vector store isn't configured (MONGODB_URI)")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The vector store isn't configured (OPENSEARCH_HOST)")
     try:
         return await review_memory_service.remember_all()
     except Exception as e:
