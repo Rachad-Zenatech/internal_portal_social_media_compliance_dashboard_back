@@ -13,7 +13,7 @@ to find the right file.
 | .agents/code-map/mcp_tools.md | 3 | 1 KB |
 | .agents/code-map/mcp_tools__compliance.md | 1 | 1 KB |
 | .agents/code-map/mcp_tools__shared.md | 1 | 1 KB |
-| .agents/code-map/models__compliance.md | 25 | 17 KB |
+| .agents/code-map/models__compliance.md | 26 | 18 KB |
 | .agents/code-map/models__notifications.md | 2 | 1 KB |
 | .agents/code-map/models__shared.md | 3 | 2 KB |
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |
@@ -147,6 +147,7 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions__media_read_status.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__post_approval_suggestions.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__post_steps_service.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__post_text_review.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__request_coalescer.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_approval_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_comment_writes.md | 1 | 1 KB |
@@ -171,7 +172,7 @@ to find the right file.
 | .agents/code-map/services__shared__storage.md | 1 | 1 KB |
 | .agents/code-map/tools__ai.md | 3 | 1 KB |
 | .agents/code-map/tools__compliance__analytics.md | 4 | 5 KB |
-| .agents/code-map/tools__compliance__submissions.md | 15 | 24 KB |
+| .agents/code-map/tools__compliance__submissions.md | 16 | 25 KB |
 | .agents/code-map/tools__microsoft_graph.md | 1 | 1 KB |
 | .agents/code-map/tools__notifications.md | 3 | 2 KB |
 | .agents/code-map/tools__shared__auth.md | 3 | 5 KB |

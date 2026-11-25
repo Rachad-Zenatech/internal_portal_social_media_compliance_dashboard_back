@@ -13,7 +13,10 @@ from services.compliance.submissions import post_approval_suggestions
 from services.compliance.submissions import submission_service as svc
 from services.shared.auth.auth_service import get_current_user_id_dependency
 
+from tools.compliance.submissions.post_text_review_router import router as text_review_router
+
 router = APIRouter()
+router.include_router(text_review_router)
 CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 
 

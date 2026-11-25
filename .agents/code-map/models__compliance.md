@@ -98,6 +98,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `PostApprovalSuggestionFields` (class) L8
 - `PublishingAccess` (class) L13
 
+## models/compliance/post_text_review_model.py (37 lines) - Reviewers' attributed edits to a text-only post.
+- `PostTextSave` (class) L9
+    - `nonempty_text` (def) L16
+- `PostTextEdit` (class) L22
+- `PostTextReview` (class) L32
+
 ## models/compliance/public_mood_model.py (381 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - `ListeningPost` (class) L13
 - `TopicSnapshot` (class) L24

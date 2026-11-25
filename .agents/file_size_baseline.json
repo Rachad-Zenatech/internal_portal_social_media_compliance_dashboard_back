@@ -42,7 +42,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/submissions/submission_service.py": {
-      "max_lines": 2708,
+      "max_lines": 2694,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/notifications/rabbitmq_service.py": {

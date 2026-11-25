@@ -23,6 +23,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/image_provenance_model.py (15 lines) - Saved AI-image disclosure and whether the creator explicitly answered the question.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
 - models/compliance/post_approval_model.py (17 lines) - The suggestion window following the first approval of a post.
+- models/compliance/post_text_review_model.py (37 lines) - Reviewers' attributed edits to a text-only post.
 - models/compliance/public_mood_model.py (381 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - models/compliance/review_score_model.py (10 lines) - Effective review score fields shared by submission and review queue responses.
 - models/compliance/script_batch_model.py (139 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
@@ -253,10 +254,11 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/image_source_search.py (159 lines) - Find a cited source on the web: Gemini Google Search grounding first, then search APIs (Serper or Google CSE) when configured, then the s...
 - services/compliance/submissions/image_source_service.py (387 lines) - Scan an image for source citations (URLs or named title + date references), locate the source on the web, and scrape/verify it.
 - services/compliance/submissions/manual_check_service.py (144 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
-- services/compliance/submissions/media_freshness.py (39 lines) - Check freshness follows media revisions, independently of post detail edits.
+- services/compliance/submissions/media_freshness.py (40 lines) - Check freshness follows media revisions, independently of post detail edits.
 - services/compliance/submissions/media_read_status.py (13 lines) - Unread media recorded in a submission's saved compliance check.
 - services/compliance/submissions/post_approval_suggestions.py (105 lines) - Allow suggestions until the deadline without changing the first approval.
 - services/compliance/submissions/post_steps_service.py (134 lines) - The five steps a creator works through, and how far each post has got.
+- services/compliance/submissions/post_text_review.py (158 lines) - Direct reviewer text edits, serialized with decisions and attributed in the existing event log.
 - services/compliance/submissions/request_coalescer.py (50 lines) - Short-lived request sharing for expensive submission-list reads.
 - services/compliance/submissions/review_approval_service.py (77 lines) - Approval gates for a submitted post: saved checks, findings and final approvers.
 - services/compliance/submissions/review_comment_writes.py (18 lines) - Serialize comments with approval so stale tabs cannot write after the deadline.
@@ -268,9 +270,9 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
 - services/compliance/submissions/submission_check_material.py (104 lines) - The post material used by full compliance and every source comparison.
 - services/compliance/submissions/submission_check_runner.py (67 lines) - Run and snapshot the complete post check without changing its scoring policy.
-- services/compliance/submissions/submission_fields.py (65 lines) - Field shaping for submission summaries and draft type changes.
+- services/compliance/submissions/submission_fields.py (67 lines) - Field shaping for submission summaries and draft type changes.
 - services/compliance/submissions/submission_list_query.py (94 lines) - SQL for the submission list, including previews and analysis status.
-- services/compliance/submissions/submission_service.py (2691 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2695 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/compliance/submissions/submission_source_state.py (23 lines) - Track the saved source-link inputs of a compliance run, including legacy checks.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
@@ -323,6 +325,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/check_stream.py (73 lines) - NDJSON streaming helper for compliance check progress with 15s keepalive.
 - tools/compliance/submissions/compliance_router.py (172 lines) - Compliance Rules & Governance Router Endpoints for managing ("build on it and remove") and checking compliance rules.
 - tools/compliance/submissions/context_router.py (141 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles for the content analysis.
+- tools/compliance/submissions/post_text_review_router.py (23 lines) - Attributed reviewer edits to text-only posts.
 - tools/compliance/submissions/review_queue_router.py (39 lines) - Review Queue endpoints, protected from duplicate browser requests.
 - tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - tools/compliance/submissions/script_directory_router.py (63 lines) - Script directory for the Share Document portal (app-to-app).
@@ -331,7 +334,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/source_link_router.py (75 lines) - Router for quick AI checking of submission source links.
 - tools/compliance/submissions/source_trust_router.py (27 lines) - Router for people's calls on a post's sources (does a claim match the page? is the page a good source?) and the standing each source's si...
 - tools/compliance/submissions/submission_flag_router.py (74 lines) - Creator dismissal requests and reviewers' calls on compliance flags.
-- tools/compliance/submissions/submission_review_router.py (89 lines) - Review decisions, hand-offs and comments for content submissions.
+- tools/compliance/submissions/submission_review_router.py (92 lines) - Review decisions, hand-offs and comments for content submissions.
 - tools/compliance/submissions/submission_router.py (466 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/notifications/message_hub_router.py (70 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).

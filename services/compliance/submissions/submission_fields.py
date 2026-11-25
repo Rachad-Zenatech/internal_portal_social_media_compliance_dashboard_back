@@ -47,8 +47,10 @@ def script_mode_fields(row, payload):
 
 async def lock_script_mode(conn, submission_id, payload):
     """Do not let a racing autosave bypass a script that has just been sent."""
-    if payload.get("script_required") is not None:
+    if payload.get("script_required") is not None or payload.get("content_type") == "TEXT_POST":
         row = await conn.fetchrow("SELECT * FROM content_submissions WHERE id = $1 FOR UPDATE", submission_id)
+        from services.compliance.submissions.post_text_review import require_empty_attachments
+        await require_empty_attachments(conn, row, payload)
         script_mode_fields(row, payload)
 
 

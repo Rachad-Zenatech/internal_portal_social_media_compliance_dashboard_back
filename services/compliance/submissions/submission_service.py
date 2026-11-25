@@ -84,6 +84,7 @@ from services.compliance.evaluation.compliance_service import CEO_BRAND, audienc
 from services.compliance.evaluation.compliance_service import parts_for as compliance_parts_for
 from services.compliance.evaluation.compliance_service import rulebook_version as compliance_rulebook_version
 from services.compliance.media.html_sanitizer import sanitize_caption_html
+from services.compliance.submissions import post_text_review
 
 logger = logging.getLogger(__name__)
 
@@ -848,6 +849,7 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
         raise HTTPException(status_code=422, detail="Unknown file kind")
     _require_script_stage_allows(row, kind)
 
+    post_text_review.require_no_files(row["content_type"])
     original_name = _safe_name(upload.filename or "file")
     ext = Path(original_name).suffix.lower()
     allowed = MAIN_EXT_BY_TYPE.get(row["content_type"], set()) if kind == "MAIN" else ALLOWED_EXT[kind]
@@ -930,6 +932,7 @@ async def _record_file(
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            await post_text_review.lock_upload(conn, submission_id)
             if replaces_file_id:
                 # A reimport replaces exactly the file it came from (one image of a carousel, say).
                 await conn.execute(
@@ -1268,7 +1271,7 @@ async def _mirror_to_script_version(conn, submission_id: UUID, check: Dict[str, 
 
 
 async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: bool = False, *, refresh_sources: bool = False) -> Submission:
-    row = await _get_owned_row(submission_id, user_id)
+    row = await post_text_review.check_row(submission_id, user_id)
     if not _check_text(row):
         raise HTTPException(status_code=422, detail="Add a title or caption before running the check")
     await manual_check_service.require_compliance_ready(row)
@@ -2125,7 +2128,8 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     async with pool.acquire() as conn:
         async with conn.transaction():
             from services.compliance.submissions.caption_review_service import decision_status
-            current = await decision_status(conn, row)
+            current = (await post_text_review.lock_decision(conn, row) if row["content_type"] == "TEXT_POST"
+                       else await decision_status(conn, row))
             if current != "IN_REVIEW":
                 raise HTTPException(status_code=409, detail="Someone else just decided on this; refresh to see it")
             await conn.execute(
