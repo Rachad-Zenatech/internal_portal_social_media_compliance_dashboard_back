@@ -142,7 +142,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `result` (def) L70
 - `sanitize_caption_html` (def) L77 - The caption HTML with only safe formatting left.
 
-## services/compliance/media/image_finding_service.py (340 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+## services/compliance/media/image_finding_service.py (381 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - `normalized` (def) L33
 - `text_spans` (def) L37 - Whole-word occurrences in normalized OCR text, including text that wraps over lines.
 - `overlaps_flagged_text` (def) L45 - A returned line may include context on either side of the flagged words.
@@ -153,8 +153,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_vision_source_regions` (def) L176 - Fallback when local OCR misses tiny footer text: locate printed source credits via vision.
 - `_inside_any_box` (def) L203
 - `_ocr_regions` (def) L209 - Find flagged phrases in OCR words and return one tight region per affected text line.
-- `locate_image_findings` (def) L238 - Locate flagged wording, including warnings that still need evidence, and return detected source regions.
-- `_attach_regions` (def) L324
+- `_region_in_sources` (def) L238
+- `_clear_source_window_findings` (def) L244 - Ignore findings whose only localized occurrence fell inside a printed source window.
+- `locate_image_findings` (def) L262 - Locate flagged wording, ignore findings inside printed source windows, and return detected source regions.
+- `_attach_regions` (def) L361
 
 ## services/compliance/media/image_finding_zoom.py (82 lines) - Recover small-text locations from enlarged sections; map boxes back to the original image.
 - `sections` (def) L15

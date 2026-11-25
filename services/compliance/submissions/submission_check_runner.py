@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 
-from services.compliance.evaluation import check_rule_capture
+from services.compliance.evaluation import check_rule_capture, compliance_check_result
 from services.compliance.submissions import check_snapshot_service
 
 
@@ -24,9 +24,11 @@ async def run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     with check_rule_capture.collecting() as captured:
         result = await subs.check_compliance(request)
     all_video_segments = [*segments, *visual_segments]
+    non_image_text = material.text.split("Text in image ", 1)[0]
     result.source_regions = await subs.video_finding_service.locate_media_findings(
-        images, video, all_video_segments, result.violations
+        images, video, all_video_segments, result.violations, non_image_text=non_image_text
     )
+    compliance_check_result.recalculate_totals(result)
     match = subs.script_match.assess_video(script, " ".join(str(s.get("text", "")) for s in segments if s.get("source") != "on_screen"), video, on_screen=" ".join(str(s.get("text", "")) for s in segments if s.get("source") == "on_screen"))
     subs.script_match.flag_mismatch(result, match)
     subs.source_recheck.record_cleared(result, (subs._json(row.get("latest_check")) or {}).get("violations") or [])
