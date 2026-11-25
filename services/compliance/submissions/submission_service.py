@@ -84,6 +84,7 @@ from services.compliance.evaluation.compliance_service import CEO_BRAND, audienc
 from services.compliance.evaluation.compliance_service import parts_for as compliance_parts_for
 from services.compliance.evaluation.compliance_service import rulebook_version as compliance_rulebook_version
 from services.compliance.media.html_sanitizer import sanitize_caption_html
+from services.compliance.submissions import post_text_review
 
 logger = logging.getLogger(__name__)
 
@@ -848,6 +849,7 @@ async def add_file(submission_id: UUID, kind: str, upload: UploadFile, user_id: 
         raise HTTPException(status_code=422, detail="Unknown file kind")
     _require_script_stage_allows(row, kind)
 
+    post_text_review.require_no_files(row["content_type"])
     original_name = _safe_name(upload.filename or "file")
     ext = Path(original_name).suffix.lower()
     allowed = MAIN_EXT_BY_TYPE.get(row["content_type"], set()) if kind == "MAIN" else ALLOWED_EXT[kind]
@@ -930,6 +932,7 @@ async def _record_file(
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            await post_text_review.lock_upload(conn, submission_id)
             if replaces_file_id:
                 # A reimport replaces exactly the file it came from (one image of a carousel, say).
                 await conn.execute(
@@ -1268,24 +1271,23 @@ async def _mirror_to_script_version(conn, submission_id: UUID, check: Dict[str, 
 
 
 async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: bool = False, *, refresh_sources: bool = False) -> Submission:
-    row = await _get_owned_row(submission_id, user_id)
+    row = await post_text_review.check_row(submission_id, user_id)
     if not _check_text(row):
         raise HTTPException(status_code=422, detail="Add a title or caption before running the check")
     await manual_check_service.require_compliance_ready(row)
     await transcription_service.retry_failed_videos(submission_id)
-    # Duplicates are settled before the compliance check, not when the post is sent: a true duplicate is refused here,
-    # and a repost for another date is confirmed here (sending still refuses a duplicate made by later edits).
+    await image_text_service.retry_failed_images(submission_id)
+    # Settle duplicates before checking, including confirmation of reposts for another date.
     duplicates = await _require_not_duplicate(row, confirm_repost)
     attempts: Dict[str, Dict[str, Any]] = {}
     outer = ai_observability.attempt_listener.get()
+    check_started_at = datetime.now(timezone.utc)
     started = time.perf_counter()
-
     def record(event: Dict[str, Any]) -> None:
         if event.get("event") == "attempt" and event.get("id"):
             attempts[event["id"]] = {k: event.get(k) for k in ("id", "status", "model", "feature", "attempt", "tier", "error_kind", "error", "duration_ms")}
         if outer is not None:
             outer(event)
-
     token = ai_observability.attempt_listener.set(record)
     refresh_token = source_recheck.refresh.set(refresh_sources)
     try:
@@ -1300,11 +1302,13 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            if not await _check_still_current(conn, row, check_started_at):
+                raise HTTPException(status_code=409, detail="The post changed during the check. Run it again on the latest content.")
             await conn.execute("UPDATE content_submissions SET latest_check = $2::jsonb, updated_at = NOW() WHERE id = $1",
                                submission_id, json.dumps(check))
             await _mirror_to_script_version(conn, submission_id, check)
             await _add_event(conn, submission_id, "CHECK_RUN",
-                             "Initial check: the AI review couldn't run, so there is no score yet" if check["ai_unavailable"]
+                             f"Initial check incomplete: some review steps did not finish; provisional score {result.score}/100" if check["ai_unavailable"]
                              else f"Initial check: {result.violations_count} issue(s), score {result.score}/100", user_id,
                              {"traffic_light": result.traffic_light, "score": result.score})
     return await get_submission(submission_id, user_id)
@@ -2123,9 +2127,9 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
-            current = await conn.fetchval(
-                "SELECT status FROM content_submissions WHERE id = $1 FOR UPDATE", submission_id
-            )
+            from services.compliance.submissions.caption_review_service import decision_status
+            current = (await post_text_review.lock_decision(conn, row) if row["content_type"] == "TEXT_POST"
+                       else await decision_status(conn, row))
             if current != "IN_REVIEW":
                 raise HTTPException(status_code=409, detail="Someone else just decided on this; refresh to see it")
             await conn.execute(
@@ -2436,8 +2440,7 @@ _rulebook_recheck: Optional["asyncio.Task[None]"] = None
 RULEBOOK_RECHECK_DELAY_SEC = 3
 
 
-async def _check_still_current(conn, row: Dict[str, Any], started: datetime) -> bool:
-    return await media_freshness.check_still_current(conn, row, started)
+_check_still_current = media_freshness.check_still_current
 
 
 async def _recheck_one(row: Dict[str, Any], describe) -> Tuple[Any, Dict[str, Any], bool]:

@@ -6,13 +6,17 @@ from models.compliance.submission_model import (
     DelegateRequest, Delegation, ReopenRequest, RescheduleRequest, ReviewComment,
     ReviewCommentCreate, ReviewCommentUpdate, ReviewDecisionRequest, Submission,
 )
-from services.compliance.submissions import delegation_service
-from services.compliance.submissions import post_approval_suggestions
+from models.compliance.caption_review_model import CaptionEditRequest, CaptionReview
 from models.compliance.post_approval_model import PublishingAccess
+from services.compliance.submissions import caption_review_service, delegation_service
+from services.compliance.submissions import post_approval_suggestions
 from services.compliance.submissions import submission_service as svc
 from services.shared.auth.auth_service import get_current_user_id_dependency
 
+from tools.compliance.submissions.post_text_review_router import router as text_review_router
+
 router = APIRouter()
+router.include_router(text_review_router)
 CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 
 
@@ -74,3 +78,15 @@ async def update_comment(submission_id: UUID, comment_id: UUID, data: ReviewComm
 async def delete_comment(submission_id: UUID, comment_id: UUID, user_id: CurrentUser):
     """Delete your own comment."""
     await svc.delete_comment(submission_id, comment_id, user_id)
+
+
+@router.get("/{submission_id}/caption-review", response_model=CaptionReview)
+async def get_caption_review(submission_id: UUID, user_id: CurrentUser):
+    """Current captions and the attributed before/after history, visible to post participants."""
+    return await caption_review_service.get_caption_review(submission_id, user_id)
+
+
+@router.patch("/{submission_id}/caption-review", response_model=CaptionReview)
+async def save_review_caption(submission_id: UUID, data: CaptionEditRequest, user_id: CurrentUser):
+    """Reviewers and suggesting reviewers save caption wording directly, with conflict detection."""
+    return await caption_review_service.save_caption(submission_id, user_id, data)

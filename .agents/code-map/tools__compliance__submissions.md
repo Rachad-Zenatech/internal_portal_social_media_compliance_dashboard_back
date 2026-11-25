@@ -57,6 +57,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `update_entry` (def) L133 [PUT /{entry_id}]
 - `delete_entry` (def) L138 [DELETE /{entry_id}]
 
+## tools/compliance/submissions/post_text_review_router.py (23 lines) - Attributed reviewer edits to text-only posts.
+- `get_text_review` (def) L15 [GET /{submission_id}/text-review]
+- `save_text_review` (def) L20 [POST /{submission_id}/text-review]
+
 ## tools/compliance/submissions/review_queue_router.py (39 lines) - Review Queue endpoints, protected from duplicate browser requests.
 - `review_queue` (def) L18 [GET /review-queue] - Submitted posts for one Content Screener tab.
 - `review_queue_counts` (def) L32 [GET /review-queue/counts] - How many posts are in each Content Screener tab.
@@ -153,17 +157,19 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `confirm_flag` (def) L64 [PUT /{submission_id}/flags/{rule_id}/confirm] - Say a flag on the version in review is right.
 - `unconfirm_flag` (def) L70 [DELETE /{submission_id}/flags/{rule_id}/confirm] - Take back a confirmation.
 
-## tools/compliance/submissions/submission_review_router.py (77 lines) - Review decisions, hand-offs and comments for content submissions.
-- `publishing_access` (def) L19 [GET /{submission_id}/publishing-access]
-- `review_submission` (def) L24 [POST /{submission_id}/review] - Reviewer decision on the version in review: approve (schedule it, or publish now) or request changes.
-- `delegate_review` (def) L31 [POST /{submission_id}/delegate] - Reviewer hands the post in review to another reviewer; the delegator keeps seeing it and can still decide.
-- `submission_delegations` (def) L37 [GET /{submission_id}/delegations] - Every review hand-off on this post.
-- `reopen_approval` (def) L43 [POST /{submission_id}/reopen] - Reviewer takes back an approval and sends the content to its creator as changes requested.
-- `reschedule` (def) L49 [POST /{submission_id}/reschedule] - Reviewer moves approved content to a new publish time; the approval stands.
-- `list_comments` (def) L55 [GET /{submission_id}/comments] - Review comments on every version, oldest first.
-- `add_comment` (def) L61 [POST /{submission_id}/comments] - Add a comment on the current version (reviewers and the creator), optionally pinned to a video time range.
-- `update_comment` (def) L67 [PATCH /{submission_id}/comments/{comment_id}] - Mark a comment resolved (or reopen it).
-- `delete_comment` (def) L73 [DELETE /{submission_id}/comments/{comment_id}] - Delete your own comment.
+## tools/compliance/submissions/submission_review_router.py (92 lines) - Review decisions, hand-offs and comments for content submissions.
+- `publishing_access` (def) L23 [GET /{submission_id}/publishing-access]
+- `review_submission` (def) L28 [POST /{submission_id}/review] - Reviewer decision on the version in review: approve (schedule it, or publish now) or request changes.
+- `delegate_review` (def) L35 [POST /{submission_id}/delegate] - Reviewer hands the post in review to another reviewer; the delegator keeps seeing it and can still decide.
+- `submission_delegations` (def) L41 [GET /{submission_id}/delegations] - Every review hand-off on this post.
+- `reopen_approval` (def) L47 [POST /{submission_id}/reopen] - Reviewer takes back an approval and sends the content to its creator as changes requested.
+- `reschedule` (def) L53 [POST /{submission_id}/reschedule] - Reviewer moves approved content to a new publish time; the approval stands.
+- `list_comments` (def) L59 [GET /{submission_id}/comments] - Review comments on every version, oldest first.
+- `add_comment` (def) L65 [POST /{submission_id}/comments] - Add a comment on the current version (reviewers and the creator), optionally pinned to a video time range.
+- `update_comment` (def) L71 [PATCH /{submission_id}/comments/{comment_id}] - Mark a comment resolved (or reopen it).
+- `delete_comment` (def) L77 [DELETE /{submission_id}/comments/{comment_id}] - Delete your own comment.
+- `get_caption_review` (def) L83 [GET /{submission_id}/caption-review] - Current captions and the attributed before/after history, visible to post participants.
+- `save_review_caption` (def) L89 [PATCH /{submission_id}/caption-review] - Reviewers and suggesting reviewers save caption wording directly, with conflict detection.
 
 ## tools/compliance/submissions/submission_router.py (466 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - `get_options` (def) L84 [GET /options] - Brands, connected publishing accounts and the allowed values for each field.

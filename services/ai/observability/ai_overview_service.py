@@ -30,7 +30,7 @@ _FEATURE_CATALOG: List[Dict[str, Any]] = [
 
 _CORE_LABELS: Dict[str, str] = {
     "bedrock_llm": "AWS Bedrock (Claude LLM)",
-    "titan_embeddings": "Amazon Titan + Atlas Vector Store",
+    "titan_embeddings": "Vector Search & Embeddings",
     "local_nlp_sentiment": "Local Sentiment NLP (FinBERT / RoBERTa / VADER)",
     "local_whisper": "Local Speech-to-Text (Whisper CPU)",
     "local_yunet_faces": "Local Face Detection (OpenCV YuNet)",
@@ -65,7 +65,7 @@ def _probe_cloud_cores(
     step_rows: List[Dict[str, Any]],
     by_core: Dict[str, List[str]],
 ) -> List[Dict[str, Any]]:
-    from services.ai.core import bedrock_embeddings, bedrock_service, model_router, vector_store_service
+    from services.ai.core import embedding_service, bedrock_service, model_router, vector_store_service
 
     bedrock_enabled = bedrock_service.is_bedrock_enabled()
     bedrock_profile = bedrock_service.get_bedrock_profile_id() or "Not set"
@@ -91,14 +91,14 @@ def _probe_cloud_cores(
     embed_pause = vector_store_service.embedding_pause_status()
     mongo_enabled = vector_store_service.is_enabled()
     embed_status, embed_note = "UNCONFIGURED", "MONGODB_URI not set (vector store disabled)"
-    if mongo_enabled and bedrock_enabled:
+    if mongo_enabled and embedding_service.is_configured():
         if embed_pause:
             reason_msg, left_sec = embed_pause
             embed_status = "OUT" if "denied" in reason_msg.lower() else "OVERFLOW"
             embed_note = f"{reason_msg} (~{max(1, left_sec // 60)}m pause; keyword fallback active)"
         else:
             embed_status = "OK" if embed_calls > 0 else "READY"
-            embed_note = f"Vector search active ({bedrock_embeddings.dimensions()}d)"
+            embed_note = f"Vector search active ({embedding_service.dimensions()}d)"
 
     return [
         {
@@ -117,10 +117,10 @@ def _probe_cloud_cores(
         {
             "core": "titan_embeddings",
             "name": _CORE_LABELS["titan_embeddings"],
-            "provider": "AWS Bedrock + MongoDB Atlas",
+            "provider": f"{'Google Gemini' if embedding_service.provider() == 'gemini' else 'AWS Bedrock'} + MongoDB Atlas",
             "status": embed_status,
-            "configured": mongo_enabled and bedrock_enabled,
-            "model": f"{bedrock_embeddings.model_id()} ({bedrock_embeddings.dimensions()}d)",
+            "configured": mongo_enabled and embedding_service.is_configured(),
+            "model": f"{embedding_service.model_id()} ({embedding_service.dimensions()}d)",
             "detail": "Semantic RAG for rulebook, review precedent & semantic cache",
             "note": embed_note,
             "calls": embed_calls,

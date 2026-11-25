@@ -14,7 +14,7 @@
 //   node .agents/check_file_sizes.mjs --report-debt
 //   node .agents/check_file_sizes.mjs --staged
 //   node .agents/check_file_sizes.mjs --changed-from <git-ref>
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,7 +57,7 @@ const sources = execSync("git ls-files --cached --others --exclude-standard", { 
 const indentOf = (l) => l.match(/^\s*/)[0].length;
 
 // JSX: `return (` ... the `)` / `);` at the same indent. Keyed by the component the return belongs to.
-function jsxReturns(file, lines) {
+function jsxReturns(file, lines, contents = {}) {
   const out = {};
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(/^(\s*)return \($/);
@@ -73,12 +73,13 @@ function jsxReturns(file, lines) {
     }
     const key = `${file}#${name}`;
     out[key] = Math.max(out[key] || 0, end - i + 1);
+    contents[key] = lines.slice(i, end + 1).join("\n");
   }
   return out;
 }
 
 // Python: a def runs until the next non-blank line at its indent or less (decorators and comments aside).
-function pyFunctions(file, lines) {
+function pyFunctions(file, lines, contents = {}) {
   const out = {};
   const classes = [];
   for (let i = 0; i < lines.length; i++) {
@@ -103,10 +104,12 @@ function pyFunctions(file, lines) {
     while (classes.length && classes.at(-1).ind >= ind) classes.pop();
     const key = `${file}#${classes.length ? classes.at(-1).name + "." : ""}${m[2]}`;
     out[key] = Math.max(out[key] || 0, last - i + 1);
+    contents[key] = lines.slice(i, last + 1).join("\n");
   }
   return out;
 }
 
+const blockContents = {};
 const fileSizes = {};
 const blockSizes = {}; // key -> { n, kind }
 for (const f of sources) {
@@ -114,8 +117,8 @@ for (const f of sources) {
   const lines = text.split(/\r?\n/);
   if (text.endsWith("\n")) lines.pop();
   fileSizes[f] = lines.length;
-  if (/\.(tsx|jsx)$/.test(f)) for (const [k, n] of Object.entries(jsxReturns(f, lines))) blockSizes[k] = { n, kind: "jsx_return" };
-  if (f.endsWith(".py")) for (const [k, n] of Object.entries(pyFunctions(f, lines))) blockSizes[k] = { n, kind: "py_function" };
+  if (/\.(tsx|jsx)$/.test(f)) for (const [k, n] of Object.entries(jsxReturns(f, lines, blockContents))) blockSizes[k] = { n, kind: "jsx_return" };
+  if (f.endsWith(".py")) for (const [k, n] of Object.entries(pyFunctions(f, lines, blockContents))) blockSizes[k] = { n, kind: "py_function" };
 }
 
 const save = () => {
@@ -151,14 +154,26 @@ for (const f of Object.keys(files)) if (!(f in fileSizes)) stale.files.push(f);
 for (const k of Object.keys(blocks)) if (!(k in blockSizes)) stale.blocks.push(k);
 
 if (requireTouchedDebtToShrink) {
-  for (const [file, entry] of Object.entries(files)) {
-    if (changed.has(file) && fileSizes[file] >= entry.max_lines)
-      errors.push(`${file}: this refactoring-debt file was changed without shrinking below ${entry.max_lines} lines. Extract one responsibility before committing.`);
-  }
-  for (const [key, entry] of Object.entries(blocks)) {
-    const file = key.split("#", 1)[0];
-    if (changed.has(file) && blockSizes[key]?.n >= entry.max_lines)
-      errors.push(`${key}: this refactoring-debt block was changed without shrinking below ${entry.max_lines} lines. Extract a helper or module before committing.`);
+  // --update lowers today's ceiling. Measure shrinkage against the actual base
+  // revision, and do not demand refactors of untouched blocks in a changed file.
+  const git = (...values) => execFileSync("git", values, { cwd: ROOT, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+  const base = args.includes("--staged") ? "HEAD" : git("merge-base", changedFrom, "HEAD").trim();
+  for (const file of changed) {
+    let before;
+    try { before = git("show", base + ":" + file).replace(/\r\n/g, "\n"); }
+    catch { continue; } // A new file still has to pass every normal size limit.
+    const lines = before.split("\n");
+    if (before.endsWith("\n")) lines.pop();
+    if (files[file] && lines.length > LIMIT && fileSizes[file] >= lines.length)
+      errors.push(file + ": this refactoring-debt file must shrink below its previous " + lines.length + " lines.");
+    const previousContents = {};
+    const previous = /\.(tsx|jsx)$/.test(file) ? jsxReturns(file, lines, previousContents)
+      : file.endsWith(".py") ? pyFunctions(file, lines, previousContents) : {};
+    for (const [key, n] of Object.entries(previous)) {
+      const entry = blocks[key];
+      if (entry && n > BLOCK_LIMITS[entry.kind] && blockContents[key] !== previousContents[key] && blockSizes[key]?.n >= n)
+        errors.push(key + ": this changed refactoring-debt block must shrink below its previous " + n + " lines.");
+    }
   }
 }
 

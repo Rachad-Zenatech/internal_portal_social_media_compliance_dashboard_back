@@ -30,26 +30,35 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `CaptionSuggestion` (class) L23
 - `CaptionSuggestions` (class) L32
 
-## models/compliance/compliance_model.py (359 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
-- `ComplianceRuleBase` (class) L11
-- `ComplianceRuleCreate` (class) L57
-- `ComplianceRuleUpdate` (class) L61
-- `ComplianceRule` (class) L87
-- `RuleExampleResult` (class) L97
-- `RuleSelfTest` (class) L108
-- `ProvidedSource` (class) L118 - A document the author attached as evidence (a supporting file), already read as text, to check claims against.
-- `ComplianceCheckRequest` (class) L124
-    - `_keep_audience_and_audiences_in_step` (def) L155
-- `ContextEvaluation` (class) L175 - How the AI read a rule's trigger in context, kept beside the finding so the decision can be audited.
-- `ImageFindingRegion` (class) L194
-    - `_time_range_is_whole` (def) L205
-- `ComplianceViolation` (class) L213
-- `ManualReviewRule` (class) L251 - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
-- `CheckSignals` (class) L260 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
-- `SourceClaim` (class) L276 - One claim the post makes, and whether the source it cites backs it up.
-- `SourceCheck` (class) L296 - A source the post cites (or that was attached), and what reading it showed.
-- `AddedRuleSet` (class) L316 - A rule set checked because of what the post says, not because it was chosen.
-- `ComplianceCheckResponse` (class) L322
+## models/compliance/caption_review_model.py (41 lines) - Direct review-time caption edits and their immutable before/after history.
+- `CaptionEditRequest` (class) L9
+    - `nonempty_caption` (def) L16
+- `CaptionRevision` (class) L22
+- `CaptionReview` (class) L33
+
+## models/compliance/check_diagnostics_model.py (10 lines) - Public reasons a compliance review remains incomplete; never include provider secrets.
+- `IncompleteCheckStage` (class) L6
+
+## models/compliance/compliance_model.py (361 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+- `ComplianceRuleBase` (class) L12
+- `ComplianceRuleCreate` (class) L58
+- `ComplianceRuleUpdate` (class) L62
+- `ComplianceRule` (class) L88
+- `RuleExampleResult` (class) L98
+- `RuleSelfTest` (class) L109
+- `ProvidedSource` (class) L119 - A document the author attached as evidence (a supporting file), already read as text, to check claims against.
+- `ComplianceCheckRequest` (class) L125
+    - `_keep_audience_and_audiences_in_step` (def) L156
+- `ContextEvaluation` (class) L176 - How the AI read a rule's trigger in context, kept beside the finding so the decision can be audited.
+- `ImageFindingRegion` (class) L195
+    - `_time_range_is_whole` (def) L206
+- `ComplianceViolation` (class) L214
+- `ManualReviewRule` (class) L252 - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
+- `CheckSignals` (class) L261 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
+- `SourceClaim` (class) L277 - One claim the post makes, and whether the source it cites backs it up.
+- `SourceCheck` (class) L297 - A source the post cites (or that was attached), and what reading it showed.
+- `AddedRuleSet` (class) L317 - A rule set checked because of what the post says, not because it was chosen.
+- `ComplianceCheckResponse` (class) L323
 
 ## models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - `ContextEntryIn` (class) L12
@@ -88,6 +97,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## models/compliance/post_approval_model.py (17 lines) - The suggestion window following the first approval of a post.
 - `PostApprovalSuggestionFields` (class) L8
 - `PublishingAccess` (class) L13
+
+## models/compliance/post_text_review_model.py (37 lines) - Reviewers' attributed edits to a text-only post.
+- `PostTextSave` (class) L9
+    - `nonempty_text` (def) L16
+- `PostTextEdit` (class) L22
+- `PostTextReview` (class) L32
 
 ## models/compliance/public_mood_model.py (381 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - `ListeningPost` (class) L13

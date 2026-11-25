@@ -4,6 +4,6 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/media_freshness.py (39 lines) - Check freshness follows media revisions, independently of post detail edits.
-- `is_current` (def) L12
-- `check_still_current` (def) L21 - Lock the post and reject results superseded by media, workflow or newer checks.
+## services/compliance/submissions/media_freshness.py (40 lines) - Check freshness follows media revisions, independently of post detail edits.
+- `is_current` (def) L13
+- `check_still_current` (def) L22 - Lock the post and reject results superseded by media, workflow or newer checks.

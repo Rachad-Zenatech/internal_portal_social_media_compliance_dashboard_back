@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from postgresql_db.database import get_pool
+from services.compliance.submissions.caption_review_service import feedback_is_current_sql
 
 
 async def carry_pending_requests(conn: Any, submission_id: UUID, from_version: int, to_version: int) -> None:
@@ -57,9 +58,9 @@ async def send_score(row: dict, check: dict) -> int | None:
         return check.get("score")
     async with get_pool().acquire() as conn:
         requests = await conn.fetch(
-            """SELECT rule_id, flagged_terms, status FROM creator_flag_dismissal_requests
+            """SELECT rule_id, flagged_terms, status FROM creator_flag_dismissal_requests r
                WHERE submission_id = $1 AND version_number = $2
-                 AND requested_by = $3 AND status = 'PENDING'""",
+                 AND requested_by = $3 AND status = 'PENDING' AND """ + feedback_is_current_sql('r', 'requested_at'),
             row["id"], row["current_version"], row["created_by"],
         )
     return pending_send_score(check, requests)

@@ -21,6 +21,7 @@ from services.ai.core import ai_types as types
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.observability import ai_observability
 from services.ai.core.gemini_service import is_rotatable_model_error, without_retired
+from services.compliance.media import image_text_response
 
 logger = logging.getLogger(__name__)
 
@@ -205,8 +206,7 @@ async def read_file(file_id: UUID) -> None:
             data, mime_type = await asyncio.to_thread(_image_bytes, path, row["mime_type"])
             ai_meta = await asyncio.to_thread(_has_ai_metadata, data)
             local_boxes = None if ai_meta else await asyncio.to_thread(face_detection_service.detect_faces, data)
-            response = await _generate(contents=[types.Part.from_bytes(data=data, mime_type=mime_type), PROMPT])
-            result = json.loads(response.text or "{}")
+            result = await image_text_response.read(_generate, [types.Part.from_bytes(data=data, mime_type=mime_type), PROMPT])
             text = _clean(result.get("text", ""))
             is_ai = ai_meta or bool(result.get("ai_generated"))
             face_boxes = [] if is_ai else (local_boxes if local_boxes else _face_boxes(result.get("faces")))
@@ -227,6 +227,17 @@ async def read_file(file_id: UUID) -> None:
     from services.compliance.submissions import submission_service
 
     await submission_service.recheck_after_image_text(file_id)
+
+
+async def retry_failed_images(submission_id: UUID) -> int:
+    """An explicit Check again permits one new read; background checks do not reset failures."""
+    rows = await fetch_all(
+        "UPDATE content_submission_files SET image_text_status=NULL, image_text_error=NULL "
+        "WHERE submission_id=$1 AND deleted_at IS NULL AND kind=ANY($2::text[]) "
+        "AND mime_type LIKE 'image/%' AND image_text_status='FAILED' RETURNING id",
+        submission_id, list(IMAGE_KINDS),
+    )
+    return len(rows)
 
 
 async def _run(file_id: UUID) -> None:

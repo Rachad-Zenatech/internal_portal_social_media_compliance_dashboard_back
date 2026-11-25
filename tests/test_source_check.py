@@ -151,6 +151,11 @@ class RunTests(unittest.TestCase):
         compare = AsyncMock(return_value=claims if claims is not None else answer())
         with patch.object(sc, "ENABLED", True), \
                 patch.object(sc.source_fetch_service, "fetch", new=fetch), \
+                patch.object(sc.newsroom_claim_sources, "readings", AsyncMock(return_value=[])), \
+                patch.object(sc.source_claim_coverage, "identify", AsyncMock(return_value=[
+                    {"claim": r.claim, "where": r.where} for r in ((claims[0] if claims and claims[0] is not None else [])
+                    or ([result("customer pilots expected to begin in 2027", "UNCLEAR")] if claims and claims[0] is None else []))
+                    if not sc.source_claim_inventory.is_identifier(r.claim)])), \
                 patch.object(sc, "_compare", new=compare):
             return run(sc.run(text, provided, source_script=source_script)), fetch, compare
 

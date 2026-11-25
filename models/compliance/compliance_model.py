@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import List, Literal, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
+from models.compliance.check_diagnostics_model import IncompleteCheckStage
 
 
 class ComplianceRuleBase(BaseModel):
@@ -321,6 +322,7 @@ class AddedRuleSet(BaseModel):
 
 class ComplianceCheckResponse(BaseModel):
     visual_checks: list[dict] = Field(default_factory=list)
+    incomplete_stages: List[IncompleteCheckStage] = Field(default_factory=list)
     is_compliant: bool
     traffic_light: str = "GREEN"  # GREEN, YELLOW, RED
     score: int = 100  # 0 to 100

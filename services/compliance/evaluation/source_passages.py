@@ -13,6 +13,7 @@ to them).
   read what the source says next to what the post says and confirm it.
 """
 
+import asyncio
 import hashlib
 import logging
 import math
@@ -145,12 +146,17 @@ async def _embeddings(texts: List[str]) -> Optional[List[List[float]]]:
         return None
     from services.ai.core import vector_store_service
 
-    keys = [hashlib.sha256(t.encode("utf-8")).hexdigest() for t in texts]
-    missing = [t for t, k in zip(texts, keys) if k not in _vectors]
     try:
+        space = vector_store_service._embedding_path()
+        def cache_key(text):
+            return hashlib.sha256(f"{space}:SEMANTIC_SIMILARITY:{text}".encode("utf-8")).hexdigest()
+        keys = [cache_key(t) for t in texts]
+        missing = [t for t, k in zip(texts, keys) if k not in _vectors]
         if missing:
-            for t, v in zip(missing, await vector_store_service.embed(missing)):
-                _vectors[hashlib.sha256(t.encode("utf-8")).hexdigest()] = v
+            vectors = await asyncio.wait_for(vector_store_service.embed(missing, task_type="SEMANTIC_SIMILARITY"),
+                timeout=float(os.getenv("SOURCE_PASSAGES_EMBED_TIMEOUT_SEC", "3")))
+            for t, v in zip(missing, vectors):
+                _vectors[cache_key(t)] = v
                 while len(_vectors) > _VECTORS_MAX:
                     _vectors.popitem(last=False)
         return [_vectors[k] for k in keys]

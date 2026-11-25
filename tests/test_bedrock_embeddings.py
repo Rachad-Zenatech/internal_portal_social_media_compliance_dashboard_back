@@ -10,6 +10,12 @@ import pytest
 from services.ai.core import bedrock_embeddings as be, vector_store_service as vs
 
 
+@pytest.fixture(autouse=True)
+def bedrock_provider(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "bedrock")
+    monkeypatch.delenv("VECTOR_INDEX_OVERRIDE", raising=False)
+
+
 def async_test(function):
     @wraps(function)
     def run(*args, **kwargs):
@@ -63,6 +69,10 @@ async def test_bedrock_retrieval_needs_no_gemini_key(monkeypatch):
     with patch.object(vs, "_collection", return_value=collection), patch.object(vs, "embed", AsyncMock(return_value=[[1.0]])):
         assert len(await vs.search("a public claim")) == 1
     collection.aggregate.assert_called_once()
+    vector_search = collection.aggregate.call_args.args[0][0]["$vectorSearch"]
+    assert vector_search["path"] == be.vector_path()
+    assert vector_search["index"] == vs.index_name()
+    assert vector_search["path"] != "embedding_7f66c59cdc371570"
 
 
 def test_access_denial_pauses_repeated_embedding_calls(monkeypatch):

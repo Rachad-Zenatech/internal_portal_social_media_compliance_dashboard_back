@@ -40,7 +40,7 @@ from services.ai.observability import ai_observability
 from services.ai.observability.ai_guardrails import screen_input
 from services.ai.core.gemini_service import is_rotatable_model_error, without_retired, model_is_available
 from services.compliance.evaluation import (
-    source_claim_support, source_comparison_cache, source_claim_coverage, source_claim_inventory, citation_finder, context_evaluator, newsroom_facts, source_fetch_service, source_passages, source_settings, source_post_checks, source_recheck,
+    source_claim_routing, newsroom_claim_sources, source_claim_support, source_comparison_cache, source_claim_coverage, source_claim_inventory, citation_finder, context_evaluator, newsroom_facts, source_fetch_service, source_passages, source_settings, source_post_checks, source_recheck,
 )
 # The safeguards on the model's answers live in their own module; these names stay importable from here.
 from services.compliance.evaluation.source_claim_checks import (  # noqa: F401
@@ -52,12 +52,13 @@ from services.compliance.evaluation.source_findings import (  # noqa: F401
 )
 from services.shared.core.cache_service import AsyncInMemoryCache
 from services.compliance.media import script_sources
-from services.compliance.evaluation import source_identity
+from services.compliance.evaluation import source_identity, source_response
+from models.compliance.check_diagnostics_model import IncompleteCheckStage
 
 logger = logging.getLogger(__name__)
 
 # Bump when the prompt or how answers are used changes, so remembered answers aren't reused and saved checks refresh.
-PROMPT_VERSION = "source-v15-proportionate-stable-comparisons"
+PROMPT_VERSION = "source-v18-cited-and-newsroom-evidence"
 VERSION = f"sources-2|{citation_finder.VERSION}|{PROMPT_VERSION}|{source_claim_inventory.VERSION}|evidence-union-1"
 ENABLED = os.getenv("SOURCE_CHECK_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 # Gemini models (commented out for now, replaced with Bedrock):
@@ -142,6 +143,7 @@ class SourceCheckResult:
     # A source was read but no model could compare it: the check is incomplete (like any other AI step that failed).
     ai_failed: bool = False
     unbacked: List[ComplianceViolation] = field(default_factory=list)
+    incomplete_stages: List[IncompleteCheckStage] = field(default_factory=list)
 
 
 # --- Who published it ------------------------------------------------------------------------------------------------
@@ -171,36 +173,18 @@ def _post_key(post_text: str) -> str:
 
 
 async def _ask(model: str, contents: str, guard: Any, *, system_prompt: str = SYSTEM_PROMPT) -> _Response:
-    from services.ai.core import ai_types as types
-
-    config = types.GenerateContentConfig(
-        system_instruction=system_prompt,
-        response_mime_type="application/json",
-        response_schema=RESPONSE_SCHEMA,
-        max_output_tokens=1600,
-        temperature=0,
-        http_options=types.HttpOptions(timeout=TIMEOUT_SEC * 1000),
+    return await source_response.read(
+        lambda config, attempt: ai_observability.generate(context_evaluator._get_client(), model=model,
+            contents=contents, config=config, feature="SOURCE_CHECK", guard=guard, attempt=attempt),
+        _Response, system_prompt=system_prompt, schema=RESPONSE_SCHEMA, timeout=TIMEOUT_SEC,
     )
-    last: Optional[Exception] = None
-    for attempt in range(2):
-        try:
-            response = await ai_observability.generate(
-                context_evaluator._get_client(), model=model, contents=contents, config=config,
-                feature="SOURCE_CHECK", guard=guard, attempt=attempt + 1,
-            )
-            parsed = json.loads(response.text or "{}")
-            if isinstance(parsed, list):
-                parsed = {"claims": parsed}
-            return _Response.model_validate(parsed)
-        except (ValueError, ValidationError) as e:
-            last = e  # malformed output: one more try
-    raise ValueError(f"malformed answer: {last}")
 
 
 async def _compare(post_text: str, label: str, title: Optional[str], url: Optional[str], published: Optional[str],
-                   source_text: str) -> Tuple[Optional[List[_Result]], Optional[str]]:
+                   source_text: str, *, inventory=None, failure_reasons=None) -> Tuple[Optional[List[_Result]], Optional[str]]:
     """The model's claim-by-claim answer for one source (None when no model could give one), and the model's name."""
-    inventory = await source_claim_coverage.identify(post_text, _ask, MODELS, MAX_CLAIMS)
+    if inventory is None:
+        inventory = await source_claim_coverage.identify(post_text, _ask, MODELS, MAX_CLAIMS)
     if inventory is None:
         return None, None
     if not inventory:
@@ -220,7 +204,7 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
         head.append(f"Address: {url}")
     if published:
         head.append(f"Published: {published}")
-    shown = await source_passages.excerpt(post_text[:MAX_POST_CHARS], source_text)  # a long source: what matters of it
+    shown = await source_passages.excerpt("\n".join(item["claim"] for item in inventory), source_text)
     contents = (
         "Verify this fixed inventory:" + json.dumps(inventory, separators=(",", ":"))
         + "\n<post>\n" + post_text + "\n</post>\n<source>\n"
@@ -243,6 +227,10 @@ async def _compare(post_text: str, label: str, title: Optional[str], url: Option
             try:
                 response = await _ask(model, contents, guard)
             except Exception as e:
+                if failure_reasons is not None:
+                    failure_reasons.append(getattr(e, 'code', 'MODEL_UNAVAILABLE'))
+                if getattr(e, 'code', None) == 'OUTPUT_LIMIT':
+                    return None, None  # A larger retry already failed; do not repeat the same cutoff on every alias.
                 level = logging.INFO if (is_rotatable_model_error(e) or isinstance(e, ValueError)) else logging.WARNING
                 logger.log(level, "Source check: %s couldn't answer (%s); trying the next model", model, str(e)[:160])
                 continue
@@ -306,7 +294,10 @@ async def run(
     # Post Details owns image-source discovery; compliance still compares the full image text with saved links.
     citations = [c for c in citation_finder.find(text) if include_image_citations or c.where != "image"]
     docs = [d for d in provided if (d.text or "").strip()]
-    newsroom = await newsroom_facts.material(text)  # the company's own published facts, as one more source
+    inventory = await source_claim_coverage.identify(source_claim_coverage.post_body(text), _ask, MODELS, MAX_CLAIMS)
+    if inventory is None:
+        result.ai_failed = True
+        inventory = []
 
     # Named sources an attached document or a read source link stands in for are covered by that source.
     reading: List[Tuple[SourceCheck, Optional[Tuple[str, str]]]] = []
@@ -347,35 +338,45 @@ async def run(
         reading.append((SourceCheck(reference=d.name, kind="DOCUMENT", where="attached", status="READ", title=d.name),
                         (f"attached document {d.name}", shown)))
 
-    if newsroom:
-        reading.append((newsroom[0], newsroom[1]))
+    lookup_failed = False
+    try:
+        reading.extend(await newsroom_claim_sources.readings(inventory))
+    except Exception:
+        logger.warning("Per-claim newsroom retrieval could not complete", exc_info=True)
+        lookup_failed = True
+    reading = source_identity.readings(reading)
 
-    inventory = None
-
-    async def compare(check: SourceCheck, material: Tuple[str, str]) -> None:
-        nonlocal inventory
+    failure_reasons = []
+    async def compare(check, material, assigned):
         label, source_text = material
-        results, model, incomplete = await source_post_checks.compare_parts(
-            text, label, check.title, check.url, check.published, source_text, _compare)
-        if incomplete and not newsroom_facts.is_newsroom(check):
-            result.ai_failed = True
-            check.message = ("No AI model could compare this source just now. Check again to finish." if results is None
-                             else "Some caption or image claims could not be compared with this source. Check again to finish.")
+        results, model = await _compare(text, label, check.title, check.url, check.published,
+                                        source_text, inventory=assigned, failure_reasons=failure_reasons)
         if results is None:
-            return
-        if inventory is None:
-            inventory = source_claim_inventory.ClaimBatch(
-                ({"claim": claim.claim, "where": claim.where} for claim in results), complete=getattr(results, "complete", True))
+            check.message = "No AI model could compare the assigned claims just now. Check again to finish."
+            return None
+        checked = await source_passages.checked_claims(results, source_text)
         check.model = model
-        check.claims = await source_passages.checked_claims(results, source_text)
-        if newsroom_facts.is_newsroom(check):
-            check.claims = newsroom_facts.in_post(check.claims, text)
-        if not check.claims and not incomplete:
-            check.message = "No claim in the post turned out to depend on this source."
+        check.claims.extend(checked)
+        return checked
 
-    await asyncio.gather(*(compare(check, material) for check, material in reading if material))
+    failures = await source_claim_routing.verify(inventory, reading, compare)
+    if lookup_failed:
+        settled = {source_claim_coverage.claim_key(c.claim, c.where) for check, _ in reading
+                   for c in check.claims if c.verdict in {"SUPPORTED", "CONTRADICTED"}}
+        failures.update(source_claim_routing.key(item) for item in inventory
+                        if source_claim_routing.key(item) not in settled)
+    result.ai_failed = result.ai_failed or bool(failures) or not getattr(inventory, "complete", True)
+    if result.ai_failed:
+        if not inventory or not getattr(inventory, "complete", True):
+            result.incomplete_stages.append(IncompleteCheckStage(stage='CLAIM_EXTRACTION', code='INCOMPLETE_COVERAGE', reason='Some factual claims could not be identified reliably, so source verification is incomplete.'))
+        if failures:
+            code = 'OUTPUT_LIMIT' if 'OUTPUT_LIMIT' in failure_reasons else 'INVALID_RESPONSE' if 'INVALID_RESPONSE' in failure_reasons else 'MODEL_UNAVAILABLE'
+            reason = 'Source comparisons were cut off before the answers finished.' if code == 'OUTPUT_LIMIT' else 'Some claims could not be compared with their sources.'
+            result.incomplete_stages.append(IncompleteCheckStage(stage='SOURCE_VERIFICATION', code=code, reason=reason))
+        if lookup_failed:
+            result.incomplete_stages.append(IncompleteCheckStage(stage='SOURCE_RETRIEVAL', reason='Supporting material could not be retrieved for all claims.'))
     result.checks = newsroom_facts.visible_checks([check for check, _ in reading])
-    await source_claim_coverage.complete(result, inventory, text, _ask, MODELS, MAX_CLAIMS)
+    await source_claim_coverage.complete(result, inventory, text, _ask, MODELS, MAX_CLAIMS, failed=failures)
     return result
 
 

@@ -11,6 +11,7 @@ class _Result(BaseModel):
     note: Optional[str] = None
     confidence: float = Field(0.0, ge=0.0, le=1.0)
     contradiction_kind: Optional[str] = None
+    assertion_kind: Optional[str] = None
 
 
 class _Response(BaseModel):
@@ -25,6 +26,7 @@ RESPONSE_SCHEMA: Dict[str, Any] = {
             "items": {
                 "type": "OBJECT",
                 "properties": {
+                    "assertion_kind": {"type": "STRING", "enum": ["FACTUAL_ASSERTION", "INCIDENTAL_TEXT", "NON_ASSERTION"]},
                     "claim": {"type": "STRING"},
                     "where": {"type": "STRING", "enum": ["caption", "image"]},
                     "verdict": {"type": "STRING", "enum": ["SUPPORTED", "CONTRADICTED", "NOT_FOUND", "UNCLEAR"]},
