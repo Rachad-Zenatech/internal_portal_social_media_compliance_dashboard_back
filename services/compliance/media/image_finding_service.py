@@ -213,7 +213,7 @@ async def _locate_vision_blocks(file_id, data, mime, prompt):
         if not isinstance(item, dict) or not isinstance(item.get("box"), list) or len(item["box"]) != 4:
             continue
         top, left, bottom, right = item["box"]
-        padded = [max(0.0, top - 2.0), max(0.0, left - 4.0), min(1000.0, bottom + 2.0), min(1000.0, right + 15.0)]
+        padded = [max(0.0, top - 3.0), max(0.0, left - 6.0), min(1000.0, bottom + 3.0), min(1000.0, right + 45.0)]
         region = region_from_box(file_id, padded)
         if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in out:
             out.append(region)
