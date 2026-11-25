@@ -126,7 +126,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__visual_review_prompt.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_video_frames.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__media.md | 22 | 16 KB |
-| .agents/code-map/services__compliance__sentiment.md | 12 | 8 KB |
+| .agents/code-map/services__compliance__sentiment.md | 13 | 8 KB |
 | .agents/code-map/services__compliance__submissions__analysis_progress_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__approval_path_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__caption_review_service.md | 1 | 1 KB |

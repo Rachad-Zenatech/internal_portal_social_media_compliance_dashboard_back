@@ -30,7 +30,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/script_doc_model.py (239 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
 - models/compliance/script_review_model.py (236 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
-- models/compliance/sentiment_model.py (326 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
+- models/compliance/sentiment_model.py (327 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - models/compliance/source_link_model.py (56 lines) - Models for submission source links and quick AI link checks.
 - models/compliance/source_trust_model.py (50 lines) - Models for people's calls on sources (does this claim match the page? is the page a good source?) and the standing a site earns from revi...
 - models/compliance/submission_input_model.py (19 lines) - Post creation inputs and the optional video script review setting.
@@ -240,9 +240,10 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/sentiment/feedback.py (146 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
 - services/compliance/sentiment/finding_identity.py (19 lines) - Identity matching between findings from successive sentiment analyses.
 - services/compliance/sentiment/input_builder.py (393 lines) - Input building and prompt construction for sentiment analysis.
-- services/compliance/sentiment/jobs.py (517 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
+- services/compliance/sentiment/jobs.py (514 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - services/compliance/sentiment/media.py (68 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/sentiment/response_format.py (33 lines) - Validate completed sentiment output without mistaking truncation for an empty assessment.
+- services/compliance/sentiment/reuse_freshness.py (46 lines) - Record exact input-hash reuse separately from the original model run's time.
 - services/compliance/submissions/analysis_progress_service.py (195 lines) - How long a post's rulebook check has left.
 - services/compliance/submissions/approval_path_service.py (197 lines) - Approval paths: who gives final approval for which content.
 - services/compliance/submissions/caption_review_service.py (123 lines) - Persist review-time caption edits atomically with an attributed before/after event.
