@@ -12,7 +12,7 @@ from services.ai.core import ai_types as types
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 
 from models.compliance.compliance_model import ComplianceViolation, ContextEvaluation
-from services.compliance.evaluation import context_evaluator
+from services.compliance.evaluation import context_evaluator, visual_response
 from services.compliance.evaluation.visual_review_prompt import PROMPT, PROMPT_VERSION, RULE_NUMBERS, SCHEMA
 from services.compliance.media import image_text_service
 from services.compliance.media.image_finding_service import region_from_box
@@ -217,14 +217,14 @@ async def review(req, rules, findings):
                     model_router.route("VISUAL_COMPLIANCE", prompt_chars=len(payload_json), attachments=len(req._visual_media)).models or MODELS
                 )
                 async with image_text_service._semaphore, _asset_part(asset) as part:
-                    response = await image_text_service._generate(
-                        [part, PROMPT + payload_json],
-                        feature="VISUAL_COMPLIANCE", response_schema=SCHEMA, models=routed_models, max_output_tokens=1200)
+                    response, assessments = await visual_response.read(
+                        lambda limit: image_text_service._generate([part, PROMPT + payload_json],
+                            feature="VISUAL_COMPLIANCE", response_schema=SCHEMA, models=routed_models, max_output_tokens=limit),
+                        lambda response: _parse(response, selected))
                 from services.ai.core.bedrock_service import is_bedrock_enabled
                 input_mode = ("SAMPLED_FRAMES" if asset["mime_type"].startswith("video/")
                               and is_bedrock_enabled() else "FULL_ASSET")
                 entry["input_mode"] = input_mode
-                assessments = _parse(response, selected)
                 model = getattr(response, "model_version", None)
                 if not any(a.status == "UNAVAILABLE" for a in assessments):
                     await _VISUAL_CACHE.set(cache_key, (assessments, model, input_mode), _VISUAL_CACHE_TTL_SEC)

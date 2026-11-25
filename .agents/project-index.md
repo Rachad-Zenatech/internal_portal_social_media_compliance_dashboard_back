@@ -201,6 +201,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_settings.py (86 lines) - Settings for checking a post's sources, none of them fixed in code.
 - services/compliance/evaluation/source_verdict_models.py (45 lines) - Structured claim comparison answers shared by source review and its durable cache.
 - services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
+- services/compliance/evaluation/visual_response.py (17 lines) - A bounded larger retry for cut-off visual assessments; never assume missing coverage passed.
 - services/compliance/evaluation/visual_review.py (242 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
 - services/compliance/evaluation/visual_review_prompt.py (69 lines) - Visual compliance instructions; the active database rule remains the policy authority.
 - services/compliance/evaluation/visual_video_frames.py (37 lines) - Bounded, timestamped video samples for image-capable providers without video input.
