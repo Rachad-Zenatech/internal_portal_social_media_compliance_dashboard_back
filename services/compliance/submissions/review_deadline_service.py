@@ -224,6 +224,8 @@ async def deadline_loop() -> None:
         logger.exception("Couldn't backfill review deadlines")
     while True:
         try:
+            from services.compliance.submissions.review_handoff_release import release_due
+            await release_due()
             sent = await send_due_notices()
             if sent:
                 logger.info("Sent %d review deadline notice(s)", sent)

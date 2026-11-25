@@ -67,7 +67,7 @@ from services.compliance.submissions.submission_snapshot import build_snapshot
 from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
 from services.compliance.submissions import creator_dismissal_service, flag_review_service
-from services.compliance.submissions import post_approval_suggestions, review_comment_writes
+from services.compliance.submissions import post_approval_suggestions, review_comment_writes, review_handoff
 from services.shared.storage.s3_storage_service import ensure_local_file, s3_enabled, s3_key_for, upload_file_to_s3
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
@@ -2132,6 +2132,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                        else await decision_status(conn, row))
             if current != "IN_REVIEW":
                 raise HTTPException(status_code=409, detail="Someone else just decided on this; refresh to see it")
+            await review_handoff.require_undecided(conn, row)
             await conn.execute(
                 """
                 UPDATE content_review_jobs
@@ -2142,23 +2143,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                 submission_id, version, new_status, req.decision, notes, user_id,
                 json.dumps(manual_checks) if manual_checks is not None else None,
             )
-            revision_due = (
-                review_deadline_service.revision_due(publish_at, req.revision_days, req.revision_due_at)
-                if new_status == "CHANGES_REQUESTED" else None
-            )
-            await conn.execute(
-                """
-                UPDATE content_submissions
-                SET status = $2::varchar, publish_at = $3,
-                    publish_after_changes = CASE WHEN $2::varchar = 'CHANGES_REQUESTED' THEN $6 ELSE false END,
-                    updated_at = NOW(), updated_by = $4,
-                    due_at = $5, due_kind = CASE WHEN $5::timestamptz IS NULL THEN NULL ELSE 'REVISION' END,
-                    due_reminded_at = NULL, due_overdue_notified_at = NULL
-                WHERE id = $1
-                """,
-                submission_id, new_status, publish_at, user_id, revision_due,
-                bool(req.publish_after_changes) if req.decision == "REQUEST_CHANGES" else False,
-            )
+            revision_due, held = await review_handoff.save_outcome(conn, row, req, user_id, new_status, publish_at)
             await _add_event(conn, submission_id, "REVIEW_DECISION", f"Version {version}: {label}", user_id,
                              {"decision": req.decision, "notes": notes, "version": version,
                               "revision_days": req.revision_days,
@@ -2172,21 +2157,10 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                            "publish_at": publish_at.isoformat() if publish_at else None,
                            "manual_checks": manual_checks, "approval_score": approval_score})
 
-    reviewer = await fetch_one("SELECT full_name FROM users WHERE id = $1", user_id)
-    who = reviewer["full_name"] if reviewer else "A reviewer"
-    if req.decision == "REQUEST_CHANGES":
-        title = f"{row['reference_code']} needs changes"
-        message = (f"{who} asked for changes to \"{row['title']}\"." + (f" \"{notes}\"" if notes else " See the comments.")
-                   + f" Please resubmit by {review_deadline_service._when(revision_due)}.")
-        link = f"/submissions/{submission_id}"
-    else:
-        title = f"{row['reference_code']} was approved"
-        message = f"{who} approved \"{row['title']}\". {label}."
-        link = "/content-calendar"
-    if row["created_by"] != user_id:
-        await _notify([row["created_by"]], title, message, link, submission_id)
+    await review_handoff.notify_now(row, user_id, req, notes, revision_due, label, held)
     # The decision becomes precedent for analysing similar content.
-    review_memory_service.remember_soon(submission_id, version)
+    if not held:
+        review_memory_service.remember_soon(submission_id, version)
     return await get_submission(submission_id, user_id)
 
 

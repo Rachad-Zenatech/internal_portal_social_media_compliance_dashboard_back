@@ -94,9 +94,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `PerformanceSummary` (class) L92
 - `PerformanceReport` (class) L106
 
-## models/compliance/post_approval_model.py (17 lines) - The suggestion window following the first approval of a post.
+## models/compliance/post_approval_model.py (18 lines) - The suggestion window following the first approval of a post.
 - `PostApprovalSuggestionFields` (class) L8
-- `PublishingAccess` (class) L13
+- `PublishingAccess` (class) L14
 
 ## models/compliance/post_text_review_model.py (37 lines) - Reviewers' attributed edits to a text-only post.
 - `PostTextSave` (class) L9

@@ -153,6 +153,8 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions__review_approval_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_comment_writes.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_deadline_service.md | 1 | 2 KB |
+| .agents/code-map/services__compliance__submissions__review_handoff.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__review_handoff_release.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_hierarchy_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_memory_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__submissions__revision_steps.md | 1 | 1 KB |
