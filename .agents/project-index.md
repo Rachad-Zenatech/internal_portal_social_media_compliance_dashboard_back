@@ -346,7 +346,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/notifications/teams_router.py (55 lines) - Microsoft Teams: the endpoint the bot's messages arrive on, and a person's own on/off switch for them.
 - tools/shared/auth/auth_router.py (387 lines) - auth router (shared auth)
 - tools/shared/auth/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
-- tools/shared/auth/rbac_router.py (236 lines) - rbac router (shared auth)
+- tools/shared/auth/rbac_router.py (237 lines) - rbac router (shared auth)
 - tools/shared/core/log_router.py (74 lines) - log router (shared core)
 - tools/shared/core/observability.py (137 lines) - observability (shared core)
 - tools/shared/core/search.py (157 lines) - Static system pages for quick navigation search with explicit permission codes
