@@ -34,6 +34,16 @@ async def is_pending(row, conn=None):
     return row["id"] in await decisions([row], conn)
 
 
+async def may_edit_text(row, user_id, conn=None):
+    """Keep reviewer text suggestions open until a saved decision's deadline."""
+    from services.compliance.submissions import submission_service as subs
+    if row["status"] != "IN_REVIEW" or not await subs._can_suggest(user_id):
+        return False
+    if row["created_by"] == user_id and not await subs._is_super_admin(user_id):
+        return False
+    return not await is_pending(row, conn) or should_hold(row)
+
+
 async def require_undecided(conn, row):
     if await is_pending(row, conn):
         raise HTTPException(409, "A reviewer already decided this post. Leave suggestions until the approval deadline.")

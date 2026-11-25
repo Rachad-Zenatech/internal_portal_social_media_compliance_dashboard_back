@@ -4,14 +4,15 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/review_handoff.py (103 lines) - Save a review outcome now; hand the post to its creator after suggestions close.
+## services/compliance/submissions/review_handoff.py (113 lines) - Save a review outcome now; hand the post to its creator after suggestions close.
 - `deadline` (def) L8
 - `should_hold` (def) L13
 - `decisions` (def) L18
 - `is_pending` (def) L33
-- `require_undecided` (def) L37
-- `require_reviewer` (def) L42
-- `revision_deadline` (def) L55
-- `save_outcome` (def) L65
-- `notify_now` (def) L79
-- `record_outcome` (def) L95
+- `may_edit_text` (def) L37 - Keep reviewer text suggestions open until a saved decision's deadline.
+- `require_undecided` (def) L47
+- `require_reviewer` (def) L52
+- `revision_deadline` (def) L65
+- `save_outcome` (def) L75
+- `notify_now` (def) L89
+- `record_outcome` (def) L105
