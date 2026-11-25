@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/submission_service.py (2695 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+## services/compliance/submissions/submission_service.py (2694 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - `_same_value` (def) L124 - Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts).
 - `content_changed` (def) L143 - Whether saving these fields changes anything the checks read.
 - `_json` (def) L153
@@ -101,17 +101,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `add_comment` (def) L2364
 - `set_comment_resolved` (def) L2402
 - `delete_comment` (def) L2420
-- `_check_still_current` (def) L2443
-- `_recheck_one` (def) L2447 - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
-- `recheck_open_submissions` (def) L2476 - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
-    - `describe` (def) L2484
-- `recheck_ai_unavailable` (def) L2510 - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
-    - `describe` (def) L2524
-- `retry_failed_reads` (def) L2550 - Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
-- `ai_recheck_loop` (def) L2578 - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
-- `recheck_outdated_on_start` (def) L2599 - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
-- `schedule_rulebook_recheck` (def) L2615 - Rulebook edits mark saved results stale; checks run only when requested on the page.
-- `recheck_after_transcript` (def) L2620 - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
-- `recheck_after_image_text` (def) L2626 - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
-- `recheck_after_document_text` (def) L2631 - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
-- `_recheck_for_file` (def) L2636 - Re-run the check of the open submission a file belongs to, after something about the file was read.
+- `_recheck_one` (def) L2446 - Re-run one item's check and save it wherever it's shown (the post, its script version, its review job).
+- `recheck_open_submissions` (def) L2475 - Re-run the check on content waiting for a reviewer or its creator, so saved scores follow the rulebook.
+    - `describe` (def) L2483
+- `recheck_ai_unavailable` (def) L2509 - Re-run the checks the AI couldn't read (its key out of credits, quota used up, the service down), oldest first.
+    - `describe` (def) L2523
+- `retry_failed_reads` (def) L2549 - Read again the videos, images and documents of open posts that failed because of an outage or a quota, so a
+- `ai_recheck_loop` (def) L2577 - Keep retrying checks the AI couldn't read until it can, so nothing waits on a person to re-run it.
+- `recheck_outdated_on_start` (def) L2598 - On start, re-check open content whose saved check predates the current rulebook or built-in claim checks
+- `schedule_rulebook_recheck` (def) L2614 - Rulebook edits mark saved results stale; checks run only when requested on the page.
+- `recheck_after_transcript` (def) L2619 - When a video's transcript is ready, re-run the check so the score includes what's said and shown.
+- `recheck_after_image_text` (def) L2625 - When an image's text has been read (or couldn't be), re-run the check so the score includes it.
+- `recheck_after_document_text` (def) L2630 - When a script's (or article's) text has been read (or couldn't be), re-run the check so the score includes it.
+- `_recheck_for_file` (def) L2635 - Re-run the check of the open submission a file belongs to, after something about the file was read.

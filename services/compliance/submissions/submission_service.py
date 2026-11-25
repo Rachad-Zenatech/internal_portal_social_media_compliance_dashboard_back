@@ -2440,8 +2440,7 @@ _rulebook_recheck: Optional["asyncio.Task[None]"] = None
 RULEBOOK_RECHECK_DELAY_SEC = 3
 
 
-async def _check_still_current(conn, row: Dict[str, Any], started: datetime) -> bool:
-    return await media_freshness.check_still_current(conn, row, started)
+_check_still_current = media_freshness.check_still_current
 
 
 async def _recheck_one(row: Dict[str, Any], describe) -> Tuple[Any, Dict[str, Any], bool]:
