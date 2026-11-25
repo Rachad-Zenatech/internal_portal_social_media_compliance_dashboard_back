@@ -5,7 +5,6 @@ import logging
 
 from postgresql_db import database as db
 from services.ai.observability.ai_guardrails import screen_input
-from services.ai.observability.attempt_progress import attempt_progress
 from services.compliance.evaluation import source_claim_grounding, source_claim_policy, source_assertions
 from services.compliance.evaluation.source_image_claims import is_identifier
 from services.compliance.evaluation.citation_finder import is_reference_only
@@ -93,9 +92,7 @@ async def extract(text, ask, models, limit):
     partial = None
     for model in models:
         try:
-            with attempt_progress(task_id="claims-" + hashlib.sha256(text.encode()).hexdigest()[:24],
-                                  task_kind="CLAIM_EXTRACTION", progress_label="Identifying factual claims in your post"):
-                response = await ask(model, contents, guard, system_prompt=PROMPT.format(limit=limit))
+            response = await ask(model, contents, guard, system_prompt=PROMPT.format(limit=limit))
             claims, seen, rejected = [], set(), 0
             for item in response.claims:
                 claim = item.claim.strip()

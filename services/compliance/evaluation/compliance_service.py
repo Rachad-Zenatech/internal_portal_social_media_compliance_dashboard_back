@@ -1278,7 +1278,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     source_result = await rule18_policy.check_sources(req)
     if source_result.ai_failed:
         _ai_incomplete.set(True)
-    violations.extend(source_check_service.findings(source_result.checks))
+    violations.extend(source_check_service.findings(source_result.checks, failed=getattr(source_result, "failed_claims", ())))
     violations.extend(getattr(source_result, "unbacked", []))
     violations.extend(source_post_checks.unsourced_image_findings(req.text, source_result.checks))
 
@@ -1307,8 +1307,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         ai_unavailable, notes, source_result.checks, await rulebook_version(),
     )
     from services.compliance.evaluation.compliance_diagnostics import stages
-    return response.model_copy(update={"visual_checks": visual_checks, "incomplete_stages": stages(semantic_incomplete, source_result, violations, visual_checks)})
-
+    return response.model_copy(update={"visual_checks": visual_checks, "source_review_audit": getattr(source_result, "audit", []), "incomplete_stages": stages(semantic_incomplete, source_result, violations, visual_checks)})
 
 
 def flagged_tags(tags: Sequence[str], rules: List[ComplianceRule]) -> Dict[str, str]:
