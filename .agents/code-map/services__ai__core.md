@@ -134,6 +134,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `find` (def) L105
 - `count` (def) L118
 
+## services/ai/core/response_errors.py (15 lines) - Safe, structured response failures shared by providers and feature validators.
+- `OutputLimitError` (class) L4 - A model answered but exhausted its response budget; this is not a provider outage.
+    - `__init__` (def) L7
+- `InvalidResponseError` (class) L13 - The model answered, but its assessment did not pass structural validation.
+
 ## services/ai/core/semantic_cache.py (196 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
 - `_env_float` (def) L38
 - `is_enabled` (def) L51

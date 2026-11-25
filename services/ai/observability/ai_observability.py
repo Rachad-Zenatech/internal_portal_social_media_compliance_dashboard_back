@@ -31,6 +31,7 @@ from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Optional,
 from uuid import UUID
 
 from services.ai.core import gemini_service, compliance_request_policy
+from services.ai.core.response_errors import InvalidResponseError, OutputLimitError
 from postgresql_db.database import get_pool
 from services.ai.observability.ai_guardrails import GuardResult, redact_pii
 from services.shared.core.logging_service import request_id_ctx
@@ -251,6 +252,10 @@ def log_prompt(
 def classify_error(e: BaseException) -> str:
     """What kind of failure a Gemini call hit, for telling users why the AI isn't working: KEY (invalid, expired or
     revoked key), QUOTA (rate or daily limit), MODEL (retired or unknown model), BUSY (overloaded or timing out)."""
+    if isinstance(e, OutputLimitError):
+        return "OUTPUT_LIMIT"
+    if isinstance(e, InvalidResponseError):
+        return "RESPONSE_INVALID"
     code = getattr(e, "code", None)
     msg = str(e).lower()
     if code in (401, 403) or any(k in msg for k in ("api key", "api_key", "permission_denied", "unauthenticated", "key expired")):
@@ -283,7 +288,7 @@ def _notify_attempt(event: Dict[str, Any]) -> None:
 
 async def generate(client: Any, *, model: str, contents: Any, config: Any = None, feature: str = "GENERAL",
                    submission_id: Optional[UUID] = None, guard: Optional[GuardResult] = None,
-                   **attributes: Any) -> Any:
+                   validate_response: Optional[Callable[[Any], Any]] = None, **attributes: Any) -> Any:
     """client.models.generate_content in a thread, traced and prompt-logged. Errors are recorded and re-raised.
     guard, when given, is the screening verdict of the untrusted text in the request, recorded with the call."""
     compliance = feature in compliance_request_policy.FEATURES
@@ -312,15 +317,29 @@ async def generate(client: Any, *, model: str, contents: Any, config: Any = None
                 asyncio.to_thread(client.models.generate_content, model=model, contents=contents, config=config),
                 timeout=call_timeout,
             )
+            input_tokens, output_tokens = token_counts(response)
+            s.attributes.update(input_tokens=input_tokens, output_tokens=output_tokens,
+                                stop_reason=getattr(response, "stop_reason", None))
+            if validate_response is not None:
+                validate_response(response)
+                s.attributes["assessment_validated"] = True
         except Exception as e:
-            if compliance or gemini_service.is_rotatable_model_error(e):
+            if not isinstance(e, (OutputLimitError, InvalidResponseError)) and (compliance or gemini_service.is_rotatable_model_error(e)):
                 gemini_service.record_model_failure(model, e)
+            failed_response = getattr(e, "response", None)
+            if failed_response is not None:
+                input_tokens, output_tokens = token_counts(failed_response)
+                s.attributes.update(input_tokens=input_tokens, output_tokens=output_tokens,
+                                    stop_reason=getattr(failed_response, "stop_reason", None))
+            if validate_response is not None:
+                s.attributes["assessment_validated"] = False
             s.attributes["error_kind"] = classify_error(e)
             _notify_attempt({"event": "attempt", "id": attempt_id, "status": "FAILED", "model": model, "feature": feature,
                              "error_kind": s.attributes["error_kind"], "error": str(e)[:160],
                              "duration_ms": round((time.perf_counter() - started) * 1000)})
             log_prompt(**logged, response=str(e)[:1000], status="ERROR", error_type=type(e).__name__,
-                       latency_ms=round((time.perf_counter() - started) * 1000, 2))
+                       latency_ms=round((time.perf_counter() - started) * 1000, 2),
+                       input_tokens=s.attributes.get("input_tokens"), output_tokens=s.attributes.get("output_tokens"))
             raise
         input_tokens, output_tokens = token_counts(response)
         s.attributes.update(input_tokens=input_tokens, output_tokens=output_tokens)

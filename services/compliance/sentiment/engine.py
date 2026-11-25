@@ -225,6 +225,8 @@ async def _generate_with(client: Any, model: str, inp: Dict[str, Any], video: Op
     """One model: retries brief rate limits and outages, and once on malformed output."""
     images = images or []
     prompt = _prompt(inp, video_attached=video is not None, images_attached=len(images), precedents=precedents)
+    prompt += ("\nReturn one complete JSON assessment. Keep explanations concise, avoid repeating the post "
+               "or reference material, and consolidate duplicate findings without omitting distinct concerns.")
     contents: Any = prompt
     if images or video:
         contents = []
@@ -251,7 +253,8 @@ async def _generate_with(client: Any, model: str, inp: Dict[str, Any], video: Op
     for attempt in range(API_RETRIES):
         try:
             response = await ai_observability.generate(client, model=model, contents=contents, config=config,
-                                                        feature="SENTIMENT", guard=guard, attempt=attempt + 1)
+                                                        feature="SENTIMENT", guard=guard, attempt=attempt + 1,
+                                                        validate_response=lambda r: parse_response(r, config.max_output_tokens))
             result = parse_response(response, config.max_output_tokens)
             if inp.get("video_file_id") and not video:
                 result.information_gaps.append("The video couldn't be attached, so only its text and transcript were assessed.")
@@ -269,11 +272,15 @@ async def _generate_with(client: Any, model: str, inp: Dict[str, Any], video: Op
             last_error = e
             if attempt >= 1:
                 break
-            config.max_output_tokens = min(config.max_output_tokens * 2, max(config.max_output_tokens, 32768))
+            used_limit = max(config.max_output_tokens, e.token_limit)
+            if used_limit >= 32768:
+                break
+            config.max_output_tokens = min(used_limit * 2, 32768)
             logger.warning("Sentiment output limit reached for %s; retrying with %d tokens", model, config.max_output_tokens)
         except (ValueError, ValidationError) as e:
             # Malformed or schema-invalid output: one more try, then give up.
             last_error = e
+            logger.warning("Sentiment response rejected for %s (%s): %s", model, type(e).__name__, e)
             if attempt >= 1:
                 break
         except Exception as e:

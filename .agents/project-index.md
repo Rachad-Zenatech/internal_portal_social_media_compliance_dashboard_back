@@ -92,6 +92,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/core/gemini_service.py (201 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (104 lines) - Model routing: picks the cheapest suitable model for easy work, and stronger models when needed.
 - services/ai/core/mood_store.py (121 lines) - The collections public mood learns from, in the same MongoDB database as the vector store.
+- services/ai/core/response_errors.py (15 lines) - Safe, structured response failures shared by providers and feature validators.
 - services/ai/core/semantic_cache.py (196 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
 - services/ai/core/vector_store_service.py (379 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
 - services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...

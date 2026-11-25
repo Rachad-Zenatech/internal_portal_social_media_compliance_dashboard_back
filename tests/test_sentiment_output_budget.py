@@ -83,3 +83,54 @@ class SentimentBudgetTests(unittest.IsolatedAsyncioTestCase):
                 await engine._generate_with(object(), "test-model", {}, None)
         self.assertNotIn("pydantic", str(error.exception).lower())
         self.assertEqual(generate.await_count, 2)
+
+
+class ProviderOutputLimitTests(unittest.IsolatedAsyncioTestCase):
+    async def test_real_adapter_truncation_increases_outer_budget(self):
+        adapter = BedrockClientAdapter()
+        adapter._boto_client = MagicMock()
+        adapter._boto_client.converse.side_effect = [
+            {"stopReason": "max_tokens", "usage": {"outputTokens": 8192},
+             "output": {"message": {"content": [{"text": '{"summary":'}]}}},
+            {"stopReason": "end_turn", "usage": {"outputTokens": 9000},
+             "output": {"message": {"content": [{"text": json.dumps(VALID)}]}}},
+        ]
+        budgets = []
+        async def generate(client, **kwargs):
+            budgets.append(kwargs["config"].max_output_tokens)
+            response = client.models.generate_content(model=kwargs["model"], contents=kwargs["contents"], config=kwargs["config"])
+            kwargs["validate_response"](response)
+            return response
+        with patch.object(engine, "MAX_OUTPUT_TOKENS", 8192), \
+             patch.object(engine, "_prompt", return_value="Synthetic assessment"), \
+             patch.object(engine.ai_observability, "generate", AsyncMock(side_effect=generate)), \
+             patch.object(engine, "_verify", side_effect=lambda result, *args, **kwargs: result):
+            result = await engine._generate_with(adapter, "test-model", {}, None)
+        # The adapter already spent 8192 internally; never restart at 4096 again.
+        self.assertEqual(budgets, [8192, 16384])
+        self.assertEqual(result.summary, VALID["summary"])
+        self.assertEqual(adapter._boto_client.converse.call_count, 2)
+
+    async def test_provider_exception_preserves_spent_budget_for_retry(self):
+        from services.ai.core.response_errors import OutputLimitError
+        budgets = []
+        async def generate(client, **kwargs):
+            budgets.append(kwargs["config"].max_output_tokens)
+            if len(budgets) == 1:
+                raise OutputLimitError(token_limit=8192)
+            return BedrockResponse(json.dumps(VALID), stop_reason="end_turn")
+        with patch.object(engine, "MAX_OUTPUT_TOKENS", 4096), \
+             patch.object(engine, "_prompt", return_value="Synthetic assessment"), \
+             patch.object(engine.ai_observability, "generate", AsyncMock(side_effect=generate)), \
+             patch.object(engine, "_verify", side_effect=lambda result, *args, **kwargs: result):
+            await engine._generate_with(object(), "test-model", {}, None)
+        self.assertEqual(budgets, [4096, 16384])
+
+    async def test_no_repeated_request_at_hard_output_ceiling(self):
+        generate = AsyncMock(return_value=BedrockResponse("", stop_reason="max_tokens"))
+        with patch.object(engine, "MAX_OUTPUT_TOKENS", 32768), \
+             patch.object(engine, "_prompt", return_value="Synthetic assessment"), \
+             patch.object(engine.ai_observability, "generate", generate):
+            with self.assertRaisesRegex(RuntimeError, "exceeded the response limit"):
+                await engine._generate_with(object(), "test-model", {}, None)
+        self.assertEqual(generate.await_count, 1)
