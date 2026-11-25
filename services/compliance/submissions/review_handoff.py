@@ -39,6 +39,19 @@ async def require_undecided(conn, row):
         raise HTTPException(409, "A reviewer already decided this post. Leave suggestions until the approval deadline.")
 
 
+async def require_reviewer(row, user_id):
+    from services.compliance.submissions import submission_service as subs
+    if not await subs._can_review(user_id):
+        raise HTTPException(403, "Only reviewers can approve content or request changes")
+    if row["status"] != "IN_REVIEW":
+        raise HTTPException(409, "Only content that's in review can be approved or sent back")
+    is_super = await subs._is_super_admin(user_id)
+    if row["created_by"] == user_id and not is_super:
+        raise HTTPException(403, "You can't review your own content; another reviewer needs to")
+    await require_undecided(None, row)
+    return is_super
+
+
 def revision_deadline(row, request, publish_at):
     from services.compliance.submissions import review_deadline_service as deadlines
     if not should_hold(row):

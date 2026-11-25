@@ -268,8 +268,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/review_approval_service.py (77 lines) - Approval gates for a submitted post: saved checks, findings and final approvers.
 - services/compliance/submissions/review_comment_writes.py (18 lines) - Serialize comments with approval so stale tabs cannot write after the deadline.
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
-- services/compliance/submissions/review_handoff.py (90 lines) - Save a review outcome now; hand the post to its creator after suggestions close.
-- services/compliance/submissions/review_handoff_release.py (84 lines) - Restart-safe, atomic delivery of decided posts once their suggestion deadline passes.
+- services/compliance/submissions/review_handoff.py (103 lines) - Save a review outcome now; hand the post to its creator after suggestions close.
+- services/compliance/submissions/review_handoff_release.py (87 lines) - Restart-safe, atomic delivery of decided posts once their suggestion deadline passes.
 - services/compliance/submissions/review_hierarchy_service.py (40 lines) - Review access inherited by Content Managers through the saved role hierarchy.
 - services/compliance/submissions/review_memory_service.py (233 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.
@@ -279,7 +279,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/submission_check_runner.py (67 lines) - Run and snapshot the complete post check without changing its scoring policy.
 - services/compliance/submissions/submission_fields.py (67 lines) - Field shaping for submission summaries and draft type changes.
 - services/compliance/submissions/submission_list_query.py (94 lines) - SQL for the submission list, including previews and analysis status.
-- services/compliance/submissions/submission_service.py (2663 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2657 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/compliance/submissions/submission_source_state.py (23 lines) - Track the saved source-link inputs of a compliance run, including legacy checks.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.

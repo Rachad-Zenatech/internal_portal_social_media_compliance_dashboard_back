@@ -43,13 +43,16 @@ async def release_due():
         async with conn.transaction():
             rows = await conn.fetch("""
                 SELECT s.*, j.decision, j.decided_by, e.data AS outcome
-                FROM content_submissions s JOIN content_review_jobs j
-                  ON j.submission_id = s.id AND j.version_number = s.current_version
+                FROM content_submissions s JOIN LATERAL (
+                    SELECT decision, decided_by FROM content_review_jobs
+                    WHERE submission_id = s.id AND version_number = s.current_version
+                      AND decision IN ('APPROVE', 'REQUEST_CHANGES') AND decided_by IS NOT NULL
+                    ORDER BY decided_at DESC NULLS LAST, id DESC LIMIT 1
+                ) j ON true
                 LEFT JOIN LATERAL (SELECT data FROM content_submission_events
                     WHERE submission_id = s.id AND event_type = 'REVIEW_DECISION'
                       AND data->>'version' = s.current_version::text ORDER BY id DESC LIMIT 1) e ON true
                 WHERE s.status = 'IN_REVIEW' AND s.deleted_at IS NULL AND s.approval_needed_by <= NOW()
-                  AND j.decision IN ('APPROVE', 'REQUEST_CHANGES') AND j.decided_by IS NOT NULL
                 ORDER BY s.approval_needed_by, s.id LIMIT 50 FOR UPDATE OF s SKIP LOCKED
             """)
             for row in rows:

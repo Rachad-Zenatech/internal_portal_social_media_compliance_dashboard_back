@@ -2081,13 +2081,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     """A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
     back to the creator with what to change."""
     row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
-    if not await _can_review(user_id):
-        raise HTTPException(status_code=403, detail="Only reviewers can approve content or request changes")
-    if row["status"] != "IN_REVIEW":
-        raise HTTPException(status_code=409, detail="Only content that's in review can be approved or sent back")
-    is_super = await _is_super_admin(user_id)
-    if row["created_by"] == user_id and not is_super:
-        raise HTTPException(status_code=403, detail="You can't review your own content; another reviewer needs to")
+    is_super = await review_handoff.require_reviewer(row, user_id)
     approval_score: Optional[int] = None
     if req.decision == "APPROVE":
         row, approval_score = await review_approval_service.require_approval(row, user_id, is_super)
