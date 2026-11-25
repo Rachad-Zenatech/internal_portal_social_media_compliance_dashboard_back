@@ -202,18 +202,6 @@ def _check_report(report: Optional[ContextReport], inp: Dict[str, Any]) -> Optio
             _cite(d, entries, ("BRAND_VOICE",))
             drifts.append(d)
     voice.drifts = drifts
-    claims = []
-    for c in report.facts.claims:
-        if not _context_quote(c.claim, inp):
-            continue
-        cited = _cite(c, entries, ("FACT",))
-        if c.result != "NO_FACT" and not cited:
-            # A match or conflict has to point at a fact on file.
-            c.result = "NO_FACT"
-        claims.append(c)
-    report.facts.claims = claims
-    if not any(c.result == "CONFLICTS" for c in claims):
-        report.facts.fix = None
     report.platform_norms.checks = [n for n in report.platform_norms.checks
                                     if _cite(n, entries, ("PLATFORM_NORM",))]
     report.audiences.readings = [a for a in report.audiences.readings if _cite(a, entries, ("AUDIENCE_PROFILE",))]
@@ -235,12 +223,6 @@ def _settle_verdicts(report: ContextReport, entries: List[Dict[str, Any]]) -> No
         voice.verdict = "MOSTLY_ON_VOICE"
     elif not voice.drifts and voice.verdict in ("MOSTLY_ON_VOICE", "OFF_VOICE"):
         voice.verdict = "ON_VOICE"
-    claims = report.facts.claims
-    report.facts.verdict = ("NEEDS_FIX" if any(c.result == "CONFLICTS" for c in claims)
-                            else "NO_CLAIMS" if not claims
-                            # Claims nothing on file speaks to aren't an all-clear.
-                            else "UNVERIFIED" if any(c.result == "NO_FACT" for c in claims)
-                            else "CHECKS_OUT")
     checks = report.platform_norms.checks
     adjust = sum(1 for c in checks if c.status == "ADJUST")
     report.platform_norms.verdict = ("NO_NORMS" if not checks else "FITS" if adjust == 0

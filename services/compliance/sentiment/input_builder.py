@@ -149,7 +149,7 @@ async def _build_input(row: Dict[str, Any]) -> Dict[str, Any]:
         # A thought leadership post (Shaun's channel, or the CEO rule set) gets that brand guide whatever brand it's under.
         "context": await context_service.for_content(
             context_service.with_thought_leadership(brands, is_ceo or CEO_RULE_SET in rule_sets),
-            audiences, platforms, text=reference_text, picks=_json(row.get("context_picks")) or None,
+            audiences, platforms, text=reference_text, picks={**(_json(row.get("context_picks")) or {}), "FACT": []},
         ),
         "transcript": transcript,
         # The video itself is attached when the analysis runs; a replaced video makes earlier results stale.
@@ -342,7 +342,6 @@ def _prompt(inp: Dict[str, Any], video_attached: bool = False, images_attached: 
 
 _CONTEXT_HEADINGS = {
     "BRAND_VOICE": "Brand voice",
-    "FACT": "Company and product facts",
     "PLATFORM_NORM": "Platform norms",
     "AUDIENCE_PROFILE": "Audience profiles",
 }
@@ -385,7 +384,7 @@ async def suggested_context(submission_id: UUID) -> Dict[str, List[str]]:
     post_text = "\n".join(p for p in (row["title"], row["caption_text"], spoken, script) if p)
     entries = await context_service.for_content(
         context_service.with_thought_leadership(brands_of(row), bool(meta.get("is_ceo")) or CEO_RULE_SET in rule_sets),
-        audiences_of(row), list(row["platforms"] or []), text=post_text,
+        audiences_of(row), list(row["platforms"] or []), text=post_text, picks={"FACT": []},
     )
     out: Dict[str, List[str]] = {}
     for e in entries:
