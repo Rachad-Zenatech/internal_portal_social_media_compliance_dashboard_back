@@ -129,7 +129,7 @@ async def seed_roles(conn, groups_data, new_group_codes):
     roles_data = [
         ("SUPER_ADMIN", "Super Administrator", "Full unrestricted access to all modules and configurations", True),
         ("ADMIN", "Administrator", "Administrative access to user and role configurations", True),
-        ("USER", "Standard User", "Standard system user with basic dashboard access", False),
+        ("USER", "Content Creator", "Content creator with basic dashboard access", False),
         ("MANAGER", "Content Manager", "Oversees the team's content: sees everyone's submissions and can delete drafts", False),
         ("REVIEWER", "Content Reviewer", "Reviews submitted content, requests changes and approves it for publishing", False),
         ("SUGGESTING_REVIEWER", "Suggesting Reviewer",
