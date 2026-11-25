@@ -144,6 +144,19 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `run_saved_case` (def) L114
 - `main` (def) L136
 
+## scripts/submission_freshness_eval.py (109 lines) - Regressions for SUB-1219's schedule-only invalidation and cached sentiment reuse.
+- `RevisionTests` (class) L25
+    - `test_sub1219_publish_date_change_is_not_a_content_revision` (def) L26
+    - `test_reviewer_and_approval_date_changes_preserve_results` (def) L31
+    - `test_real_analysis_input_changes_still_invalidate_results` (def) L35
+    - `test_equal_json_and_identifier_values_are_not_edits` (def) L40
+- `ReuseTests` (class) L47
+    - `asyncSetUp` (def) L48
+    - `analysis` (def) L77
+    - `test_cached_recheck_stays_current_without_another_model_run` (def) L80
+    - `test_later_real_content_edit_invalidates_reused_result` (def) L93
+    - `test_edit_during_input_validation_cannot_validate_old_results` (def) L98
+
 ## scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
 - `QuotaExhausted` (class) L40 - Gemini's embedding quota stayed exhausted: the run can't continue, and that says nothing about the behaviour.
 - `check` (def) L44

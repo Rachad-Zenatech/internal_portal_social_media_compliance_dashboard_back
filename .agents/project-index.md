@@ -82,6 +82,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/script_submission_content_eval.py (56 lines) - Imported script content must retain every line and table beat, including long uploads.
 - scripts/script_submission_documents_eval.py (204 lines) - Shared-document adoption and original-post sync regressions, using isolated mocked services.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
+- scripts/submission_freshness_eval.py (109 lines) - Regressions for SUB-1219's schedule-only invalidation and cached sentiment reuse.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
 - server.py (474 lines) - server
 - services/ai/core/ai_error_diagnostics.py (39 lines) - Safe, actionable descriptions of AI failures for users and server logs.
