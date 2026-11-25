@@ -394,7 +394,7 @@ async def ensure_index() -> Dict[str, Any]:
                 _embedding_path(): {
                     "type": "knn_vector",
                     "dimension": dims,
-                    "method": {"name": "hnsw", "engine": "nmslib", "space_type": "cosinesimil"},
+                    "method": {"name": "hnsw", "engine": "faiss", "space_type": "cosinesimil"},
                 },
             }
         },
@@ -402,6 +402,12 @@ async def ensure_index() -> Dict[str, Any]:
     resp = await os_client.request("PUT", f"/{idx}", json_body=body)
     if resp.status_code >= 400 and "resource_already_exists_exception" not in resp.text:
         raise RuntimeError(f"OpenSearch index creation failed ({resp.status_code}): {resp.text[:400]}")
+    # OpenSearch Serverless takes a few seconds after index creation before _search stops returning 404.
+    for _ in range(15):
+        probe = await os_client.request("POST", f"/{idx}/_search", json_body={"size": 0})
+        if probe.status_code != 404:
+            break
+        await asyncio.sleep(1.5)
     _index_ready = idx
     return {"created": True, "dimensions": dims, "index": idx}
 

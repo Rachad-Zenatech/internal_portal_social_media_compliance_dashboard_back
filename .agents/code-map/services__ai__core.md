@@ -166,7 +166,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `store` (def) L164 - Cache an answer for the question of an earlier lookup.
 - `clear` (def) L188 - Drop cached answers (one feature's, or all) when what they were built from has changed.
 
-## services/ai/core/vector_store_service.py (428 lines) - Vector store: AWS OpenSearch vector search for reference material the content analysis can draw on (brand voice, company facts, platform ...
+## services/ai/core/vector_store_service.py (434 lines) - Vector store: AWS OpenSearch vector search for reference material the content analysis can draw on (brand voice, company facts, platform ...
 - `_setting` (def) L34
 - `database_name` (def) L38
 - `collection_name` (def) L42
@@ -193,7 +193,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_reference_changed` (def) L288 - Assistant answers may quote reference material, so cached ones are dropped when it changes (past review
 - `search` (def) L298 - The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
 - `ensure_index` (def) L364 - Create the OpenSearch k-NN index if it doesn't exist.
-- `status` (def) L409 - Whether OpenSearch is configured and reachable, and what's in the index (no credentials).
+- `status` (def) L415 - Whether OpenSearch is configured and reachable, and what's in the index (no credentials).
 
 ## services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - `collection_name` (def) L36
