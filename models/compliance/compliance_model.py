@@ -367,3 +367,5 @@ class ComplianceCheckResponse(BaseModel):
     signals: Optional[CheckSignals] = None
     # The sources the post cites, opened and compared with its claims. Empty when it cites none.
     source_checks: List[SourceCheck] = Field(default_factory=list)
+    # Printed source-attribution boxes detected in post images, shown as "Source" overlays in the UI.
+    source_regions: List[ImageFindingRegion] = Field(default_factory=list)

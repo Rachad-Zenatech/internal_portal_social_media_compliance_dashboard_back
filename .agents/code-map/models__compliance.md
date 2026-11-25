@@ -39,7 +39,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## models/compliance/check_diagnostics_model.py (10 lines) - Public reasons a compliance review remains incomplete; never include provider secrets.
 - `IncompleteCheckStage` (class) L6
 
-## models/compliance/compliance_model.py (370 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (372 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class) L12
 - `ComplianceRuleCreate` (class) L58
 - `ComplianceRuleUpdate` (class) L62

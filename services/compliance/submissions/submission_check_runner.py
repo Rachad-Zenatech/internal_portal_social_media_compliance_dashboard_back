@@ -24,7 +24,9 @@ async def run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     with check_rule_capture.collecting() as captured:
         result = await subs.check_compliance(request)
     all_video_segments = [*segments, *visual_segments]
-    await subs.video_finding_service.locate_media_findings(images, video, all_video_segments, result.violations)
+    result.source_regions = await subs.video_finding_service.locate_media_findings(
+        images, video, all_video_segments, result.violations
+    )
     match = subs.script_match.assess_video(script, " ".join(str(s.get("text", "")) for s in segments if s.get("source") != "on_screen"), video, on_screen=" ".join(str(s.get("text", "")) for s in segments if s.get("source") == "on_screen"))
     subs.script_match.flag_mismatch(result, match)
     subs.source_recheck.record_cleared(result, (subs._json(row.get("latest_check")) or {}).get("violations") or [])

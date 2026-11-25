@@ -12,6 +12,7 @@ import sys
 from services.ai.core import ai_types as types
 
 from models.compliance.compliance_model import ImageFindingRegion
+from services.compliance.evaluation import citation_finder
 from services.compliance.evaluation.finding_evidence import highlight_terms
 from services.compliance.media import image_finding_zoom, image_text_service
 
@@ -114,8 +115,100 @@ def _ocr_word_boxes(data):
         return []
 
 
+_SOURCE_CUE_PREFIX = re.compile(
+    r"^(?:sources?(?:\s+links?)?|source\s+cited|references?|citations?|via|data\s+(?:from|source)|image\s+source|photo\s+(?:source|credit))(?:\s*[:–—-]|\s|$)",
+    re.IGNORECASE,
+)
+
+
+def _source_block_boxes(words):
+    """Group a printed source cue and nearby same-font continuation lines into exclusion boxes."""
+    if not words:
+        return []
+    lines = []
+    by_key = {}
+    for w in words:
+        key = w["line"]
+        if key not in by_key:
+            entry = {"words": [], "boxes": []}
+            by_key[key] = entry
+            lines.append(entry)
+        by_key[key]["words"].append(w["text"])
+        by_key[key]["boxes"].append(w["box"])
+
+    parsed = []
+    for entry in lines:
+        boxes = entry["boxes"]
+        heights = sorted(b[2] - b[0] for b in boxes)
+        med_h = heights[len(heights) // 2]
+        parsed.append({
+            "text": " ".join(entry["words"]),
+            "box": [min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes)],
+            "height": med_h,
+        })
+
+    source_boxes = []
+    i = 0
+    while i < len(parsed):
+        if not _SOURCE_CUE_PREFIX.match(parsed[i]["text"]):
+            i += 1
+            continue
+        base_h = max(parsed[i]["height"], 1.0)
+        group = [parsed[i]["box"]]
+        j = i + 1
+        while j < len(parsed) and j - i <= 3:
+            prev_box = parsed[j - 1]["box"]
+            cur = parsed[j]
+            gap = cur["box"][0] - prev_box[2]
+            same_font = abs(cur["height"] - base_h) / base_h <= 0.35
+            if not same_font or gap > base_h * 1.8 or gap < -base_h * 0.5:
+                break
+            group.append(cur["box"])
+            j += 1
+        source_boxes.append([
+            min(b[0] for b in group), min(b[1] for b in group),
+            max(b[2] for b in group), max(b[3] for b in group),
+        ])
+        i = j
+    return source_boxes
+
+
+async def _vision_source_regions(file_id, data, mime, raw_text):
+    """Fallback when local OCR misses tiny footer text: locate printed source credits via vision."""
+    if not citation_finder._SOURCE_LINE.search(raw_text or ""):
+        return []
+    prompt = (
+        "Locate any printed source credit / citation block (e.g. 'Source: ...', 'Via: ...', 'Data from: ...' "
+        "and its immediately adjacent same-font continuation lines) in the attached image. Return one tight "
+        "bounding box [top, left, bottom, right] in coordinates 0 to 1000 around the whole source block, with "
+        "finding=0 and exact visible text. Return an empty regions list if none is visible."
+    )
+    async with image_text_service._semaphore:
+        response = await image_text_service._generate(
+            [types.Part.from_bytes(data=data, mime_type=mime), prompt],
+            feature="IMAGE_FINDING_REGIONS", response_schema=SCHEMA,
+        )
+    items = json.loads(response.text or "{}").get("regions", [])
+    if not isinstance(items, list):
+        return []
+    out = []
+    for item in items:
+        if isinstance(item, dict):
+            region = region_from_box(file_id, item.get("box"))
+            if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in out:
+                out.append(region)
+    return out
+
+
+def _inside_any_box(box, containers):
+    cy = (box[0] + box[2]) / 2
+    cx = (box[1] + box[3]) / 2
+    return any(c[0] <= cy <= c[2] and c[1] <= cx <= c[3] for c in containers)
+
+
 def _ocr_regions(file_id, words, terms, start_sec=None, end_sec=None):
     """Find flagged phrases in OCR words and return one tight region per affected text line."""
+    source_boxes = _source_block_boxes(words)
     tokens = [word["text"] for word in words]
     regions = []
     for term in terms:
@@ -134,6 +227,8 @@ def _ocr_regions(file_id, words, terms, start_sec=None, end_sec=None):
                 left = min(box[1] for box in boxes)
                 bottom = max(box[2] for box in boxes)
                 right = max(box[3] for box in boxes)
+                if source_boxes and _inside_any_box([top, left, bottom, right], source_boxes):
+                    continue
                 region = region_from_box(file_id, [top, left, bottom, right], start_sec, end_sec)
                 if region and region not in regions:
                     regions.append(region)
@@ -141,10 +236,11 @@ def _ocr_regions(file_id, words, terms, start_sec=None, end_sec=None):
 
 
 async def locate_image_findings(images, findings):
-    """Locate flagged wording, including warnings that still need evidence."""
+    """Locate flagged wording, including warnings that still need evidence, and return detected source regions."""
     from services.compliance.sentiment.engine import _image_bytes
     from services.compliance.media.transcription_service import STORAGE_ROOT
 
+    source_regions = []
     for image in images:
         if image["image_text_status"] != "COMPLETED":
             continue
@@ -157,8 +253,6 @@ async def locate_image_findings(images, findings):
         logger.info("Image localization: file=%s status=%s active_findings=%d candidates=%d",
                     image["id"], image["image_text_status"],
                     sum(f.status != "CLEARED" for f in findings), len(candidates))
-        if not candidates:
-            continue
         for finding in candidates:
             if image["id"] not in finding.image_file_ids:
                 finding.image_file_ids.append(image["id"])
@@ -169,6 +263,16 @@ async def locate_image_findings(images, findings):
                 continue
             data, mime = await asyncio.to_thread(_image_bytes, path, image["mime_type"])
             words = await asyncio.to_thread(_ocr_word_boxes, data)
+            img_sources = [
+                r for r in (region_from_box(image["id"], box) for box in _source_block_boxes(words)) if r
+            ]
+            if not img_sources:
+                img_sources = await _vision_source_regions(image["id"], data, mime, image["image_text"] or "")
+            for region in img_sources:
+                if region not in source_regions:
+                    source_regions.append(region)
+            if not candidates:
+                continue
             unmatched = []
             for finding in candidates:
                 found_regions = _ocr_regions(image["id"], words, highlight_terms(finding))
@@ -214,6 +318,7 @@ async def locate_image_findings(images, findings):
         except Exception:
             # Localization must never lose a valid check or fabricate a highlight.
             logger.warning("Could not locate compliance findings in image %s", image["id"], exc_info=True)
+    return source_regions
 
 
 def _attach_regions(file_id, text, findings, items):

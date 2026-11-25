@@ -111,5 +111,6 @@ async def visual_text_segments(video):
 
 async def locate_media_findings(images, video, segments, findings):
     """Keep image and video localization beside the media-specific implementations."""
-    await image_finding_service.locate_image_findings(images, findings)
+    source_regions = await image_finding_service.locate_image_findings(images, findings)
     await locate_video_findings(video, segments, findings)
+    return source_regions
