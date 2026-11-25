@@ -15,7 +15,9 @@ def require_text_post(row):
 
 async def may_edit(row, user_id):
     from services.compliance.submissions import submission_service as subs
+    from services.compliance.submissions.review_handoff import is_pending
     return (row["status"] == "IN_REVIEW" and await subs._can_suggest(user_id)
+            and not await is_pending(row)
             and (row["created_by"] != user_id or await subs._is_super_admin(user_id)))
 
 
@@ -79,6 +81,8 @@ async def save_review(submission_id, user_id, data):
             row = await conn.fetchrow("SELECT * FROM content_submissions WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", submission_id)
             require_same_assignment(visible, row)
             require_text_post(row)
+            from services.compliance.submissions.review_handoff import require_undecided
+            await require_undecided(conn, row)
             if not await may_edit(row, user_id):
                 raise HTTPException(403, "Only other reviewers can edit post text while it is in review.")
             edits = await edits_for(conn, submission_id)

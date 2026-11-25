@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 
 class PostApprovalSuggestionFields(BaseModel):
+    review_decision_pending: bool = False
     suggestions_until: Optional[datetime] = None
     can_suggest_after_approval: bool = False
 

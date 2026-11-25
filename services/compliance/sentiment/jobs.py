@@ -16,6 +16,7 @@ from models.compliance.sentiment_model import (
     SentimentResult,
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
+from services.compliance.sentiment import reuse_freshness
 from services.ai.observability import ai_usage_service
 from services.ai.observability.ai_usage_service import AiLimitExceeded
 from services.compliance.sentiment.config import (
@@ -129,6 +130,7 @@ def schedule(analysis_ids: Iterable[UUID]) -> None:
 async def _queue_for(row: Dict[str, Any], trigger: str, requested_by: Optional[UUID],
                      analysis_id: Optional[UUID] = None) -> UUID:
     """Create (or, for a waiting row, fill in) a PENDING analysis, reusing a matching earlier result."""
+    validation = await reuse_freshness.capture(row)
     inp = await _build_input(row)
     content_hash = _hash(inp)
     existing = await fetch_one(
@@ -140,12 +142,8 @@ async def _queue_for(row: Dict[str, Any], trigger: str, requested_by: Optional[U
         """,
         row["id"], content_hash, analysis_id,
     )
-    if existing and not analysis_id:
-        return existing["id"]
-    if existing and analysis_id:
-        # The transcript finished and the content matches an earlier run: drop the placeholder.
-        await fetch_one("DELETE FROM content_sentiment_analyses WHERE id = $1 RETURNING id", analysis_id)
-        return existing["id"]
+    if existing:
+        return await reuse_freshness.reuse(existing["id"], row, validation, analysis_id)
     if not analysis_id:
         # A new Gemini call (waiting rows were already counted when they were created).
         await ai_usage_service.reserve("SENTIMENT", requested_by, row["id"])
@@ -297,6 +295,7 @@ def _to_model(row: Dict[str, Any], current_hash: Optional[str]) -> SentimentAnal
         result=_result(row),
         error=row["error"],
         is_current=current_hash is None or row["content_hash"] is None or row["content_hash"] == current_hash,
+        validated_media_edited_at=inp.get(reuse_freshness.MARKER),
         context_used=[e.get("title", "") for e in (inp.get("context") or [])],
         high_stakes=bool(inp.get("high_stakes")),
         has_video=bool(inp.get("video_file_id")),
@@ -450,11 +449,9 @@ async def get_latest(submission_id: UUID, viewer: Optional[UUID] = None) -> Opti
     if row.get("trigger") == "MANUAL" and row["status"] in ("WAITING_TRANSCRIPT", "PENDING", "PROCESSING") and row["id"] not in _running:
         await resume_unfinished(submission_id)
         row = await fetch_one("SELECT * FROM content_sentiment_analyses WHERE id = $1", row["id"]) or row
-    from services.compliance.submissions import media_freshness
-    media = await fetch_one("SELECT " + media_freshness.REVISION_SQL + " AS media_edited_at FROM content_submissions s WHERE s.id = $1", submission_id)
     model = _to_model(row, None)
-    if row["status"] == "COMPLETED" and media:
-        model.is_current = media_freshness.is_current(media, {"checked_at": row["created_at"]})
+    if row["status"] == "COMPLETED":
+        model.is_current = await reuse_freshness.is_current(row)
     return await _with_comparison(await _with_feedback(model, viewer))
 
 

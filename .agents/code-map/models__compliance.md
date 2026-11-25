@@ -94,9 +94,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `PerformanceSummary` (class) L92
 - `PerformanceReport` (class) L106
 
-## models/compliance/post_approval_model.py (17 lines) - The suggestion window following the first approval of a post.
+## models/compliance/post_approval_model.py (18 lines) - The suggestion window following the first approval of a post.
 - `PostApprovalSuggestionFields` (class) L8
-- `PublishingAccess` (class) L13
+- `PublishingAccess` (class) L14
 
 ## models/compliance/post_text_review_model.py (37 lines) - Reviewers' attributed edits to a text-only post.
 - `PostTextSave` (class) L9
@@ -203,7 +203,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `SuggesterActivity` (class) L218 - One thing the suggesting reviewer did: a comment, or a saved suggestion.
 - `SuggesterDashboard` (class) L228
 
-## models/compliance/sentiment_model.py (326 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
+## models/compliance/sentiment_model.py (327 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - `Tone` (class) L19
 - `BrandAlignment` (class) L26
 - `AudienceInterpretation` (class) L31
@@ -231,9 +231,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `SentimentComparison` (class) L234 - How an analysis differs from the one before it (an earlier version, or an earlier run of this draft).
 - `ContextUse` (class) L250 - A Messaging Context entry and what the analysis did with it, for the transparency table.
 - `SentimentAnalysis` (class) L264
-- `FeedbackSummaryRow` (class) L296 - How reviewers rated one kind of finding: mostly "not an issue" means that kind is mostly noise.
-- `EvalCaseIn` (class) L305 - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
-- `EvalCase` (class) L313
+- `FeedbackSummaryRow` (class) L297 - How reviewers rated one kind of finding: mostly "not an issue" means that kind is mostly noise.
+- `EvalCaseIn` (class) L306 - Save an analysed submission as a test case, with the verdict a reviewer agrees is right.
+- `EvalCase` (class) L314
 
 ## models/compliance/source_link_model.py (56 lines) - Models for submission source links and quick AI link checks.
 - `SourceLinksMixin` (class) L14

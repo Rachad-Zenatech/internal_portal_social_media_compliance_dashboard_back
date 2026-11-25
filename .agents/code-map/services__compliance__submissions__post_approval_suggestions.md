@@ -4,13 +4,13 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/post_approval_suggestions.py (105 lines) - Allow suggestions until the deadline without changing the first approval.
+## services/compliance/submissions/post_approval_suggestions.py (129 lines) - Allow suggestions until the deadline without changing the first approval.
 - `utc` (def) L9
 - `access` (def) L13
 - `approvals` (def) L23
 - `enrich` (def) L38
-- `require_manager` (def) L53
-- `require_comment` (def) L58
-- `publishing_access` (def) L70
-- `publishing_for_viewer` (def) L81
-- `approval_timing` (def) L93
+- `require_manager` (def) L63
+- `require_comment` (def) L68
+- `publishing_access` (def) L94
+- `publishing_for_viewer` (def) L105
+- `approval_timing` (def) L117

@@ -27,6 +27,23 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `verify_rds` (def) L113
 - `main` (def) L124
 
+## scripts/review_handoff_eval.py (216 lines) - Offline deadline checks plus isolated PostgreSQL handoff/concurrency regressions.
+- `request` (def) L57
+- `DeadlineTests` (class) L62
+    - `test_exact_deadline_and_missing_deadline` (def) L63
+    - `test_changes_deadline_cannot_precede_creator_handoff` (def) L69
+- `DatabaseTests` (class) L81
+    - `asyncSetUp` (def) L82
+    - `event` (def) L98
+    - `post` (def) L102
+    - `save` (def) L111
+    - `expire` (def) L124
+    - `test_all_three_outcomes_stay_held_then_release_once` (def) L127
+    - `test_concurrent_reviewers_cannot_replace_the_first_decision` (def) L154
+    - `test_failed_handoff_rolls_back_and_can_retry` (def) L163
+    - `test_only_comments_remain_and_they_close_at_the_deadline` (def) L181
+    - `test_past_deadlines_keep_immediate_handoff_behavior` (def) L203
+
 ## scripts/scrape_x_links.py (123 lines) - Is what an item links to about the topic it was collected for? Every outside link of a collected item (see scrape_x_media.source_links) i...
 - `_entry` (def) L40
 - `_ask_ai` (def) L44 - Gemini's call on a link the keywords couldn't settle, or None when no model could answer.
@@ -126,6 +143,19 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_matches` (def) L108 - A reviewer's phrase and a finding are about the same thing when one's wording contains the other's.
 - `run_saved_case` (def) L114
 - `main` (def) L136
+
+## scripts/submission_freshness_eval.py (109 lines) - Regressions for SUB-1219's schedule-only invalidation and cached sentiment reuse.
+- `RevisionTests` (class) L25
+    - `test_sub1219_publish_date_change_is_not_a_content_revision` (def) L26
+    - `test_reviewer_and_approval_date_changes_preserve_results` (def) L31
+    - `test_real_analysis_input_changes_still_invalidate_results` (def) L35
+    - `test_equal_json_and_identifier_values_are_not_edits` (def) L40
+- `ReuseTests` (class) L47
+    - `asyncSetUp` (def) L48
+    - `analysis` (def) L77
+    - `test_cached_recheck_stays_current_without_another_model_run` (def) L80
+    - `test_later_real_content_edit_invalidates_reused_result` (def) L93
+    - `test_edit_during_input_validation_cannot_validate_old_results` (def) L98
 
 ## scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
 - `QuotaExhausted` (class) L40 - Gemini's embedding quota stayed exhausted: the run can't continue, and that says nothing about the behaviour.

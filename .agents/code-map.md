@@ -18,7 +18,7 @@ to find the right file.
 | .agents/code-map/models__shared.md | 3 | 2 KB |
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |
 | .agents/code-map/postgresql_db__schemas.md | 28 | 7 KB |
-| .agents/code-map/scripts.md | 11 | 9 KB |
+| .agents/code-map/scripts.md | 13 | 11 KB |
 | .agents/code-map/services__ai__core.md | 15 | 11 KB |
 | .agents/code-map/services__ai__observability.md | 7 | 5 KB |
 | .agents/code-map/services__compliance__analytics__conversation_evidence.md | 1 | 3 KB |
@@ -141,7 +141,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__visual_review_prompt.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_video_frames.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__media.md | 22 | 16 KB |
-| .agents/code-map/services__compliance__sentiment.md | 12 | 8 KB |
+| .agents/code-map/services__compliance__sentiment.md | 13 | 8 KB |
 | .agents/code-map/services__compliance__submissions__analysis_progress_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__approval_path_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__caption_review_service.md | 1 | 1 KB |
@@ -168,6 +168,8 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions__review_approval_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_comment_writes.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_deadline_service.md | 1 | 2 KB |
+| .agents/code-map/services__compliance__submissions__review_handoff.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__review_handoff_release.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_hierarchy_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__review_memory_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__submissions__revision_steps.md | 1 | 1 KB |
@@ -175,9 +177,10 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions__source_trust_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__submission_check_material.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__submission_check_runner.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__submission_content_revision.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__submission_fields.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__submission_list_query.md | 1 | 1 KB |
-| .agents/code-map/services__compliance__submissions__submission_service.md | 1 | 10 KB |
+| .agents/code-map/services__compliance__submissions__submission_service.md | 1 | 9 KB |
 | .agents/code-map/services__compliance__submissions__submission_snapshot.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__submission_source_state.md | 1 | 1 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |

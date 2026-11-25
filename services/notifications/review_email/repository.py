@@ -63,7 +63,8 @@ SELECT 'outcome:submission:' || e.id AS event_key, s.created_by AS user_id, s.ti
 FROM content_submission_events e JOIN content_submissions s ON s.id = e.submission_id
 CROSS JOIN review_email_state state
 WHERE e.created_at >= state.activated_at AND s.deleted_at IS NULL
-  AND e.event_type IN ('REVIEW_DECISION', 'APPROVAL_REOPENED', 'SCRIPT_APPROVED', 'SCRIPT_EDITED', 'SCRIPT_CHANGES_REQUESTED')
+  AND e.event_type IN ('REVIEW_DECISION', 'REVIEW_HANDOFF_RELEASED', 'APPROVAL_REOPENED', 'SCRIPT_APPROVED', 'SCRIPT_EDITED', 'SCRIPT_CHANGES_REQUESTED')
+  AND (e.event_type <> 'REVIEW_DECISION' OR COALESCE(e.data->>'handoff_pending', 'false') <> 'true')
   AND e.actor_user_id IS DISTINCT FROM s.created_by
   AND NOT EXISTS (SELECT 1 FROM review_email_outbox o WHERE o.dedupe_key = 'outcome:submission:' || e.id)
 UNION ALL

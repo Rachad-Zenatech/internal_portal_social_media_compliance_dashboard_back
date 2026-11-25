@@ -67,7 +67,10 @@ from services.compliance.submissions.submission_snapshot import build_snapshot
 from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
 from services.compliance.submissions import creator_dismissal_service, flag_review_service
-from services.compliance.submissions import post_approval_suggestions, review_comment_writes
+from services.compliance.submissions import post_approval_suggestions, review_comment_writes, review_handoff
+from services.compliance.submissions.submission_content_revision import (
+    content_changed, same_value as _same_value, NON_CONTENT_FIELDS as _NOT_CONTENT_FIELDS,
+)
 from services.shared.storage.s3_storage_service import ensure_local_file, s3_enabled, s3_key_for, upload_file_to_s3
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
@@ -117,35 +120,6 @@ MAIN_EXT_BY_TYPE = {
 }
 # Types whose main asset is required to submit; posts and articles can be text-only. An ad needs its creative.
 MAIN_FILE_REQUIRED = {"VIDEO", "IMAGE", "CAROUSEL", "AD"}
-# Saved fields that don't change what the compliance check, sentiment analysis or public mood read.
-_NOT_CONTENT_FIELDS = {"approval_needed_by", "reviewer_ids", "reviewer_route"}
-
-
-def _same_value(new: Any, old: Any) -> bool:
-    """Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts)."""
-    if isinstance(new, list) and isinstance(old, list):
-        return [str(x) for x in new] == [str(x) for x in old]
-    if isinstance(old, datetime) and isinstance(new, str):
-        try:
-            parsed = datetime.fromisoformat(new.replace("Z", "+00:00"))
-        except ValueError:
-            return False
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=old.tzinfo)
-        return parsed == old
-    if isinstance(new, UUID) or isinstance(old, UUID):
-        return str(new) == str(old)
-    if isinstance(new, dict):
-        return new == (_json(old) or {})
-    return new == old
-
-
-def content_changed(row: Dict[str, Any], fields: Dict[str, Any]) -> bool:
-    """Whether saving these fields changes anything the checks read. A save that only repeats what is already there
-    (every save from the editor sends the whole form) leaves the checks up to date."""
-    return any(c not in _NOT_CONTENT_FIELDS and not _same_value(v, row.get(c)) for c, v in fields.items())
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -2074,13 +2048,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     """A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
     back to the creator with what to change."""
     row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
-    if not await _can_review(user_id):
-        raise HTTPException(status_code=403, detail="Only reviewers can approve content or request changes")
-    if row["status"] != "IN_REVIEW":
-        raise HTTPException(status_code=409, detail="Only content that's in review can be approved or sent back")
-    is_super = await _is_super_admin(user_id)
-    if row["created_by"] == user_id and not is_super:
-        raise HTTPException(status_code=403, detail="You can't review your own content; another reviewer needs to")
+    is_super = await review_handoff.require_reviewer(row, user_id)
     approval_score: Optional[int] = None
     if req.decision == "APPROVE":
         row, approval_score = await review_approval_service.require_approval(row, user_id, is_super)
@@ -2125,6 +2093,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                        else await decision_status(conn, row))
             if current != "IN_REVIEW":
                 raise HTTPException(status_code=409, detail="Someone else just decided on this; refresh to see it")
+            await review_handoff.require_undecided(conn, row)
             await conn.execute(
                 """
                 UPDATE content_review_jobs
@@ -2135,51 +2104,19 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                 submission_id, version, new_status, req.decision, notes, user_id,
                 json.dumps(manual_checks) if manual_checks is not None else None,
             )
-            revision_due = (
-                review_deadline_service.revision_due(publish_at, req.revision_days, req.revision_due_at)
-                if new_status == "CHANGES_REQUESTED" else None
-            )
-            await conn.execute(
-                """
-                UPDATE content_submissions
-                SET status = $2::varchar, publish_at = $3,
-                    publish_after_changes = CASE WHEN $2::varchar = 'CHANGES_REQUESTED' THEN $6 ELSE false END,
-                    updated_at = NOW(), updated_by = $4,
-                    due_at = $5, due_kind = CASE WHEN $5::timestamptz IS NULL THEN NULL ELSE 'REVISION' END,
-                    due_reminded_at = NULL, due_overdue_notified_at = NULL
-                WHERE id = $1
-                """,
-                submission_id, new_status, publish_at, user_id, revision_due,
-                bool(req.publish_after_changes) if req.decision == "REQUEST_CHANGES" else False,
-            )
-            await _add_event(conn, submission_id, "REVIEW_DECISION", f"Version {version}: {label}", user_id,
-                             {"decision": req.decision, "notes": notes, "version": version,
-                              "revision_days": req.revision_days,
-                              "revision_due": revision_due.isoformat() if revision_due else None,
-                              "publish_at": publish_at.isoformat() if publish_at else None,
-                              "publish_now": req.publish_now, "publish_after_changes": req.publish_after_changes, "manual_checks": manual_checks,
-                              "approval_score": approval_score})
+            revision_due, held = await review_handoff.save_outcome(conn, row, req, user_id, new_status, publish_at)
+            await review_handoff.record_outcome(conn, row, req, user_id, notes, publish_at, revision_due,
+                                                label, approval_score, manual_checks, held)
 
     await log_audit_event("content_submission", str(submission_id), f"REVIEW_{req.decision}", user_id,
                           {"reference_code": row["reference_code"], "version": version, "notes": notes,
                            "publish_at": publish_at.isoformat() if publish_at else None,
                            "manual_checks": manual_checks, "approval_score": approval_score})
 
-    reviewer = await fetch_one("SELECT full_name FROM users WHERE id = $1", user_id)
-    who = reviewer["full_name"] if reviewer else "A reviewer"
-    if req.decision == "REQUEST_CHANGES":
-        title = f"{row['reference_code']} needs changes"
-        message = (f"{who} asked for changes to \"{row['title']}\"." + (f" \"{notes}\"" if notes else " See the comments.")
-                   + f" Please resubmit by {review_deadline_service._when(revision_due)}.")
-        link = f"/submissions/{submission_id}"
-    else:
-        title = f"{row['reference_code']} was approved"
-        message = f"{who} approved \"{row['title']}\". {label}."
-        link = "/content-calendar"
-    if row["created_by"] != user_id:
-        await _notify([row["created_by"]], title, message, link, submission_id)
+    await review_handoff.notify_now(row, user_id, req, notes, revision_due, label, held)
     # The decision becomes precedent for analysing similar content.
-    review_memory_service.remember_soon(submission_id, version)
+    if not held:
+        review_memory_service.remember_soon(submission_id, version)
     return await get_submission(submission_id, user_id)
 
 
