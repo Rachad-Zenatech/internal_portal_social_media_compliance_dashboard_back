@@ -61,7 +61,8 @@ from services.compliance.submissions import approval_path_service, source_link_s
 from services.notifications.submission_notifications import notify_submission as _notify
 from services.compliance.submissions import delegation_service
 from services.compliance.submissions.review_hierarchy_service import (
-    is_dev_admin as _is_dev_admin, manager_access_sql, reviewer_sees as _reviewer_sees, sent_to as _sent_to,
+    has_admin_access as _has_admin_access, is_dev_admin as _is_dev_admin, manager_access_sql,
+    reviewer_sees as _reviewer_sees, sent_to as _sent_to,
 )
 from services.compliance.submissions.submission_snapshot import build_snapshot
 from services.compliance.submissions import duplicate_service
@@ -232,11 +233,7 @@ async def _cached_user_fact(user_id: UUID, name: str, load):
 
 
 async def _is_super_admin(user_id: UUID) -> bool:
-    async def load() -> bool:
-        row = await fetch_one("SELECT is_super_admin FROM users WHERE id = $1", user_id)
-        return bool(row and row["is_super_admin"])
-
-    return await _cached_user_fact(user_id, "super_admin", load)
+    return await _cached_user_fact(user_id, "super_admin", lambda: _has_admin_access(user_id))
 
 
 async def _can_manage_team_content(user_id: UUID) -> bool:
