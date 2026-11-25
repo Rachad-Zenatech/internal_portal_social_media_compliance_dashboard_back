@@ -69,6 +69,14 @@ async def require_comment(row, user_id, conn=None):
     from services.compliance.submissions import submission_service as subs
     from services.compliance.submissions import review_handoff
 
+    if row["status"] == "CHANGES_REQUESTED" and row["created_by"] != user_id:
+        owners = await review_handoff.decisions([row], conn, statuses=("CHANGES_REQUESTED",))
+        owner = owners.get(row["id"])
+        if owner and owner["decided_by"] == user_id:
+            return
+        if review_handoff.deadline(row) and not review_handoff.should_hold(row):
+            raise HTTPException(403, "The suggestion window is closed. The post is now with its creator.")
+
     if row["status"] == "IN_REVIEW" and row["created_by"] != user_id and await review_handoff.is_pending(row, conn):
         if not review_handoff.should_hold(row) or not await subs._can_suggest(user_id):
             raise HTTPException(403, "The suggestion deadline has passed. Wait for the creator handoff.")

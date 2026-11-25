@@ -15,8 +15,8 @@ def should_hold(row, now=None):
     return bool(until and (now or datetime.now(timezone.utc)) < until)
 
 
-async def decisions(rows, conn=None):
-    ids = [row["id"] for row in rows if row["status"] == "IN_REVIEW"]
+async def decisions(rows, conn=None, statuses=("IN_REVIEW",)):
+    ids = [row["id"] for row in rows if row["status"] in statuses]
     if not ids:
         return {}
     read = conn.fetch if conn else fetch_all
