@@ -2144,13 +2144,8 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                 json.dumps(manual_checks) if manual_checks is not None else None,
             )
             revision_due, held = await review_handoff.save_outcome(conn, row, req, user_id, new_status, publish_at)
-            await _add_event(conn, submission_id, "REVIEW_DECISION", f"Version {version}: {label}", user_id,
-                             {"decision": req.decision, "notes": notes, "version": version,
-                              "revision_days": req.revision_days,
-                              "revision_due": revision_due.isoformat() if revision_due else None,
-                              "publish_at": publish_at.isoformat() if publish_at else None,
-                              "publish_now": req.publish_now, "publish_after_changes": req.publish_after_changes, "manual_checks": manual_checks,
-                              "approval_score": approval_score})
+            await review_handoff.record_outcome(conn, row, req, user_id, notes, publish_at, revision_due,
+                                                label, approval_score, manual_checks, held)
 
     await log_audit_event("content_submission", str(submission_id), f"REVIEW_{req.decision}", user_id,
                           {"reference_code": row["reference_code"], "version": version, "notes": notes,

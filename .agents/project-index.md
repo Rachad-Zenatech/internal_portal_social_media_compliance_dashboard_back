@@ -267,9 +267,9 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/request_coalescer.py (50 lines) - Short-lived request sharing for expensive submission-list reads.
 - services/compliance/submissions/review_approval_service.py (77 lines) - Approval gates for a submitted post: saved checks, findings and final approvers.
 - services/compliance/submissions/review_comment_writes.py (18 lines) - Serialize comments with approval so stale tabs cannot write after the deadline.
-- services/compliance/submissions/review_deadline_service.py (237 lines) - Review and revision deadlines.
-- services/compliance/submissions/review_handoff.py (80 lines) - Save a review outcome now; hand the post to its creator after suggestions close.
-- services/compliance/submissions/review_handoff_release.py (70 lines) - Restart-safe, atomic delivery of decided posts once their suggestion deadline passes.
+- services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
+- services/compliance/submissions/review_handoff.py (90 lines) - Save a review outcome now; hand the post to its creator after suggestions close.
+- services/compliance/submissions/review_handoff_release.py (84 lines) - Restart-safe, atomic delivery of decided posts once their suggestion deadline passes.
 - services/compliance/submissions/review_hierarchy_service.py (40 lines) - Review access inherited by Content Managers through the saved role hierarchy.
 - services/compliance/submissions/review_memory_service.py (233 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.
@@ -279,7 +279,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/submission_check_runner.py (67 lines) - Run and snapshot the complete post check without changing its scoring policy.
 - services/compliance/submissions/submission_fields.py (67 lines) - Field shaping for submission summaries and draft type changes.
 - services/compliance/submissions/submission_list_query.py (94 lines) - SQL for the submission list, including previews and analysis status.
-- services/compliance/submissions/submission_service.py (2668 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2663 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/compliance/submissions/submission_source_state.py (23 lines) - Track the saved source-link inputs of a compliance run, including legacy checks.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
@@ -297,7 +297,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/notifications/review_email/outbox.py (92 lines) - Atomic deduplication, leases and retriable delivery without blocking review workflows.
 - services/notifications/review_email/policy.py (108 lines) - Select actionable work, respecting assignments, check-ins and the team's calendar.
 - services/notifications/review_email/preferences.py (22 lines) - A person's detected email time zone, independent of Graph-managed user fields.
-- services/notifications/review_email/repository.py (91 lines) - Batch reads of current work and committed review decisions; no emails are sent here.
+- services/notifications/review_email/repository.py (92 lines) - Batch reads of current work and committed review decisions; no emails are sent here.
 - services/notifications/review_email/scheduler.py (95 lines) - One 9 a.m.
 - services/notifications/review_email/templates.py (60 lines) - Short, accessible workflow emails using the admin dashboard's branded SendGrid shell.
 - services/notifications/submission_notifications.py (25 lines) - In-app notifications for submission review workflows, shared by posts and scripts.
@@ -315,7 +315,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/core/browser_stealth.py (40 lines) - Playwright stealth: hides the usual headless-browser giveaways (navigator.webdriver, missing plugins, the "HeadlessChrome" user agent, .....
 - services/shared/core/cache_service.py (221 lines) - cache service (shared core)
 - services/shared/core/integration_status_service.py (33 lines) - Small cached health snapshot used by the integrations status widget.
-- services/shared/core/lifecycle_background_service.py (61 lines) - Background work registered during the API application's lifespan.
+- services/shared/core/lifecycle_background_service.py (63 lines) - Background work registered during the API application's lifespan.
 - services/shared/core/logging_service.py (124 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
 - services/shared/core/production_url_policy.py (29 lines) - Validation for browser-facing URLs supplied by deployment configuration.
 - services/shared/core/startup_service.py (72 lines) - Server startup helpers for schema updates and tracked background tasks.

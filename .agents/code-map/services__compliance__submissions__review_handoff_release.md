@@ -4,6 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/review_handoff_release.py (70 lines) - Restart-safe, atomic delivery of decided posts once their suggestion deadline passes.
-- `release_one` (def) L11
-- `release_due` (def) L38
+## services/compliance/submissions/review_handoff_release.py (84 lines) - Restart-safe, atomic delivery of decided posts once their suggestion deadline passes.
+- `release_one` (def) L12
+- `release_due` (def) L40
+- `handoff_loop` (def) L74 - Release due decisions promptly and recover them after a server restart.

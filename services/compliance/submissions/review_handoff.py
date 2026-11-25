@@ -77,3 +77,13 @@ async def notify_now(row, user_id, request, notes, revision_due, label, held):
     else:
         title, message, link = f"{row['reference_code']} was approved", f"{who} approved \"{row['title']}\". {label}.", "/content-calendar"
     await subs._notify([row["created_by"]], title, message, link, row["id"])
+
+
+async def record_outcome(conn, row, request, user_id, notes, publish_at, revision_due, label, score, manual_checks, held):
+    from services.compliance.submissions import submission_service as subs
+    await subs._add_event(conn, row["id"], "REVIEW_DECISION", f"Version {row['current_version']}: {label}", user_id, {
+        "decision": request.decision, "notes": notes, "version": row["current_version"], "handoff_pending": held,
+        "revision_days": request.revision_days, "revision_due": revision_due.isoformat() if revision_due else None,
+        "publish_at": publish_at.isoformat() if publish_at else None, "publish_now": request.publish_now,
+        "publish_after_changes": request.publish_after_changes, "manual_checks": manual_checks, "approval_score": score,
+    })

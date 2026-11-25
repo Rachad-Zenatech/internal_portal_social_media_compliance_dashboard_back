@@ -32,10 +32,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## services/notifications/review_email/preferences.py (22 lines) - A person's detected email time zone, independent of Graph-managed user fields.
 - `save_timezone` (def) L15
 
-## services/notifications/review_email/repository.py (91 lines) - Batch reads of current work and committed review decisions; no emails are sent here.
-- `pending_rows` (def) L81
-- `users` (def) L85
-- `outcomes` (def) L89
+## services/notifications/review_email/repository.py (92 lines) - Batch reads of current work and committed review decisions; no emails are sent here.
+- `pending_rows` (def) L82
+- `users` (def) L86
+- `outcomes` (def) L90
 
 ## services/notifications/review_email/scheduler.py (95 lines) - One 9 a.m.
 - `scheduled_messages` (def) L13

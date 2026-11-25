@@ -1,6 +1,7 @@
 """Restart-safe, atomic delivery of decided posts once their suggestion deadline passes."""
 import json
 import logging
+import asyncio
 from datetime import datetime, timezone
 
 from postgresql_db.database import get_pool
@@ -22,7 +23,8 @@ async def release_one(conn, row, now):
         due_reminded_at = NULL, due_overdue_notified_at = NULL, updated_at = NOW() WHERE id = $1""",
         row["id"], status, due, "REVISION" if due else None)
     await subs._add_event(conn, row["id"], "REVIEW_HANDOFF_RELEASED", "Suggestion deadline reached; sent to the creator",
-                          row["decided_by"], {"version": row["current_version"], "status": status})
+                          row["decided_by"], {**data, "version": row["current_version"], "status": status,
+                                              "decision": row["decision"], "handoff_pending": False})
     if row["created_by"] == row["decided_by"]:
         return None
     title = f"{row['reference_code']} needs changes" if changes else f"{row['reference_code']} was approved"
@@ -67,3 +69,15 @@ async def release_due():
             except Exception:
                 logger.warning("Live review-handoff notice delivery failed", exc_info=True)
     return len(rows)
+
+
+async def handoff_loop():
+    """Release due decisions promptly and recover them after a server restart."""
+    while True:
+        try:
+            await release_due()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Review handoff release failed; retrying")
+        await asyncio.sleep(5)
