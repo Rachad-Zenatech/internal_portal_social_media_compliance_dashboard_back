@@ -200,6 +200,16 @@ async def _find_existing_by_doc_ids(doc_ids: List[str]) -> Dict[str, Dict[str, A
 
 
 async def upsert(docs: List[VectorDoc]) -> Dict[str, int]:
+    """Checkpoint small batches so a quota pause preserves already indexed material."""
+    counts = {"embedded": 0, "unchanged": 0}
+    for start in range(0, len(docs), 20):
+        result = await _upsert_batch(docs[start:start + 20])
+        for name in counts:
+            counts[name] += result[name]
+    return counts
+
+
+async def _upsert_batch(docs: List[VectorDoc]) -> Dict[str, int]:
     """Add or update documents in OpenSearch. Only new or changed text is embedded; scope and meta are refreshed."""
     if not is_enabled() or not docs:
         return {"embedded": 0, "unchanged": 0}
