@@ -193,14 +193,14 @@ async def _vision_source_regions(file_id, data, mime, raw_text):
         "on the right edge of each listed citation. Do not clip the right end of any line, and do not "
         "include unrelated sentences above or below the citation. Set finding to the 0-based index."
     )
-    items = await image_finding_zoom.locate(data, prompt, SCHEMA)
-    if not items:
-        async with image_text_service._semaphore:
-            response = await image_text_service._generate(
-                [types.Part.from_bytes(data=data, mime_type=mime), prompt],
-                feature="IMAGE_FINDING_REGIONS", response_schema=SCHEMA,
-            )
-        items = json.loads(response.text or "{}").get("regions", [])
+    async with image_text_service._semaphore:
+        response = await image_text_service._generate(
+            [types.Part.from_bytes(data=data, mime_type=mime), prompt],
+            feature="IMAGE_FINDING_REGIONS", response_schema=SCHEMA,
+        )
+    items = json.loads(response.text or "{}").get("regions", [])
+    if not isinstance(items, list) or not items:
+        items = await image_finding_zoom.locate(data, prompt, SCHEMA)
     if not isinstance(items, list):
         return []
     out = []
@@ -208,7 +208,7 @@ async def _vision_source_regions(file_id, data, mime, raw_text):
         if not isinstance(item, dict) or not isinstance(item.get("box"), list) or len(item["box"]) != 4:
             continue
         top, left, bottom, right = item["box"]
-        padded = [max(0.0, top - 2.0), max(0.0, left - 4.0), min(1000.0, bottom + 2.0), min(1000.0, right + 10.0)]
+        padded = [max(0.0, top - 2.0), max(0.0, left - 4.0), min(1000.0, bottom + 2.0), min(1000.0, right + 15.0)]
         region = region_from_box(file_id, padded)
         if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in out:
             out.append(region)
