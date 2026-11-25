@@ -174,7 +174,7 @@ def _source_block_boxes(words):
             max(0.0, min(b[0] for b in group) - 2.0),
             max(0.0, min(b[1] for b in group) - 4.0),
             min(1000.0, max(b[2] for b in group) + 2.0),
-            min(1000.0, max(b[3] for b in group) + 6.0),
+            min(1000.0, max(b[3] for b in group) + 48.0),
         ])
         i = j
     return source_boxes
