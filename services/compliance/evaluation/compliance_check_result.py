@@ -116,3 +116,23 @@ def build_response(scope, rules, violations, breaches, unsupported, to_check, si
         ),
         source_checks=source_checks,
     )
+
+
+def recalculate_totals(result: ComplianceCheckResponse) -> ComplianceCheckResponse:
+    """Recompute counts, score, and traffic light after post-check localization clears a finding."""
+    breaches = [v for v in result.violations if v.status == "VIOLATION"]
+    needs_review = sum(1 for v in result.violations if v.status == "NEEDS_REVIEW")
+    needs_evidence = sum(1 for v in result.violations if v.status == "EVIDENCE_REQUIRED")
+    cleared = sum(1 for v in result.violations if v.status == "CLEARED")
+    open_warnings = needs_review + needs_evidence
+    blocked = any(v.traffic_light == "RED" for v in breaches)
+    result.blocked = blocked
+    result.violations_count = len(breaches)
+    result.review_count = needs_review
+    result.evidence_count = needs_evidence
+    result.cleared_count = cleared
+    result.raw_score = max(0, 100 - sum(v.penalty for v in result.violations if v.status != "CLEARED"))
+    result.score = result.raw_score if result.score_cap is None else min(result.raw_score, result.score_cap)
+    result.is_compliant = not result.ai_unavailable and not breaches and not open_warnings
+    result.traffic_light = "RED" if blocked else "YELLOW" if (result.ai_unavailable or breaches or open_warnings) else "GREEN"
+    return result

@@ -235,12 +235,37 @@ def _ocr_regions(file_id, words, terms, start_sec=None, end_sec=None):
     return regions
 
 
-async def locate_image_findings(images, findings):
-    """Locate flagged wording, including warnings that still need evidence, and return detected source regions."""
+def _region_in_sources(region, sources):
+    cx = region.x + region.w / 2
+    cy = region.y + region.h / 2
+    return any(s.file_id == region.file_id and s.x <= cx <= s.x + s.w and s.y <= cy <= s.y + s.h for s in sources)
+
+
+def _clear_source_window_findings(findings, suppressed_ids, non_image_text):
+    """Ignore findings whose only localized occurrence fell inside a printed source window."""
+    non_image_norm = normalized(non_image_text or "")
+    cleared_any = False
+    for finding in findings:
+        if id(finding) not in suppressed_ids or finding.status == "CLEARED" or finding.image_regions:
+            continue
+        in_non_image = bool(non_image_norm) and any(text_spans(t, non_image_norm) for t in highlight_terms(finding))
+        if finding.visual_evidence or not in_non_image:
+            finding.status = "CLEARED"
+            finding.traffic_light = "GREEN"
+            finding.penalty = 0
+            finding.uncounted_penalty = 0
+            finding.image_file_ids[:] = []
+            cleared_any = True
+    return cleared_any
+
+
+async def locate_image_findings(images, findings, non_image_text=""):
+    """Locate flagged wording, ignore findings inside printed source windows, and return detected source regions."""
     from services.compliance.sentiment.engine import _image_bytes
     from services.compliance.media.transcription_service import STORAGE_ROOT
 
     source_regions = []
+    suppressed_ids = set()
     for image in images:
         if image["image_text_status"] != "COMPLETED":
             continue
@@ -271,6 +296,15 @@ async def locate_image_findings(images, findings):
             for region in img_sources:
                 if region not in source_regions:
                     source_regions.append(region)
+            if img_sources:
+                for finding in findings:
+                    kept = []
+                    for r in finding.image_regions:
+                        if r.file_id == image["id"] and _region_in_sources(r, img_sources):
+                            suppressed_ids.add(id(finding))
+                        else:
+                            kept.append(r)
+                    finding.image_regions[:] = kept
             if not candidates:
                 continue
             unmatched = []
@@ -281,6 +315,8 @@ async def locate_image_findings(images, findings):
                         region for region in found_regions if region not in finding.image_regions
                     )
                 else:
+                    if img_sources and any(text_spans(t, text) for t in highlight_terms(finding)):
+                        suppressed_ids.add(id(finding))
                     unmatched.append(finding)
             if not unmatched:
                 continue
@@ -304,12 +340,12 @@ async def locate_image_findings(images, findings):
             if not isinstance(regions, list):
                 logger.warning("Image localization: file=%s model response has no region list", image["id"])
                 continue
-            accepted = _attach_regions(image["id"], text, unmatched, regions)
+            accepted = _attach_regions(image["id"], text, unmatched, regions, img_sources, suppressed_ids)
             missing = {n for n, f in enumerate(unmatched) if not any(r.file_id == image["id"] for r in f.image_regions)}
             if missing:
                 enlarged = await image_finding_zoom.locate(data, prompt, SCHEMA)
                 enlarged = [item for item in enlarged if type(item.get("finding")) is int and item["finding"] in missing]
-                accepted += _attach_regions(image["id"], text, unmatched, enlarged)
+                accepted += _attach_regions(image["id"], text, unmatched, enlarged, img_sources, suppressed_ids)
             logger.info("Image localization: file=%s model_regions=%d accepted_regions=%d",
                         image["id"], len(regions), accepted)
             if not accepted:
@@ -318,10 +354,11 @@ async def locate_image_findings(images, findings):
         except Exception:
             # Localization must never lose a valid check or fabricate a highlight.
             logger.warning("Could not locate compliance findings in image %s", image["id"], exc_info=True)
+    _clear_source_window_findings(findings, suppressed_ids, non_image_text)
     return source_regions
 
 
-def _attach_regions(file_id, text, findings, items):
+def _attach_regions(file_id, text, findings, items, source_regions=(), suppressed=None):
     accepted = 0
     for item in items:
         if not isinstance(item, dict):
@@ -333,6 +370,10 @@ def _attach_regions(file_id, text, findings, items):
         if not overlaps_flagged_text(normalized(item["text"]), text, highlight_terms(finding)):
             continue
         region = region_from_box(file_id, item.get("box"))
+        if region and source_regions and _region_in_sources(region, source_regions):
+            if suppressed is not None:
+                suppressed.add(id(finding))
+            continue
         if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in finding.image_regions:
             finding.image_regions.append(region)
             accepted += 1
