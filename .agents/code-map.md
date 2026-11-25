@@ -66,8 +66,10 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__finding_evidence.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__finding_visibility.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__image_marks.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__newsroom_article_sources.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__newsroom_claim_sources.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__newsroom_facts.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__newsroom_source_selection.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__newsroom_sync_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__policy_watch_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__reference_index_service.md | 1 | 1 KB |
@@ -107,6 +109,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__source_claim_grounding.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_claim_inventory.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_claim_policy.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__source_claim_recall.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_claim_routing.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_claim_support.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_comparison_cache.md | 1 | 1 KB |
