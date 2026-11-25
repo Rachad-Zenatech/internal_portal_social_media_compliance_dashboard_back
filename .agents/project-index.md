@@ -82,7 +82,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/script_submission_documents_eval.py (204 lines) - Shared-document adoption and original-post sync regressions, using isolated mocked services.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
-- server.py (472 lines) - server
+- server.py (474 lines) - server
 - services/ai/core/ai_error_diagnostics.py (39 lines) - Safe, actionable descriptions of AI failures for users and server logs.
 - services/ai/core/ai_types.py (85 lines) - Native AI request/content DTOs replacing google.genai.types for AWS Bedrock.
 - services/ai/core/assistant_chat_service.py (261 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
@@ -93,9 +93,10 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/core/gemini_service.py (204 lines) - gemini service (ai core)
 - services/ai/core/model_router.py (104 lines) - Model routing: picks the cheapest suitable model for easy work, and stronger models when needed.
 - services/ai/core/mood_store.py (121 lines) - The collections public mood learns from, in the same MongoDB database as the vector store.
+- services/ai/core/opensearch_client.py (106 lines) - Async AWS OpenSearch (including OpenSearch Serverless `aoss`) HTTP client with SigV4 signing.
 - services/ai/core/response_errors.py (15 lines) - Safe, structured response failures shared by providers and feature validators.
 - services/ai/core/semantic_cache.py (196 lines) - Semantic cache: reuses an earlier AI answer when a new question means the same thing, so repeated questions don't spend Gemini quota.
-- services/ai/core/vector_store_service.py (379 lines) - Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on (brand voice, company facts, platform n...
+- services/ai/core/vector_store_service.py (418 lines) - Vector store: AWS OpenSearch vector search for reference material the content analysis can draw on (brand voice, company facts, platform ...
 - services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - services/ai/observability/ai_guardrails.py (250 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
 - services/ai/observability/ai_health.py (263 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
@@ -319,11 +320,12 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/storage/s3_storage_service.py (166 lines) - AWS S3 storage helper (ported from administration backend) with local-cache hydration.
 - tools/ai/ai_status_router.py (14 lines) - Whether the AI is working, for the banner shown to every signed-in user.
 - tools/ai/chat_router.py (65 lines) - Streaming AI chat endpoint.
-- tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
+- tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the AWS OpenSearch connection and create the search index (super admins only).
 - tools/compliance/analytics/canva_router.py (51 lines) - Canva account connection and design picker (mock Canva until the Connect API keys are configured).
 - tools/compliance/analytics/listening_router.py (293 lines) - Listening topics: what social listening tracks (Sprout Social or X/Twitter JSON feed), trend discovery, and the team's tuning of how post...
 - tools/compliance/analytics/performance_router.py (45 lines) - Post performance: how published posts are doing (views, likes, comments, shares) and whether the reaction is still positive.
 - tools/compliance/analytics/sentiment_router.py (46 lines) - Sentiment analysis quality tools for reviewers: which kinds of finding are noise, and the test set that prompt and model changes are chec...
+- tools/compliance/ceo_integration_router.py (164 lines) - CEO Dashboard machine-to-machine read endpoints for Social Media Compliance.
 - tools/compliance/submissions/analysis_cancellation_router.py (17 lines) - Manual cancellation of background post analyses.
 - tools/compliance/submissions/approval_path_router.py (43 lines) - Approval paths: who gives final approval for which brand and audience.
 - tools/compliance/submissions/check_stream.py (74 lines) - NDJSON streaming helper for compliance check progress with 15s keepalive.

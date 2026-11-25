@@ -1,26 +1,14 @@
-"""Vector store: MongoDB Atlas vector search for reference material the content analysis can draw on
+"""Vector store: AWS OpenSearch vector search for reference material the content analysis can draw on
 (brand voice, company facts, platform norms, audience profiles and, later, past review decisions).
 
-Uses MONGODB_URI and the shared `zenatech_ai` database. Gemini or Bedrock supplies real embeddings
-in provider/model/dimension-specific fields and indexes, so incompatible vectors cannot be mixed.
-This project keeps its documents in its own collection and never changes other portals' data.
+Uses OPENSEARCH_HOST and OPENSEARCH_INDEX (default `compliance-references`). Gemini or Bedrock supplies real embeddings
+in provider/model/dimension-specific fields, so incompatible vectors cannot be mixed.
 
-Off until MONGODB_URI is set: is_enabled() is False, search() returns nothing and writes are skipped, so nothing
+Off until OPENSEARCH_HOST is set: is_enabled() is False, search() returns nothing and writes are skipped, so nothing
 that uses it can fail because the vector store isn't configured.
-
-Document shape (one per piece of reference material):
-    _id         "<kind>:<source id>", e.g. "BRAND_VOICE:3f2c..."
-    kind        BRAND_VOICE | FACT | PLATFORM_NORM | AUDIENCE_PROFILE | REVIEW_DECISION ...
-    title, text the passage itself (text is what gets embedded)
-    brands, audiences, platforms   scope; ["*"] means every value, so filters can match "this brand or all brands"
-    meta        anything else the caller needs back with a match (e.g. a review's decision and notes); kept up to
-                date on every upsert, even when the text (and so the embedding) is unchanged
-    content_hash  skips re-embedding text that hasn't changed
-    embedding   legacy Gemini vector; Bedrock vectors have a versioned embedding_<identity> field
 """
 
 import asyncio
-import copy
 import hashlib
 import logging
 import os
@@ -30,6 +18,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
 
+from services.ai.core import opensearch_client as os_client
 from services.ai.observability.ai_observability import span
 
 logger = logging.getLogger(__name__)
@@ -39,6 +28,7 @@ EMBED_BATCH = 100  # texts per embedding request
 FILTER_PATHS = ["kind", "brands", "audiences", "platforms"]
 # Kinds that the assistant never quotes, so changing them doesn't drop its cached answers.
 NOT_REFERENCE_KINDS = {"REVIEW_DECISION", "X_CONVERSATION"}
+_index_ready: Optional[str] = None
 
 
 def _setting(name: str, default: str) -> str:
@@ -54,7 +44,7 @@ def collection_name() -> str:
 
 
 def index_name() -> str:
-    return os.getenv("VECTOR_INDEX_OVERRIDE", "").strip() or _setting("VECTOR_INDEX_NAME", "vector_index") + "_" + _embedding_path()
+    return os_client.opensearch_index()
 
 
 def embedding_model() -> str:
@@ -63,6 +53,10 @@ def embedding_model() -> str:
 
 
 def is_enabled() -> bool:
+    return os_client.is_opensearch_enabled()
+
+
+def mongo_enabled() -> bool:
     return bool(os.getenv("MONGODB_URI", "").strip())
 
 
@@ -70,12 +64,12 @@ _client = None
 
 
 def named_collection(name: str):
-    """Another collection in the same database, over the same connection, or None when MONGODB_URI isn't set."""
+    """Another collection in the MongoDB database, over the same connection, or None when MONGODB_URI isn't set."""
     global _client
-    if not is_enabled():
+    if not mongo_enabled():
         return None
     if _client is None:
-        import motor.motor_asyncio  # imported lazily: only needed once the vector store is configured
+        import motor.motor_asyncio  # imported lazily: only needed once MongoDB collections are configured
 
         kwargs = {"serverSelectionTimeoutMS": 5000}
         try:
@@ -85,11 +79,6 @@ def named_collection(name: str):
             pass
         _client = motor.motor_asyncio.AsyncIOMotorClient(os.environ["MONGODB_URI"], **kwargs)
     return _client.get_database(database_name()).get_collection(name)
-
-
-def _collection():
-    """The project's collection, or None when MONGODB_URI isn't set."""
-    return named_collection(collection_name())
 
 
 def _embedding_path():
@@ -189,71 +178,101 @@ class VectorDoc:
         return f"{self.kind}:{self.source_id}"
 
 
+async def _find_existing_by_doc_ids(doc_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+    if not doc_ids:
+        return {}
+    resp = await os_client.request_json(
+        "POST",
+        f"/{index_name()}/_search",
+        json_body={
+            "size": min(max(len(doc_ids), 1), 10000),
+            "_source": ["doc_id", "content_hash"],
+            "query": {"terms": {"doc_id": doc_ids}},
+        },
+    )
+    out: Dict[str, Dict[str, Any]] = {}
+    for hit in resp.get("hits", {}).get("hits", []):
+        src = hit.get("_source") or {}
+        did = src.get("doc_id")
+        if did:
+            out[did] = {"_id": hit["_id"], "content_hash": src.get("content_hash")}
+    return out
+
+
 async def upsert(docs: List[VectorDoc]) -> Dict[str, int]:
-    """Checkpoint small batches so a free-tier quota pause preserves already indexed material."""
-    counts = {"embedded": 0, "unchanged": 0}
-    for start in range(0, len(docs), 20):
-        result = await _upsert_batch(docs[start:start + 20])
-        for name in counts:
-            counts[name] += result[name]
-    return counts
-
-
-async def _upsert_batch(docs: List[VectorDoc]) -> Dict[str, int]:
-    """Add or update documents. Only new or changed text is embedded; scope and meta are refreshed on every
-    document either way; everything is written in one bulk call."""
-    collection = _collection()
-    if collection is None or not docs:
+    """Add or update documents in OpenSearch. Only new or changed text is embedded; scope and meta are refreshed."""
+    if not is_enabled() or not docs:
         return {"embedded": 0, "unchanged": 0}
-    from pymongo import UpdateOne
-
+    await ensure_index()
+    idx = index_name()
     hashes = {d.doc_id: _hash(d.text, d.title) for d in docs}
-    existing = {
-        row["_id"]: row.get("content_hash")
-        async for row in collection.find({"_id": {"$in": list(hashes)}}, {"content_hash": 1})
-    }
-    changed = [d for d in docs if existing.get(d.doc_id) != hashes[d.doc_id]]
+    existing = await _find_existing_by_doc_ids(list(hashes))
+    changed = [d for d in docs if existing.get(d.doc_id, {}).get("content_hash") != hashes[d.doc_id]]
     vectors = dict(zip(
         (d.doc_id for d in changed),
         await embed([f"{d.title}\n{d.text}".strip() for d in changed], background=True) if changed else [],
     ))
-    now = datetime.now(timezone.utc)
-    ops = []
+    now = datetime.now(timezone.utc).isoformat()
+    ops: List[Dict[str, Any]] = []
     for d in docs:
         fields: Dict[str, Any] = {
-            "kind": d.kind, "source_id": d.source_id, "title": d.title, "text": d.text,
+            "doc_id": d.doc_id, "kind": d.kind, "source_id": d.source_id, "title": d.title, "text": d.text,
             "brands": _scope(d.brands), "audiences": _scope(d.audiences), "platforms": _scope(d.platforms),
             "meta": d.meta, "updated_at": now,
         }
         if d.doc_id in vectors:
             fields.update(content_hash=hashes[d.doc_id], embedding_model=embedding_model(), **{_embedding_path(): vectors[d.doc_id]})
-        ops.append(UpdateOne({"_id": d.doc_id}, {"$set": fields}, upsert=True))
-    await collection.bulk_write(ops, ordered=False)
+        prior = existing.get(d.doc_id)
+        if prior:
+            ops.append({"update": {"_index": idx, "_id": prior["_id"]}})
+            ops.append({"doc": fields})
+        else:
+            ops.append({"index": {"_index": idx}})
+            ops.append(fields)
+    await os_client.bulk(ops)
     if any(d.kind not in NOT_REFERENCE_KINDS for d in changed):
         await _reference_changed()
     return {"embedded": len(changed), "unchanged": len(docs) - len(changed)}
 
 
 async def delete(doc_ids: List[str]) -> int:
-    collection = _collection()
-    if collection is None or not doc_ids:
+    if not is_enabled() or not doc_ids:
         return 0
-    res = await collection.delete_many({"_id": {"$in": doc_ids}})
-    if res.deleted_count and any(i.split(":", 1)[0] not in NOT_REFERENCE_KINDS for i in doc_ids):
+    existing = await _find_existing_by_doc_ids(doc_ids)
+    if not existing:
+        return 0
+    idx = index_name()
+    ops = [{"delete": {"_index": idx, "_id": row["_id"]}} for row in existing.values()]
+    await os_client.bulk(ops)
+    if any(i.split(":", 1)[0] not in NOT_REFERENCE_KINDS for i in existing):
         await _reference_changed()
-    return res.deleted_count
+    return len(existing)
 
 
 async def delete_kind_except(kind: str, keep_doc_ids: List[str]) -> int:
-    """Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source
-    exactly (leftovers from an older format or from removed items would otherwise take retrieval slots)."""
-    collection = _collection()
-    if collection is None:
+    """Remove every document of this kind that isn't in keep_doc_ids, so the index for a kind mirrors its source."""
+    if not is_enabled():
         return 0
-    res = await collection.delete_many({"kind": kind, "_id": {"$nin": keep_doc_ids}})
-    if res.deleted_count and kind not in NOT_REFERENCE_KINDS:
+    head = await os_client.request("HEAD", f"/{index_name()}")
+    if head.status_code == 404:
+        return 0
+    query: Dict[str, Any] = {"bool": {"filter": [{"term": {"kind": kind}}]}}
+    if keep_doc_ids:
+        query["bool"]["must_not"] = [{"terms": {"doc_id": keep_doc_ids}}]
+    resp = await os_client.request_json(
+        "POST",
+        f"/{index_name()}/_search",
+        json_body={"size": 10000, "_source": False, "query": query},
+    )
+    hits = resp.get("hits", {}).get("hits", [])
+    if not hits:
+        return 0
+    idx = index_name()
+    ops = [{"delete": {"_index": idx, "_id": h["_id"]}} for h in hits]
+    await os_client.bulk(ops)
+    if kind not in NOT_REFERENCE_KINDS:
         await _reference_changed()
-    return res.deleted_count
+    return len(hits)
 
 
 async def _reference_changed() -> None:
@@ -278,35 +297,50 @@ async def search(
 ) -> List[Dict[str, Any]]:
     """The passages closest in meaning to the query, limited to those scoped to this brand / audience / platforms
     (or to all of them). Returns [] when the store is off or anything goes wrong, so callers can always go ahead."""
-    collection = _collection()
-    if collection is None or not query.strip():
+    if not is_enabled() or not query.strip():
         return []
     filters: List[Dict[str, Any]] = []
     if kinds:
-        filters.append({"kind": {"$in": kinds}})
+        filters.append({"terms": {"kind": kinds}})
     if brand:
-        filters.append({"brands": {"$in": [*([brand] if isinstance(brand, str) else brand), ALL]}})
+        filters.append({"terms": {"brands": [*([brand] if isinstance(brand, str) else brand), ALL]}})
     if audience:
-        filters.append({"audiences": {"$in": [*([audience] if isinstance(audience, str) else audience), ALL]}})
+        filters.append({"terms": {"audiences": [*([audience] if isinstance(audience, str) else audience), ALL]}})
     if platforms:
-        filters.append({"platforms": {"$in": [*platforms, ALL]}})
+        filters.append({"terms": {"platforms": [*platforms, ALL]}})
     try:
+        await ensure_index()
         async with span("retrieval", "vector_store.search", kinds=kinds, limit=limit, min_score=min_score) as s:
             query_vector = (await asyncio.wait_for(embed([query], task_type="RETRIEVAL_QUERY"),
                            timeout=float(os.getenv("VECTOR_QUERY_EMBED_TIMEOUT_SEC", "5"))))[0]
-            stage: Dict[str, Any] = {
-                "index": index_name(), "path": _embedding_path(), "queryVector": query_vector,
-                "numCandidates": max(50, limit * 10), "limit": limit,
-            }
+            knn_clause: Dict[str, Any] = {"vector": query_vector, "k": limit}
             if filters:
-                stage["filter"] = {"$and": filters} if len(filters) > 1 else filters[0]
-            pipeline = [
-                {"$vectorSearch": stage},
-                {"$project": {"kind": 1, "title": 1, "text": 1, "source_id": 1, "meta": 1, "brands": 1,
-                              "score": {"$meta": "vectorSearchScore"}}},
-            ]
-            rows = await collection.aggregate(pipeline).to_list(length=limit)
-            found = [r for r in rows if r.get("score", 0) >= min_score]
+                knn_clause["filter"] = {"bool": {"filter": filters}}
+            resp = await os_client.request_json(
+                "POST",
+                f"/{index_name()}/_search",
+                json_body={
+                    "size": limit,
+                    "_source": ["doc_id", "kind", "title", "text", "source_id", "meta", "brands"],
+                    "query": {"knn": {_embedding_path(): knn_clause}},
+                },
+            )
+            found: List[Dict[str, Any]] = []
+            for hit in resp.get("hits", {}).get("hits", []):
+                score = float(hit.get("_score") or 0.0)
+                if score < min_score:
+                    continue
+                src = hit.get("_source") or {}
+                found.append({
+                    "_id": src.get("doc_id") or hit["_id"],
+                    "kind": src.get("kind"),
+                    "title": src.get("title"),
+                    "text": src.get("text"),
+                    "source_id": src.get("source_id"),
+                    "meta": src.get("meta") or {},
+                    "brands": src.get("brands") or [],
+                    "score": score,
+                })
             s.attributes.update(results=len(found), top_score=round(found[0]["score"], 4) if found else None)
             return found
     except EmbeddingQuotaExhausted as e:
@@ -318,61 +352,66 @@ async def search(
 
 
 async def ensure_index() -> Dict[str, Any]:
-    """Create the Atlas vector search index on the collection if it doesn't exist. The vector size is taken from
-    the embedding model itself, so it always matches what upsert() stores."""
-    collection = _collection()
-    if collection is None:
-        return {"created": False, "reason": "MONGODB_URI isn't set"}
-    existing = [ix async for ix in collection.list_search_indexes(index_name())]
+    """Create the OpenSearch k-NN index if it doesn't exist. Dimensions match the configured embedding model."""
+    global _index_ready
+    if not is_enabled():
+        return {"created": False, "reason": "OPENSEARCH_HOST isn't set"}
+    idx = index_name()
+    if _index_ready == idx:
+        return {"created": False, "reason": "already exists", "status": "READY"}
+    head = await os_client.request("HEAD", f"/{idx}")
+    if head.status_code == 200:
+        _index_ready = idx
+        return {"created": False, "reason": "already exists", "status": "READY"}
     from services.ai.core.embedding_service import dimensions as configured_dimensions
-    dimensions = configured_dimensions()
-    if existing:
-        definition = copy.deepcopy(existing[0].get("latestDefinition") or {})
-        fields = definition.get("fields")
-        if not isinstance(fields, list):
-            raise ValueError("Existing vector index has no readable field definition; leaving it unchanged")
-        current = next((field for field in fields if field.get("path") == _embedding_path()), None)
-        if current is not None and current.get("numDimensions") != dimensions:
-            raise ValueError("Existing vector field has incompatible dimensions; leaving the index unchanged")
-        missing_filters = [path for path in FILTER_PATHS if not any(f.get("path") == path and f.get("type") == "filter" for f in fields)]
-        if current is None or missing_filters:
-            if current is None:
-                fields.append({"type": "vector", "path": _embedding_path(), "numDimensions": dimensions, "similarity": "cosine"})
-            fields.extend({"type": "filter", "path": path} for path in missing_filters)
-            await collection.update_search_index(index_name(), definition)
-            return {"created": False, "updated": True, "dimensions": dimensions}
-        return {"created": False, "reason": "already exists", "status": existing[0].get("status")}
-    from pymongo.operations import SearchIndexModel
-
-    definition = {
-        "fields": [
-            {"type": "vector", "path": _embedding_path(), "numDimensions": dimensions, "similarity": "cosine"},
-            *({"type": "filter", "path": p} for p in FILTER_PATHS),
-        ]
+    dims = configured_dimensions()
+    body = {
+        "settings": {"index": {"knn": True}},
+        "mappings": {
+            "properties": {
+                "doc_id": {"type": "keyword"},
+                "kind": {"type": "keyword"},
+                "source_id": {"type": "keyword"},
+                "title": {"type": "text"},
+                "text": {"type": "text"},
+                "brands": {"type": "keyword"},
+                "audiences": {"type": "keyword"},
+                "platforms": {"type": "keyword"},
+                "content_hash": {"type": "keyword"},
+                "embedding_model": {"type": "keyword"},
+                "updated_at": {"type": "date"},
+                "meta": {"type": "object", "enabled": False},
+                _embedding_path(): {
+                    "type": "knn_vector",
+                    "dimension": dims,
+                    "method": {"name": "hnsw", "engine": "nmslib", "space_type": "cosinesimil"},
+                },
+            }
+        },
     }
-    # The collection has to exist before Atlas will index it.
-    if collection_name() not in await collection.database.list_collection_names():
-        await collection.database.create_collection(collection_name())
-    await collection.create_search_index(SearchIndexModel(definition=definition, name=index_name(), type="vectorSearch"))
-    return {"created": True, "dimensions": dimensions}
+    resp = await os_client.request("PUT", f"/{idx}", json_body=body)
+    if resp.status_code >= 400 and "resource_already_exists_exception" not in resp.text:
+        raise RuntimeError(f"OpenSearch index creation failed ({resp.status_code}): {resp.text[:400]}")
+    _index_ready = idx
+    return {"created": True, "dimensions": dims, "index": idx}
 
 
 async def status() -> Dict[str, Any]:
-    """Whether the store is configured and reachable, and what's in it (no credentials)."""
+    """Whether OpenSearch is configured and reachable, and what's in the index (no credentials)."""
     info: Dict[str, Any] = {
-        "enabled": is_enabled(), "database": database_name(), "collection": collection_name(),
+        "enabled": is_enabled(), "provider": "aws_opensearch", "host": os_client.opensearch_host(),
         "index": index_name(), "embedding_model": embedding_model(),
     }
-    collection = _collection()
-    if collection is None:
-        return {**info, "connected": False, "detail": "Set MONGODB_URI in .env to turn the vector store on."}
+    if not is_enabled():
+        return {**info, "connected": False, "detail": "Set OPENSEARCH_HOST in .env to turn the vector store on."}
     try:
-        await asyncio.wait_for(collection.database.client.admin.command("ping"), timeout=6)
-        indexes = [ix async for ix in collection.list_search_indexes(index_name())]
-        return {
-            **info, "connected": True,
-            "documents": await collection.count_documents({}),
-            "index_status": indexes[0].get("status") if indexes else "missing",
-        }
+        idx = index_name()
+        head = await os_client.request("HEAD", f"/{idx}", timeout=6)
+        if head.status_code == 404:
+            return {**info, "connected": True, "documents": 0, "index_status": "missing"}
+        if head.status_code >= 400:
+            return {**info, "connected": False, "detail": f"HTTP {head.status_code}: {head.text[:200]}"}
+        count_resp = await os_client.request_json("GET", f"/{idx}/_count", timeout=6)
+        return {**info, "connected": True, "documents": int(count_resp.get("count", 0)), "index_status": "READY"}
     except Exception as e:
         return {**info, "connected": False, "detail": f"{type(e).__name__}: {str(e)[:200]}"}

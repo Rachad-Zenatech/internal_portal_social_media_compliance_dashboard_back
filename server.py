@@ -61,6 +61,7 @@ from tools.ai.vector_store_router import router as vector_store_router
 from tools.ai.ai_status_router import router as ai_status_router
 from tools.ai.chat_router import router as chat_router
 from tools.compliance.analytics.sentiment_router import router as sentiment_router
+from tools.compliance.ceo_integration_router import router as ceo_integration_router
 
 # MCP tools & AI functions
 from mcp_tools import register_all as register_mcp_tools
@@ -233,6 +234,7 @@ app.include_router(performance_router, prefix="/api", tags=["Post Performance"])
 app.include_router(canva_router, prefix="/api", tags=["Canva"])
 app.include_router(vector_store_router, prefix="/api", tags=["Vector Store"])
 app.include_router(sentiment_router, prefix="/api", tags=["Sentiment Quality"])
+app.include_router(ceo_integration_router, prefix="/api", tags=["CEO Integration"])
 
 # --- Session Middleware ---
 app.add_middleware(

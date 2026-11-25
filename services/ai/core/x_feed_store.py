@@ -38,7 +38,7 @@ def collection_name() -> str:
 
 
 def is_enabled() -> bool:
-    return store.is_enabled()
+    return store.mongo_enabled()
 
 
 def _collection():

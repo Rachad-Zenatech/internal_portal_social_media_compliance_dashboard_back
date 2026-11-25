@@ -14,7 +14,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ai_chat` (def) L38 [POST /ai/chat]
     - `stream_generator` (def) L52
 
-## tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the MongoDB connection and create the search index (super admins only).
+## tools/ai/vector_store_router.py (48 lines) - Vector store admin: check the AWS OpenSearch connection and create the search index (super admins only).
 - `_super_admin` (def) L16
 - `get_status` (def) L23 [GET /status] - Whether MONGODB_URI is set and reachable, the collection and index in use, and how many documents it holds.
 - `create_index` (def) L29 [POST /index] - Create the Atlas vector search index on this project's collection if it's missing.
