@@ -196,13 +196,13 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_claim_inventory.py (142 lines) - Persist source-independent claims; source refreshes never invalidate this inventory.
 - services/compliance/evaluation/source_claim_policy.py (20 lines) - Exclude incidental OCR metadata without exempting factual capability assertions.
 - services/compliance/evaluation/source_claim_recall.py (26 lines) - Bounded second-pass retrieval over full articles already read, only for unresolved claims.
-- services/compliance/evaluation/source_claim_recheck.py (117 lines) - One cached, source-attributed final pass for unresolved claims; no additional downloads.
+- services/compliance/evaluation/source_claim_recheck.py (119 lines) - One cached, source-attributed final pass for unresolved claims; no additional downloads.
 - services/compliance/evaluation/source_claim_recheck_evidence.py (133 lines) - Collect bounded full-text evidence; accept only exact, source-attributed quotations.
 - services/compliance/evaluation/source_claim_recheck_models.py (24 lines) - Source-attributed answers for one final unresolved-claim review.
 - services/compliance/evaluation/source_claim_routing.py (134 lines) - Verify only assigned claim/source pairs; use alternatives when a primary source does not settle a claim.
 - services/compliance/evaluation/source_claim_support.py (22 lines) - A claim needs support from a relevant source, not from every supplied source.
 - services/compliance/evaluation/source_comparison_cache.py (42 lines) - Share exact-content source verdicts across users, workers, restarts and ordinary reruns.
-- services/compliance/evaluation/source_comparison_prompt.py (63 lines) - Meaning-based source comparison contract, separate from orchestration.
+- services/compliance/evaluation/source_comparison_prompt.py (64 lines) - Meaning-based source comparison contract, separate from orchestration.
 - services/compliance/evaluation/source_evidence.py (17 lines) - Ground source quotations separately from a model's semantic explanation.
 - services/compliance/evaluation/source_fetch_service.py (361 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - services/compliance/evaluation/source_findings.py (37 lines) - Stable source-finding identities and construction, independent of source retrieval.
@@ -289,7 +289,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
 - services/compliance/submissions/review_handoff.py (103 lines) - Save a review outcome now; hand the post to its creator after suggestions close.
 - services/compliance/submissions/review_handoff_release.py (87 lines) - Restart-safe, atomic delivery of decided posts once their suggestion deadline passes.
-- services/compliance/submissions/review_hierarchy_service.py (40 lines) - Review access inherited by Content Managers through the saved role hierarchy.
+- services/compliance/submissions/review_hierarchy_service.py (78 lines) - Review access inherited by Content Managers through the saved role hierarchy.
 - services/compliance/submissions/review_memory_service.py (233 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.
 - services/compliance/submissions/source_link_service.py (170 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
@@ -299,7 +299,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/submission_content_revision.py (35 lines) - Advance analysis revisions only when saved inputs to the analyses actually change.
 - services/compliance/submissions/submission_fields.py (67 lines) - Field shaping for submission summaries and draft type changes.
 - services/compliance/submissions/submission_list_query.py (94 lines) - SQL for the submission list, including previews and analysis status.
-- services/compliance/submissions/submission_service.py (2624 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2621 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/compliance/submissions/submission_source_state.py (23 lines) - Track the saved source-link inputs of a compliance run, including legacy checks.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.

@@ -38,7 +38,8 @@ How to judge:
   badges like "Recently announced", "New", "Update" or "Today", handles, logos and tickers. Never compare a date in the post
   with the date the source was published, unless the post says that is when the source was published. The "Published" line
   is context for you, not something to check the post against.
-- Judge meaning, not wording. Do not mark a claim CONTRADICTED because it is phrased differently.
+- Judge meaning, not wording: posts paraphrase their sources rather than quoting them verbatim. Do not mark a claim
+  CONTRADICTED or NOT_FOUND merely because it is phrased differently from the source.
 - Apply a proportionate, meaning-based standard. A matching core capability can be supported by equivalent wording,
   concrete examples and ordinary entailment: transporting vaccines/blood supports temperature-sensitive supplies.
   A portable fridge used for transport/delivery supports portable cold storage; do not treat "wherever the mission
