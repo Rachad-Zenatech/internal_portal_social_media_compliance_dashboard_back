@@ -1,4 +1,4 @@
-"""A model may omit a fact reference without invalidating the whole sentiment assessment."""
+"""Sentiment ignores legacy facts and accepts assessments without duplicate fact checks."""
 import json
 import unittest
 from copy import deepcopy
@@ -28,12 +28,9 @@ RESPONSE = {
 
 
 class SentimentContextRefTests(unittest.TestCase):
-    def test_null_reference_is_normalized_without_inventing_a_source(self):
+    def test_legacy_facts_are_ignored(self):
         result = parse_response(BedrockResponse(json.dumps(RESPONSE)), 16384)
-        claim = result.context_report.facts.claims[0]
-        self.assertEqual(claim.ref, "")
-        self.assertEqual(claim.result, "NO_FACT")
-        self.assertIsNone(claim.entry_id)
+        self.assertNotIn("facts", result.context_report.model_dump())
 
     def test_real_reference_is_preserved_and_wrong_types_are_rejected(self):
         self.assertEqual(ClaimCheck(claim="Claim", result="MATCHES", ref="C1").ref, "C1")
@@ -42,9 +39,9 @@ class SentimentContextRefTests(unittest.TestCase):
 
 
 class SentimentContextPipelineTests(unittest.IsolatedAsyncioTestCase):
-    async def test_complete_assessment_with_null_ref_passes_real_evidence_verification(self):
+    async def test_assessment_without_facts_passes_real_evidence_verification(self):
         payload = deepcopy(RESPONSE)
-        payload["context_report"]["facts"]["claims"][0]["result"] = "MATCHES"
+        del payload["context_report"]["facts"]
         generate = AsyncMock(return_value=BedrockResponse(json.dumps(payload)))
         with patch.object(engine, "_prompt", return_value="Synthetic post"), \
              patch.object(engine.ai_observability, "generate", generate):
@@ -52,5 +49,5 @@ class SentimentContextPipelineTests(unittest.IsolatedAsyncioTestCase):
                 "title": "Test", "caption": "Drones can inspect buildings.", "guidelines": [], "context": [],
             }, None)
         self.assertEqual(result.summary, RESPONSE["summary"])
-        self.assertEqual(result.context_report.facts.claims[0].result, "NO_FACT")
+        self.assertNotIn("facts", result.context_report.model_dump())
         generate.assert_awaited_once()

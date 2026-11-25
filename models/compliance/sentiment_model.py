@@ -175,7 +175,6 @@ class AudiencesReport(BaseModel):
 class ContextReport(BaseModel):
     """How the post measures against its Messaging Context, kind by kind, each judgement naming its entry."""
     brand_voice: BrandVoiceReport
-    facts: FactsReport
     platform_norms: NormsReport
     audiences: AudiencesReport
     # Context the post needed that the Messaging Context doesn't have (e.g. an audience it talks to with no profile).
@@ -200,7 +199,7 @@ class SentimentResult(BaseModel):
     findings: List[SentimentFinding] = Field(default_factory=list)
     information_gaps: List[str] = Field(default_factory=list)
     audio: Optional[AudioAssessment] = None
-    # How the post measures against its Messaging Context (brand voice, facts, platform norms, audiences).
+    # How the post measures against its Messaging Context (brand voice, platform norms, audiences).
     context_report: Optional[ContextReport] = None
     # The graphic against the captions (none when there's no image or video to look at).
     visual_alignment: Optional[VisualAlignment] = None
