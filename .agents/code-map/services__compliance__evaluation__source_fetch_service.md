@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_fetch_service.py (348 lines) - Source fetcher: opens a link a post cites and returns its readable text.
+## services/compliance/evaluation/source_fetch_service.py (350 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - `FetchedSource` (class) L58
 - `_Refused` (class) L75
 - `_forbidden` (def) L81

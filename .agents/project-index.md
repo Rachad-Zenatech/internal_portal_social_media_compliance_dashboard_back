@@ -16,7 +16,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/caption_model.py (39 lines) - Caption suggestions: Gemini drafts a few captions from the post itself, checked against the rulebook.
 - models/compliance/caption_review_model.py (41 lines) - Direct review-time caption edits and their immutable before/after history.
 - models/compliance/check_diagnostics_model.py (10 lines) - Public reasons a compliance review remains incomplete; never include provider secrets.
-- models/compliance/compliance_model.py (361 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+- models/compliance/compliance_model.py (370 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - models/compliance/duplicate_model.py (41 lines) - Duplicate-post comparisons shown before a creator submits a post.
 - models/compliance/flag_review_model.py (82 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
@@ -99,7 +99,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/core/vector_store_service.py (434 lines) - Vector store: AWS OpenSearch vector search for reference material the content analysis can draw on (brand voice, company facts, platform ...
 - services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - services/ai/observability/ai_guardrails.py (250 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
-- services/ai/observability/ai_health.py (263 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
+- services/ai/observability/ai_health.py (270 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
 - services/ai/observability/ai_observability.py (443 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - services/ai/observability/ai_observability_service.py (152 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - services/ai/observability/ai_overview_service.py (404 lines) - Combined AI health, feature-to-core mapping, and usage overview for System & Security.
@@ -149,8 +149,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/finding_evidence.py (37 lines) - Use a finding's judged evidence consistently across image, video and text locations.
 - services/compliance/evaluation/finding_visibility.py (13 lines) - Display policy for compliance findings, separate from response assembly.
 - services/compliance/evaluation/image_marks.py (12 lines) - The "Text in image 1:" labels the check puts before each image's text, and keeping them out of the wording match.
-- services/compliance/evaluation/newsroom_claim_sources.py (36 lines) - Retrieve specific company facts for each claim, excluding weak incidental matches.
-- services/compliance/evaluation/newsroom_facts.py (130 lines) - Newsroom facts: the company's own published facts as one more source for a post's claims.
+- services/compliance/evaluation/newsroom_claim_sources.py (48 lines) - Retrieve specific company facts for each claim, excluding weak incidental matches.
+- services/compliance/evaluation/newsroom_facts.py (133 lines) - Newsroom facts: the company's own published facts as one more source for a post's claims.
 - services/compliance/evaluation/newsroom_sync_service.py (310 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.
 - services/compliance/evaluation/policy_watch_service.py (438 lines) - Policy watch: keeps the platform content-policy norms (Messaging Context entries seeded as "policy:...") up to date.
 - services/compliance/evaluation/reference_index_service.py (103 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
@@ -183,26 +183,26 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/shared_script_service.py (191 lines) - Shared documents for script pages.
 - services/compliance/evaluation/shared_script_sync.py (165 lines) - Keeping this portal in step with the Share Document server's script reviews.
 - services/compliance/evaluation/source_browser_fetch.py (96 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
-- services/compliance/evaluation/source_check_service.py (493 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
-- services/compliance/evaluation/source_claim_checks.py (137 lines) - Ground source support and contradiction judgments; uncertainty remains for review.
+- services/compliance/evaluation/source_check_service.py (454 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+- services/compliance/evaluation/source_claim_checks.py (152 lines) - Ground source support and contradiction judgments; uncertainty remains for review.
 - services/compliance/evaluation/source_claim_coverage.py (59 lines) - Identify claims even without sources; keep missing evidence distinct from a false claim.
 - services/compliance/evaluation/source_claim_grounding.py (42 lines) - Recover verbatim post excerpts when a model changes only spacing or list separators.
-- services/compliance/evaluation/source_claim_inventory.py (138 lines) - Persist source-independent claims; source refreshes never invalidate this inventory.
+- services/compliance/evaluation/source_claim_inventory.py (145 lines) - Persist source-independent claims; source refreshes never invalidate this inventory.
 - services/compliance/evaluation/source_claim_policy.py (20 lines) - Exclude incidental OCR metadata without exempting factual capability assertions.
-- services/compliance/evaluation/source_claim_routing.py (78 lines) - Verify only assigned claim/source pairs; use alternatives when a primary source does not settle a claim.
+- services/compliance/evaluation/source_claim_routing.py (134 lines) - Verify only assigned claim/source pairs; use alternatives when a primary source does not settle a claim.
 - services/compliance/evaluation/source_claim_support.py (22 lines) - A claim needs support from a relevant source, not from every supplied source.
 - services/compliance/evaluation/source_comparison_cache.py (42 lines) - Share exact-content source verdicts across users, workers, restarts and ordinary reruns.
-- services/compliance/evaluation/source_fetch_service.py (348 lines) - Source fetcher: opens a link a post cites and returns its readable text.
+- services/compliance/evaluation/source_fetch_service.py (350 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - services/compliance/evaluation/source_findings.py (37 lines) - Stable source-finding identities and construction, independent of source retrieval.
-- services/compliance/evaluation/source_identity.py (56 lines) - Identify repeated source URLs without conflating different reports from one publisher.
+- services/compliance/evaluation/source_identity.py (57 lines) - Identify repeated source URLs without conflating different reports from one publisher.
 - services/compliance/evaluation/source_image_claims.py (83 lines) - Keep short capability lists visible, and require evidence about the specific capability.
 - services/compliance/evaluation/source_passages.py (269 lines) - Passages of a source: what the model reads of a long source, and where in the source each claim really is.
-- services/compliance/evaluation/source_pdf_reader.py (30 lines) - Recognize downloaded PDF sources independently of filename or server MIME mistakes.
+- services/compliance/evaluation/source_pdf_reader.py (39 lines) - Recognize downloaded PDF sources independently of filename or server MIME mistakes.
 - services/compliance/evaluation/source_post_checks.py (30 lines) - Check the combined post, retaining caption and image context as the source panel does.
 - services/compliance/evaluation/source_recheck.py (36 lines) - Refresh source comparisons on request and keep a record of resolved findings.
 - services/compliance/evaluation/source_response.py (43 lines) - Bound source-response retries and distinguish truncated answers from model outages.
 - services/compliance/evaluation/source_settings.py (86 lines) - Settings for checking a post's sources, none of them fixed in code.
-- services/compliance/evaluation/source_verdict_models.py (45 lines) - Structured claim comparison answers shared by source review and its durable cache.
+- services/compliance/evaluation/source_verdict_models.py (53 lines) - Structured claim comparison answers shared by source review and its durable cache.
 - services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
 - services/compliance/evaluation/visual_response.py (17 lines) - A bounded larger retry for cut-off visual assessments; never assume missing coverage passed.
 - services/compliance/evaluation/visual_review.py (242 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
@@ -221,7 +221,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/image_finding_service.py (235 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - services/compliance/media/image_finding_zoom.py (82 lines) - Recover small-text locations from enlarged sections; map boxes back to the original image.
 - services/compliance/media/image_text_response.py (29 lines) - Read complete image-text JSON, with one bounded retry for truncated or malformed output.
-- services/compliance/media/image_text_service.py (294 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+- services/compliance/media/image_text_service.py (295 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - services/compliance/media/pdf_process.py (89 lines) - Run native PDF operations in disposable processes, never in API worker threads.
 - services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.

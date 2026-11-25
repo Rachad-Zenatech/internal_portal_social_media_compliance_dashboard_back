@@ -4,20 +4,20 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_check_service.py (493 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
-- `SourceCheckResult` (class) L141
-- `authority_of` (def) L151 - OFFICIAL, COMPANY, NEWS or OTHER, by the site lists in source_settings (none are fixed in code).
-    - `on` (def) L157
-- `_post_key` (def) L171
-- `_ask` (def) L175
-- `_compare` (def) L183 - The model's claim-by-claim answer for one source (None when no model could give one), and the model's name.
-- `_distinct_words` (def) L252
-- `_matches` (def) L256 - Whether an attached document looks like the one a "Source:" line names: most of the line's distinctive words appear
-- `_read_link` (def) L266 - The check for a cited link, and (label, text) for the model when it could be read.
-- `run` (def) L286 - Find the sources a post cites, read them, and compare the post's claims with each.
-    - `compare` (def) L350
-- `findings` (def) L385 - The findings the sources produce: claims that contradict their source cost points; claims the source doesn't
-- `charge_not_found` (def) L429 - A claim its source doesn't mention is unproven, like one that needs a source: each costs `points`, up to `room` in
-- `_tokens` (def) L442
-- `_same_claim` (def) L446 - Whether a supported claim is the one a "needs a source" finding is about.
-- `clear_supported` (def) L465 - A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place).
+## services/compliance/evaluation/source_check_service.py (454 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+- `SourceCheckResult` (class) L92
+- `authority_of` (def) L104 - OFFICIAL, COMPANY, NEWS or OTHER, by the site lists in source_settings (none are fixed in code).
+    - `on` (def) L110
+- `_post_key` (def) L124
+- `_ask` (def) L128
+- `_compare` (def) L136 - The model's claim-by-claim answer for one source (None when no model could give one), and the model's name.
+- `_distinct_words` (def) L207
+- `_matches` (def) L211 - Whether an attached document looks like the one a "Source:" line names: most of the line's distinctive words appear
+- `_read_link` (def) L221 - The check for a cited link, and (label, text) for the model when it could be read.
+- `run` (def) L241 - Find the sources a post cites, read them, and compare the post's claims with each.
+    - `compare` (def) L305
+- `findings` (def) L343 - The findings the sources produce: claims that contradict their source cost points; claims the source doesn't
+- `charge_not_found` (def) L390 - A claim its source doesn't mention is unproven, like one that needs a source: each costs `points`, up to `room` in
+- `_tokens` (def) L403
+- `_same_claim` (def) L407 - Whether a supported claim is the one a "needs a source" finding is about.
+- `clear_supported` (def) L426 - A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place).

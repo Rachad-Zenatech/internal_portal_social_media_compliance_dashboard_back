@@ -4,6 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/newsroom_claim_sources.py (36 lines) - Retrieve specific company facts for each claim, excluding weak incidental matches.
+## services/compliance/evaluation/newsroom_claim_sources.py (48 lines) - Retrieve specific company facts for each claim, excluding weak incidental matches.
 - `relevant` (def) L11
 - `readings` (def) L15
+- `recall` (def) L45 - Try up to two unseen relevant articles per unresolved claim, irrespective of publication recency.

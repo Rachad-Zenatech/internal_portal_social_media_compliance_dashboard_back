@@ -27,6 +27,7 @@ _FEATURE_LABELS: Dict[str, str] = {
     "COMPLIANCE_CHECK": "Compliance Rulebook Check",
     "VISUAL_COMPLIANCE": "Visual Compliance Review",
     "SOURCE_CHECK": "Source Link Fact-Check",
+    "SOURCE_PDF_TEXT": "PDF Source Reading",
     "IMAGE_TEXT": "Image OCR & Face Detection",
     "IMAGE_SOURCE_OCR": "Image Source OCR",
     "IMAGE_FINDING_REGIONS": "Image Finding Locator",
@@ -54,6 +55,7 @@ _FEATURE_AFFECTS: Dict[str, List[str]] = {
     "COMPLIANCE_CHECK": ["Post Compliance Rulebook Check", "Script Review Check", "Submission Approval Gate"],
     "VISUAL_COMPLIANCE": ["Image & Video Visual Compliance Review"],
     "SOURCE_CHECK": ["Source Link Fact-Check", "Image Source Verification"],
+    "SOURCE_PDF_TEXT": ["PDF Source Reading", "Source Link Fact-Check"],
     "IMAGE_TEXT": ["Image OCR & Face Detection"],
     "IMAGE_SOURCE_OCR": ["Image Source Citation OCR"],
     "IMAGE_FINDING_REGIONS": ["Image Finding Locator"],
@@ -131,10 +133,10 @@ def summarize_features(rows: List[Dict[str, Any]], now: datetime) -> List[Featur
 
     issues: List[FeatureIssue] = []
     for feat, frows in by_feat.items():
-        if frows[0]["status"] == "OK":
+        if frows[0]["status"] in {"OK", "RETRYING"}:
             continue
         last_ok = next((r.get("finished_at", r["started_at"]) for r in frows if r["status"] == "OK"), None)
-        failed = [r for r in frows if r["status"] != "OK" and (last_ok is None or r.get("finished_at", r["started_at"]) > last_ok)]
+        failed = [r for r in frows if r["status"] not in {"OK", "RETRYING"} and (last_ok is None or r.get("finished_at", r["started_at"]) > last_ok)]
         if not failed:
             continue
         # Surface immediately on >= 2 consecutive failures or any overflow (QUOTA/BUSY), or after QUIET_AFTER_OK.
@@ -165,12 +167,12 @@ def summarize(rows: List[Dict[str, Any]], now: datetime, key_set: bool = True) -
                         message="No AWS Bedrock key is configured. " + _EFFECT)
     rows = [r for r in rows if r.get('status') != 'CANCELLED']
     features = summarize_features(rows, now)
-    if not rows or rows[0]["status"] == "OK":
+    if not rows or rows[0]["status"] in {"OK", "RETRYING"}:
         return AiStatus(degraded_features=features)
     last_ok = next((r.get("finished_at", r["started_at"]) for r in rows if r["status"] == "OK"), None)
     if last_ok is not None and now - last_ok < QUIET_AFTER_OK:
         return AiStatus(degraded_features=features)
-    failed = [r for r in rows if r["status"] != "OK" and (last_ok is None or r.get("finished_at", r["started_at"]) > last_ok)]
+    failed = [r for r in rows if r["status"] not in {"OK", "RETRYING"} and (last_ok is None or r.get("finished_at", r["started_at"]) > last_ok)]
     provider_failures = [r for r in failed if r.get("kind") not in _RESPONSE_FAILURES]
     kinds = {r.get("kind") or "OTHER" for r in provider_failures}
     affected = {r.get("feature") for r in provider_failures if r.get("feature") not in (None, "", "GENERAL")}
@@ -244,10 +246,15 @@ async def status() -> AiStatus:
     now = datetime.now(timezone.utc)
     rows = await fetch_all(
         """
-        SELECT status, attributes->>'error_kind' AS kind, attributes->>'feature' AS feature, started_at,
+        SELECT CASE WHEN status = 'ERROR' AND attributes->>'response_retry_pending' = 'true'
+                              AND attributes->>'error_kind' IN ('OUTPUT_LIMIT', 'RESPONSE_INVALID')
+                         THEN 'RETRYING' ELSE status END AS status,
+               attributes->>'error_kind' AS kind, attributes->>'feature' AS feature, started_at,
                started_at + duration_ms * INTERVAL '1 millisecond' AS finished_at
         FROM ai_trace_spans
-        WHERE kind = 'model' AND status <> 'CANCELLED' AND (name = 'bedrock.generate_content' OR name = 'gemini.generate_content') AND started_at > $1
+        WHERE status <> 'CANCELLED' AND started_at > $1
+          AND ((kind = 'model' AND name IN ('bedrock.generate_content', 'gemini.generate_content'))
+               OR (kind = 'tool' AND name = 'source_pdf.result'))
         ORDER BY finished_at DESC LIMIT 300
         """,
         now - WINDOW,

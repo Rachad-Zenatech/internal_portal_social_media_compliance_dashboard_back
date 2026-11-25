@@ -39,7 +39,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## models/compliance/check_diagnostics_model.py (10 lines) - Public reasons a compliance review remains incomplete; never include provider secrets.
 - `IncompleteCheckStage` (class) L6
 
-## models/compliance/compliance_model.py (361 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (370 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class) L12
 - `ComplianceRuleCreate` (class) L58
 - `ComplianceRuleUpdate` (class) L62
@@ -56,9 +56,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ManualReviewRule` (class) L252 - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
 - `CheckSignals` (class) L261 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
 - `SourceClaim` (class) L277 - One claim the post makes, and whether the source it cites backs it up.
-- `SourceCheck` (class) L297 - A source the post cites (or that was attached), and what reading it showed.
-- `AddedRuleSet` (class) L317 - A rule set checked because of what the post says, not because it was chosen.
-- `ComplianceCheckResponse` (class) L323
+- `SourceCheck` (class) L305 - A source the post cites (or that was attached), and what reading it showed.
+- `AddedRuleSet` (class) L325 - A rule set checked because of what the post says, not because it was chosen.
+- `ComplianceCheckResponse` (class) L331
 
 ## models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - `ContextEntryIn` (class) L12

@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_pdf_reader.py (30 lines) - Recognize downloaded PDF sources independently of filename or server MIME mistakes.
-- `is_pdf` (def) L10
-- `read` (def) L20
-- `title` (def) L28
+## services/compliance/evaluation/source_pdf_reader.py (39 lines) - Recognize downloaded PDF sources independently of filename or server MIME mistakes.
+- `is_pdf` (def) L15
+- `read` (def) L25
+- `title` (def) L37

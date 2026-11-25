@@ -4,8 +4,9 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_claim_routing.py (78 lines) - Verify only assigned claim/source pairs; use alternatives when a primary source does not settle a claim.
-- `key` (def) L6
-- `plans` (def) L10
-- `verify` (def) L35 - Check cited sources and relevant newsroom evidence independently, in parallel.
-- `_verify_choices` (def) L49 - Stop fallback within each source group once that group settles the claim.
+## services/compliance/evaluation/source_claim_routing.py (134 lines) - Verify only assigned claim/source pairs; use alternatives when a primary source does not settle a claim.
+- `key` (def) L10
+- `plans` (def) L14
+- `verify` (def) L40 - Check cited sources and relevant newsroom evidence independently, in parallel.
+- `_verify_choices` (def) L81 - Stop fallback within each source group once that group settles the claim.
+- `_discover` (def) L116 - Discover alternatives only after existing full articles fail to settle a claim.
