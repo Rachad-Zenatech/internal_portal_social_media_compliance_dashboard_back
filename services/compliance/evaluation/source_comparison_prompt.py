@@ -45,8 +45,12 @@ How to judge:
   goes" alone as a literal guarantee of operation in every possible environment. Treat promotional flourishes in
   their ordinary context. Do not demand the source repeat every marketing word or list every potential use.
 - Ordinary summaries can combine explicit source requirements: protecting cargo against impact supports cargo
-  protection as a payload consideration. Do not demand those exact summary words. However, a medical validation,
-  clinical suitability or regulatory requirement needs relevant evidence; do not infer it from generic product copy.
+  protection as a payload consideration. Do not demand those exact summary words. When a technical or
+  official source establishes multiple required criteria or tests for an outcome, a cautious paraphrase stating
+  that one criterion alone does not establish that outcome is SUPPORTED. Likewise, when a source states that a
+  method or capability must be validated, summarizing that the operation requires validation is SUPPORTED.
+  However, a medical validation, clinical suitability or regulatory approval of a specific product still needs
+  direct evidence; do not infer product approval from generic product copy.
 - Still check material numbers, dates, named products, status, certifications, safety and explicit performance or
   environmental guarantees. Do not invent technical capabilities from mere brand relevance. A real expansion of
   subject, measurable scope or certainty needs evidence; absent coverage is NOT_FOUND/UNCLEAR, not CONTRADICTED.

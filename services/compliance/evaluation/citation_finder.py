@@ -168,6 +168,30 @@ def without_citation_text(text: str) -> str:
     return "\n".join(kept)
 
 
+def source_blocks(text: str) -> List[str]:
+    """Return each explicit multi-line source block (e.g. 'Source: ...' + continuations) in order."""
+    lines = (text or "").splitlines()
+    blocks: List[str] = []
+    n = 0
+    while n < len(lines):
+        content = _IMAGE_MARK.sub("", lines[n]).lstrip()
+        match = _SOURCE_LINE.search(content)
+        if not match:
+            n += 1
+            continue
+        block = content[match.start():].strip()
+        rest = match.group("rest")
+        last, k = rest, n
+        while _named_parts(rest) and k + 1 < len(lines) and k - n < 3 and _continues(last, lines[k + 1]):
+            k += 1
+            last = lines[k]
+            rest += " " + last.strip()
+            block += " " + last.strip()
+        blocks.append(block)
+        n = k + 1
+    return blocks
+
+
 def is_reference_only(text: str) -> bool:
     """A printed source credit identifies evidence; its URL/date is not a claim to substantiate."""
     value = (text or "").strip().strip("\"'\u201c\u201d\u2018\u2019")

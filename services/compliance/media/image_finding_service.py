@@ -105,6 +105,7 @@ def _ocr_word_boxes(data):
             left, top = words["left"][index], words["top"][index]
             result.append({
                 "text": text,
+                "ends_sentence": raw_text.rstrip().endswith((".", "!", "?")),
                 "line": (words["block_num"][index], words["par_num"][index], words["line_num"][index]),
                 "box": [top * 1000 / height, left * 1000 / width,
                         (top + word_height) * 1000 / height, (left + word_width) * 1000 / width],
@@ -130,11 +131,12 @@ def _source_block_boxes(words):
     for w in words:
         key = w["line"]
         if key not in by_key:
-            entry = {"words": [], "boxes": []}
+            entry = {"words": [], "boxes": [], "ends_sentence": False}
             by_key[key] = entry
             lines.append(entry)
         by_key[key]["words"].append(w["text"])
         by_key[key]["boxes"].append(w["box"])
+        by_key[key]["ends_sentence"] = bool(w.get("ends_sentence"))
 
     parsed = []
     for entry in lines:
@@ -143,6 +145,7 @@ def _source_block_boxes(words):
         med_h = heights[len(heights) // 2]
         parsed.append({
             "text": " ".join(entry["words"]),
+            "ends_sentence": entry.get("ends_sentence", False),
             "box": [min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes)],
             "height": med_h,
         })
@@ -157,6 +160,8 @@ def _source_block_boxes(words):
         group = [parsed[i]["box"]]
         j = i + 1
         while j < len(parsed) and j - i <= 3:
+            if parsed[j - 1]["ends_sentence"]:
+                break
             prev_box = parsed[j - 1]["box"]
             cur = parsed[j]
             gap = cur["box"][0] - prev_box[2]
@@ -166,8 +171,10 @@ def _source_block_boxes(words):
             group.append(cur["box"])
             j += 1
         source_boxes.append([
-            min(b[0] for b in group), min(b[1] for b in group),
-            max(b[2] for b in group), max(b[3] for b in group),
+            max(0.0, min(b[0] for b in group) - 2.0),
+            max(0.0, min(b[1] for b in group) - 4.0),
+            min(1000.0, max(b[2] for b in group) + 2.0),
+            min(1000.0, max(b[3] for b in group) + 6.0),
         ])
         i = j
     return source_boxes
@@ -175,28 +182,36 @@ def _source_block_boxes(words):
 
 async def _vision_source_regions(file_id, data, mime, raw_text):
     """Fallback when local OCR misses tiny footer text: locate printed source credits via vision."""
-    if not citation_finder._SOURCE_LINE.search(raw_text or ""):
+    blocks = citation_finder.source_blocks(raw_text or "")
+    if not blocks:
         return []
     prompt = (
-        "Locate any printed source credit / citation block (e.g. 'Source: ...', 'Via: ...', 'Data from: ...' "
-        "and its immediately adjacent same-font continuation lines) in the attached image. Return one tight "
-        "bounding box [top, left, bottom, right] in coordinates 0 to 1000 around the whole source block, with "
-        "finding=0 and exact visible text. Return an empty regions list if none is visible."
+        "Locate ONLY these exact printed source citation block(s) in the attached image: "
+        + json.dumps(blocks)
+        + ". Return one tight bounding box [top, left, bottom, right] in coordinates 0 to 1000 "
+        "covering EVERY character from the first letter on the left to the final character/punctuation "
+        "on the right edge of each listed citation. Do not clip the right end of any line, and do not "
+        "include unrelated sentences above or below the citation. Set finding to the 0-based index."
     )
-    async with image_text_service._semaphore:
-        response = await image_text_service._generate(
-            [types.Part.from_bytes(data=data, mime_type=mime), prompt],
-            feature="IMAGE_FINDING_REGIONS", response_schema=SCHEMA,
-        )
-    items = json.loads(response.text or "{}").get("regions", [])
+    items = await image_finding_zoom.locate(data, prompt, SCHEMA)
+    if not items:
+        async with image_text_service._semaphore:
+            response = await image_text_service._generate(
+                [types.Part.from_bytes(data=data, mime_type=mime), prompt],
+                feature="IMAGE_FINDING_REGIONS", response_schema=SCHEMA,
+            )
+        items = json.loads(response.text or "{}").get("regions", [])
     if not isinstance(items, list):
         return []
     out = []
     for item in items:
-        if isinstance(item, dict):
-            region = region_from_box(file_id, item.get("box"))
-            if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in out:
-                out.append(region)
+        if not isinstance(item, dict) or not isinstance(item.get("box"), list) or len(item["box"]) != 4:
+            continue
+        top, left, bottom, right = item["box"]
+        padded = [max(0.0, top - 2.0), max(0.0, left - 4.0), min(1000.0, bottom + 2.0), min(1000.0, right + 10.0)]
+        region = region_from_box(file_id, padded)
+        if region and region.w * region.h <= MAX_FALLBACK_REGION_AREA and region not in out:
+            out.append(region)
     return out
 
 
