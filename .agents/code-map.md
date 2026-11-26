@@ -65,6 +65,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__defense_disclaimer.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__finding_evidence.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__finding_visibility.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__image_detail_review.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__image_marks.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__newsroom_article_sources.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__newsroom_claim_sources.md | 1 | 1 KB |
@@ -140,7 +141,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__visual_review.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_review_prompt.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_video_frames.md | 1 | 1 KB |
-| .agents/code-map/services__compliance__media.md | 22 | 16 KB |
+| .agents/code-map/services__compliance__media.md | 23 | 17 KB |
 | .agents/code-map/services__compliance__sentiment.md | 13 | 8 KB |
 | .agents/code-map/services__compliance__submissions__analysis_progress_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__approval_path_service.md | 1 | 1 KB |

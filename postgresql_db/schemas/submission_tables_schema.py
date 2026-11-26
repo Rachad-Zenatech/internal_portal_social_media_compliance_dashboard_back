@@ -158,6 +158,8 @@ async def _create_media_metadata(conn) -> None:
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text TEXT;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_status VARCHAR(20);
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_error TEXT;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_version TEXT;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_details JSONB;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS person_detected BOOLEAN;
             -- Anonymous face boxes use Gemini's 0..1000 coordinate system; they let the creator review detections
             -- without attempting to identify anyone.

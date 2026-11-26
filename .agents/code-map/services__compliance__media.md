@@ -168,25 +168,32 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `locate` (def) L55
     - `read` (def) L62
 
+## services/compliance/media/image_small_text.py (119 lines) - Recover additional literal text from overlapping enlarged sections of the original upload.
+- `DetailRead` (class) L28
+- `normalize` (def) L33
+- `merge` (def) L37 - Only append literal, confident, localized additions; never replace full-image wording.
+- `focused_sections` (def) L65 - Magnify located text-bearing areas, retaining surrounding pixels for a literal read.
+- `read` (def) L92
+
 ## services/compliance/media/image_text_response.py (29 lines) - Read complete image-text JSON, with one bounded retry for truncated or malformed output.
 - `parse` (def) L6
 - `read` (def) L20
 
-## services/compliance/media/image_text_service.py (295 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
-- `is_image_file` (def) L68
-- `_get_client` (def) L72
-- `_claim` (def) L82 - Atomically mark an image as being read unless another worker already is.
-- `_save` (def) L98
-- `_generate` (def) L112 - Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
-- `_clean` (def) L148
-- `_has_ai_metadata` (def) L153 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
-- `_face_boxes` (def) L170 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
-- `read_file` (def) L188 - Read one image's text and save it, then re-check its submission if it's still open.
-- `retry_failed_images` (def) L233 - An explicit Check again permits one new read; background checks do not reset failures.
-- `_run` (def) L244
-- `schedule` (def) L251 - Read each image in the background, unless this process is already reading it.
-- `resume_interrupted` (def) L262 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
-- `schedule_missing` (def) L279 - Read the images among these that were never read, or whose read was abandoned (e.g.
+## services/compliance/media/image_text_service.py (310 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+- `is_image_file` (def) L79
+- `_get_client` (def) L83
+- `_claim` (def) L93 - Atomically mark an image as being read unless another worker already is.
+- `_save` (def) L109
+- `_generate` (def) L125 - Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
+- `_clean` (def) L161
+- `_has_ai_metadata` (def) L166 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
+- `_face_boxes` (def) L183 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
+- `read_file` (def) L201 - Read one image's text and save it, then re-check its submission if it's still open.
+- `retry_failed_images` (def) L247 - Explicit checks refresh failed and older-version reads; background polling does not repeat them.
+- `_run` (def) L259
+- `schedule` (def) L266 - Read each image in the background, unless this process is already reading it.
+- `resume_interrupted` (def) L277 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
+- `schedule_missing` (def) L294 - Read the images among these that were never read, or whose read was abandoned (e.g.
 
 ## services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - `audio_samples` (def) L16

@@ -9,6 +9,7 @@ A finished read (either way) re-runs the check of an open submission, as a finis
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -21,7 +22,7 @@ from services.ai.core import ai_types as types
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.observability import ai_observability
 from services.ai.core.gemini_service import is_rotatable_model_error, without_retired
-from services.compliance.media import image_text_response
+from services.compliance.media import image_text_response, image_small_text
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ STALE_MINUTES = 10
 RESUME_AFTER_MINUTES = 2
 MAX_CONCURRENT = int(os.getenv("IMAGE_TEXT_MAX_CONCURRENT", "3"))
 MAX_TEXT_CHARS = 5000
+_READER_VERSION = "image-text-v3-grounded-small-text-review"
 # Reading text doesn't need a strong model, so this uses light models with their own daily allowance (on Gemini's
 # free tier each model has its own), leaving the main models' allowance for sentiment and transcription. Tried in
 # order; the next one is used when a model's limit is reached or it isn't available.
@@ -60,10 +62,19 @@ with text in the photo after the design's own text. Do not describe the image, t
 anything. Skip only text that is too blurred to read. If there is no readable text, return an empty string. Also say whether
 one or more real people are visibly present (a face, body, or person shown in a photo or illustration); do not identify anyone.
 For every visible face, return a tight square around the face only (chin to forehead, ear to ear — do not include the body or shoulders) as [top, left, bottom, right] in a 0-to-1000 coordinate grid. Do not
-name people or infer anything about them. Return an empty faces list when no face is visible. Also set ai_generated to true if the image (or people in it) appears AI-generated, CGI, or synthetic rather than a real photograph."""
+name people or infer anything about them. Return an empty faces list when no face is visible.
+Also return small_text_regions: up to four tight boxes around tiny text-bearing areas in photos (licence plates,
+signs, clothing or product labels), even when the letters cannot be read at full-image size. Use box coordinates
+[top,left,bottom,right] on a 0-to-1000 grid. Locate the text area, not the whole vehicle or person. Never guess letters.
+Use an empty list when no such areas exist. Also set ai_generated to true if the image (or people in it) appears AI-generated, CGI, or synthetic rather than a real photograph."""
 
-RESPONSE_SCHEMA = {"type": "OBJECT", "properties": {"text": {"type": "STRING"}, "person_detected": {"type": "BOOLEAN"}, "ai_generated": {"type": "BOOLEAN"}, "faces": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {"box": {"type": "ARRAY", "items": {"type": "INTEGER"}, "minItems": 4, "maxItems": 4}}, "required": ["box"]}}}, "required": ["text", "person_detected", "ai_generated", "faces"]}
+RESPONSE_SCHEMA = {"type": "OBJECT", "properties": {"small_text_regions": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {"box": {"type": "ARRAY", "items": {"type": "NUMBER"}}}, "required": ["box"]}}, "text": {"type": "STRING"}, "person_detected": {"type": "BOOLEAN"}, "ai_generated": {"type": "BOOLEAN"}, "faces": {"type": "ARRAY", "items": {"type": "OBJECT", "properties": {"box": {"type": "ARRAY", "items": {"type": "INTEGER"}, "minItems": 4, "maxItems": 4}}, "required": ["box"]}}}, "required": ["text", "person_detected", "ai_generated", "faces"]}
 
+
+# A model or prompt change makes older completed OCR eligible for a manual refresh.
+VERSION = _READER_VERSION + "-" + hashlib.sha256(json.dumps(
+    [MODELS, os.getenv("IMAGE_TEXT_MODELS", ""), PROMPT, RESPONSE_SCHEMA, image_small_text.PROMPT, image_small_text.SCHEMA],
+    sort_keys=True).encode()).hexdigest()[:12]
 
 def is_image_file(kind: str, mime_type: str) -> bool:
     return kind in IMAGE_KINDS and (mime_type or "").startswith("image/")
@@ -95,17 +106,19 @@ async def _claim(file_id: UUID) -> Optional[dict]:
     )
 
 
-async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: Optional[str] = None, person_detected: Optional[bool] = None, face_boxes: Optional[List[List[int]]] = None) -> None:
+async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: Optional[str] = None, person_detected: Optional[bool] = None, face_boxes: Optional[List[List[int]]] = None, details=None) -> None:
     await get_pool().execute(
         """
         UPDATE content_submission_files
         SET image_text_status = $2::varchar, image_text = $3, image_text_error = $4, person_detected = $5,
             face_boxes = COALESCE($6::jsonb, face_boxes),
             face_detection_version = CASE WHEN $2::varchar = 'COMPLETED' THEN 2 ELSE face_detection_version END,
-            image_text_updated_at = NOW()
+            image_text_updated_at = NOW(),
+            image_text_version = CASE WHEN $2::varchar = 'COMPLETED' THEN $7::text ELSE NULL END,
+            image_text_details = $8::jsonb
         WHERE id = $1
         """,
-        file_id, status, text, error, person_detected, json.dumps(face_boxes) if face_boxes is not None else None,
+        file_id, status, text, error, person_detected, json.dumps(face_boxes) if face_boxes is not None else None, VERSION, json.dumps(details or []),
     )
 
 
@@ -208,10 +221,11 @@ async def read_file(file_id: UUID) -> None:
             ai_meta = await asyncio.to_thread(_has_ai_metadata, data)
             local_boxes = None if ai_meta else await asyncio.to_thread(face_detection_service.detect_faces, data)
             result = await image_text_response.read(_generate, [types.Part.from_bytes(data=data, mime_type=mime_type), PROMPT])
-            text = _clean(result.get("text", ""))
+            details = await image_small_text.read(_generate, await asyncio.to_thread(path.read_bytes), _clean(result.get("text", "")), result.get("small_text_regions"))
+            text = details.text
             is_ai = ai_meta or bool(result.get("ai_generated"))
             face_boxes = [] if is_ai else (local_boxes if local_boxes else _face_boxes(result.get("faces")))
-            await _save(file_id, "COMPLETED", text=text, person_detected=False if is_ai else (bool(result.get("person_detected")) or bool(face_boxes)), face_boxes=face_boxes)
+            await _save(file_id, "COMPLETED", text=text, person_detected=False if is_ai else (bool(result.get("person_detected")) or bool(face_boxes)), face_boxes=face_boxes, details=details.regions)
             try:
                 await get_pool().execute("""
                     UPDATE content_submissions s SET people_in_images_detected = (
@@ -231,12 +245,13 @@ async def read_file(file_id: UUID) -> None:
 
 
 async def retry_failed_images(submission_id: UUID) -> int:
-    """An explicit Check again permits one new read; background checks do not reset failures."""
+    """Explicit checks refresh failed and older-version reads; background polling does not repeat them."""
     rows = await fetch_all(
         "UPDATE content_submission_files SET image_text_status=NULL, image_text_error=NULL "
         "WHERE submission_id=$1 AND deleted_at IS NULL AND kind=ANY($2::text[]) "
-        "AND mime_type LIKE 'image/%' AND image_text_status='FAILED' RETURNING id",
-        submission_id, list(IMAGE_KINDS),
+        "AND mime_type LIKE 'image/%' AND (image_text_status='FAILED' OR "
+        "(image_text_status='COMPLETED' AND image_text_version IS DISTINCT FROM $3::text)) RETURNING id",
+        submission_id, list(IMAGE_KINDS), VERSION,
     )
     return len(rows)
 
