@@ -82,6 +82,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/script_submission_content_eval.py (56 lines) - Imported script content must retain every line and table beat, including long uploads.
 - scripts/script_submission_documents_eval.py (204 lines) - Shared-document adoption and original-post sync regressions, using isolated mocked services.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
+- scripts/shared_script_auth_eval.py (70 lines) - Service clock skew must not prevent script review or expire a person's portal session.
 - scripts/submission_freshness_eval.py (109 lines) - Regressions for SUB-1219's schedule-only invalidation and cached sentiment reuse.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
 - server.py (474 lines) - server
@@ -188,8 +189,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_submission_documents.py (140 lines) - Create Post uploads entering the existing native/shared script-document review.
 - services/compliance/evaluation/script_submission_sync.py (53 lines) - Mirror canonical script-document review back to its original Create Post submission.
 - services/compliance/evaluation/script_template_store.py (176 lines) - Custom default script template uploaded from the Social Media portal.
-- services/compliance/evaluation/shared_script_review.py (105 lines) - A script page's review, handed to the Share Document server.
-- services/compliance/evaluation/shared_script_service.py (191 lines) - Shared documents for script pages.
+- services/compliance/evaluation/shared_script_review.py (110 lines) - A script page's review, handed to the Share Document server.
+- services/compliance/evaluation/shared_script_service.py (193 lines) - Shared documents for script pages.
 - services/compliance/evaluation/shared_script_sync.py (165 lines) - Keeping this portal in step with the Share Document server's script reviews.
 - services/compliance/evaluation/source_assertions.py (54 lines) - Keep grounded, atomic claim excerpts and stable identities without dropping qualifications.
 - services/compliance/evaluation/source_browser_fetch.py (123 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...

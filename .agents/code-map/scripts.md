@@ -149,6 +149,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `run_saved_case` (def) L114
 - `main` (def) L136
 
+## scripts/shared_script_auth_eval.py (70 lines) - Service clock skew must not prevent script review or expire a person's portal session.
+- `load_symbol` (def) L18
+- `SharedScriptAuthTests` (class) L26
+    - `test_service_token_tolerates_small_clock_skew_without_extending_expiry` (def) L27
+    - `test_upstream_errors_preserve_portal_session_and_validation_statuses` (def) L47
+
 ## scripts/submission_freshness_eval.py (109 lines) - Regressions for SUB-1219's schedule-only invalidation and cached sentiment reuse.
 - `RevisionTests` (class) L25
     - `test_sub1219_publish_date_change_is_not_a_content_revision` (def) L26
