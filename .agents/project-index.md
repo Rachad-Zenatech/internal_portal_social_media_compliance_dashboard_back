@@ -84,7 +84,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
 - scripts/submission_freshness_eval.py (109 lines) - Regressions for SUB-1219's schedule-only invalidation and cached sentiment reuse.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
-- server.py (474 lines) - server
+- server.py (476 lines) - server
 - services/ai/core/ai_error_diagnostics.py (39 lines) - Safe, actionable descriptions of AI failures for users and server logs.
 - services/ai/core/ai_types.py (85 lines) - Native AI request/content DTOs replacing google.genai.types for AWS Bedrock.
 - services/ai/core/assistant_chat_service.py (261 lines) - Assistant chat: answers questions about the rulebook, the Messaging Context and the portal, streamed as SSE.
@@ -331,6 +331,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/auth/secret_config.py (18 lines) - Validated secret lookup from environment variables with no hardcoded fallbacks.
 - services/shared/auth/service_security_policy.py (239 lines) - Enterprise Application Security & Scope Authorization Policy Defines the strict Application-to-Application Access Matrix (Machine-to-Mach...
 - services/shared/auth/test_login_service.py (51 lines) - Local sign-in for the existing, explicitly allowed dummy review accounts.
+- services/shared/cookie_origin_protection.py (39 lines) - Reject cross-origin state-changing requests carrying a browser session.
 - services/shared/core/audit_service.py (140 lines) - audit service (shared core)
 - services/shared/core/browser_stealth.py (40 lines) - Playwright stealth: hides the usual headless-browser giveaways (navigator.webdriver, missing plugins, the "HeadlessChrome" user agent, .....
 - services/shared/core/cache_service.py (221 lines) - cache service (shared core)
