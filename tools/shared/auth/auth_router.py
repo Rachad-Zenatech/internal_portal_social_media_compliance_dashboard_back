@@ -311,7 +311,7 @@ async def heartbeat(
     invalidate_user_auth_cache(user_id)
     refreshed_token = create_access_token(user_id, bool(user["is_super_admin"]))
     set_access_token_cookie(response, refreshed_token)
-    return {"status": "ok"}
+    return {"status": "ok", "token": refreshed_token}
 
 @router.post("/auth/link-token")
 async def link_token(user_id: UUID = Depends(get_current_user_id_dependency)):
