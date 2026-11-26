@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_browser_fetch.py (116 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
+## services/compliance/evaluation/source_browser_fetch.py (123 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
 - `_host_allowed` (def) L29 - Whether a request may go out: http(s) only, and the host must not resolve to a private address.
 - `fetch` (def) L44 - The page's readable text through the browser, or None when the browser can't do better.
     - `guard` (def) L58
