@@ -1232,8 +1232,6 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         if rule.evaluation_mode == "CONTEXT":
             contextual.append((v, rule))
 
-    # Built-in claim checks catch what exact phrases miss (money figures, forward-looking results, unnamed
-    # customers...). A forward-looking claim the rulebook already reported as missing its safe harbor counts once.
     safe_harbor_reported = any(
         v.kind == "MISSING_DISCLAIMER" and any("forward looking" in _normalize(d) for d in v.missing_disclaimers)
         for v in violations
@@ -1265,8 +1263,6 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         if not (endorsement_reported and f.rule_id == post_signals.GOVERNMENT_REFERENCE_ID)
     )
 
-    # Rules the wording missed but the post matches in meaning (vector store): things to check, never violations.
-    # Claim checks carry their rule's number but don't stand in for the rule, so they don't take it off the list.
     found = {v.rule_number for v in violations if v.rule_id not in claim_checks.CHECK_IDS} | {r.rule_number for r in rules if army_context_review.applies(r, req.text)}
     _ai_incomplete.set(False)
     violations.extend(await _semantic_findings(match_req, rules, found, padded_text, disclaimer_padded))
@@ -1279,9 +1275,12 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     violations.extend(getattr(source_result, "unbacked", []))
     violations.extend(source_post_checks.unsourced_image_findings(req.text, source_result.checks))
 
-    # Contextual matches are candidates until the evaluator has read their framing.
+    from .financial_evidence import expand
+    financial_ids = expand(violations, source_result.checks, match_text)
     exceptions_of = {r.id: r.exception_terms for r in rules}
     for v in violations:
+        if v.rule_id in financial_ids:
+            continue
         v.passage, v.context = _passage(match_text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])
         if v.category == "Source Check" and v.flagged_terms:
             v.passage = v.flagged_terms[0]  # Keep each grounded claim distinct, including wrapped image text.

@@ -64,6 +64,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__context_evaluator.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__context_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__defense_disclaimer.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__financial_evidence.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__finding_evidence.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__finding_visibility.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__forward_looking_context.md | 1 | 1 KB |
