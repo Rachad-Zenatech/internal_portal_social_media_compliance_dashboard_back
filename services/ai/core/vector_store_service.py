@@ -399,7 +399,7 @@ async def ensure_index() -> Dict[str, Any]:
             }
         },
     }
-    resp = await os_client.request("PUT", f"/{idx}", json_body=body)
+    resp = await os_client.request("PUT", f"/{idx}", json_body=body, timeout=120)
     if resp.status_code >= 400 and "resource_already_exists_exception" not in resp.text:
         raise RuntimeError(f"OpenSearch index creation failed ({resp.status_code}): {resp.text[:400]}")
     # OpenSearch Serverless takes a few seconds after index creation before _search stops returning 404.
