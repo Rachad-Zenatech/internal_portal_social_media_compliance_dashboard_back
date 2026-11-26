@@ -8,7 +8,6 @@ from uuid import uuid4
 import pytest
 
 from services.compliance.evaluation import script_doc_compliance as checks
-from services.compliance.evaluation import script_doc_reads as reads
 
 
 def document():
@@ -16,13 +15,11 @@ def document():
             "sources_text": "Aircraft https://example.com/aircraft", "details": {"rule_sets": ["GENERAL"]}}
 
 
-def test_run_persists_score_and_flags_that_a_fresh_read_restores():
+def test_save_persists_score_and_flags_that_a_fresh_read_restores():
     doc = document()
     result = {"score": 80, "violations": [{"rule_id": "26", "flagged_terms": ["approved"]}]}
-    with patch.object(reads.core, "get_access", AsyncMock(return_value=(doc, [], None))), \
-            patch.object(reads.scripts, "check_text", AsyncMock(return_value=result)), \
-            patch.object(checks, "execute", AsyncMock()) as execute:
-        returned = asyncio.run(reads.check(doc["id"], uuid4(), None))
+    with patch.object(checks, "execute", AsyncMock()) as execute:
+        returned = asyncio.run(checks.save(doc, result, doc["body_text"]))
     query, stored_id, payload = execute.await_args.args
     assert "SET latest_check" in query
     assert "body_text =" not in query
