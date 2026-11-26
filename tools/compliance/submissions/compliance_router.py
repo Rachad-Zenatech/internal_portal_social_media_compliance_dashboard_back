@@ -26,7 +26,7 @@ router = APIRouter(prefix="/compliance", tags=["Compliance Rules & Governance"])
 
 CurrentUser = Annotated[UUID, Depends(get_current_user_id_dependency)]
 ViewUser = Annotated[UUID, Depends(require_permission("CONFIG_ROLES_VIEW"))]
-ManageUser = Annotated[UUID, Depends(require_permission("CONFIG_ROLES_UPDATE"))]
+ManageUser = Annotated[UUID, Depends(require_permission("CONTENT_RULEBOOK_UPDATE"))]
 
 
 @router.get("/rules", response_model=List[ComplianceRule])
