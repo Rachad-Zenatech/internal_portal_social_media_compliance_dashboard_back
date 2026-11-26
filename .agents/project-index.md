@@ -143,14 +143,16 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/citation_finder.py (277 lines) - Citation finder: what a post says it got its claims from.
 - services/compliance/evaluation/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
 - services/compliance/evaluation/compliance_ai_config.py (15 lines) - Configuration for the full rulebook model pass.
-- services/compliance/evaluation/compliance_check_result.py (139 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
+- services/compliance/evaluation/compliance_check_result.py (141 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
 - services/compliance/evaluation/compliance_diagnostics.py (16 lines) - Explain incomplete review stages without treating missing checks as violations.
-- services/compliance/evaluation/compliance_service.py (1513 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
-- services/compliance/evaluation/context_evaluator.py (455 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
+- services/compliance/evaluation/compliance_service.py (1511 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+- services/compliance/evaluation/context_candidates.py (10 lines) - Assemble context reviews, including rules that always require a contextual decision.
+- services/compliance/evaluation/context_evaluator.py (462 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/evaluation/context_service.py (226 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/evaluation/defense_disclaimer.py (27 lines) - Military names and citations alone do not establish use of government visual material.
 - services/compliance/evaluation/finding_evidence.py (37 lines) - Use a finding's judged evidence consistently across image, video and text locations.
-- services/compliance/evaluation/finding_visibility.py (13 lines) - Display policy for compliance findings, separate from response assembly.
+- services/compliance/evaluation/finding_visibility.py (17 lines) - Display policy for compliance findings, separate from response assembly.
+- services/compliance/evaluation/forward_looking_context.py (16 lines) - Always read Rule 25 matches, including built-in claims, in the full post's context.
 - services/compliance/evaluation/image_detail_review.py (40 lines) - Do not silently clear a scoped crime-text rule when grounded crop evidence remains uncertain.
 - services/compliance/evaluation/image_marks.py (12 lines) - The "Text in image 1:" labels the check puts before each image's text, and keeping them out of the wording match.
 - services/compliance/evaluation/newsroom_article_sources.py (36 lines) - Use summaries for retrieval only; verify claims against the linked newsroom article.
@@ -197,13 +199,13 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/source_claim_inventory.py (146 lines) - Persist source-independent claims; source refreshes never invalidate this inventory.
 - services/compliance/evaluation/source_claim_policy.py (20 lines) - Exclude incidental OCR metadata without exempting factual capability assertions.
 - services/compliance/evaluation/source_claim_recall.py (26 lines) - Bounded second-pass retrieval over full articles already read, only for unresolved claims.
-- services/compliance/evaluation/source_claim_recheck.py (119 lines) - One cached, source-attributed final pass for unresolved claims; no additional downloads.
+- services/compliance/evaluation/source_claim_recheck.py (123 lines) - One cached, source-attributed final pass for unresolved claims; no additional downloads.
 - services/compliance/evaluation/source_claim_recheck_evidence.py (133 lines) - Collect bounded full-text evidence; accept only exact, source-attributed quotations.
 - services/compliance/evaluation/source_claim_recheck_models.py (24 lines) - Source-attributed answers for one final unresolved-claim review.
 - services/compliance/evaluation/source_claim_routing.py (134 lines) - Verify only assigned claim/source pairs; use alternatives when a primary source does not settle a claim.
 - services/compliance/evaluation/source_claim_support.py (22 lines) - A claim needs support from a relevant source, not from every supplied source.
 - services/compliance/evaluation/source_comparison_cache.py (42 lines) - Share exact-content source verdicts across users, workers, restarts and ordinary reruns.
-- services/compliance/evaluation/source_comparison_prompt.py (64 lines) - Meaning-based source comparison contract, separate from orchestration.
+- services/compliance/evaluation/source_comparison_prompt.py (68 lines) - Meaning-based source comparison contract, separate from orchestration.
 - services/compliance/evaluation/source_evidence.py (17 lines) - Ground source quotations separately from a model's semantic explanation.
 - services/compliance/evaluation/source_fetch_service.py (361 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - services/compliance/evaluation/source_findings.py (37 lines) - Stable source-finding identities and construction, independent of source retrieval.
@@ -225,7 +227,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
 - services/compliance/evaluation/visual_response.py (17 lines) - A bounded larger retry for cut-off visual assessments; never assume missing coverage passed.
 - services/compliance/evaluation/visual_review.py (243 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
-- services/compliance/evaluation/visual_review_prompt.py (69 lines) - Visual compliance instructions; the active database rule remains the policy authority.
+- services/compliance/evaluation/visual_review_prompt.py (73 lines) - Visual compliance instructions; the active database rule remains the policy authority.
 - services/compliance/evaluation/visual_video_frames.py (37 lines) - Bounded, timestamped video samples for image-capable providers without video input.
 - services/compliance/media/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
 - services/compliance/media/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
@@ -282,6 +284,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/manual_check_service.py (144 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
 - services/compliance/submissions/media_freshness.py (40 lines) - Check freshness follows media revisions, independently of post detail edits.
 - services/compliance/submissions/media_read_status.py (13 lines) - Unread media recorded in a submission's saved compliance check.
+- services/compliance/submissions/pending_check_recovery.py (179 lines) - Recover explicitly requested checks whose media finished before the pending result was saved.
 - services/compliance/submissions/post_approval_suggestions.py (129 lines) - Allow suggestions until the deadline without changing the first approval.
 - services/compliance/submissions/post_steps_service.py (134 lines) - The five steps a creator works through, and how far each post has got.
 - services/compliance/submissions/post_text_review.py (157 lines) - Direct reviewer text edits, serialized with decisions and attributed in the existing event log.
@@ -301,7 +304,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/submission_content_revision.py (35 lines) - Advance analysis revisions only when saved inputs to the analyses actually change.
 - services/compliance/submissions/submission_fields.py (67 lines) - Field shaping for submission summaries and draft type changes.
 - services/compliance/submissions/submission_list_query.py (94 lines) - SQL for the submission list, including previews and analysis status.
-- services/compliance/submissions/submission_service.py (2618 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2564 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/compliance/submissions/submission_source_state.py (23 lines) - Track the saved source-link inputs of a compliance run, including legacy checks.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.

@@ -609,6 +609,8 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
         current = await compliance_rulebook_version()
         sub.check_outdated = (bool(current) and saved.get("rulebook_version") != current) or submission_source_state.sources_changed(row, saved)
     if analysis_pending(saved):
+        from .pending_check_recovery import schedule
+        schedule(row)
         sub.analysis_progress = (await analysis_progress_service.for_submissions([row["id"]])).get(row["id"])
     sub.created_by = row["created_by"]
     if not is_creator:
@@ -2557,61 +2559,5 @@ async def recheck_after_document_text(file_id: UUID) -> None:
 
 
 async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
-    """Re-run the check of the open submission a file belongs to, after something about the file was read."""
-    try:
-        sub = await fetch_one(
-            """
-            SELECT s.*, """ + media_freshness.REVISION_SQL + """ AS media_edited_at FROM content_submissions s
-            JOIN content_submission_files f ON f.submission_id = s.id
-            WHERE f.id = $1 AND f.kind = ANY($2::text[]) AND f.deleted_at IS NULL
-              AND s.status IN ('DRAFT', 'IN_REVIEW', 'CHANGES_REQUESTED') AND s.deleted_at IS NULL
-            """,
-            file_id, kinds,
-        )
-        if not sub or not manual_check_service.may_finish_check(sub):
-            return
-        started = datetime.now(timezone.utc)
-        result, check = await _run_check(sub)
-        previous = manual_check_service.saved_check(sub)
-        check.update((key, previous[key]) for key in ("manual_requested_at", "checked_content_edited_at") if key in previous)
-        # Tell the creator the first time the video turns out not to match their approved script.
-        was_mismatch = ((_json(sub["latest_check"]) or {}).get("script_match") or {}).get("status") == "MISMATCH"
-        newly_mismatched = ((check.get("script_match") or {}).get("status") == "MISMATCH") and not was_mismatch
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                if not await _check_still_current(conn, sub, started):
-                    logger.info("Not saving a re-check of %s: the post changed while it ran", sub["id"])
-                    return
-                await conn.execute(
-                    "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1",
-                    sub["id"], json.dumps(check),
-                )
-                await _mirror_to_script_version(conn, sub["id"], check)
-                await conn.execute(
-                    """
-                    UPDATE content_review_jobs
-                    SET automated_check = $3::jsonb, score = $4, traffic_light = $5
-                    WHERE submission_id = $1 AND version_number = $2 AND status = 'AWAITING_REVIEW'
-                    """,
-                    sub["id"], sub["current_version"], json.dumps(check), result.score, result.traffic_light,
-                )
-                summary = (
-                    f"Read {what}; still reading the rest of the post before scoring"
-                    if analysis_pending(check)
-                    else f"Re-checked with {what}: the AI review couldn't run, so there is no score yet" if check["ai_unavailable"]
-                    else f"Re-checked with {what}: {result.violations_count} issue(s), score {result.score}/100"
-                )
-                await _add_event(conn, sub["id"], "CHECK_COMPLETED", summary, None,
-                                 {"traffic_light": result.traffic_light, "score": result.score})
-        if newly_mismatched:
-            await _notify(
-                [sub["created_by"]],
-                f"{sub['reference_code']}: the video doesn't match your approved script",
-                f"\"{sub['title']}\" says something quite different from the script a reviewer approved "
-                f"({check['script_match']['similarity']}% alike). Check you uploaded the right video before sending it for review.",
-                f"/submissions/{sub['id']}",
-                sub["id"],
-            )
-    except Exception:
-        logger.exception("Couldn't re-check submission after reading %s of %s", what, file_id)
+    from .pending_check_recovery import finish_for_file
+    await finish_for_file(file_id, kinds, what)

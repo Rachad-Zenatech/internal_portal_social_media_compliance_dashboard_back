@@ -4,59 +4,59 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/compliance_service.py (1513 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
-- `_get_gemini_client` (def) L79
+## services/compliance/evaluation/compliance_service.py (1511 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+- `_get_gemini_client` (def) L80
 - `_ai_switched_off` (def) L91 - The AI meaning check was turned off on purpose (not a failure).
-- `_ai_viability_enabled` (def) L96
-- `_row_to_rule` (def) L104
-- `_clean_scope` (def) L135 - Validate scope lists against the known rule sets, brands, audiences, regions and platforms.
-- `_clean_applies_to` (def) L161 - Lowercase and de-duplicate a rule's "applies to", rejecting anything the check can't match.
-- `_duplicate_number` (def) L175
-- `list_compliance_rules` (def) L182 - Retrieve compliance rules with multi-criteria filtering.
-- `get_compliance_rule` (def) L252 - Fetch single compliance rule by ID.
-- `create_compliance_rule` (def) L258 - Add a new custom rule.
-- `update_compliance_rule` (def) L325 - Update an existing rule.
-- `delete_compliance_rule` (def) L399 - Remove a rule from screening.
-- `_normalize` (def) L431 - Lowercase and collapse punctuation to spaces, so "combat-proven" matches "combat proven".
-- `_term_pattern` (def) L437 - A trigger phrase as a regex over normalized text.
-- `_matches` (def) L449
-- `_spans` (def) L457 - Where a phrase occurs in normalized, space-padded text.
-- `_negated` (def) L483 - Whether the phrase at `start` is denied: a negator right before it, or before one verb that precedes it.
-- `_hit` (def) L491 - A phrase counts unless every place it occurs sits inside one of the rule's exceptions, so "not combat
-- `_hashtag_hit` (def) L504 - A multi-word phrase run together in a hashtag ("#combatproven" for "combat proven"), unless one of the rule's
-- `_disclaimer_present` (def) L536 - A disclaimer counts as present if it's there word for word, or nearly so: wording drifts a little
-- `flag_segments` (def) L571 - Which transcript segments contain flagged wording, using the same matcher as the check itself, so the
-- `parts_for` (def) L597 - What content is made of, as the parts a rule's "applies to" names.
-- `ImpliedBy` (class) L637
-- `_wording_for` (def) L656 - The wording in the post that brings in this rule set, as written where possible, at most 5.
-- `implied_by_wording` (def) L672 - {rule set: the wording that brings it in} for every rule set the post's wording implies, whatever it was
-- `brands_of` (def) L685 - Every brand a stored submission is for (brand_code alone for rows saved before there could be several).
-- `audiences_of` (def) L691 - Every audience a stored submission targets (audience alone for rows saved before there could be several).
-- `implied_audiences` (def) L697 - Audiences a post reaches whatever it targets: investor wording ($ZENA, "shareholders") means investors read it,
-- `CheckScope` (class) L707
-- `check_scope` (def) L722 - Who the content reaches and what it's made of, for picking the rules that apply to it.
-- `_rule_applies` (def) L740 - Keep the existing entry point while the policy module handles scope matching.
-- `applicable_rules` (def) L745 - Active rules matching the brand/audience policy and individual rule scopes, also used by sentiment.
-- `_quoted` (def) L775 - a", "b"'.
-- `_penalty_and_light` (def) L780
-- `_evaluate_rule` (def) L791 - One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
-    - `found` (def) L799
-- `_sentences` (def) L867 - The post's sentences worth searching on: long enough to say something, each once, in order, at most `limit`.
-- `_vector_context_for_check` (def) L881 - Query the MongoDB Atlas vector store for:
-- `_looks_like_claims` (def) L1001
-- `_semantic_findings` (def) L1008 - Rules the exact wording missed but the vector store says the post is close to in meaning, confirmed by Gemini.
-- `_passage` (def) L1175 - The sentence a finding's wording sits in, and the sentences around it, for judging it in context.
-- `plain_text_lines` (def) L1193
-- `check_compliance` (def) L1197 - Screen content with scoped rules, contextual judgments, source checks and review penalties.
-- `flagged_tags` (def) L1311 - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
-- `_count_overlaps_once` (def) L1327 - When two rules flag the very same words (e.g.
-    - `spans` (def) L1330
-- `_charge_unsupported_claims` (def) L1347 - Give each claim that needs a source its small penalty.
-    - `claim` (def) L1353
-- `review_penalty` (def) L1378 - What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE).
-- `_charge_review_findings` (def) L1390 - Give each finding a person has to check its points by the model's confidence.
-- `_count_extra_claims` (def) L1409 - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
-- `rulebook_version` (def) L1435 - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
-- `self_test` (def) L1454 - Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable
-- `self_test_all` (def) L1485
-- `get_compliance_stats` (def) L1489 - Retrieve aggregate compliance metrics.
+- `_ai_viability_enabled` (def) L95
+- `_row_to_rule` (def) L103
+- `_clean_scope` (def) L134 - Validate scope lists against the known rule sets, brands, audiences, regions and platforms.
+- `_clean_applies_to` (def) L160 - Lowercase and de-duplicate a rule's "applies to", rejecting anything the check can't match.
+- `_duplicate_number` (def) L174
+- `list_compliance_rules` (def) L181 - Retrieve compliance rules with multi-criteria filtering.
+- `get_compliance_rule` (def) L251 - Fetch single compliance rule by ID.
+- `create_compliance_rule` (def) L257 - Add a new custom rule.
+- `update_compliance_rule` (def) L324 - Update an existing rule.
+- `delete_compliance_rule` (def) L398 - Remove a rule from screening.
+- `_normalize` (def) L430 - Lowercase and collapse punctuation to spaces, so "combat-proven" matches "combat proven".
+- `_term_pattern` (def) L436 - A trigger phrase as a regex over normalized text.
+- `_matches` (def) L448
+- `_spans` (def) L456 - Where a phrase occurs in normalized, space-padded text.
+- `_negated` (def) L482 - Whether the phrase at `start` is denied: a negator right before it, or before one verb that precedes it.
+- `_hit` (def) L490 - A phrase counts unless every place it occurs sits inside one of the rule's exceptions, so "not combat
+- `_hashtag_hit` (def) L503 - A multi-word phrase run together in a hashtag ("#combatproven" for "combat proven"), unless one of the rule's
+- `_disclaimer_present` (def) L535 - A disclaimer counts as present if it's there word for word, or nearly so: wording drifts a little
+- `flag_segments` (def) L570 - Which transcript segments contain flagged wording, using the same matcher as the check itself, so the
+- `parts_for` (def) L596 - What content is made of, as the parts a rule's "applies to" names.
+- `ImpliedBy` (class) L636
+- `_wording_for` (def) L655 - The wording in the post that brings in this rule set, as written where possible, at most 5.
+- `implied_by_wording` (def) L671 - {rule set: the wording that brings it in} for every rule set the post's wording implies, whatever it was
+- `brands_of` (def) L684 - Every brand a stored submission is for (brand_code alone for rows saved before there could be several).
+- `audiences_of` (def) L690 - Every audience a stored submission targets (audience alone for rows saved before there could be several).
+- `implied_audiences` (def) L696 - Audiences a post reaches whatever it targets: investor wording ($ZENA, "shareholders") means investors read it,
+- `CheckScope` (class) L706
+- `check_scope` (def) L721 - Who the content reaches and what it's made of, for picking the rules that apply to it.
+- `_rule_applies` (def) L739 - Keep the existing entry point while the policy module handles scope matching.
+- `applicable_rules` (def) L744 - Active rules matching the brand/audience policy and individual rule scopes, also used by sentiment.
+- `_quoted` (def) L774 - a", "b"'.
+- `_penalty_and_light` (def) L779
+- `_evaluate_rule` (def) L790 - One rule against normalized, padded text: its prohibited phrases (minus exceptions) and its required
+    - `found` (def) L798
+- `_sentences` (def) L866 - The post's sentences worth searching on: long enough to say something, each once, in order, at most `limit`.
+- `_vector_context_for_check` (def) L880 - Query the MongoDB Atlas vector store for:
+- `_looks_like_claims` (def) L1000
+- `_semantic_findings` (def) L1007 - Rules the exact wording missed but the vector store says the post is close to in meaning, confirmed by Gemini.
+- `_passage` (def) L1174 - The sentence a finding's wording sits in, and the sentences around it, for judging it in context.
+- `plain_text_lines` (def) L1192
+- `check_compliance` (def) L1196 - Screen content with scoped rules, contextual judgments, source checks and review penalties.
+- `flagged_tags` (def) L1309 - Which of these hashtags the rules would flag on their own, as {tag: rule number}.
+- `_count_overlaps_once` (def) L1325 - When two rules flag the very same words (e.g.
+    - `spans` (def) L1328
+- `_charge_unsupported_claims` (def) L1345 - Give each claim that needs a source its small penalty.
+    - `claim` (def) L1351
+- `review_penalty` (def) L1376 - What a finding a person has to check costs, by how sure the model is that the rule is broken (see REVIEW_SURE).
+- `_charge_review_findings` (def) L1388 - Give each finding a person has to check its points by the model's confidence.
+- `_count_extra_claims` (def) L1407 - A rule's penalty is for its first claim; each further separate claim of the same rule adds EXTRA_CLAIM_PENALTY,
+- `rulebook_version` (def) L1433 - When any rule last changed (added, edited or removed), plus the built-in claim and signal checks' versions, so
+- `self_test` (def) L1452 - Run a rule against its quoted "not acceptable" examples (it should flag them) and its quoted "acceptable
+- `self_test_all` (def) L1483
+- `get_compliance_stats` (def) L1487 - Retrieve aggregate compliance metrics.

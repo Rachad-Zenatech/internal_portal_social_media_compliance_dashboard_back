@@ -4,4 +4,4 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_comparison_prompt.py (64 lines) - Meaning-based source comparison contract, separate from orchestration.
+## services/compliance/evaluation/source_comparison_prompt.py (68 lines) - Meaning-based source comparison contract, separate from orchestration.

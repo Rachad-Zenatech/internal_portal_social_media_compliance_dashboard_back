@@ -4,9 +4,9 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_claim_recheck.py (119 lines) - One cached, source-attributed final pass for unresolved claims; no additional downloads.
-- `_key` (def) L38
-- `_cached` (def) L44
-- `_save` (def) L54
-- `_generate` (def) L66
-- `run` (def) L89
+## services/compliance/evaluation/source_claim_recheck.py (123 lines) - One cached, source-attributed final pass for unresolved claims; no additional downloads.
+- `_key` (def) L42
+- `_cached` (def) L48
+- `_save` (def) L58
+- `_generate` (def) L70
+- `run` (def) L93

@@ -4,8 +4,8 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/compliance_check_result.py (139 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
+## services/compliance/evaluation/compliance_check_result.py (141 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
 - `review_recommendations` (def) L7
 - `check_notes` (def) L40
 - `build_response` (def) L63
-- `recalculate_totals` (def) L121 - Recompute counts, score, and traffic light after post-check localization clears a finding.
+- `recalculate_totals` (def) L122 - Recompute counts, score, and traffic light after post-check localization clears a finding.

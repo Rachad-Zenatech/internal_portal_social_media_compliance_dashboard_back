@@ -1,6 +1,8 @@
 """Visual compliance instructions; the active database rule remains the policy authority."""
+from services.compliance.evaluation.finding_language import PLAIN_LANGUAGE
 
-PROMPT_VERSION = "visual-v2-observed-evidence-video-samples"
+
+PROMPT_VERSION = "visual-v3-plain-language"
 
 RULE_NUMBERS = {"Rule 11", "Rule 7", "Rule 12", "Rule 27", "Rule 28", "Rule 29"}
 PROMPT = """Inspect the attached social-media asset visually, not only its text. Evaluate every supplied
@@ -48,6 +50,8 @@ box [top,left,bottom,right] on a 0..1000 grid for an issue, or [] if it cannot b
 give start_sec and end_sec, otherwise use 0 for both. Do not fabricate coordinates or timestamps.
 An empty findings list is not a completed check. Return JSON only.
 """
+PROMPT += PLAIN_LANGUAGE
+
 
 SCHEMA = {
     "type": "OBJECT", "required": ["assessments"], "properties": {

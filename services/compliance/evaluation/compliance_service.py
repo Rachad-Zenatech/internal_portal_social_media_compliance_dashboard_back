@@ -3,6 +3,7 @@ Rule CRUD and rulebook screening of captions, scripts and transcripts.
 """
 
 from services.compliance.evaluation.finding_evidence import highlight_terms, VERSION as HIGHLIGHT_VERSION
+from services.compliance.evaluation.finding_visibility import is_visible
 import asyncio
 import contextvars
 import hashlib
@@ -41,7 +42,7 @@ from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
 from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer, army_context_review, visual_review, branding
-from services.compliance.evaluation import context_evaluator, rule_set_policy, rule18_policy, rule_scope_policy
+from services.compliance.evaluation import context_evaluator, rule_set_policy, rule18_policy, rule_scope_policy, context_candidates
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
 from services.compliance.evaluation import source_check_service, source_post_checks, compliance_check_result
@@ -87,11 +88,9 @@ def _get_gemini_client() -> Optional[Any]:
 # the check can say its result is incomplete instead of looking like a clean pass. Read after the check's steps ran.
 _ai_incomplete: contextvars.ContextVar[bool] = contextvars.ContextVar("compliance_ai_incomplete", default=False)
 
-
 def _ai_switched_off() -> bool:
     """The AI meaning check was turned off on purpose (not a failure)."""
     return os.getenv("COMPLIANCE_AI_VIABILITY_ENABLED", "true").strip().lower() in {"0", "false", "no", "off"}
-
 
 def _ai_viability_enabled() -> bool:
     from services.ai.core.bedrock_service import has_ai_key
@@ -1286,14 +1285,13 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         v.passage, v.context = _passage(match_text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])
         if v.category == "Source Check" and v.flagged_terms:
             v.passage = v.flagged_terms[0]  # Keep each grounded claim distinct, including wrapped image text.
-    candidates = [context_evaluator.Candidate(v, rule, v.passage or "", v.context or "") for v, rule in contextual]
-    army_context_review.include(req, rules, violations, candidates)
+    candidates = context_candidates.for_post(contextual, req, rules, violations)
     await context_evaluator.evaluate(candidates, req.text, brand=req.brand_code)
     source_check_service.clear_supported(violations, source_result.checks)
     visual_checks = await visual_review.review(req, rules, violations)
     ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations) or any(c["status"] == "UNAVAILABLE" for c in visual_checks)
     synthetic_media_disclosure.ensure_review(match_req, rules, violations)
-    violations[:] = [v for v in violations if not (v.flagged_terms and all(branding.is_branding(t) for t in v.flagged_terms))]
+    violations[:] = [v for v in violations if is_visible(v) and not (v.flagged_terms and all(branding.is_branding(t) for t in v.flagged_terms))]
     breaches = [v for v in violations if v.status == "VIOLATION"]
     _count_overlaps_once(breaches, padded_text)
     _count_extra_claims(breaches, rules, padded_text)

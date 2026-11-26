@@ -60,11 +60,13 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__compliance_check_result.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__compliance_diagnostics.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__compliance_service.md | 1 | 5 KB |
+| .agents/code-map/services__compliance__evaluation__context_candidates.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__context_evaluator.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__context_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__defense_disclaimer.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__finding_evidence.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__finding_visibility.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__forward_looking_context.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__image_detail_review.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__image_marks.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__newsroom_article_sources.md | 1 | 1 KB |
@@ -162,6 +164,7 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions__manual_check_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__media_freshness.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__media_read_status.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__pending_check_recovery.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__post_approval_suggestions.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__post_steps_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__post_text_review.md | 1 | 1 KB |
