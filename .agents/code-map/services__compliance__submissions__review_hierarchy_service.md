@@ -4,8 +4,13 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/review_hierarchy_service.py (40 lines) - Review access inherited by Content Managers through the saved role hierarchy.
-- `managed_reviewers_sql` (def) L4 - Active users in descendant roles of this manager's active Content Manager role.
-- `manager_access_sql` (def) L28
-- `sent_to` (def) L32
-- `reviewer_sees` (def) L36 - Named reviewers and their managers retain access across brand scopes.
+## services/compliance/submissions/review_hierarchy_service.py (85 lines) - Review access inherited by Content Managers through the saved role hierarchy.
+- `_is_dev` (def) L5
+- `_admin_codes` (def) L9
+- `_super_or_dev_admin_sql` (def) L13
+- `managed_reviewers_sql` (def) L23 - Active users in descendant roles of this manager's active Content Manager role.
+- `manager_access_sql` (def) L47
+- `sent_to` (def) L51
+- `reviewer_sees` (def) L55 - Named reviewers, their managers, and super admins (plus dev admins outside production) retain access.
+- `has_admin_access` (def) L62 - Super admins always have full visibility; ADMIN role gets full visibility in non-production.
+- `is_dev_admin` (def) L83

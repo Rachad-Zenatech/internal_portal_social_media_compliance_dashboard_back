@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_fetch_service.py (348 lines) - Source fetcher: opens a link a post cites and returns its readable text.
+## services/compliance/evaluation/source_fetch_service.py (361 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - `FetchedSource` (class) L58
 - `_Refused` (class) L75
 - `_forbidden` (def) L81
@@ -22,4 +22,5 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_get_once` (def) L238 - One request, its body read as a stream and cut off at the size limit.
 - `_download` (def) L256 - (bytes, content type, final url), following a few redirects, checking every destination.
 - `fetch` (def) L285 - Open a link and return its readable text, or the reason it couldn't be read.
-- `_fetch` (def) L303
+- `extract_pdf_source` (def) L303 - Extract readable text from downloaded PDF bytes, using local OCR then AI fallback.
+- `_fetch` (def) L321

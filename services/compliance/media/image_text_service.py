@@ -109,7 +109,7 @@ async def _save(file_id: UUID, status: str, text: Optional[str] = None, error: O
     )
 
 
-async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None, *, models=None, max_output_tokens: int = 1200) -> object:
+async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None, *, models=None, max_output_tokens: int = 1200, response_retry_pending: bool = False) -> object:
     """Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
     PDF scripts and visual compliance reuse the traced calls with their own feature labels."""
     config = types.GenerateContentConfig(
@@ -133,7 +133,8 @@ async def _generate(contents, feature: str = "IMAGE_TEXT", response_schema=None,
     active_models = [m for m in candidates if model_is_available(m)] or candidates
     for model in active_models:
         try:
-            return await ai_observability.generate(client, model=model, contents=contents, config=config, feature=feature)
+            return await ai_observability.generate(client, model=model, contents=contents, config=config, feature=feature,
+                                                  response_retry_pending=response_retry_pending)
         except Exception as e:
             timed_out = isinstance(e, (httpx.TimeoutException, TimeoutError)) or "timed out" in str(e).lower()
             if not timed_out and not is_rotatable_model_error(e):

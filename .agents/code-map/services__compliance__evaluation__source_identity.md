@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_identity.py (56 lines) - Identify repeated source URLs without conflating different reports from one publisher.
+## services/compliance/evaluation/source_identity.py (57 lines) - Identify repeated source URLs without conflating different reports from one publisher.
 - `url_key` (def) L8 - Ignore transport, fragments and tracking; preserve article paths and identifying query values.
 - `_replacement` (def) L21
 - `citations` (def) L31 - Keep one citation per URL, preferring its explicitly attached source-link occurrence.

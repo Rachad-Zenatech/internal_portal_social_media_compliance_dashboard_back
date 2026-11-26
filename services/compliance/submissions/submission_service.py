@@ -61,13 +61,17 @@ from services.compliance.submissions import approval_path_service, source_link_s
 from services.notifications.submission_notifications import notify_submission as _notify
 from services.compliance.submissions import delegation_service
 from services.compliance.submissions.review_hierarchy_service import (
-    manager_access_sql, reviewer_sees as _reviewer_sees, sent_to as _sent_to,
+    has_admin_access as _has_admin_access, is_dev_admin as _is_dev_admin, manager_access_sql,
+    reviewer_sees as _reviewer_sees, sent_to as _sent_to,
 )
 from services.compliance.submissions.submission_snapshot import build_snapshot
 from services.compliance.submissions import duplicate_service
 from services.compliance.media import canva_service
 from services.compliance.submissions import creator_dismissal_service, flag_review_service
-from services.compliance.submissions import post_approval_suggestions, review_comment_writes
+from services.compliance.submissions import post_approval_suggestions, review_comment_writes, review_handoff
+from services.compliance.submissions.submission_content_revision import (
+    content_changed, same_value as _same_value, NON_CONTENT_FIELDS as _NOT_CONTENT_FIELDS,
+)
 from services.shared.storage.s3_storage_service import ensure_local_file, s3_enabled, s3_key_for, upload_file_to_s3
 from services.compliance.submissions import review_deadline_service
 from services.compliance.media import transcription_service
@@ -117,35 +121,6 @@ MAIN_EXT_BY_TYPE = {
 }
 # Types whose main asset is required to submit; posts and articles can be text-only. An ad needs its creative.
 MAIN_FILE_REQUIRED = {"VIDEO", "IMAGE", "CAROUSEL", "AD"}
-# Saved fields that don't change what the compliance check, sentiment analysis or public mood read.
-_NOT_CONTENT_FIELDS = {"approval_needed_by", "reviewer_ids", "reviewer_route"}
-
-
-def _same_value(new: Any, old: Any) -> bool:
-    """Whether a saved value is what the post already holds (a list in another order, or a date as text, still counts)."""
-    if isinstance(new, list) and isinstance(old, list):
-        return [str(x) for x in new] == [str(x) for x in old]
-    if isinstance(old, datetime) and isinstance(new, str):
-        try:
-            parsed = datetime.fromisoformat(new.replace("Z", "+00:00"))
-        except ValueError:
-            return False
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=old.tzinfo)
-        return parsed == old
-    if isinstance(new, UUID) or isinstance(old, UUID):
-        return str(new) == str(old)
-    if isinstance(new, dict):
-        return new == (_json(old) or {})
-    return new == old
-
-
-def content_changed(row: Dict[str, Any], fields: Dict[str, Any]) -> bool:
-    """Whether saving these fields changes anything the checks read. A save that only repeats what is already there
-    (every save from the editor sends the whole form) leaves the checks up to date."""
-    return any(c not in _NOT_CONTENT_FIELDS and not _same_value(v, row.get(c)) for c, v in fields.items())
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -258,11 +233,7 @@ async def _cached_user_fact(user_id: UUID, name: str, load):
 
 
 async def _is_super_admin(user_id: UUID) -> bool:
-    async def load() -> bool:
-        row = await fetch_one("SELECT is_super_admin FROM users WHERE id = $1", user_id)
-        return bool(row and row["is_super_admin"])
-
-    return await _cached_user_fact(user_id, "super_admin", load)
+    return await _cached_user_fact(user_id, "super_admin", lambda: _has_admin_access(user_id))
 
 
 async def _can_manage_team_content(user_id: UUID) -> bool:
@@ -295,15 +266,15 @@ async def _is_suggester(user_id: UUID) -> bool:
 async def _can_see_team_content(user_id: UUID) -> bool:
     """Content Managers, reviewers and suggesting reviewers can read other people's submissions (a suggesting reviewer
     only those sent to them by name: see _brand_scope)."""
-    return await _can_manage_team_content(user_id) or await _can_suggest(user_id)
+    return await _can_manage_team_content(user_id) or await _can_suggest(user_id) or await _is_dev_admin(user_id)
 
 
 async def _brand_scope(user_id: UUID) -> Optional[List[str]]:
     """The brand codes the user works on, or None when they work on every brand: super admins, and anyone who
     hasn't been assigned to specific brands. Other people's content outside these brands is hidden from them. A
     suggesting reviewer works on no brand (an empty list): they see only what was sent to them by name."""
-    if await _is_suggester(user_id):
-        return []
+    if await _is_dev_admin(user_id): return None
+    if await _is_suggester(user_id): return []
 
     async def load() -> Optional[Tuple[str, ...]]:
         row = await fetch_one(
@@ -342,7 +313,7 @@ async def _get_owned_row(submission_id: UUID, user_id: UUID, manager_can_read: b
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
-    if row["created_by"] != user_id and not await _is_super_admin(user_id):
+    if row["created_by"] != user_id and not await _is_super_admin(user_id) and not await _is_dev_admin(user_id):
         if not (manager_can_read and await _can_see_team_content(user_id)):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
         scope = await _brand_scope(user_id)
@@ -570,17 +541,14 @@ async def create_submission(data: SubmissionCreate, user_id: UUID) -> Submission
 async def list_submissions(user_id: UUID, status_filter: Optional[str] = None, scope: str = "mine") -> List[SubmissionSummary]:
     """The user's own submissions, or everyone's (scope="all") for super admins, Content Managers and reviewers."""
     # Independent lookups at once: one database round trip of waiting instead of five in a row.
-    is_manager, is_reviewer, is_super, brand_scope, rules = await asyncio.gather(
-        _can_manage_team_content(user_id), _can_review(user_id), _is_super_admin(user_id), _brand_scope(user_id), approval_path_service.load_rules())
-    if scope == "all" and not (is_manager or is_reviewer):
+    is_manager, is_reviewer, is_super, is_dev_admin, brand_scope, rules = await asyncio.gather(
+        _can_manage_team_content(user_id), _can_review(user_id), _is_super_admin(user_id),
+        _is_dev_admin(user_id), _brand_scope(user_id), approval_path_service.load_rules())
+    if scope == "all" and not (is_manager or is_reviewer or is_dev_admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only see your own content")
     rows = await fetch_all(
         submission_list_query.list_query(_ACCOUNTS_COLUMN, _pending_sql, _unavailable_sql),
-        user_id,
-        status_filter,
-        scope == "all",
-        # Everyone else's content only for the brands the viewer works on.
-        brand_scope,
+        user_id, status_filter, scope == "all", brand_scope,
     )
     revision = await revision_steps.for_submissions(rows)
     summaries = []
@@ -1279,22 +1247,15 @@ async def run_initial_check(submission_id: UUID, user_id: UUID, confirm_repost: 
     await image_text_service.retry_failed_images(submission_id)
     # Settle duplicates before checking, including confirmation of reposts for another date.
     duplicates = await _require_not_duplicate(row, confirm_repost)
-    attempts: Dict[str, Dict[str, Any]] = {}
-    outer = ai_observability.attempt_listener.get()
+    from services.ai.observability.attempt_progress import capture_attempts
     check_started_at = datetime.now(timezone.utc)
     started = time.perf_counter()
-    def record(event: Dict[str, Any]) -> None:
-        if event.get("event") == "attempt" and event.get("id"):
-            attempts[event["id"]] = {k: event.get(k) for k in ("id", "status", "model", "feature", "attempt", "tier", "error_kind", "error", "duration_ms")}
-        if outer is not None:
-            outer(event)
-    token = ai_observability.attempt_listener.set(record)
-    refresh_token = source_recheck.refresh.set(refresh_sources)
-    try:
-        result, check = await _run_check(row)
-    finally:
-        source_recheck.refresh.reset(refresh_token)
-        ai_observability.attempt_listener.reset(token)
+    with capture_attempts() as attempts:
+        refresh_token = source_recheck.refresh.set(refresh_sources)
+        try:
+            result, check = await _run_check(row)
+        finally:
+            source_recheck.refresh.reset(refresh_token)
     check.update(manual_requested_at=check["checked_at"], checked_content_edited_at=str(row.get("content_edited_at")) if row.get("content_edited_at") else None)
     check["models"] = {"attempts": list(attempts.values()), "duration_ms": round((time.perf_counter() - started) * 1000)}
     if duplicates.repost:
@@ -2081,13 +2042,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     """A reviewer approves the version in review (scheduling it on the calendar, or to publish now) or sends it
     back to the creator with what to change."""
     row = await _get_owned_row(submission_id, user_id, manager_can_read=True)
-    if not await _can_review(user_id):
-        raise HTTPException(status_code=403, detail="Only reviewers can approve content or request changes")
-    if row["status"] != "IN_REVIEW":
-        raise HTTPException(status_code=409, detail="Only content that's in review can be approved or sent back")
-    is_super = await _is_super_admin(user_id)
-    if row["created_by"] == user_id and not is_super:
-        raise HTTPException(status_code=403, detail="You can't review your own content; another reviewer needs to")
+    is_super = await review_handoff.require_reviewer(row, user_id)
     approval_score: Optional[int] = None
     if req.decision == "APPROVE":
         row, approval_score = await review_approval_service.require_approval(row, user_id, is_super)
@@ -2132,6 +2087,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                        else await decision_status(conn, row))
             if current != "IN_REVIEW":
                 raise HTTPException(status_code=409, detail="Someone else just decided on this; refresh to see it")
+            await review_handoff.require_undecided(conn, row)
             await conn.execute(
                 """
                 UPDATE content_review_jobs
@@ -2142,51 +2098,19 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
                 submission_id, version, new_status, req.decision, notes, user_id,
                 json.dumps(manual_checks) if manual_checks is not None else None,
             )
-            revision_due = (
-                review_deadline_service.revision_due(publish_at, req.revision_days, req.revision_due_at)
-                if new_status == "CHANGES_REQUESTED" else None
-            )
-            await conn.execute(
-                """
-                UPDATE content_submissions
-                SET status = $2::varchar, publish_at = $3,
-                    publish_after_changes = CASE WHEN $2::varchar = 'CHANGES_REQUESTED' THEN $6 ELSE false END,
-                    updated_at = NOW(), updated_by = $4,
-                    due_at = $5, due_kind = CASE WHEN $5::timestamptz IS NULL THEN NULL ELSE 'REVISION' END,
-                    due_reminded_at = NULL, due_overdue_notified_at = NULL
-                WHERE id = $1
-                """,
-                submission_id, new_status, publish_at, user_id, revision_due,
-                bool(req.publish_after_changes) if req.decision == "REQUEST_CHANGES" else False,
-            )
-            await _add_event(conn, submission_id, "REVIEW_DECISION", f"Version {version}: {label}", user_id,
-                             {"decision": req.decision, "notes": notes, "version": version,
-                              "revision_days": req.revision_days,
-                              "revision_due": revision_due.isoformat() if revision_due else None,
-                              "publish_at": publish_at.isoformat() if publish_at else None,
-                              "publish_now": req.publish_now, "publish_after_changes": req.publish_after_changes, "manual_checks": manual_checks,
-                              "approval_score": approval_score})
+            revision_due, held = await review_handoff.save_outcome(conn, row, req, user_id, new_status, publish_at)
+            await review_handoff.record_outcome(conn, row, req, user_id, notes, publish_at, revision_due,
+                                                label, approval_score, manual_checks, held)
 
     await log_audit_event("content_submission", str(submission_id), f"REVIEW_{req.decision}", user_id,
                           {"reference_code": row["reference_code"], "version": version, "notes": notes,
                            "publish_at": publish_at.isoformat() if publish_at else None,
                            "manual_checks": manual_checks, "approval_score": approval_score})
 
-    reviewer = await fetch_one("SELECT full_name FROM users WHERE id = $1", user_id)
-    who = reviewer["full_name"] if reviewer else "A reviewer"
-    if req.decision == "REQUEST_CHANGES":
-        title = f"{row['reference_code']} needs changes"
-        message = (f"{who} asked for changes to \"{row['title']}\"." + (f" \"{notes}\"" if notes else " See the comments.")
-                   + f" Please resubmit by {review_deadline_service._when(revision_due)}.")
-        link = f"/submissions/{submission_id}"
-    else:
-        title = f"{row['reference_code']} was approved"
-        message = f"{who} approved \"{row['title']}\". {label}."
-        link = "/content-calendar"
-    if row["created_by"] != user_id:
-        await _notify([row["created_by"]], title, message, link, submission_id)
+    await review_handoff.notify_now(row, user_id, req, notes, revision_due, label, held)
     # The decision becomes precedent for analysing similar content.
-    review_memory_service.remember_soon(submission_id, version)
+    if not held:
+        review_memory_service.remember_soon(submission_id, version)
     return await get_submission(submission_id, user_id)
 
 

@@ -142,16 +142,25 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `result` (def) L70
 - `sanitize_caption_html` (def) L77 - The caption HTML with only safe formatting left.
 
-## services/compliance/media/image_finding_service.py (235 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
-- `normalized` (def) L32
-- `text_spans` (def) L36 - Whole-word occurrences in normalized OCR text, including text that wraps over lines.
-- `overlaps_flagged_text` (def) L44 - A returned line may include context on either side of the flagged words.
-- `region_from_box` (def) L52 - Reject off-image/empty coordinates; Gemini uses [top, left, bottom, right].
-- `_tesseract_binary` (def) L66 - Resolve the local OCR binary that can read the current runtime's temporary files.
-- `_ocr_word_boxes` (def) L81 - Return Tesseract word boxes in Gemini's 0--1000 coordinate system when available.
-- `_ocr_regions` (def) L117 - Find flagged phrases in OCR words and return one tight region per affected text line.
-- `locate_image_findings` (def) L143 - Locate flagged wording, including warnings that still need evidence.
-- `_attach_regions` (def) L219
+## services/compliance/media/image_finding_service.py (453 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+- `normalized` (def) L33
+- `text_spans` (def) L37 - Whole-word occurrences in normalized OCR text, including text that wraps over lines.
+- `overlaps_flagged_text` (def) L45 - A returned line may include context on either side of the flagged words.
+- `region_from_box` (def) L53 - Reject off-image/empty coordinates; Gemini uses [top, left, bottom, right].
+- `_tesseract_binary` (def) L67 - Resolve the local OCR binary that can read the current runtime's temporary files.
+- `_ocr_word_boxes` (def) L82 - Return Tesseract word boxes in Gemini's 0--1000 coordinate system when available.
+- `_source_block_boxes` (def) L125 - Group a printed source cue and nearby same-font continuation lines into exclusion boxes.
+- `_disclaimer_lines` (def) L191
+- `_locate_vision_blocks` (def) L200
+- `_vision_source_regions` (def) L232 - Fallback when local OCR misses tiny footer text: locate printed source credits via vision.
+- `_vision_disclaimer_regions` (def) L248 - Locate printed disclaimers/caveats (including * ...
+- `_inside_any_box` (def) L263
+- `_ocr_regions` (def) L269 - Find flagged phrases in OCR words and return one tight region per affected text line.
+- `_region_in_sources` (def) L298
+- `_clear_source_window_findings` (def) L304 - Ignore findings whose only localized occurrence fell inside a printed source window.
+- `_filter_excluded_regions` (def) L322
+- `locate_image_findings` (def) L335 - Locate flagged wording, ignore findings inside source/disclaimer windows, and return their regions.
+- `_attach_regions` (def) L433
 
 ## services/compliance/media/image_finding_zoom.py (82 lines) - Recover small-text locations from enlarged sections; map boxes back to the original image.
 - `sections` (def) L15
@@ -163,21 +172,21 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `parse` (def) L6
 - `read` (def) L20
 
-## services/compliance/media/image_text_service.py (294 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+## services/compliance/media/image_text_service.py (295 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def) L68
 - `_get_client` (def) L72
 - `_claim` (def) L82 - Atomically mark an image as being read unless another worker already is.
 - `_save` (def) L98
 - `_generate` (def) L112 - Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
-- `_clean` (def) L147
-- `_has_ai_metadata` (def) L152 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
-- `_face_boxes` (def) L169 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
-- `read_file` (def) L187 - Read one image's text and save it, then re-check its submission if it's still open.
-- `retry_failed_images` (def) L232 - An explicit Check again permits one new read; background checks do not reset failures.
-- `_run` (def) L243
-- `schedule` (def) L250 - Read each image in the background, unless this process is already reading it.
-- `resume_interrupted` (def) L261 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
-- `schedule_missing` (def) L278 - Read the images among these that were never read, or whose read was abandoned (e.g.
+- `_clean` (def) L148
+- `_has_ai_metadata` (def) L153 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
+- `_face_boxes` (def) L170 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
+- `read_file` (def) L188 - Read one image's text and save it, then re-check its submission if it's still open.
+- `retry_failed_images` (def) L233 - An explicit Check again permits one new read; background checks do not reset failures.
+- `_run` (def) L244
+- `schedule` (def) L251 - Read each image in the background, unless this process is already reading it.
+- `resume_interrupted` (def) L262 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
+- `schedule_missing` (def) L279 - Read the images among these that were never read, or whose read was abandoned (e.g.
 
 ## services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - `audio_samples` (def) L16
@@ -210,7 +219,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `schedule_missing` (def) L167 - Queue videos that were never transcribed, or whose previous attempt was abandoned.
 - `retry_failed_videos` (def) L214 - Only explicit compliance reruns retry failed transcripts; background polling does not.
 
-## services/compliance/media/video_finding_service.py (116 lines) - Locate exact flagged wording in video frames without inventing a visual region.
+## services/compliance/media/video_finding_service.py (119 lines) - Locate exact flagged wording in video frames without inventing a visual region.
 - `_ffmpeg_binary` (def) L20 - Use the configured Windows executable from WSL when development mounts the drive.
 - `_ffmpeg_input_path` (def) L28 - Pass a Windows path to a Windows FFmpeg executable launched from WSL.
 - `_frame_bytes` (def) L36 - Read one PNG video frame to memory without creating temporary media files.

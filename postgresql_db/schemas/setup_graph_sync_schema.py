@@ -23,7 +23,7 @@ async def setup():
 
         print("Seeding PENDING_USER and USER roles...")
         await conn.execute(
-            "INSERT INTO roles (code, name, description, is_system_role) VALUES ('USER', 'Standard User', 'Standard user with view access', false) ON CONFLICT (code) DO NOTHING"
+            "INSERT INTO roles (code, name, description, is_system_role) VALUES ('USER', 'Content Creator', 'Content creator with view access', false) ON CONFLICT (code) DO NOTHING"
         )
         await conn.execute(
             "INSERT INTO roles (code, name, description, is_system_role) VALUES ('PENDING_USER', 'Pending User', 'Pending activation', true) ON CONFLICT (code) DO NOTHING"

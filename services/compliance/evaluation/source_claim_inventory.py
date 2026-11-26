@@ -2,14 +2,15 @@
 import hashlib
 import json
 import logging
+import re
 
 from postgresql_db import database as db
 from services.ai.observability.ai_guardrails import screen_input
-from services.compliance.evaluation import source_claim_grounding, source_claim_policy
+from services.compliance.evaluation import source_claim_grounding, source_claim_policy, source_assertions
 from services.compliance.evaluation.source_image_claims import is_identifier
 from services.compliance.evaluation.citation_finder import is_reference_only
 
-VERSION = "claims-v6-assertion-roles"
+VERSION = "claims-v7-atomic-identities"
 logger = logging.getLogger(__name__)
 PROMPT = """Identify substantive factual assertions that require substantiation, without consulting any source.
 Return claims in the supplied JSON schema, with verdict UNCLEAR and confidence 0.
@@ -28,6 +29,9 @@ elsewhere in the same image or caption. For example, in a portable cooler advert
 temperature-sensitive supplies' and 'Portable refrigeration for mobile operations' each
 assert a capability or suitability and need supporting evidence. Do not demand that every
 bullet repeat the product name or form a complete sentence. Keep each distinct assertion.
+Return one assertion per entry. Separate independent statements about design intent, development
+status, clinical suitability and validation requirements. Keep a product-name fragment attached
+ to its status ("ZenaDrone 1000. Under development."). Never detach a negation or qualification.
 Do not assume a claim is supported because a brand, website, source or illustration appears.
 Use a proportionate standard. Skip routine first-party announcements of the company's own
 plans to attend, exhibit, network or showcase a product at an event; those plans do not by
@@ -80,6 +84,9 @@ async def get(text, extract):
     return json.loads(value) if isinstance(value, str) else value
 
 
+_ASTERISK_DISCLAIMER = re.compile(r"^\*+\s*[^*]+?\s*\*+$")
+
+
 async def extract(text, ask, models, limit):
     """Only save successful, grounded identification; never cache an AI failure as empty."""
     contents = "<post>\n" + text + "\n</post>"
@@ -98,15 +105,15 @@ async def extract(text, ask, models, limit):
                     rejected += 1
                     continue
                 if (getattr(item, "assertion_kind", None) in {"INCIDENTAL_TEXT", "NON_ASSERTION"}
-                        or is_identifier(claim) or is_reference_only(claim)):
+                        or is_identifier(claim) or is_reference_only(claim) or _ASTERISK_DISCLAIMER.match(claim)):
                     continue
                 for original, where in excerpts:
                     if source_claim_policy.incidental(original, where):
                         continue
-                    key = " ".join(original.split()).casefold()
-                    if (key, where) not in seen:
-                        seen.add((key, where))
-                        claims.append({"claim": original, "where": where})
+                    for atomic in source_assertions.grounded(text, original, where):
+                        if atomic["claim_id"] not in seen:
+                            seen.add(atomic["claim_id"])
+                            claims.append(atomic)
             if not rejected and len(claims) <= limit:
                 return claims
             logger.warning("Claim extraction incomplete: model=%s retained=%d rejected=%d limit=%d",
@@ -127,6 +134,7 @@ def reconcile(inventory, answers, result_type):
     complete = getattr(inventory, "complete", True)
     for item in inventory:
         matches = [r for r in answers if r.where == item["where"]
+                   and (not getattr(r, "claim_id", None) or r.claim_id == item.get("claim_id"))
                    and source_claim_grounding.same_assertion(item["claim"], r.claim)]
         if len(matches) == 1:
             out.append(result_type(**{**matches[0].model_dump(), **item}))

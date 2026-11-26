@@ -41,7 +41,7 @@ def list_query(accounts_column, pending_sql, unavailable_sql):
                      WHERE sv.submission_id = s.id ORDER BY sv.version_number DESC LIMIT 1)
                ) END AS script_excerpt,
                s.latest_check->>'traffic_light' AS latest_traffic_light,
-               CASE WHEN """ + pending_sql("s.latest_check") + " OR " + unavailable_sql("s.latest_check") + """ THEN NULL ELSE (s.latest_check->>'score')::int END AS latest_score,
+               CASE WHEN """ + pending_sql("s.latest_check") + """ THEN NULL ELSE (s.latest_check->>'score')::int END AS latest_score,
                CASE WHEN """ + pending_sql("s.latest_check") + " OR " + unavailable_sql("s.latest_check") + """ THEN NULL
                     ELSE COALESCE((s.latest_check->>'violations_count')::int,
                                   CASE WHEN jsonb_typeof(s.latest_check->'violations') = 'array'

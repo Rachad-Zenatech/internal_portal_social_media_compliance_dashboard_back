@@ -4,5 +4,5 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/submission_check_runner.py (67 lines) - Run and snapshot the complete post check without changing its scoring policy.
+## services/compliance/submissions/submission_check_runner.py (71 lines) - Run and snapshot the complete post check without changing its scoring policy.
 - `run_check` (def) L10 - The one rulebook check every screen shows: title, caption, the script (or a blog's article file), the video

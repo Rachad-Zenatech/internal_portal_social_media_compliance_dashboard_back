@@ -50,6 +50,7 @@ def readings(items):
         identity = ("URL", url_key(check.url or check.reference)) if check.kind == "URL" else (
             check.kind, " ".join(check.reference.casefold().split()))
         current = selected.get(identity)
-        if current is None or (material is not None and current[1] is None):
+        if current is None or (check.status == "READ" and material is not None
+                               and (current[0].status != "READ" or current[1] is None)):
             selected[identity] = check, material
     return list(selected.values())

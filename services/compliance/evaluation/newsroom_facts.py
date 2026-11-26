@@ -107,6 +107,9 @@ def visible_checks(checks: Sequence[SourceCheck]) -> List[SourceCheck]:
         if not is_newsroom(check):
             visible.append(check)
             continue
+        if check.status == "UNREADABLE":
+            visible.append(check)
+            continue
         claims = [claim for claim in check.claims if claim.verdict in ("SUPPORTED", "CONTRADICTED")]
         if check.status == "READ" and claims:
             visible.append(check.model_copy(update={"claims": claims}))

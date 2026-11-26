@@ -16,13 +16,13 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/caption_model.py (39 lines) - Caption suggestions: Gemini drafts a few captions from the post itself, checked against the rulebook.
 - models/compliance/caption_review_model.py (41 lines) - Direct review-time caption edits and their immutable before/after history.
 - models/compliance/check_diagnostics_model.py (10 lines) - Public reasons a compliance review remains incomplete; never include provider secrets.
-- models/compliance/compliance_model.py (361 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+- models/compliance/compliance_model.py (374 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - models/compliance/duplicate_model.py (41 lines) - Duplicate-post comparisons shown before a creator submits a post.
 - models/compliance/flag_review_model.py (82 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - models/compliance/image_provenance_model.py (15 lines) - Saved AI-image disclosure and whether the creator explicitly answered the question.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
-- models/compliance/post_approval_model.py (17 lines) - The suggestion window following the first approval of a post.
+- models/compliance/post_approval_model.py (18 lines) - The suggestion window following the first approval of a post.
 - models/compliance/post_text_review_model.py (37 lines) - Reviewers' attributed edits to a text-only post.
 - models/compliance/public_mood_model.py (381 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - models/compliance/review_score_model.py (10 lines) - Effective review score fields shared by submission and review queue responses.
@@ -30,7 +30,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/script_doc_model.py (239 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
 - models/compliance/script_review_model.py (236 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
-- models/compliance/sentiment_model.py (326 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
+- models/compliance/sentiment_model.py (327 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
 - models/compliance/source_link_model.py (56 lines) - Models for submission source links and quick AI link checks.
 - models/compliance/source_trust_model.py (50 lines) - Models for people's calls on sources (does this claim match the page? is the page a good source?) and the standing a site earns from revi...
 - models/compliance/submission_input_model.py (19 lines) - Post creation inputs and the optional video script review setting.
@@ -74,6 +74,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
 - scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
 - scripts/push_local_to_rds.py (159 lines) - Migrate the local Docker PostgreSQL database (or a .dump file) to AWS RDS.
+- scripts/review_handoff_eval.py (347 lines) - Offline deadline checks plus isolated PostgreSQL handoff/concurrency regressions.
 - scripts/scrape_x_links.py (123 lines) - Is what an item links to about the topic it was collected for? Every outside link of a collected item (see scrape_x_media.source_links) i...
 - scripts/scrape_x_media.py (153 lines) - Source links and image text for scraped X posts and news items.
 - scripts/scrape_x_playwright.py (459 lines) - Live Playwright Financial ZenaTech & Today's Posts News Scraper + Sentiment Analyzer.
@@ -81,6 +82,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/script_submission_content_eval.py (56 lines) - Imported script content must retain every line and table beat, including long uploads.
 - scripts/script_submission_documents_eval.py (204 lines) - Shared-document adoption and original-post sync regressions, using isolated mocked services.
 - scripts/sentiment_eval.py (187 lines) - Sentiment analysis test set, built from the Defense Thought Leadership Rulebook's own examples.
+- scripts/submission_freshness_eval.py (109 lines) - Regressions for SUB-1219's schedule-only invalidation and cached sentiment reuse.
 - scripts/validate_mood_flow.py (341 lines) - Validate the complete public-mood flow against the live services: collected feed -> embeddings -> Atlas search -> relevance checks -> rec...
 - server.py (474 lines) - server
 - services/ai/core/ai_error_diagnostics.py (39 lines) - Safe, actionable descriptions of AI failures for users and server logs.
@@ -99,11 +101,12 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/core/vector_store_service.py (434 lines) - Vector store: AWS OpenSearch vector search for reference material the content analysis can draw on (brand voice, company facts, platform ...
 - services/ai/core/x_feed_store.py (144 lines) - x_feed_data: where the scraped X / news feed is kept, in the vector database (MongoDB Atlas, the same database and connection as the vect...
 - services/ai/observability/ai_guardrails.py (250 lines) - AI guardrails: screening what goes into the model and redacting personal data from what comes out.
-- services/ai/observability/ai_health.py (263 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
+- services/ai/observability/ai_health.py (270 lines) - Whether the AI (and each AI feature) is working right now, for the overhead banner every signed-in user sees.
 - services/ai/observability/ai_observability.py (443 lines) - AI observability: a trace span for every model call, embedding, retrieval, cache lookup, guard check and tool call, plus a prompt log of ...
 - services/ai/observability/ai_observability_service.py (152 lines) - Reading AI traces and prompt logs back for the observability API (writing is in ai_observability).
 - services/ai/observability/ai_overview_service.py (404 lines) - Combined AI health, feature-to-core mapping, and usage overview for System & Security.
 - services/ai/observability/ai_usage_service.py (96 lines) - Record AI usage without imposing application-level usage caps.
+- services/ai/observability/attempt_progress.py (35 lines) - Attach task-local display details to model attempt events, including retries.
 - services/compliance/analytics/conversation_evidence.py (857 lines) - Conversation evidence for public mood: the news articles and X posts a post is compared with, and the saved assessment of what they say a...
 - services/compliance/analytics/conversation_feedback.py (202 lines) - Reviewer input on a conversation assessment, kept against the exact assessment the reviewer was looking at.
 - services/compliance/analytics/conversation_review_actions.py (68 lines) - Reviewer feedback on retrieved conversations (unrelated, wrong sentiment, recommendation corrections).
@@ -137,20 +140,22 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/brand_voice_service.py (704 lines) - Brand voice per brand, read from its brand manual.
 - services/compliance/evaluation/branding.py (37 lines) - Company names and the company's exchange/ticker label are identification, not claims.
 - services/compliance/evaluation/check_rule_capture.py (26 lines) - Capture the actual rule definitions used by a check, isolated per async task.
-- services/compliance/evaluation/citation_finder.py (242 lines) - Citation finder: what a post says it got its claims from.
+- services/compliance/evaluation/citation_finder.py (277 lines) - Citation finder: what a post says it got its claims from.
 - services/compliance/evaluation/claim_checks.py (317 lines) - Built-in claim checks: patterns a listed company's posts must be careful with, whatever the wording.
 - services/compliance/evaluation/compliance_ai_config.py (15 lines) - Configuration for the full rulebook model pass.
-- services/compliance/evaluation/compliance_check_result.py (119 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
+- services/compliance/evaluation/compliance_check_result.py (139 lines) - Recommendations, scope notes and response assembly for a completed compliance check.
 - services/compliance/evaluation/compliance_diagnostics.py (16 lines) - Explain incomplete review stages without treating missing checks as violations.
-- services/compliance/evaluation/compliance_service.py (1515 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
+- services/compliance/evaluation/compliance_service.py (1514 lines) - Compliance Rules & Governance Service Rule CRUD and rulebook screening of captions, scripts and transcripts.
 - services/compliance/evaluation/context_evaluator.py (455 lines) - Contextual Evaluator The rulebook finds wording; this reads it.
 - services/compliance/evaluation/context_service.py (226 lines) - Messaging Context: brand voice, facts, platform norms and audience profiles that the content analysis uses.
 - services/compliance/evaluation/defense_disclaimer.py (27 lines) - Military names and citations alone do not establish use of government visual material.
 - services/compliance/evaluation/finding_evidence.py (37 lines) - Use a finding's judged evidence consistently across image, video and text locations.
 - services/compliance/evaluation/finding_visibility.py (13 lines) - Display policy for compliance findings, separate from response assembly.
 - services/compliance/evaluation/image_marks.py (12 lines) - The "Text in image 1:" labels the check puts before each image's text, and keeping them out of the wording match.
-- services/compliance/evaluation/newsroom_claim_sources.py (36 lines) - Retrieve specific company facts for each claim, excluding weak incidental matches.
-- services/compliance/evaluation/newsroom_facts.py (130 lines) - Newsroom facts: the company's own published facts as one more source for a post's claims.
+- services/compliance/evaluation/newsroom_article_sources.py (36 lines) - Use summaries for retrieval only; verify claims against the linked newsroom article.
+- services/compliance/evaluation/newsroom_claim_sources.py (48 lines) - Retrieve specific company facts for each claim, excluding weak incidental matches.
+- services/compliance/evaluation/newsroom_facts.py (133 lines) - Newsroom facts: the company's own published facts as one more source for a post's claims.
+- services/compliance/evaluation/newsroom_source_selection.py (30 lines) - Bounded newsroom recall: exact product announcements plus general relevance.
 - services/compliance/evaluation/newsroom_sync_service.py (310 lines) - Newsroom sync: the ZenaTech newsroom (https://www.zenatech.com/newsroom/) as Messaging Context facts.
 - services/compliance/evaluation/policy_watch_service.py (438 lines) - Policy watch: keeps the platform content-policy norms (Messaging Context entries seeded as "policy:...") up to date.
 - services/compliance/evaluation/reference_index_service.py (103 lines) - Reference index: keeps the Messaging Context (brand voice, facts, platform norms, audience profiles) and the compliance rulebook in the v...
@@ -182,27 +187,40 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/shared_script_review.py (105 lines) - A script page's review, handed to the Share Document server.
 - services/compliance/evaluation/shared_script_service.py (191 lines) - Shared documents for script pages.
 - services/compliance/evaluation/shared_script_sync.py (165 lines) - Keeping this portal in step with the Share Document server's script reviews.
-- services/compliance/evaluation/source_browser_fetch.py (96 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
-- services/compliance/evaluation/source_check_service.py (493 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
-- services/compliance/evaluation/source_claim_checks.py (137 lines) - Ground source support and contradiction judgments; uncertainty remains for review.
+- services/compliance/evaluation/source_assertions.py (54 lines) - Keep grounded, atomic claim excerpts and stable identities without dropping qualifications.
+- services/compliance/evaluation/source_browser_fetch.py (116 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
+- services/compliance/evaluation/source_check_service.py (451 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+- services/compliance/evaluation/source_claim_checks.py (152 lines) - Ground source support and contradiction judgments; uncertainty remains for review.
 - services/compliance/evaluation/source_claim_coverage.py (59 lines) - Identify claims even without sources; keep missing evidence distinct from a false claim.
 - services/compliance/evaluation/source_claim_grounding.py (42 lines) - Recover verbatim post excerpts when a model changes only spacing or list separators.
-- services/compliance/evaluation/source_claim_inventory.py (138 lines) - Persist source-independent claims; source refreshes never invalidate this inventory.
+- services/compliance/evaluation/source_claim_inventory.py (146 lines) - Persist source-independent claims; source refreshes never invalidate this inventory.
 - services/compliance/evaluation/source_claim_policy.py (20 lines) - Exclude incidental OCR metadata without exempting factual capability assertions.
-- services/compliance/evaluation/source_claim_routing.py (78 lines) - Verify only assigned claim/source pairs; use alternatives when a primary source does not settle a claim.
+- services/compliance/evaluation/source_claim_recall.py (26 lines) - Bounded second-pass retrieval over full articles already read, only for unresolved claims.
+- services/compliance/evaluation/source_claim_recheck.py (119 lines) - One cached, source-attributed final pass for unresolved claims; no additional downloads.
+- services/compliance/evaluation/source_claim_recheck_evidence.py (133 lines) - Collect bounded full-text evidence; accept only exact, source-attributed quotations.
+- services/compliance/evaluation/source_claim_recheck_models.py (24 lines) - Source-attributed answers for one final unresolved-claim review.
+- services/compliance/evaluation/source_claim_routing.py (134 lines) - Verify only assigned claim/source pairs; use alternatives when a primary source does not settle a claim.
 - services/compliance/evaluation/source_claim_support.py (22 lines) - A claim needs support from a relevant source, not from every supplied source.
 - services/compliance/evaluation/source_comparison_cache.py (42 lines) - Share exact-content source verdicts across users, workers, restarts and ordinary reruns.
-- services/compliance/evaluation/source_fetch_service.py (348 lines) - Source fetcher: opens a link a post cites and returns its readable text.
+- services/compliance/evaluation/source_comparison_prompt.py (64 lines) - Meaning-based source comparison contract, separate from orchestration.
+- services/compliance/evaluation/source_evidence.py (17 lines) - Ground source quotations separately from a model's semantic explanation.
+- services/compliance/evaluation/source_fetch_service.py (361 lines) - Source fetcher: opens a link a post cites and returns its readable text.
 - services/compliance/evaluation/source_findings.py (37 lines) - Stable source-finding identities and construction, independent of source retrieval.
-- services/compliance/evaluation/source_identity.py (56 lines) - Identify repeated source URLs without conflating different reports from one publisher.
+- services/compliance/evaluation/source_identity.py (57 lines) - Identify repeated source URLs without conflating different reports from one publisher.
 - services/compliance/evaluation/source_image_claims.py (83 lines) - Keep short capability lists visible, and require evidence about the specific capability.
 - services/compliance/evaluation/source_passages.py (269 lines) - Passages of a source: what the model reads of a long source, and where in the source each claim really is.
-- services/compliance/evaluation/source_pdf_reader.py (30 lines) - Recognize downloaded PDF sources independently of filename or server MIME mistakes.
+- services/compliance/evaluation/source_pdf_ai.py (113 lines) - AI transcription backup for downloaded PDF sources that native extraction cannot read.
+- services/compliance/evaluation/source_pdf_layout.py (77 lines) - Preserve PDF pages, repeated values and aligned cells without inventing table contents.
+- services/compliance/evaluation/source_pdf_local.py (71 lines) - Bounded source PDF extraction with Poppler, table structure and local OCR.
+- services/compliance/evaluation/source_pdf_ocr.py (89 lines) - Local OCR for missing PDF pages, with word positions and confidence checks.
+- services/compliance/evaluation/source_pdf_pages.py (42 lines) - Split source PDFs with Poppler in bounded subprocesses, independent of text extraction.
+- services/compliance/evaluation/source_pdf_reader.py (39 lines) - Recognize downloaded PDF sources independently of filename or server MIME mistakes.
 - services/compliance/evaluation/source_post_checks.py (30 lines) - Check the combined post, retaining caption and image context as the source panel does.
 - services/compliance/evaluation/source_recheck.py (36 lines) - Refresh source comparisons on request and keep a record of resolved findings.
 - services/compliance/evaluation/source_response.py (43 lines) - Bound source-response retries and distinguish truncated answers from model outages.
+- services/compliance/evaluation/source_review_audit.py (23 lines) - Keep every searched source outcome inspectable without crowding the source cards.
 - services/compliance/evaluation/source_settings.py (86 lines) - Settings for checking a post's sources, none of them fixed in code.
-- services/compliance/evaluation/source_verdict_models.py (45 lines) - Structured claim comparison answers shared by source review and its durable cache.
+- services/compliance/evaluation/source_verdict_models.py (53 lines) - Structured claim comparison answers shared by source review and its durable cache.
 - services/compliance/evaluation/synthetic_media_disclosure.py (101 lines) - Require evidence of synthetic media before adding an AI-image disclosure finding.
 - services/compliance/evaluation/visual_response.py (17 lines) - A bounded larger retry for cut-off visual assessments; never assume missing coverage passed.
 - services/compliance/evaluation/visual_review.py (242 lines) - Score-linked visual rule review of server-selected post assets, with auditable coverage.
@@ -218,16 +236,16 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/hashtag_library.py (145 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - services/compliance/media/html_layout.py (123 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
 - services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
-- services/compliance/media/image_finding_service.py (235 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
+- services/compliance/media/image_finding_service.py (453 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - services/compliance/media/image_finding_zoom.py (82 lines) - Recover small-text locations from enlarged sections; map boxes back to the original image.
 - services/compliance/media/image_text_response.py (29 lines) - Read complete image-text JSON, with one bounded retry for truncated or malformed output.
-- services/compliance/media/image_text_service.py (294 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+- services/compliance/media/image_text_service.py (295 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - services/compliance/media/pdf_process.py (89 lines) - Run native PDF operations in disposable processes, never in API worker threads.
 - services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - services/compliance/media/script_sources.py (48 lines) - Read optional sources from a script template without adding them to its spoken text.
 - services/compliance/media/transcription_service.py (220 lines) - Video Transcription Service Generates timestamped local speech and Bedrock on-screen text for submitted videos.
-- services/compliance/media/video_finding_service.py (116 lines) - Locate exact flagged wording in video frames without inventing a visual region.
+- services/compliance/media/video_finding_service.py (119 lines) - Locate exact flagged wording in video frames without inventing a visual region.
 - services/compliance/media/video_job_service.py (190 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
 - services/compliance/media/video_transcription_provider.py (39 lines) - Real local speech plus timestamped on-screen text, using only the authorized Bedrock visual path.
 - services/compliance/sentiment/__init__.py (117 lines) - Services / Compliance / Sentiment Package This package breaks down the 1,600+ line sentiment service into focused, maintainable modules: ...
@@ -239,12 +257,13 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/sentiment/feedback.py (146 lines) - Reviewer feedback and test case evaluation for sentiment analysis.
 - services/compliance/sentiment/finding_identity.py (19 lines) - Identity matching between findings from successive sentiment analyses.
 - services/compliance/sentiment/input_builder.py (393 lines) - Input building and prompt construction for sentiment analysis.
-- services/compliance/sentiment/jobs.py (517 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
+- services/compliance/sentiment/jobs.py (514 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - services/compliance/sentiment/media.py (68 lines) - Video frames and attached images for sentiment findings.
 - services/compliance/sentiment/response_format.py (33 lines) - Validate completed sentiment output without mistaking truncation for an empty assessment.
+- services/compliance/sentiment/reuse_freshness.py (46 lines) - Record exact input-hash reuse separately from the original model run's time.
 - services/compliance/submissions/analysis_progress_service.py (195 lines) - How long a post's rulebook check has left.
 - services/compliance/submissions/approval_path_service.py (197 lines) - Approval paths: who gives final approval for which content.
-- services/compliance/submissions/caption_review_service.py (120 lines) - Persist review-time caption edits atomically with an attributed before/after event.
+- services/compliance/submissions/caption_review_service.py (124 lines) - Persist review-time caption edits atomically with an attributed before/after event.
 - services/compliance/submissions/check_snapshot_feedback.py (120 lines) - Bind human labels to immutable findings, rejecting feedback after a racing recheck.
 - services/compliance/submissions/check_snapshot_service.py (108 lines) - Freeze check-time inputs and results; live scores remain owned by their existing services.
 - services/compliance/submissions/creator_dismissal_service.py (67 lines) - Creator dismissal requests that must follow a submission into review.
@@ -261,23 +280,26 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/manual_check_service.py (144 lines) - Manual compliance checks: reuse current results and only finish explicitly requested runs.
 - services/compliance/submissions/media_freshness.py (40 lines) - Check freshness follows media revisions, independently of post detail edits.
 - services/compliance/submissions/media_read_status.py (13 lines) - Unread media recorded in a submission's saved compliance check.
-- services/compliance/submissions/post_approval_suggestions.py (105 lines) - Allow suggestions until the deadline without changing the first approval.
+- services/compliance/submissions/post_approval_suggestions.py (129 lines) - Allow suggestions until the deadline without changing the first approval.
 - services/compliance/submissions/post_steps_service.py (134 lines) - The five steps a creator works through, and how far each post has got.
-- services/compliance/submissions/post_text_review.py (158 lines) - Direct reviewer text edits, serialized with decisions and attributed in the existing event log.
+- services/compliance/submissions/post_text_review.py (157 lines) - Direct reviewer text edits, serialized with decisions and attributed in the existing event log.
 - services/compliance/submissions/request_coalescer.py (50 lines) - Short-lived request sharing for expensive submission-list reads.
 - services/compliance/submissions/review_approval_service.py (77 lines) - Approval gates for a submitted post: saved checks, findings and final approvers.
 - services/compliance/submissions/review_comment_writes.py (18 lines) - Serialize comments with approval so stale tabs cannot write after the deadline.
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
-- services/compliance/submissions/review_hierarchy_service.py (40 lines) - Review access inherited by Content Managers through the saved role hierarchy.
+- services/compliance/submissions/review_handoff.py (113 lines) - Save a review outcome now; hand the post to its creator after suggestions close.
+- services/compliance/submissions/review_handoff_release.py (96 lines) - Restart-safe, atomic delivery of decided posts once their suggestion deadline passes.
+- services/compliance/submissions/review_hierarchy_service.py (85 lines) - Review access inherited by Content Managers through the saved role hierarchy.
 - services/compliance/submissions/review_memory_service.py (233 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
 - services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.
 - services/compliance/submissions/source_link_service.py (170 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
 - services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
 - services/compliance/submissions/submission_check_material.py (104 lines) - The post material used by full compliance and every source comparison.
-- services/compliance/submissions/submission_check_runner.py (67 lines) - Run and snapshot the complete post check without changing its scoring policy.
+- services/compliance/submissions/submission_check_runner.py (71 lines) - Run and snapshot the complete post check without changing its scoring policy.
+- services/compliance/submissions/submission_content_revision.py (35 lines) - Advance analysis revisions only when saved inputs to the analyses actually change.
 - services/compliance/submissions/submission_fields.py (67 lines) - Field shaping for submission summaries and draft type changes.
 - services/compliance/submissions/submission_list_query.py (94 lines) - SQL for the submission list, including previews and analysis status.
-- services/compliance/submissions/submission_service.py (2694 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2618 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/compliance/submissions/submission_source_state.py (23 lines) - Track the saved source-link inputs of a compliance run, including legacy checks.
 - services/microsoft_graph/graph_service.py (284 lines) - Microsoft Graph API client for employee profile sync.
@@ -295,7 +317,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/notifications/review_email/outbox.py (92 lines) - Atomic deduplication, leases and retriable delivery without blocking review workflows.
 - services/notifications/review_email/policy.py (108 lines) - Select actionable work, respecting assignments, check-ins and the team's calendar.
 - services/notifications/review_email/preferences.py (22 lines) - A person's detected email time zone, independent of Graph-managed user fields.
-- services/notifications/review_email/repository.py (91 lines) - Batch reads of current work and committed review decisions; no emails are sent here.
+- services/notifications/review_email/repository.py (92 lines) - Batch reads of current work and committed review decisions; no emails are sent here.
 - services/notifications/review_email/scheduler.py (95 lines) - One 9 a.m.
 - services/notifications/review_email/templates.py (60 lines) - Short, accessible workflow emails using the admin dashboard's branded SendGrid shell.
 - services/notifications/submission_notifications.py (25 lines) - In-app notifications for submission review workflows, shared by posts and scripts.
@@ -313,7 +335,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/shared/core/browser_stealth.py (40 lines) - Playwright stealth: hides the usual headless-browser giveaways (navigator.webdriver, missing plugins, the "HeadlessChrome" user agent, .....
 - services/shared/core/cache_service.py (221 lines) - cache service (shared core)
 - services/shared/core/integration_status_service.py (33 lines) - Small cached health snapshot used by the integrations status widget.
-- services/shared/core/lifecycle_background_service.py (61 lines) - Background work registered during the API application's lifespan.
+- services/shared/core/lifecycle_background_service.py (63 lines) - Background work registered during the API application's lifespan.
 - services/shared/core/logging_service.py (124 lines) - Structured application logging suitable for container stdout and CloudWatch Logs.
 - services/shared/core/production_url_policy.py (29 lines) - Validation for browser-facing URLs supplied by deployment configuration.
 - services/shared/core/startup_service.py (72 lines) - Server startup helpers for schema updates and tracked background tasks.

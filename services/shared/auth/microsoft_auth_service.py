@@ -34,17 +34,17 @@ def getCurrentUserFromMicrosoftClaims(token_info: dict) -> dict:
 
 
 async def _ensure_microsoft_user_roles(conn, user_id, *, is_initial_admin: bool, was_deleted: bool) -> None:
-    """Ensure the Standard User role exists and assign initial/default roles for a Microsoft user."""
+    """Ensure the Content Creator role exists and assign initial/default roles for a Microsoft user."""
     user_role = await conn.fetchrow("""
         SELECT id FROM roles
-        WHERE UPPER(code) = 'USER' OR UPPER(name) = 'STANDARD USER'
+        WHERE UPPER(code) = 'USER' OR UPPER(name) IN ('STANDARD USER', 'CONTENT CREATOR')
         ORDER BY (UPPER(code) = 'USER') DESC
         LIMIT 1
     """)
     if not user_role:
         user_role = await conn.fetchrow("""
             INSERT INTO roles (code, name, description, is_system_role, is_active)
-            VALUES ('USER', 'Standard User', 'Standard user with view access', false, true)
+            VALUES ('USER', 'Content Creator', 'Content creator with view access', false, true)
             ON CONFLICT (code) DO UPDATE SET is_active = true
             RETURNING id
         """)

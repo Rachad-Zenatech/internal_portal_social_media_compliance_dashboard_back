@@ -273,6 +273,7 @@ class SentimentAnalysis(BaseModel):
     error: Optional[str] = None
     # False when the title, caption, transcript, scope, applicable rules or messaging context changed since this ran.
     is_current: bool = True
+    validated_media_edited_at: Optional[datetime] = None
     # The Messaging Context entries it was given (e.g. "LinkedIn", "Investors"), so reviewers can see what it knew.
     context_used: List[str] = Field(default_factory=list)
     # The same entries with their scope, date and source, plus the brand voice, norms and profiles that didn't apply.

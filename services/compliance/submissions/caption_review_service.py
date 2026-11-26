@@ -15,6 +15,7 @@ def _submissions():
 
 
 async def get_caption_review(submission_id: UUID, user_id: UUID) -> CaptionReview:
+    from services.compliance.submissions.review_handoff import may_edit_text
     subs = _submissions()
     row = await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
     events = await fetch_all(
@@ -36,7 +37,7 @@ async def get_caption_review(submission_id: UUID, user_id: UUID) -> CaptionRevie
         caption_text=row.get('caption_text') or '', caption_html=row.get('caption_html'),
         platform_captions=subs._platform_captions(row),
         platforms=list(row.get('platforms') or []),
-        can_edit=row['status'] == 'IN_REVIEW' and await subs._can_suggest(user_id), revisions=revisions,
+        can_edit=await may_edit_text(row, user_id), revisions=revisions,
         needs_recheck=bool((subs._json(row.get('latest_check')) or {}).get('review_caption_edited')),
     )
 
@@ -58,6 +59,9 @@ async def save_caption(submission_id: UUID, user_id: UUID, data: CaptionEditRequ
                 raise HTTPException(status_code=404, detail='Submission not found')
             if row['status'] != 'IN_REVIEW':
                 raise HTTPException(status_code=409, detail='Captions can only be edited while the post is in review')
+            from services.compliance.submissions.review_handoff import may_edit_text
+            if not await may_edit_text(row, user_id, conn):
+                raise HTTPException(403, 'Text suggestions are closed or you do not have reviewer access')
             captions = subs._platform_captions(row)
             if data.platform is not None and data.platform not in (row.get('platforms') or []):
                 raise HTTPException(status_code=422, detail='That platform is not selected for this post')

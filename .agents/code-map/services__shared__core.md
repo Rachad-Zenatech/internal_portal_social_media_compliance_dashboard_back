@@ -31,7 +31,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## services/shared/core/integration_status_service.py (33 lines) - Small cached health snapshot used by the integrations status widget.
 - `get_integration_status` (def) L13 - Avoid a database readiness query for every component mount.
 
-## services/shared/core/lifecycle_background_service.py (61 lines) - Background work registered during the API application's lifespan.
+## services/shared/core/lifecycle_background_service.py (63 lines) - Background work registered during the API application's lifespan.
 - `_resume_interrupted_reads` (def) L8
 - `start_background_services` (def) L21 - Register non-critical startup work without coupling it to the HTTP module.
 

@@ -131,7 +131,9 @@ def without_citation_text(text: str) -> str:
     lines = (text or "").splitlines()
     kept: List[str] = []
     under_heading = False
-    for line in lines:
+    n = 0
+    while n < len(lines):
+        line = lines[n]
         marker = _IMAGE_MARK.match(line)
         prefix = line[:marker.end()] if marker else ""
         content = line[marker.end():].lstrip() if marker else line.lstrip()
@@ -141,20 +143,53 @@ def without_citation_text(text: str) -> str:
             if prefix:
                 kept.append(prefix.rstrip())
             under_heading = True
+            n += 1
             continue
         if under_heading:
             if not content.strip():
                 under_heading = False
-            else:
-                continue
+            n += 1
+            continue
         match = _SOURCE_LINE.search(content)
         if match:
             before = (prefix + content[:match.start()]).rstrip()
             if before:
                 kept.append(before)
+            rest = match.group("rest")
+            last, k = rest, n
+            while _named_parts(rest) and k + 1 < len(lines) and k - n < 3 and _continues(last, lines[k + 1]):
+                k += 1
+                last = lines[k]
+                rest += " " + last.strip()
+            n = k + 1
             continue
         kept.append(line)
+        n += 1
     return "\n".join(kept)
+
+
+def source_blocks(text: str) -> List[str]:
+    """Return each explicit multi-line source block (e.g. 'Source: ...' + continuations) in order."""
+    lines = (text or "").splitlines()
+    blocks: List[str] = []
+    n = 0
+    while n < len(lines):
+        content = _IMAGE_MARK.sub("", lines[n]).lstrip()
+        match = _SOURCE_LINE.search(content)
+        if not match:
+            n += 1
+            continue
+        block = content[match.start():].strip()
+        rest = match.group("rest")
+        last, k = rest, n
+        while _named_parts(rest) and k + 1 < len(lines) and k - n < 3 and _continues(last, lines[k + 1]):
+            k += 1
+            last = lines[k]
+            rest += " " + last.strip()
+            block += " " + last.strip()
+        blocks.append(block)
+        n = k + 1
+    return blocks
 
 
 def is_reference_only(text: str) -> bool:

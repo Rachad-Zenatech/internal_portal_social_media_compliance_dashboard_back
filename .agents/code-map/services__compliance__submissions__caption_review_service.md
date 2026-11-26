@@ -4,10 +4,10 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/caption_review_service.py (120 lines) - Persist review-time caption edits atomically with an attributed before/after event.
+## services/compliance/submissions/caption_review_service.py (124 lines) - Persist review-time caption edits atomically with an attributed before/after event.
 - `_submissions` (def) L12
 - `get_caption_review` (def) L17
-- `save_caption` (def) L44
-- `_persist_edit` (def) L72
-- `decision_status` (def) L99 - Do not approve a caption changed after the review's check/decision preflight.
-- `feedback_is_current_sql` (def) L110 - Keep audit rows, but never reuse a decision made before a caption edit on that version.
+- `save_caption` (def) L45
+- `_persist_edit` (def) L76
+- `decision_status` (def) L103 - Do not approve a caption changed after the review's check/decision preflight.
+- `feedback_is_current_sql` (def) L114 - Keep audit rows, but never reuse a decision made before a caption edit on that version.
