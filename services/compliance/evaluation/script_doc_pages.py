@@ -7,6 +7,8 @@ or from an uploaded file split into scripts as an uploaded batch is; every page 
 import json
 import logging
 import re
+from services.compliance.media.script_sources import extract
+from services.compliance.evaluation.script_doc_sources import export_text
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -53,7 +55,7 @@ async def _make_posts(doc_id: UUID) -> int:
         return 0
     shared = BatchDetails(**(subs._json(doc["details"]) or {})).model_dump(exclude_none=True)
     title = doc["title"]
-    text = html_layout.html_to_text(doc.get("body_html")) or doc["body_text"]
+    text = export_text(doc, html_layout.html_to_text(doc.get("body_html")) or doc["body_text"])
     post = await subs.create_submission(SubmissionCreate(title=title, content_type="VIDEO"), creator)
     try:
         await subs.update_submission(post.id, SubmissionUpdate(**shared), creator)
@@ -141,12 +143,12 @@ async def _make_set(doc: Dict[str, Any]) -> UUID:
     return row["id"]
 
 
-async def _new_page(set_id: UUID, creator: UUID, title: str, html: str, text: str = "") -> UUID:
+async def _new_page(set_id: UUID, creator: UUID, title: str, html: str, text: str = "", sources: str = "") -> UUID:
     set_row = await fetch_one("SELECT details FROM script_sets WHERE id = $1", set_id)
     row = await fetch_one(
-        "INSERT INTO script_documents (title, template_key, created_by, body_html, body_text, set_id, details, position) "
-        "VALUES ($1, 'blank', $2, $3, $4, $5, $6::jsonb, (SELECT coalesce(max(position), 0) + 1 FROM script_documents WHERE set_id = $5)) "
-        "RETURNING id", title[:300], creator, html, text, set_id, json.dumps(subs._json(set_row["details"]) or {}))
+        "INSERT INTO script_documents (title, template_key, created_by, body_html, body_text, set_id, details, sources_text, position) "
+        "VALUES ($1, 'blank', $2, $3, $4, $5, $6::jsonb, $7, (SELECT coalesce(max(position), 0) + 1 FROM script_documents WHERE set_id = $5)) "
+        "RETURNING id", title[:300], creator, html, text, set_id, json.dumps(subs._json(set_row["details"]) or {}), sources)
     await core._event(row["id"], 0, creator, "CREATED", {"page": True})
     await execute("UPDATE script_sets SET updated_at = NOW() WHERE id = $1 RETURNING id", set_id)
     await shared.ensure_shared_document(row["id"])
@@ -179,7 +181,10 @@ async def _add_uploaded(set_id: UUID, user_id: UUID, filename: str, data: bytes)
     ids = []
     for n, (raw_title, body) in enumerate(found, start=first):
         title = re.sub(r"^\s*\d{1,3}\s*[.):\-–]\s*", "", raw_title).strip() or raw_title
-        ids.append(await _new_page(set_id, user_id, title, text_to_html(f"{n}. {title}", body), body))
+        body, sources = extract(body)
+        if not body.strip():
+            raise HTTPException(status_code=422, detail="A script must contain more than sources")
+        ids.append(await _new_page(set_id, user_id, title, text_to_html(f"{n}. {title}", body), body, sources))
     await log_audit_event("script_document", str(set_id), "UPLOAD_PAGES", user_id, {"file": filename, "scripts": len(found)})
     return [p for p in await _pages(set_id) if p.id in ids]
 

@@ -21,6 +21,7 @@ import json
 import logging
 import re
 import time
+from services.compliance.evaluation.script_doc_sources import sources_for
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -190,14 +191,13 @@ async def get_access(doc_id: UUID, user_id: UUID) -> tuple:
         raise HTTPException(status_code=403, detail="You don't have access to this script")
     return doc, reviewers, access
 
-
 def _detail(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], access: DocAccess, user_id: UUID, decided_by: Optional[str],
             posts: Optional[List[DocPost]] = None, pages: Optional[List[DocPage]] = None, set_title: Optional[str] = None) -> DocDetail:
     order = [doc["created_by"], *[r["user_id"] for r in reviewers]]
     return DocDetail(
         id=doc["id"], title=doc["title"], template_key=doc["template_key"], status=doc["status"], round=doc["round"],
         creator_id=doc["created_by"], creator_name=doc["creator_name"], creator_color=_color(doc["created_by"], order),
-        body_html=doc["body_html"], body_text=doc["body_text"], details=subs._json(doc["details"]) or {},
+        body_html=doc["body_html"], body_text=doc["body_text"], sources_text=sources_for(doc), details=subs._json(doc["details"]) or {},
         send_note=doc["send_note"], decision_note=doc["decision_note"], decided_by_name=decided_by, decided_at=doc["decided_at"],
         reviewers=[
             DocReviewer(user_id=r["user_id"], name=r["name"], capacity=r["capacity"], can_approve=r.get("can_approve", False),
@@ -348,9 +348,9 @@ async def submit(doc_id: UUID, user_id: UUID, req: DocSubmit) -> DocDetail:
                     "ON CONFLICT (document_id, user_id) DO UPDATE SET capacity = EXCLUDED.capacity, position = EXCLUDED.position",
                     doc_id, p.user_id, p.capacity, i)
             await conn.execute(
-                "INSERT INTO script_document_versions (document_id, round, label, body_html, body_text, created_by, created_by_name) "
-                "VALUES ($1, $2, $3, $4, $5, $6, (SELECT coalesce(nullif(full_name, ''), email) FROM users WHERE id = $6))",
-                doc_id, round_, f"Sent for review (round {round_})", html, text, user_id)
+                "INSERT INTO script_document_versions (document_id, round, label, body_html, body_text, sources_text, created_by, created_by_name) "
+                "VALUES ($1, $2, $3, $4, $5, $7, $6, (SELECT coalesce(nullif(full_name, ''), email) FROM users WHERE id = $6))",
+                doc_id, round_, f"Sent for review (round {round_})", html, text, user_id, sources_for(doc))
     from services.compliance.evaluation.script_submission_sync import sync_document
     await sync_document(doc_id)
     await _event(doc_id, round_, user_id, "SUBMITTED", {"reviewers": len(req.reviewers), "note": req.note})
@@ -432,8 +432,8 @@ def _votes(reviewers: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
 
 async def _stamp_version(doc_id: UUID, round_: int, label: str, user_id: UUID) -> None:
     await execute(
-        "INSERT INTO script_document_versions (document_id, round, label, body_html, body_text, created_by, created_by_name) "
-        "SELECT id, $2, $3, body_html, body_text, $4, (SELECT coalesce(nullif(full_name, ''), email) FROM users WHERE id = $4) "
+        "INSERT INTO script_document_versions (document_id, round, label, body_html, body_text, sources_text, created_by, created_by_name) "
+        "SELECT id, $2, $3, body_html, body_text, sources_text, $4, (SELECT coalesce(nullif(full_name, ''), email) FROM users WHERE id = $4) "
         "FROM script_documents WHERE id = $1 RETURNING id", doc_id, round_, label, user_id)
 
 

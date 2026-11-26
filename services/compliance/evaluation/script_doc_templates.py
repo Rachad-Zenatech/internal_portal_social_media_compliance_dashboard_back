@@ -5,6 +5,7 @@ import re
 from typing import Dict, List, Optional
 
 from models.compliance.script_doc_model import ScriptTemplate, TemplateRow
+from services.compliance.media.script_sources import is_sources_label
 
 
 def _t(key: str, name: str, storyline: str, description: str, duration: str, beats: List[tuple]) -> ScriptTemplate:
@@ -115,9 +116,18 @@ def text_to_html(title: str, body: str) -> str:
                 if not all(re.fullmatch(r":?-{2,}:?", c) for c in cells):
                     rows.append(cells)
                 i += 1
-            width = max((len(r) for r in rows), default=1)
+            width = max((len(r) for r in rows if not is_sources_label(next((c for c in r if c), ""))), default=2)
             html_rows = []
             for n, r in enumerate(rows):
+                first = next((i for i, cell in enumerate(r) if cell), None)
+                if first is not None and is_sources_label(r[first]):
+                    label_span = max(1, width // 2)
+                    value_span = max(1, width - label_span)
+                    entries = [part.strip() for cell in r[first + 1:] for part in cell.split("; ") if part.strip()]
+                    citations = "".join(f"<p>{_esc(_MARKS.sub('', entry))}</p>" for entry in entries) or "<p></p>"
+                    html_rows.append(f'<tr><td colspan="{label_span}"><p>{_esc(_MARKS.sub("", r[first]))}</p></td>'
+                                     f'<td colspan="{value_span}">{citations}</td></tr>')
+                    continue
                 tag = "th" if n == 0 else "td"
                 cells = r + [""] * (width - len(r))
                 html_rows.append("<tr>" + "".join(f"<{tag}><p>{_esc(_MARKS.sub('', c))}</p></{tag}>" for c in cells) + "</tr>")

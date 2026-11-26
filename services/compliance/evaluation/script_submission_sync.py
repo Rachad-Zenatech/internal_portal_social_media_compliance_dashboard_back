@@ -3,6 +3,7 @@
 import json
 from postgresql_db.database import fetch_one, get_pool
 from services.compliance.evaluation import shared_script_review as remote
+from services.compliance.evaluation.script_doc_sources import export_text
 
 STATUS = {"IN_REVIEW": "IN_REVIEW", "LEVEL2_REVIEW": "IN_REVIEW", "CHANGES_REQUESTED": "CHANGES_REQUESTED", "APPROVED": "APPROVED"}
 
@@ -21,6 +22,8 @@ async def sync_document(doc_id):
     html = doc["body_html"]
     if current := await remote.body(dict(doc)):
         html, body = current
+    script_body = body
+    body = export_text(doc, body)
     state = STATUS[doc["status"]]
     async with get_pool().acquire() as conn:
         async with conn.transaction():
@@ -48,5 +51,5 @@ async def sync_document(doc_id):
                 "script_precheck = CASE WHEN $4 THEN NULL ELSE script_precheck END, "
                 "latest_check = CASE WHEN $4 THEN NULL ELSE latest_check END, updated_at = now() WHERE id = $1",
                 doc["submission_id"], state, [r["user_id"] for r in reviewers], changed)
-            await conn.execute("UPDATE script_documents SET body_html = $2, body_text = $3 WHERE id = $1", doc_id, html, body)
+            await conn.execute("UPDATE script_documents SET body_html = $2, body_text = $3 WHERE id = $1", doc_id, html, script_body)
             await conn.execute("UPDATE script_document_posts SET body = $2 WHERE document_id = $1 AND position = 1", doc_id, body)

@@ -11,8 +11,8 @@ def is_sources_label(value: str) -> bool:
     return bool(_LABEL.fullmatch(value.replace("**", "").strip()))
 
 
-def split(text: str) -> tuple[str, str]:
-    """Return the script body and citations from merged table rows or a plain-text footer."""
+def extract(text: str) -> tuple[str, str]:
+    """Separate the body and source entries without losing names, URLs or supporting notes."""
     body, entries = [], []
     footer = False
     for line in (text or "").splitlines():
@@ -21,7 +21,7 @@ def split(text: str) -> tuple[str, str]:
             cells = [cell.replace("**", "").strip() for cell in stripped[1:-1].split("|")]
             first = next((index for index, cell in enumerate(cells) if cell), None)
             if first is not None and (match := _LABEL.match(cells[first])):
-                entries.append(" ".join([cells[first][match.end():], *cells[first + 1:]]))
+                entries.append("; ".join(part for part in [cells[first][match.end():], *cells[first + 1:]] if part))
                 footer = False
                 continue
         plain = stripped.lstrip("# ").replace("**", "")
@@ -33,6 +33,14 @@ def split(text: str) -> tuple[str, str]:
         else:
             footer = False
             body.append(line)
+    sources = "\n".join(part.strip(" ;") for entry in entries for part in _PLACEHOLDER.sub("", entry).split("; ") if part.strip(" ;"))
+    return "\n".join(body), sources
+
+
+def split(text: str) -> tuple[str, str]:
+    """Return the script body and citations from merged table rows or a plain-text footer."""
+    body, raw_sources = extract(text)
+    entries = raw_sources.splitlines()
     urls, names = [], []
     for entry in entries:
         for part in _PLACEHOLDER.sub("", entry).split(";"):
@@ -44,4 +52,4 @@ def split(text: str) -> tuple[str, str]:
             else:
                 names.append(f"Source: {part}")
     listed = ["Sources:", *dict.fromkeys(urls)] if urls else []
-    return "\n".join(body), "\n".join([*listed, *dict.fromkeys(names)])
+    return body, "\n".join([*listed, *dict.fromkeys(names)])

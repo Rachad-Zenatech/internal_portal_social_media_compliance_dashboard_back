@@ -1,5 +1,6 @@
 """Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check)."""
 
+from services.compliance.evaluation.script_doc_sources import sources_for, export_text
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -68,7 +69,7 @@ async def history(doc_id: UUID, user_id: UUID) -> DocHistory:
     events = await fetch_all(
         "SELECT id, round, user_name, kind, detail, created_at FROM script_document_events WHERE document_id = $1 ORDER BY id DESC LIMIT 300", doc_id)
     versions = await fetch_all(
-        "SELECT id, round, label, body_html, body_text, created_by_name, created_at FROM script_document_versions "
+        "SELECT id, round, label, body_html, body_text, sources_text, created_by_name, created_at FROM script_document_versions "
         "WHERE document_id = $1 ORDER BY id DESC LIMIT 50", doc_id)
     return DocHistory(
         events=[DocEvent(**{**e, "detail": subs._json(e["detail"]) or {}}) for e in events],
@@ -87,4 +88,6 @@ async def check(doc_id: UUID, user_id: UUID, text: Optional[str]) -> Dict[str, A
     body = (text if text is not None else doc["body_text"]) or ""
     if not body.strip():
         raise HTTPException(status_code=400, detail="The script is empty")
-    return await scripts.check_text(row, body.replace("\r\n", "\n").strip())
+    result = await scripts.check_text(row, export_text(doc, body.replace("\r\n", "\n").strip()))
+    result["checked_script_sources"] = sources_for(doc)
+    return result

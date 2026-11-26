@@ -3,6 +3,7 @@ import io
 import re
 from zipfile import ZipFile, ZIP_DEFLATED
 from xml.etree import ElementTree as ET
+from services.compliance.media.script_sources import is_sources_label
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 ET.register_namespace("w", W)
@@ -55,8 +56,18 @@ def script_docx(text):
                 for _ in cells:
                     node(grid, "gridCol", w=9000 // max(1, len(cells)))
             row = node(table, "tr")
-            for cell in cells:
-                paragraph(node(row, "tc"), cell)
+            if is_sources_label(next((cell for cell in cells if cell), "")):
+                width = max(2, len(table.find(f"{{{W}}}tblGrid")))
+                label_span = width // 2
+                entries = "; ".join(cells[1:])
+                for value, span in ((cells[0], label_span), (entries, width - label_span)):
+                    tc = node(row, "tc")
+                    node(node(tc, "tcPr"), "gridSpan", val=span)
+                    for entry in value.split("; "):
+                        paragraph(tc, entry)
+            else:
+                for cell in cells:
+                    paragraph(node(row, "tc"), cell)
         else:
             table = None
             heading = re.match(r"^(#{1,3}) (.*)$", stripped)

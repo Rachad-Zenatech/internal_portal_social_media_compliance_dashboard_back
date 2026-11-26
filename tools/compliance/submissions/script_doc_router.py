@@ -13,13 +13,14 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Up
 
 from models.compliance.script_doc_model import (
     BulkResult, BulkSubmit, CheckIn, DocCreate, DocSetSummary, UploadedPages, DocDetail, DocHistory, DocSnapshot, DocSubmit, DocSummary, DocUpdate, Finalize, ManagerDecision,
-    ScriptTemplate,
+    ScriptTemplate, DocSourcesUpdate,
 )
 from models.compliance.submission_model import ReviewerOption
 from postgresql_db.database import fetch_one
 from services.compliance.evaluation import script_doc_realtime as realtime
 from services.compliance.evaluation import script_doc_pages as pages
 from services.compliance.evaluation import script_doc_reads as reads
+from services.compliance.evaluation import script_doc_sources as sources
 from services.compliance.evaluation import script_doc_service as svc
 from services.compliance.evaluation import script_template_store as tpl_store
 from services.compliance.evaluation import shared_script_review as sharedrev
@@ -103,6 +104,16 @@ async def get_shared_editor(doc_id: UUID, user_id: CurrentUser):
 @router.get("/{doc_id}", response_model=DocDetail)
 async def get_doc(doc_id: UUID, user_id: CurrentUser):
     return await svc.get(doc_id, user_id)
+
+
+@router.put("/{doc_id}/sources", response_model=DocDetail)
+async def save_sources(doc_id: UUID, req: DocSourcesUpdate, user_id: CurrentUser):
+    return await sources.save(doc_id, user_id, req)
+
+
+@router.get("/{doc_id}/export")
+async def export_script(doc_id: UUID, user_id: CurrentUser):
+    return await sources.download(doc_id, user_id)
 
 
 @router.patch("/{doc_id}", response_model=DocDetail)

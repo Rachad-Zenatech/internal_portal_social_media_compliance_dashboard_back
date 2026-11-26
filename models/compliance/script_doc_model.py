@@ -42,6 +42,11 @@ class DocUpdate(BaseModel):
     details: Optional[BatchDetails] = None
 
 
+class DocSourcesUpdate(BaseModel):
+    sources_text: str = Field(..., max_length=100_000)
+    expected_sources_text: str = Field(..., max_length=100_000)
+
+
 class DocSnapshot(BaseModel):
     """The script as the live editor shows it, saved by an editor."""
     html: str = Field(..., max_length=MAX_HTML_CHARS)
@@ -113,6 +118,7 @@ class DocEvent(BaseModel):
 
 
 class DocVersion(BaseModel):
+    sources_text: Optional[str] = None
     id: int
     round: int
     label: str
@@ -199,6 +205,7 @@ class UploadedPages(BaseModel):
 
 
 class DocDetail(BaseModel):
+    sources_text: str = ""
     id: UUID
     title: str
     template_key: str
