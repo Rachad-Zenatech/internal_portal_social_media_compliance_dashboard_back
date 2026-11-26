@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_doc_reads.py (91 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
-- `list_docs` (def) L16 - The hub's list.
-- `history` (def) L66
-- `check` (def) L78 - The rulebook check of the script as it reads now (or the text given), judged by the script's details.
+## services/compliance/evaluation/script_doc_reads.py (94 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
+- `list_docs` (def) L17 - The hub's list.
+- `history` (def) L67
+- `check` (def) L79 - The rulebook check of the script as it reads now (or the text given), judged by the script's details.

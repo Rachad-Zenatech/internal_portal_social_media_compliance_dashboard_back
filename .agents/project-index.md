@@ -27,7 +27,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/public_mood_model.py (381 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - models/compliance/review_score_model.py (10 lines) - Effective review score fields shared by submission and review queue responses.
 - models/compliance/script_batch_model.py (139 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
-- models/compliance/script_doc_model.py (239 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
+- models/compliance/script_doc_model.py (246 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
 - models/compliance/script_review_model.py (236 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - models/compliance/sentiment_model.py (327 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
@@ -62,7 +62,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
 - postgresql_db/schemas/setup_review_email_schema.py (34 lines) - Durable delivery and activation boundary for review workflow emails.
 - postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
-- postgresql_db/schemas/setup_script_docs_schema.py (148 lines) - Script documents: scripts written in the platform from a template (not attached to a post), reviewed together by several reviewers at onc...
+- postgresql_db/schemas/setup_script_docs_schema.py (150 lines) - Script documents: scripts written in the platform from a template (not attached to a post), reviewed together by several reviewers at onc...
 - postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
 - postgresql_db/schemas/setup_source_claim_inventory_schema.py (19 lines) - Durable claim identification shared by workers and repeated source checks.
 - postgresql_db/schemas/setup_source_links_schema.py (14 lines) - Schema helper for submission source_links column.
@@ -78,6 +78,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - scripts/scrape_x_links.py (123 lines) - Is what an item links to about the topic it was collected for? Every outside link of a collected item (see scrape_x_media.source_links) i...
 - scripts/scrape_x_media.py (153 lines) - Source links and image text for scraped X posts and news items.
 - scripts/scrape_x_playwright.py (459 lines) - Live Playwright Financial ZenaTech & Today's Posts News Scraper + Sentiment Analyzer.
+- scripts/script_doc_sources_eval.py (135 lines) - Regression checks for script-specific source import, persistence, checking and export.
 - scripts/script_hub_eval.py (148 lines) - Script hub visibility and submitted-upload regression checks; no database or external services.
 - scripts/script_submission_content_eval.py (56 lines) - Imported script content must retain every line and table beat, including long uploads.
 - scripts/script_submission_documents_eval.py (204 lines) - Shared-document adoption and original-post sync regressions, using isolated mocked services.
@@ -171,12 +172,13 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_batch_service.py (663 lines) - Script batches.
 - services/compliance/evaluation/script_compliance_check.py (23 lines) - Script compliance checks and source evidence.
 - services/compliance/evaluation/script_creator_workflow.py (15 lines) - Creator script revisions and the handoff to filming.
-- services/compliance/evaluation/script_doc_pages.py (269 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
-- services/compliance/evaluation/script_doc_reads.py (91 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
+- services/compliance/evaluation/script_doc_pages.py (274 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
+- services/compliance/evaluation/script_doc_reads.py (94 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
 - services/compliance/evaluation/script_doc_realtime.py (256 lines) - Live editing of script documents.
 - services/compliance/evaluation/script_doc_service.py (501 lines) - Script documents.
+- services/compliance/evaluation/script_doc_sources.py (64 lines) - Evidence belonging to one script, independent of document-wide publishing details.
 - services/compliance/evaluation/script_doc_split.py (37 lines) - Splitting a script document into the scripts it holds.
-- services/compliance/evaluation/script_doc_templates.py (133 lines) - Script templates: a table of beats, each with what is seen, what is said and the text on screen.
+- services/compliance/evaluation/script_doc_templates.py (143 lines) - Script templates: a table of beats, each with what is seen, what is said and the text on screen.
 - services/compliance/evaluation/script_fix_service.py (64 lines) - AI-assisted compliant passage rewrites for flagged script lines.
 - services/compliance/evaluation/script_hub_submissions.py (68 lines) - Submitted Create Post scripts projected into the script hub without a second review workflow.
 - services/compliance/evaluation/script_match.py (153 lines) - Script vs video.
@@ -187,7 +189,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_split.py (121 lines) - Splitting one document into the scripts it holds.
 - services/compliance/evaluation/script_submission_content.py (29 lines) - Lossless line/table conversion for scripts submitted through Create Post.
 - services/compliance/evaluation/script_submission_documents.py (140 lines) - Create Post uploads entering the existing native/shared script-document review.
-- services/compliance/evaluation/script_submission_sync.py (53 lines) - Mirror canonical script-document review back to its original Create Post submission.
+- services/compliance/evaluation/script_submission_sync.py (56 lines) - Mirror canonical script-document review back to its original Create Post submission.
 - services/compliance/evaluation/script_template_store.py (176 lines) - Custom default script template uploaded from the Social Media portal.
 - services/compliance/evaluation/shared_script_review.py (110 lines) - A script page's review, handed to the Share Document server.
 - services/compliance/evaluation/shared_script_service.py (193 lines) - Shared documents for script pages.
@@ -234,12 +236,12 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/canva_mock_render.py (195 lines) - Renders the mock Canva designs to real PNG and MP4 files.
 - services/compliance/media/canva_service.py (281 lines) - Canva integration: connect an account, list designs, and export a design so it can be added to a submission.
 - services/compliance/media/caption_service.py (339 lines) - Caption suggestions: a few ready-to-edit captions drafted from the post itself.
-- services/compliance/media/document_layout.py (435 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
+- services/compliance/media/document_layout.py (448 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
 - services/compliance/media/document_text_service.py (245 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - services/compliance/media/face_detection_service.py (60 lines) - Local CPU face detection using OpenCV YuNet, returning anonymous [top, left, bottom, right] 0..1000 boxes.
 - services/compliance/media/file_mime_policy.py (60 lines) - Server-side MIME type and Content-Disposition policy for user-uploaded files.
 - services/compliance/media/hashtag_library.py (145 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
-- services/compliance/media/html_layout.py (123 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
+- services/compliance/media/html_layout.py (127 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
 - services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
 - services/compliance/media/image_finding_service.py (453 lines) - Locate existing compliance findings in images without changing their verdicts or scores.
 - services/compliance/media/image_finding_zoom.py (82 lines) - Recover small-text locations from enlarged sections; map boxes back to the original image.
@@ -248,8 +250,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/image_text_service.py (310 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - services/compliance/media/pdf_process.py (89 lines) - Run native PDF operations in disposable processes, never in API worker threads.
-- services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
-- services/compliance/media/script_sources.py (48 lines) - Read optional sources from a script template without adding them to its spoken text.
+- services/compliance/media/script_export.py (96 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
+- services/compliance/media/script_sources.py (56 lines) - Read optional sources from a script template without adding them to its spoken text.
 - services/compliance/media/transcription_service.py (220 lines) - Video Transcription Service Generates timestamped local speech and Bedrock on-screen text for submitted videos.
 - services/compliance/media/video_finding_service.py (119 lines) - Locate exact flagged wording in video frames without inventing a visual region.
 - services/compliance/media/video_job_service.py (190 lines) - Video Upload & Compliance Background Job Processing Service Tracks asynchronous video pipeline stages: 1.
@@ -368,7 +370,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/review_queue_router.py (39 lines) - Review Queue endpoints, protected from duplicate browser requests.
 - tools/compliance/submissions/script_batch_router.py (87 lines) - Script Batch Router Several scripts uploaded in one document, reviewed together, each becoming a post once approved.
 - tools/compliance/submissions/script_directory_router.py (63 lines) - Script directory for the Share Document portal (app-to-app).
-- tools/compliance/submissions/script_doc_router.py (242 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
+- tools/compliance/submissions/script_doc_router.py (253 lines) - Script Document Router Scripts written from a template and reviewed live by several reviewers: the hub's list, the document, the review f...
 - tools/compliance/submissions/script_review_router.py (149 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - tools/compliance/submissions/source_link_router.py (75 lines) - Router for quick AI checking of submission source links.
 - tools/compliance/submissions/source_trust_router.py (27 lines) - Router for people's calls on a post's sources (does a claim match the page? is the page a good source?) and the standing each source's si...

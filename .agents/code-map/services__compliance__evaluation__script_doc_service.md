@@ -5,19 +5,19 @@
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
 ## services/compliance/evaluation/script_doc_service.py (501 lines) - Script documents.
-- `templates` (def) L59
-- `_color` (def) L63
-- `_name` (def) L69
-- `_event` (def) L76
-- `_notify` (def) L84
-- `_managers` (def) L100 - Everyone who can make the final decision: super admins and roles with "Manage Team Drafts".
-- `_doc` (def) L105
-- `_reviewers` (def) L114
-- `_access` (def) L127 - What the user may do with the script, or None when they may not see it.
-- `_all_checked` (def) L165
-- `_state` (def) L170 - What every open editor is told when the review's state moves.
-- `_broadcast_state` (def) L179
-- `get_access` (def) L184 - For the live connection: the script, and what the user may do with it.
+- `templates` (def) L60
+- `_color` (def) L64
+- `_name` (def) L70
+- `_event` (def) L77
+- `_notify` (def) L85
+- `_managers` (def) L101 - Everyone who can make the final decision: super admins and roles with "Manage Team Drafts".
+- `_doc` (def) L106
+- `_reviewers` (def) L115
+- `_access` (def) L128 - What the user may do with the script, or None when they may not see it.
+- `_all_checked` (def) L166
+- `_state` (def) L171 - What every open editor is told when the review's state moves.
+- `_broadcast_state` (def) L180
+- `get_access` (def) L185 - For the live connection: the script, and what the user may do with it.
 - `_detail` (def) L194
 - `get` (def) L216
 - `create` (def) L235 - A new document from a template: the document and its first script (page).

@@ -94,6 +94,18 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `out_of_time` (def) L382
 - `main` (def) L440
 
+## scripts/script_doc_sources_eval.py (135 lines) - Regression checks for script-specific source import, persistence, checking and export.
+- `document` (def) L27
+- `test_extract_keeps_names_urls_and_notes_separate_from_script` (def) L32
+- `test_sources_for_supports_legacy_imports_and_explicit_removal` (def) L43
+- `test_each_bulk_import_stores_only_its_own_sources` (def) L51
+- `test_check_passes_saved_sources_as_evidence_and_records_snapshot` (def) L66
+- `test_save_enforces_edit_access_and_concurrent_change_protection` (def) L78
+- `test_save_updates_one_script_and_resets_review_checkins` (def) L94
+- `test_export_restores_sources_as_merged_table_row_and_reimports` (def) L108
+- `test_bulk_roundtrip_does_not_split_sources_into_scripts` (def) L120
+- `test_shared_editor_export_uses_formatted_table_snapshot` (def) L128
+
 ## scripts/script_hub_eval.py (148 lines) - Script hub visibility and submitted-upload regression checks; no database or external services.
 - `load_service` (def) L15
 - `ScriptHubTests` (class) L23
