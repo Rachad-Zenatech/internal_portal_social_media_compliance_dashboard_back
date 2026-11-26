@@ -12,6 +12,14 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_cache_numbers` (def) L155
 - `main` (def) L174
 
+## scripts/brand_manual_image_auth_eval.py (56 lines) - Browser link tokens may read manual artwork, while API and write access remain blocked.
+- `BrandManualImageAuthTests` (class) L16
+    - `check_access` (def) L17
+    - `test_manual_artwork_accepts_browser_link_tokens` (def) L29
+    - `test_original_manual_and_logo_remain_accessible` (def) L34
+    - `test_link_token_does_not_grant_api_or_invalid_page_access` (def) L39
+    - `test_link_token_cannot_write_to_manual_page_routes` (def) L46
+
 ## scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
 - `_show` (def) L35
 - `_status` (def) L39
