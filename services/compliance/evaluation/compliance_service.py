@@ -76,14 +76,12 @@ AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
 _gemini_client: Optional[Any] = None
 
-
 def _get_gemini_client() -> Optional[Any]:
     global _gemini_client
     if _gemini_client is None:
         from services.ai.core.bedrock_service import get_ai_client
         _gemini_client = get_ai_client()
     return _gemini_client
-
 
 # Set when a step that needs the AI could not run because the AI isn't working (no key, key refused, quota, outage), so
 # the check can say its result is incomplete instead of looking like a clean pass. Read after the check's steps ran.
@@ -1440,10 +1438,11 @@ async def rulebook_version() -> Optional[str]:
     cached = await rules_cache.get("version")
     if cached is not None:
         return cached
+    from services.compliance.media.image_text_service import VERSION as IMAGE_TEXT_VERSION
     generation = rules_cache.generation
     row = await fetch_one("SELECT max(greatest(updated_at, coalesce(deleted_at, updated_at))) AS v FROM compliance_rules")
     rules = row["v"].isoformat() if row and row["v"] else "none"
-    version = f"{rules}|{claim_checks.VERSION}|{post_signals.VERSION}|{SCOPE_VERSION}|{context_evaluator.PROMPT_VERSION}|{HIGHLIGHT_VERSION}|{source_check_service.VERSION}|{rule18_policy.VERSION}|{visual_review.PROMPT_VERSION}"
+    version = f"{rules}|{claim_checks.VERSION}|{post_signals.VERSION}|{SCOPE_VERSION}|{context_evaluator.PROMPT_VERSION}|{HIGHLIGHT_VERSION}|{source_check_service.VERSION}|{rule18_policy.VERSION}|{visual_review.PROMPT_VERSION}|{IMAGE_TEXT_VERSION}"
     await rules_cache.set_if_unchanged("version", version, generation, RULES_CACHE_TTL)
     return version
 
