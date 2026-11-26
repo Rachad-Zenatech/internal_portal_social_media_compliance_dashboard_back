@@ -78,7 +78,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_reference_context` (def) L350 - The Messaging Context section of the prompt, grouped by kind, saying plainly what's missing.
 - `suggested_context` (def) L373 - The Messaging Context the analysis would pick on its own for this post, by kind (what the picker suggests).
 
-## services/compliance/sentiment/jobs.py (514 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
+## services/compliance/sentiment/jobs.py (512 lines) - Job lifecycle, background processing, scheduling and retrieval for sentiment analyses.
 - `_claim` (def) L54 - Atomically move an analysis to PROCESSING unless another worker already has it.
 - `_finish` (def) L69
 - `run_analysis` (def) L103
@@ -87,25 +87,30 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_queue_for` (def) L130 - Create (or, for a waiting row, fill in) a PENDING analysis, reusing a matching earlier result.
 - `request_analysis` (def) L170 - Start an analysis of the submission's current content (or return the matching one already done or running).
 - `_request` (def) L191
-- `on_transcript_finished` (def) L217 - Called by the transcription job (completed or failed): start any analysis that was waiting for it.
-- `_resume_waiting` (def) L234
-- `resume_unfinished` (def) L243 - Restart work a restart may have interrupted: stale PENDING/PROCESSING rows, and waiting rows whose
-- `_result` (def) L274 - The stored result, with finding ids filled in for analyses saved before findings had them.
-- `_to_model` (def) L285
-- `context_entries` (def) L315 - The Messaging Context the analysis was given, with each entry's scope, date and source (flagged when it's over a
-- `_with_feedback` (def) L379
-- `get_analysis` (def) L391
-- `get_for_version` (def) L396 - The most recent analysis of one version, as it was (looking back, so never flagged stale).
-- `_with_comparison` (def) L411 - Attach how this analysis differs from the previous completed one of the same submission.
-- `get_latest` (def) L441 - The latest analysis remains current across detail edits, until its media changes.
-- `_analysis_row` (def) L458
-- `schedule_after_reset` (def) L471 - An analysis that failed on Gemini's daily limit runs again once the limit resets.
-- `promote_due` (def) L486 - Start scheduled analyses whose quota reset time has passed (all of them, or one submission's).
-- `scheduled_runs_loop` (def) L501 - Background loop (started with the app): runs scheduled analyses once Gemini's daily limit has reset.
+- `on_transcript_finished` (def) L215 - Called by the transcription job (completed or failed): start any analysis that was waiting for it.
+- `_resume_waiting` (def) L232
+- `resume_unfinished` (def) L241 - Restart work a restart may have interrupted: stale PENDING/PROCESSING rows, and waiting rows whose
+- `_result` (def) L272 - The stored result, with finding ids filled in for analyses saved before findings had them.
+- `_to_model` (def) L283
+- `context_entries` (def) L313 - The Messaging Context the analysis was given, with each entry's scope, date and source (flagged when it's over a
+- `_with_feedback` (def) L377
+- `get_analysis` (def) L389
+- `get_for_version` (def) L394 - The most recent analysis of one version, as it was (looking back, so never flagged stale).
+- `_with_comparison` (def) L409 - Attach how this analysis differs from the previous completed one of the same submission.
+- `get_latest` (def) L439 - The latest analysis remains current across detail edits, until its media changes.
+- `_analysis_row` (def) L456
+- `schedule_after_reset` (def) L469 - An analysis that failed on Gemini's daily limit runs again once the limit resets.
+- `promote_due` (def) L484 - Start scheduled analyses whose quota reset time has passed (all of them, or one submission's).
+- `scheduled_runs_loop` (def) L499 - Background loop (started with the app): runs scheduled analyses once Gemini's daily limit has reset.
 
 ## services/compliance/sentiment/media.py (68 lines) - Video frames and attached images for sentiment findings.
 - `video_frame` (def) L18 - A JPEG of the analysed video at a moment (cached on disk), so a finding can show what was on screen.
 - `analysed_image` (def) L50 - One of the images an analysis looked at (1 = the first), as (path, mime type), so a finding can show it.
+
+## services/compliance/sentiment/policy.py (20 lines) - Content types eligible for optional sentiment analysis.
+- `applies` (def) L5
+- `require_enabled` (def) L9
+- `load_eligible` (def) L15
 
 ## services/compliance/sentiment/response_format.py (33 lines) - Validate completed sentiment output without mistaking truncation for an empty assessment.
 - `parse_response` (def) L12

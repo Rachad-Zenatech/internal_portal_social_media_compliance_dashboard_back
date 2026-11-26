@@ -1,6 +1,6 @@
 """Direct reviewer text edits, serialized with decisions and attributed in the existing event log."""
 import json
-from html import escape
+from services.compliance.submissions.review_caption_format import saved_html
 
 from fastapi import HTTPException
 
@@ -35,18 +35,20 @@ async def edits_for(conn, submission_id):
             created_at=row["created_at"], version=data["version"],
             before_text=data.get("before_text", data.get("before", "")),
             after_text=data.get("after_text", data.get("after", "")),
+            before_html=data.get("before_html"), after_html=data.get("after_html"),
         ))
     return edits
 
 
 def state_for(row, edits, can_edit):
-    return PostTextReview(text=row.get("caption_text") or "", revision=edits[-1].id if edits else None,
+    return PostTextReview(text=row.get("caption_text") or "", html=row.get("caption_html"), revision=edits[-1].id if edits else None,
                           can_edit=can_edit, edits=edits)
 
 
 def require_base(row, edits, data):
     revision = edits[-1].id if edits else None
-    if data.base_text != (row.get("caption_text") or "") or data.base_revision != revision:
+    if (data.base_text != (row.get("caption_text") or "") or data.base_revision != revision
+            or ("base_html" in data.model_fields_set and data.base_html != row.get("caption_html"))):
         raise HTTPException(409, "Another reviewer changed this post. Copy your draft, load the latest text, and apply your changes again.")
 
 
@@ -82,17 +84,18 @@ async def save_review(submission_id, user_id, data):
                 raise HTTPException(403, "Only other reviewers can edit post text while it is in review.")
             edits = await edits_for(conn, submission_id)
             require_base(row, edits, data)
-            if data.text == (row.get("caption_text") or ""):
+            html = saved_html(data.text, data.html, row.get("caption_text") or "", row.get("caption_html"))
+            if data.text == (row.get("caption_text") or "") and html == row.get("caption_html"):
                 return state_for(row, edits, True)
-            await write_edit(conn, row, user_id, data.text)
-            updated = dict(row, caption_text=data.text)
+            await write_edit(conn, row, user_id, data.text, html=html)
+            updated = dict(row, caption_text=data.text, caption_html=html)
             return state_for(updated, await edits_for(conn, submission_id), True)
 
 
-async def write_edit(conn, row, user_id, text):
+async def write_edit(conn, row, user_id, text, *, html=None):
     from services.compliance.submissions import submission_service as subs
     name = await conn.fetchval("SELECT full_name FROM users WHERE id = $1", user_id)
-    html = "<p>" + escape(text).replace("\n", "<br>") + "</p>"
+    html = saved_html(text, html, row.get("caption_text") or "", row.get("caption_html"))
     await conn.execute(
         """UPDATE content_submissions SET caption_text = $2, caption_html = $3,
                   latest_check = NULL, content_edited_at = clock_timestamp(),
@@ -102,6 +105,7 @@ async def write_edit(conn, row, user_id, text):
     await subs._add_event(conn, row["id"], "CAPTION_EDITED", "Reviewer edited post text", user_id, {
         "version": row["current_version"], "before_text": row.get("caption_text") or "",
         "after_text": text, "reviewer_name": name or "Reviewer",
+        "before_html": row.get("caption_html"), "after_html": html,
         "before": row.get("caption_text") or "", "after": text, "platform": None,
     })
 

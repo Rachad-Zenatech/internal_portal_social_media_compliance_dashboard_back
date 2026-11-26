@@ -126,3 +126,35 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
 
     def test_documents_wait_for_their_own_reader(self):
         self.assertEqual(len(recovery.pending_files([file(None,"application/pdf","SCRIPT","script.pdf")])),1)
+
+
+class GetSubmissionRecoveryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_authenticated_get_service_schedules_and_saves_recovery(self):
+        from services.compliance.submissions import submission_service as actual
+        recovery._last_attempt.clear()
+        recovery._queued.clear()
+        row={"id":"sub", "status":"DRAFT", "created_by":"owner", "current_version":1, "latest_check":pending()}
+        fake,conn=services(row)
+        shown=SimpleNamespace(can_edit=True,latest_check=row["latest_check"])
+        real_recover=recovery.recover
+        async def finish(submission_id): await real_recover(submission_id,services=fake)
+        with patch.object(actual,"_get_owned_row",AsyncMock(return_value=row)), \
+             patch.object(actual,"_to_submission",AsyncMock(return_value=shown)), \
+             patch.object(actual,"_can_delete",Mock(return_value=False)), \
+             patch.object(actual,"_approvers",Mock(return_value=([],[]))), \
+             patch.object(actual,"_accounts",Mock(return_value=[])), \
+             patch.object(actual.approval_path_service,"load_rules",AsyncMock()), \
+             patch.object(actual.flag_review_service,"approval_standing",AsyncMock(return_value={})), \
+             patch.object(actual,"compliance_rulebook_version",AsyncMock(return_value="rules")), \
+             patch.object(actual.submission_source_state,"sources_changed",Mock(return_value=False)), \
+             patch.object(actual.analysis_progress_service,"for_submissions",AsyncMock(return_value={})), \
+             patch.object(actual.post_approval_suggestions,"enrich",AsyncMock(return_value=[shown])), \
+             patch.object(recovery,"files_for",AsyncMock(return_value=[file()])), \
+             patch.object(recovery,"recover",AsyncMock(side_effect=finish)):
+            await actual.get_submission("sub","owner")
+            task=recovery._queued.get("sub")
+            self.assertIsNotNone(task, "The GET path must queue recovery without a direct recover call")
+            await task
+        fake._run_check.assert_awaited_once()
+        written=json.loads(conn.execute.await_args_list[0].args[2])
+        self.assertFalse(written["analysis_pending"])

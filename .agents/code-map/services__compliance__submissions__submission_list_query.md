@@ -4,5 +4,5 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/submission_list_query.py (94 lines) - SQL for the submission list, including previews and analysis status.
-- `list_query` (def) L7
+## services/compliance/submissions/submission_list_query.py (95 lines) - SQL for the submission list, including previews and analysis status.
+- `list_query` (def) L8

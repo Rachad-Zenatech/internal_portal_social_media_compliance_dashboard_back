@@ -4,5 +4,5 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/finding_visibility.py (17 lines) - Display policy for compliance findings, separate from response assembly.
+## services/compliance/evaluation/finding_visibility.py (20 lines) - Display policy for compliance findings, separate from response assembly.
 - `is_visible` (def) L5

@@ -9,7 +9,7 @@ async def for_submissions(rows):
         return {}
     results = await fetch_all(
         "SELECT s.id, (SELECT max(j.decided_at) FROM content_review_jobs j WHERE j.submission_id = s.id "
-        "AND j.version_number = s.current_version AND j.decision = 'REQUEST_CHANGES') AS revision_at, "
+        "AND j.version_number = s.current_version AND j.decision IN ('REQUEST_CHANGES','APPROVE')) AS revision_at, "
         "EXISTS (SELECT 1 FROM content_review_comments c WHERE c.submission_id = s.id "
         "AND c.version_number = s.current_version AND c.deleted_at IS NULL AND c.resolved_at IS NULL) AS unresolved_comments "
         "FROM content_submissions s WHERE s.id = ANY($1::uuid[])", ids,
@@ -23,8 +23,13 @@ def compute(row, missing):
     edited = _aware(row.get("content_edited_at"))
     changed = bool(returned and edited and edited > returned)
     cutoff = max(returned, edited) if returned and edited else returned
+    if row.get("publish_after_changes"):
+        markers = [value for value in (edited, _aware(row.get("media_edited_at"))) if value]
+        cutoff = max(markers) if markers else None
     def checked(at, running=False):
-        if "media_edited_at" in row:
+        if row.get("publish_after_changes"):
+            return _tool(_aware(at), cutoff, running)
+        if "media_edited_at" in row and not row.get("publish_after_changes"):
             return _tool(_aware(at), _aware(row.get("media_edited_at")), running)
         if not returned:
             return "todo"
@@ -38,10 +43,13 @@ def compute(row, missing):
         "compliance": checked(row.get("check_at"), bool(row.get("analysis_pending"))),
         "sentiment": checked(row.get("sentiment_at"), bool(row.get("sentiment_running"))),
     }
+    if row.get("publish_after_changes"):
+        states["suggestions"] = "done" if states["compliance"] == "done" else "todo"
+        states["details"] = "done" if not missing else "todo"
     if row.get("ai_unavailable") and not row.get("analysis_pending"):
         states["compliance"] = "unavailable"
     script_only = row.get("script_stage") and not row.get("main_is_video")
-    required = ["suggestions", "details", "compliance"] + ([] if script_only else ["sentiment"])
+    required = ["suggestions", "details", "compliance"] + ([] if script_only or row.get("content_type") == "TEXT_POST" else ["sentiment"])
     next_step = next((key for key in required if states[key] != "done"), "send")
     return SubmissionSteps(**states, revision=True, mood="todo", send="todo", next=next_step,
                            ready_to_send=next_step == "send", locked=False, missing=missing)

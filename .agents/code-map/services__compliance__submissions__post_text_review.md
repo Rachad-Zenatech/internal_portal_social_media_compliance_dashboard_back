@@ -4,19 +4,19 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/post_text_review.py (157 lines) - Direct reviewer text edits, serialized with decisions and attributed in the existing event log.
+## services/compliance/submissions/post_text_review.py (161 lines) - Direct reviewer text edits, serialized with decisions and attributed in the existing event log.
 - `require_text_post` (def) L11
 - `may_edit` (def) L16
 - `edits_for` (def) L21
-- `state_for` (def) L42
-- `require_base` (def) L47
-- `require_same_assignment` (def) L53
-- `get_review` (def) L60
-- `save_review` (def) L72
-- `write_edit` (def) L92
-- `lock_decision` (def) L109 - Do not let approval based on an earlier text/check race with an edit.
-- `require_no_files` (def) L122
-- `lock_upload` (def) L127
-- `require_empty_attachments` (def) L132
-- `check_row` (def) L139 - Reviewers may recheck their text edits through the existing compliance endpoint.
-- `store_check` (def) L148
+- `state_for` (def) L43
+- `require_base` (def) L48
+- `require_same_assignment` (def) L55
+- `get_review` (def) L62
+- `save_review` (def) L74
+- `write_edit` (def) L95
+- `lock_decision` (def) L113 - Do not let approval based on an earlier text/check race with an edit.
+- `require_no_files` (def) L126
+- `lock_upload` (def) L131
+- `require_empty_attachments` (def) L136
+- `check_row` (def) L143 - Reviewers may recheck their text edits through the existing compliance endpoint.
+- `store_check` (def) L152

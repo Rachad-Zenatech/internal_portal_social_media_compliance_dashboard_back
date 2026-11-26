@@ -4,6 +4,9 @@ from models.compliance.compliance_model import ComplianceViolation
 
 def is_visible(finding: ComplianceViolation) -> bool:
     evaluation = finding.evaluation
+    if (finding.rule_number.removeprefix("Rule ").strip() == "25"
+            and finding.status in {"VIOLATION", "NEEDS_REVIEW", "EVIDENCE_REQUIRED"}):
+        return evaluation is not None and evaluation.source in {"AI", "ADJUSTED"} and evaluation.confidence >= 0.7
     if (finding.rule_number.removeprefix("Rule ").strip() == "18"
             and finding.status in {"VIOLATION", "NEEDS_REVIEW", "EVIDENCE_REQUIRED"}
             and evaluation is not None and evaluation.source in {"AI", "ADJUSTED"}):

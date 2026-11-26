@@ -16,7 +16,7 @@ from models.compliance.sentiment_model import (
     SentimentResult,
 )
 from postgresql_db.database import fetch_all, fetch_one, get_pool
-from services.compliance.sentiment import reuse_freshness
+from services.compliance.sentiment import reuse_freshness, policy
 from services.ai.observability import ai_usage_service
 from services.ai.observability.ai_usage_service import AiLimitExceeded
 from services.compliance.sentiment.config import (
@@ -57,7 +57,7 @@ async def _claim(analysis_id: UUID) -> Optional[Dict[str, Any]]:
         f"""
         UPDATE content_sentiment_analyses
         SET status = 'PROCESSING', attempts = attempts + 1, error = NULL, updated_at = NOW()
-        WHERE id = $1
+        WHERE id = $1 AND EXISTS (SELECT 1 FROM content_submissions s WHERE s.id = content_sentiment_analyses.submission_id AND s.content_type IS DISTINCT FROM 'TEXT_POST')
           AND (status = 'PENDING'
                OR (status = 'PROCESSING' AND updated_at < NOW() - INTERVAL '{STALE_MINUTES} minutes'))
         RETURNING submission_id, input, attempts, requested_by
@@ -130,7 +130,7 @@ def schedule(analysis_ids: Iterable[UUID]) -> None:
 async def _queue_for(row: Dict[str, Any], trigger: str, requested_by: Optional[UUID],
                      analysis_id: Optional[UUID] = None) -> UUID:
     """Create (or, for a waiting row, fill in) a PENDING analysis, reusing a matching earlier result."""
-    validation = await reuse_freshness.capture(row)
+    validation = await reuse_freshness.capture(policy.require_enabled(row))
     inp = await _build_input(row)
     content_hash = _hash(inp)
     existing = await fetch_one(
@@ -189,9 +189,7 @@ async def request_analysis(submission_id: UUID, user_id: Optional[UUID], trigger
 
 
 async def _request(submission_id: UUID, user_id: Optional[UUID], trigger: str) -> UUID:
-    row = await _load_submission(submission_id)
-    if not row:
-        raise ValueError("Submission not found")
+    row = await policy.load_eligible(submission_id, _load_submission)
     if _transcript_pending(row):
         waiting = await fetch_one(
             "SELECT id FROM content_sentiment_analyses WHERE submission_id = $1 AND status = 'WAITING_TRANSCRIPT' LIMIT 1",

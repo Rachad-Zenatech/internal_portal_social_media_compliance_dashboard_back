@@ -10,6 +10,8 @@ class CaptionEditRequest(BaseModel):
     base_caption: str = Field(max_length=100_000)
     caption_text: str = Field(max_length=100_000)
     platform: Optional[str] = Field(default=None, max_length=40)
+    caption_html: Optional[str] = Field(default=None, max_length=400_000)
+    base_caption_html: Optional[str] = Field(default=None, max_length=400_000)
 
     @field_validator('caption_text')
     @classmethod
@@ -23,6 +25,8 @@ class CaptionRevision(BaseModel):
     id: int
     before: str
     after: str
+    before_html: Optional[str] = None
+    after_html: Optional[str] = None
     platform: Optional[str] = None
     version: int
     actor_id: Optional[UUID] = None

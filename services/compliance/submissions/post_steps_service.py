@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, List, Mapping, Optional
 
 from models.compliance.submission_model import SubmissionSteps
+from services.compliance.sentiment.policy import applies as sentiment_applies
 from services.compliance.submissions import revision_steps, image_provenance_service
 
 # Statuses the creator can still change; anything else is locked.
@@ -124,7 +125,7 @@ def compute_steps(r: Mapping[str, Any]) -> SubmissionSteps:
     mood = _tool(r.get("mood_at"), edited_at)
 
     done = {"details": details, "compliance": compliance, "sentiment": sentiment}
-    required = ("details", "compliance") if r.get("script_stage") and not r.get("main_is_video") else ("details", "compliance", "sentiment")
+    required = ("details", "compliance") if not sentiment_applies(r) or (r.get("script_stage") and not r.get("main_is_video")) else ("details", "compliance", "sentiment")
     next_step = next((k for k in required if done[k] != "done"), "send")
     ready = all(done[k] == "done" for k in required)
     return SubmissionSteps(

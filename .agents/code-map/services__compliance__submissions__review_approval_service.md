@@ -4,5 +4,6 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/review_approval_service.py (77 lines) - Approval gates for a submitted post: saved checks, findings and final approvers.
+## services/compliance/submissions/review_approval_service.py (89 lines) - Approval gates for a submitted post: saved checks, findings and final approvers.
 - `require_approval` (def) L5 - Validate approval and return the refreshed row and its effective score.
+- `require_final_approver` (def) L76 - Human approval still requires the assigned final approver or an authorized delegate.

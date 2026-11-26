@@ -1,6 +1,7 @@
 """SQL for the submission list, including previews and analysis status."""
 
 from services.compliance.submissions import image_provenance_service, media_freshness
+from .review_outcome import status_sql
 from services.compliance.submissions.review_hierarchy_service import manager_access_sql, reviewer_sees as _reviewer_sees
 
 
@@ -72,7 +73,7 @@ def list_query(accounts_column, pending_sql, unavailable_sql):
             LIMIT 1
         ) cov ON true
         WHERE (s.created_by = $1 OR ($3 AND """ + _reviewer_sees("$1", "$4") + """))
-          AND s.deleted_at IS NULL AND ($2::text IS NULL OR s.status = $2)
+          AND s.deleted_at IS NULL AND ($2::text IS NULL OR """ + status_sql() + """ = $2)
         -- What needs the creator comes first: changes to fix (a post's or its script's), then drafts to finish
         -- (including an approved script waiting for its video). Then what's waiting on someone else: content in
         -- review, and a script with a reviewer or being sent, which count the same however they're stored (a script

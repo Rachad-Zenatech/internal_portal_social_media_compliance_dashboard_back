@@ -702,13 +702,14 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
             raise HTTPException(status_code=422, detail="Some of those people can't review content on this brand")
         fields["reviewer_ids"] = kept + picked
     submission_fields.apply_clear_fields(fields, data.clear_fields)
+    from .approved_revision import require_locked_basics
+    require_locked_basics(row, fields)
     if not fields:
         return await _to_submission(row)
 
     columns = list(fields.keys())
     sets = ", ".join(f"{c} = ${i + 2}" for i, c in enumerate(columns))
     params = [submission_id, *(json.dumps(v) if isinstance(v, dict) else v for v in fields.values()), user_id]
-    # Changing anything the checks read makes their results out of date; who reviews it and by when does not.
     edited = ", content_edited_at = NOW()" if content_changed(row, fields) else ""
     pool = get_pool()
     try:
@@ -1453,8 +1454,9 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
     if not publish_after_changes:
         manual_check_service.require_send_score(result.score, pending_score=await creator_dismissal_service.send_score(row, check))
 
+    from .approved_revision import require_fresh_checks
+    await require_fresh_checks(row, check)
     files = await _list_files(submission_id)
-    # The script's text as read now, kept with the version so later versions can be compared with it.
     script = await fetch_one(
         """
         SELECT doc_text FROM content_submission_files
@@ -1495,7 +1497,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
                 submission_id, version, "APPROVED" if publish_after_changes else "AWAITING_REVIEW",
                 list(row["reviewer_route"] or []), json.dumps(check), result.traffic_light, result.score, user_id,
                 "APPROVE" if publish_after_changes else None,
-                "Published by the creator after the reviewer requested changes" if publish_after_changes else None,
+                "Final version published by the creator with reviewer permission" if publish_after_changes else None,
             )
             await conn.execute(
                 """
@@ -1503,7 +1505,6 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
                 SET status = CASE WHEN $7 THEN 'APPROVED' ELSE 'IN_REVIEW' END,
                     current_version = $2, latest_check = $3::jsonb,
                     submitted_at = NOW(), updated_at = NOW(), updated_by = $4,
-                    publish_at = CASE WHEN $7 THEN NOW() ELSE publish_at END,
                     due_at = CASE WHEN $7 THEN NULL ELSE $5::timestamptz END,
                     due_kind = CASE WHEN $7 THEN NULL ELSE 'REVIEW' END,
                     due_reminded_at = NULL, due_overdue_notified_at = NULL,
@@ -1516,7 +1517,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
             )
             await creator_dismissal_service.carry_pending_requests(conn, submission_id, row["current_version"], version)
             await _add_event(conn, submission_id, "SUBMITTED",
-                             f"Version {version} published after requested changes" if publish_after_changes else f"Version {version} submitted for review", user_id,
+                             f"Version {version} published after reviewing suggestions" if publish_after_changes else f"Version {version} submitted for review", user_id,
                              {"version": version, "review_job_id": str(job["id"])})
             await _add_event(conn, submission_id, "CHECK_COMPLETED",
                              _check_summary(result, check), user_id,
@@ -1571,7 +1572,8 @@ _QUEUE_ORDER = {
 
 def _queue_filter(tab: str) -> str:
     statuses = ", ".join(f"'{st}'" for st in QUEUE_TAB_STATUSES[tab])
-    cond = f"s.status IN ({statuses})"
+    from .review_outcome import status_sql
+    cond = f"{status_sql()} IN ({statuses})"
     if tab == "done":
         cond += f" AND COALESCE({_DECIDED_AT}, s.updated_at) >= NOW() - INTERVAL '{DONE_DAYS} days'"
     return cond
@@ -1726,7 +1728,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
     rows = await fetch_all(
         f"""
         SELECT {manager_access_sql("$1")} AS manager_review_access, s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
-               s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
+               s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind, s.publish_after_changes,
                s.brand_code, s.brand_codes, s.audience, s.audiences, s.rule_sets, s.approval_needed_by, s.script_required, s.script_status,
                s.reviewer_ids, s.platform_captions,
                {_DECIDED_AT} AS decided_at,
@@ -1791,7 +1793,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             reference_code=r["reference_code"],
             title=r["title"],
             content_type=r["content_type"],
-            status=r["status"],
+            status=r["status"], publish_after_changes=bool(r.get("publish_after_changes")),
             platforms=list(r["platforms"] or []),
             account=_account_option(r, prefix="acc_"),
             caption_text=r["caption_text"],
@@ -2047,7 +2049,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     is_super = await review_handoff.require_reviewer(row, user_id)
     approval_score: Optional[int] = None
     if req.decision == "APPROVE":
-        row, approval_score = await review_approval_service.require_approval(row, user_id, is_super)
+        row, approval_score = await review_approval_service.require_approval(row, user_id, is_super, for_creator_updates=req.publish_after_changes)
 
     version = row["current_version"]
     notes = (req.notes or "").strip() or None
@@ -2066,20 +2068,12 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
             raise HTTPException(status_code=422, detail="Add a note or comments saying what needs to change")
         new_status, label = "CHANGES_REQUESTED", "Changes requested"
     else:
-        publish_at, label = post_approval_suggestions.approval_timing(row, req, now)
-        new_status = "APPROVED"
-        # Rules the automated check can't test (image editing, image rights, ...): the approving reviewer
-        # confirms each one, and that's recorded with the decision.
+        from .approved_revision import approval_outcome
+        publish_at, new_status, label = approval_outcome(row, req, now)
         needed = (_json(row["latest_check"]) or {}).get("manual_review_rules") or []
         confirmed = {r.strip() for r in req.confirmed_rules}
-        unconfirmed = [m for m in needed if m.get("rule_number") not in confirmed]
-        if unconfirmed:
-            raise HTTPException(
-                status_code=422,
-                detail="Confirm you've checked the rules the automated check can't test before approving: "
-                       + ", ".join(f"{m['rule_number']} ({m['title']})" for m in unconfirmed),
-            )
-        manual_checks = [{"rule_number": m["rule_number"], "title": m["title"]} for m in needed]
+        manual_checks = [{"rule_number": m["rule_number"], "title": m["title"]}
+                         for m in needed if m.get("rule_number") in confirmed]
 
     pool = get_pool()
     async with pool.acquire() as conn:

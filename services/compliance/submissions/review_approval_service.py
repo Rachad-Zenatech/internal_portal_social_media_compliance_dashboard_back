@@ -2,10 +2,15 @@
 from fastapi import HTTPException
 
 
-async def require_approval(row, user_id, is_super):
+async def require_approval(row, user_id, is_super, *, for_creator_updates=False):
     """Validate approval and return the refreshed row and its effective score."""
     from services.compliance.submissions import submission_service as subs
     submission_id = row["id"]
+    if for_creator_updates:
+        # This records human approval and hands the content back to its creator; it does not publish it.
+        # The creator's final submission still validates the saved checks against the actual content.
+        await require_final_approver(row, user_id, is_super)
+        return row, None
     # Nothing can be approved on a check that wasn't read in full: with the AI down every finding is only a
     # "needs review", so there'd be no score to hold to the minimum.
     saved = subs._json(row["latest_check"]) or {}
@@ -64,6 +69,14 @@ async def require_approval(row, user_id, is_super):
                    "Request changes to fix the flagged wording, or dismiss flags with a reason if they're false alarms.",
         )
     approval_score = standing.score if standing else None
+    await require_final_approver(row, user_id, is_super)
+    return row, approval_score
+
+
+async def require_final_approver(row, user_id, is_super):
+    """Human approval still requires the assigned final approver or an authorized delegate."""
+    from services.compliance.submissions import submission_service as subs
+    submission_id = row["id"]
     approver_ids, approver_names = subs._approvers(await subs.approval_path_service.load_rules(), row, subs._accounts(row))
     # A named final approver who delegated the post passes their approval to the delegate.
     approver_ids = await subs.delegation_service.with_delegates(submission_id, approver_ids)
@@ -73,4 +86,3 @@ async def require_approval(row, user_id, is_super):
             detail=f"Final approval for this content is with {', '.join(approver_names)}. "
                    "You can still comment or request changes.",
         )
-    return row, approval_score
