@@ -39,7 +39,7 @@ async def load(row) -> CheckMaterial:
     visual_segments = await video_finding_service.visual_text_segments(video) if video and video["transcript_status"] == "FAILED" else []
     visual_text = " ".join(str(s["text"]) for s in visual_segments).strip()
     images = await fetch_all(
-        "SELECT id, original_name, storage_path, mime_type, image_text, image_text_status, image_text_error FROM content_submission_files "
+        "SELECT id, original_name, storage_path, mime_type, image_text, image_text_status, image_text_error, image_text_details FROM content_submission_files "
         "WHERE submission_id = $1 AND kind = ANY($2::text[]) AND deleted_at IS NULL AND mime_type LIKE 'image/%' "
         "ORDER BY (kind <> 'MAIN'), created_at",
         row["id"], list(image_text_service.IMAGE_KINDS),
