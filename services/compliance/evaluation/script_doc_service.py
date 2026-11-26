@@ -23,6 +23,7 @@ import re
 import time
 from services.compliance.evaluation.script_doc_sources import sources_for
 from services.compliance.evaluation.script_doc_compliance import state as compliance_state
+from services.compliance.evaluation import script_doc_details
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -229,7 +230,8 @@ async def get(doc_id: UUID, user_id: UUID) -> DocDetail:
         pages = await _pages_module()._pages(doc["set_id"], reviewer_id=reviewer_filter)
         if pages:
             set_title = (await fetch_one("SELECT title FROM script_sets WHERE id = $1", doc["set_id"]) or {}).get("title")
-    return _detail(doc, reviewers, access, user_id, by, [DocPost(**r) for r in rows], pages, set_title)
+    detail = _detail(doc, reviewers, access, user_id, by, [DocPost(**r) for r in rows], pages, set_title)
+    return detail.model_copy(update={"shared_details": await script_doc_details.shared(doc)})
 
 
 async def create(user_id: UUID, req: DocCreate) -> DocDetail:
@@ -257,15 +259,8 @@ async def update(doc_id: UUID, user_id: UUID, req: DocUpdate) -> DocDetail:
         raise HTTPException(status_code=409, detail="The details can only be changed while the script is a draft or sent back")
     if req.title is not None:
         await execute("UPDATE script_documents SET title = $2, updated_at = NOW() WHERE id = $1 RETURNING id", doc_id, req.title.strip())
-    if req.details is not None:
-        details = json.dumps({**{k: v for k, v in (subs._json(doc["details"]) or {}).items() if k == "source_submission_id"}, **req.details.model_dump(mode="json", exclude_none=True)})
-        await execute("UPDATE script_documents SET details = $2::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id", doc_id, details)
-        if doc.get("set_id"):
-            # The details are the document's: every page that can still change gets them.
-            await execute("UPDATE script_sets SET details = $2::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id", doc["set_id"], details)
-            await fetch_all(
-                "UPDATE script_documents SET details = $2::jsonb WHERE set_id = $1 AND deleted_at IS NULL "
-                "AND status IN ('DRAFT', 'CHANGES_REQUESTED') RETURNING id", doc["set_id"], details)
+    if req.details is not None or req.shared_details is not None:
+        await script_doc_details.save(doc, req.details, req.shared_details)
     return await get(doc_id, user_id)
 
 

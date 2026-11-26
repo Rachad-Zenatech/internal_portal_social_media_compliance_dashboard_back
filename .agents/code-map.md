@@ -85,6 +85,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__script_compliance_check.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_creator_workflow.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_compliance.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__script_doc_details.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_pages.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_reads.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_realtime.md | 1 | 1 KB |

@@ -4,34 +4,34 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_doc_service.py (501 lines) - Script documents.
-- `templates` (def) L61
-- `_color` (def) L65
-- `_name` (def) L71
-- `_event` (def) L78
-- `_notify` (def) L86
-- `_managers` (def) L102 - Everyone who can make the final decision: super admins and roles with "Manage Team Drafts".
-- `_doc` (def) L107
-- `_reviewers` (def) L116
-- `_access` (def) L129 - What the user may do with the script, or None when they may not see it.
-- `_all_checked` (def) L167
-- `_state` (def) L172 - What every open editor is told when the review's state moves.
-- `_broadcast_state` (def) L181
-- `get_access` (def) L186 - For the live connection: the script, and what the user may do with it.
-- `_detail` (def) L194
-- `get` (def) L216
-- `create` (def) L235 - A new document from a template: the document and its first script (page).
-- `update` (def) L254
-- `delete` (def) L272
-- `save_snapshot` (def) L286 - An editor saves the script as it reads now (for lists, the check and history); the live editor itself is kept as updates.
-- `reviewer_options` (def) L298
-- `submit` (def) L304
-- `note_change` (def) L363 - Someone changed the script or its notes.
-- `check_in` (def) L388
-- `withdraw_check_in` (def) L414
-- `_votes` (def) L425
-- `_stamp_version` (def) L433
-- `_close` (def) L440
-- `finalize` (def) L452 - Everyone has checked in: send it to the Content Manager (level 2), or approve it back to the creator.
-- `decide` (def) L480 - The Content Manager's final decision (level 2, or earlier: they can decide at any point in review).
-- `_pages_module` (def) L497 - The pages module (it imports this one, so it is loaded when first needed).
+## services/compliance/evaluation/script_doc_service.py (496 lines) - Script documents.
+- `templates` (def) L62
+- `_color` (def) L66
+- `_name` (def) L72
+- `_event` (def) L79
+- `_notify` (def) L87
+- `_managers` (def) L103 - Everyone who can make the final decision: super admins and roles with "Manage Team Drafts".
+- `_doc` (def) L108
+- `_reviewers` (def) L117
+- `_access` (def) L130 - What the user may do with the script, or None when they may not see it.
+- `_all_checked` (def) L168
+- `_state` (def) L173 - What every open editor is told when the review's state moves.
+- `_broadcast_state` (def) L182
+- `get_access` (def) L187 - For the live connection: the script, and what the user may do with it.
+- `_detail` (def) L195
+- `get` (def) L217
+- `create` (def) L237 - A new document from a template: the document and its first script (page).
+- `update` (def) L256
+- `delete` (def) L267
+- `save_snapshot` (def) L281 - An editor saves the script as it reads now (for lists, the check and history); the live editor itself is kept as updates.
+- `reviewer_options` (def) L293
+- `submit` (def) L299
+- `note_change` (def) L358 - Someone changed the script or its notes.
+- `check_in` (def) L383
+- `withdraw_check_in` (def) L409
+- `_votes` (def) L420
+- `_stamp_version` (def) L428
+- `_close` (def) L435
+- `finalize` (def) L447 - Everyone has checked in: send it to the Content Manager (level 2), or approve it back to the creator.
+- `decide` (def) L475 - The Content Manager's final decision (level 2, or earlier: they can decide at any point in review).
+- `_pages_module` (def) L492 - The pages module (it imports this one, so it is loaded when first needed).

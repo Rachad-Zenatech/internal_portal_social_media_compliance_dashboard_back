@@ -153,32 +153,32 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ItemResult` (class) L127
 - `BatchReviewResult` (class) L136
 
-## models/compliance/script_doc_model.py (248 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
+## models/compliance/script_doc_model.py (250 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - `TemplateRow` (class) L18
 - `ScriptTemplate` (class) L25
 - `DocCreate` (class) L34
 - `DocUpdate` (class) L39
-- `DocSourcesUpdate` (class) L45
-- `DocSnapshot` (class) L50 - The script as the live editor shows it, saved by an editor.
-- `ReviewerPick` (class) L56
-- `DocSubmit` (class) L61
-- `CheckIn` (class) L69
-- `Finalize` (class) L76 - Once every reviewer has checked in: where the script goes next.
-- `ManagerDecision` (class) L82
-- `DocReviewer` (class) L87
-- `DocAccess` (class) L99 - What the viewer may do with this script right now.
-- `DocEvent` (class) L111
-- `DocVersion` (class) L120
-- `DocSummary` (class) L131
-- `DocPost` (class) L152 - A post made from one script of an approved document.
-- `DocPage` (class) L160 - One script (page) of the creator's document, for the page list beside the editor.
-- `DocSetSummary` (class) L171 - A creator's document in the hub: how its scripts stand.
-- `BulkSubmit` (class) L185 - Send several scripts of the document for review at once (all that can be sent, or the ones listed).
-- `BulkFailure` (class) L192
-- `BulkResult` (class) L198
-- `UploadedPages` (class) L203
-- `DocDetail` (class) L207
-- `DocHistory` (class) L245
+- `DocSourcesUpdate` (class) L46
+- `DocSnapshot` (class) L51 - The script as the live editor shows it, saved by an editor.
+- `ReviewerPick` (class) L57
+- `DocSubmit` (class) L62
+- `CheckIn` (class) L70
+- `Finalize` (class) L77 - Once every reviewer has checked in: where the script goes next.
+- `ManagerDecision` (class) L83
+- `DocReviewer` (class) L88
+- `DocAccess` (class) L100 - What the viewer may do with this script right now.
+- `DocEvent` (class) L112
+- `DocVersion` (class) L121
+- `DocSummary` (class) L132
+- `DocPost` (class) L153 - A post made from one script of an approved document.
+- `DocPage` (class) L161 - One script (page) of the creator's document, for the page list beside the editor.
+- `DocSetSummary` (class) L172 - A creator's document in the hub: how its scripts stand.
+- `BulkSubmit` (class) L186 - Send several scripts of the document for review at once (all that can be sent, or the ones listed).
+- `BulkFailure` (class) L193
+- `BulkResult` (class) L199
+- `UploadedPages` (class) L204
+- `DocDetail` (class) L208
+- `DocHistory` (class) L247
 
 ## models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
 - `ScriptQueueSummary` (class) L7

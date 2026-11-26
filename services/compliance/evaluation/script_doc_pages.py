@@ -144,11 +144,11 @@ async def _make_set(doc: Dict[str, Any]) -> UUID:
 
 
 async def _new_page(set_id: UUID, creator: UUID, title: str, html: str, text: str = "", sources: str = "") -> UUID:
-    set_row = await fetch_one("SELECT details FROM script_sets WHERE id = $1", set_id)
+    set_row = await fetch_one("SELECT details, shared_details FROM script_sets WHERE id = $1", set_id)
     row = await fetch_one(
         "INSERT INTO script_documents (title, template_key, created_by, body_html, body_text, set_id, details, sources_text, position) "
         "VALUES ($1, 'blank', $2, $3, $4, $5, $6::jsonb, $7, (SELECT coalesce(max(position), 0) + 1 FROM script_documents WHERE set_id = $5)) "
-        "RETURNING id", title[:300], creator, html, text, set_id, json.dumps(subs._json(set_row["details"]) or {}), sources)
+        "RETURNING id", title[:300], creator, html, text, set_id, json.dumps((subs._json(set_row["details"]) or {}) if set_row.get("shared_details", True) else {}), sources)
     await core._event(row["id"], 0, creator, "CREATED", {"page": True})
     await execute("UPDATE script_sets SET updated_at = NOW() WHERE id = $1 RETURNING id", set_id)
     await shared.ensure_shared_document(row["id"])
