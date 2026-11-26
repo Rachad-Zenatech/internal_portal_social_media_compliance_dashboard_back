@@ -22,7 +22,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/brand_voice_service.py": {
-      "max_lines": 705,
+      "max_lines": 695,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/compliance_service.py": {

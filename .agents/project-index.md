@@ -72,6 +72,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/submission_tables_schema.py (473 lines) - Submission table definitions, grouped by the feature records they store.
 - postgresql_db/schemas/zenatech_brand_guideline.py (88 lines) - ZenaTech brand references transcribed from ZenaTech_Guideline.pdf (eight-page quick guide).
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
+- scripts/brand_manual_download_eval.py (74 lines) - Brand downloads recover evicted files without exposing paths outside brand storage.
 - scripts/brand_manual_image_auth_eval.py (56 lines) - Browser link tokens may read manual artwork, while API and write access remain blocked.
 - scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
 - scripts/push_local_to_rds.py (159 lines) - Migrate the local Docker PostgreSQL database (or a .dump file) to AWS RDS.
@@ -140,7 +141,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/analytics/zenatech_financial_scrape.py (249 lines) - Financial & company public-sentiment scraping definitions for ZenaTech (NASDAQ: ZENA).
 - services/compliance/evaluation/army_context_review.py (38 lines) - Route Army mentions to Rule 4's AI review without treating a mention as a breach.
 - services/compliance/evaluation/brand_manual_sections.py (93 lines) - Show complete brand manuals directly from the uploaded PDF without AI summaries or guesses.
-- services/compliance/evaluation/brand_voice_service.py (704 lines) - Brand voice per brand, read from its brand manual.
+- services/compliance/evaluation/brand_voice_files.py (28 lines) - Resolve brand manual downloads and restore missing local files from object storage.
+- services/compliance/evaluation/brand_voice_service.py (696 lines) - Brand voice per brand, read from its brand manual.
 - services/compliance/evaluation/branding.py (37 lines) - Company names and the company's exchange/ticker label are identification, not claims.
 - services/compliance/evaluation/check_rule_capture.py (26 lines) - Capture the actual rule definitions used by a check, isolated per async task.
 - services/compliance/evaluation/citation_finder.py (277 lines) - Citation finder: what a post says it got its claims from.

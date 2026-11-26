@@ -12,6 +12,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_cache_numbers` (def) L155
 - `main` (def) L174
 
+## scripts/brand_manual_download_eval.py (74 lines) - Brand downloads recover evicted files without exposing paths outside brand storage.
+- `BrandDownloadTests` (class) L15
+    - `setUp` (def) L16
+    - `resolve` (def) L23
+    - `test_missing_manual_is_restored_and_retains_download_name` (def) L28
+    - `test_existing_manual_needs_no_remote_download` (def) L39
+    - `test_logo_uses_same_storage_recovery` (def) L47
+    - `test_path_traversal_is_rejected_before_storage_access` (def) L57
+    - `test_missing_remote_file_has_actionable_error` (def) L65
+
 ## scripts/brand_manual_image_auth_eval.py (56 lines) - Browser link tokens may read manual artwork, while API and write access remain blocked.
 - `BrandManualImageAuthTests` (class) L16
     - `check_access` (def) L17

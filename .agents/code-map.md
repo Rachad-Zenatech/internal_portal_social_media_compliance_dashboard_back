@@ -18,7 +18,7 @@ to find the right file.
 | .agents/code-map/models__shared.md | 3 | 2 KB |
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |
 | .agents/code-map/postgresql_db__schemas.md | 28 | 7 KB |
-| .agents/code-map/scripts.md | 16 | 13 KB |
+| .agents/code-map/scripts.md | 17 | 13 KB |
 | .agents/code-map/services__ai__core.md | 15 | 11 KB |
 | .agents/code-map/services__ai__observability.md | 7 | 5 KB |
 | .agents/code-map/services__compliance__analytics__conversation_evidence.md | 1 | 3 KB |
@@ -51,6 +51,7 @@ to find the right file.
 | .agents/code-map/services__compliance__analytics__zenatech_financial_scrape.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__army_context_review.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__brand_manual_sections.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__brand_voice_files.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__brand_voice_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__branding.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__check_rule_capture.md | 1 | 1 KB |
