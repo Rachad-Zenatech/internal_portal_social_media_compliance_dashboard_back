@@ -66,7 +66,7 @@ def test_each_bulk_import_stores_only_its_own_sources():
 def test_check_passes_saved_sources_as_evidence_and_records_snapshot():
     doc = document()
     checker = AsyncMock(return_value={"score": 90})
-    with patch.object(core, "get_access", AsyncMock(return_value=(doc, [], None))), patch.object(reads.scripts, "check_text", checker):
+    with patch.object(core, "get_access", AsyncMock(return_value=(doc, [], None))), patch.object(reads.scripts, "check_text", checker), patch.object(reads.compliance, "execute", AsyncMock()):
         result = asyncio.run(reads.check(doc["id"], uuid4(), TABLE + "\n| Sources used | Obsolete https://example.com/old |"))
     checked = checker.call_args.args[1]
     assert "example.com/old" not in checked

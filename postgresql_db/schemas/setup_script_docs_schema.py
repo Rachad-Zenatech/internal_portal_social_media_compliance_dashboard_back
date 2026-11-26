@@ -22,6 +22,7 @@ async def _setup_shared_column(conn) -> None:
     await conn.execute("""
         ALTER TABLE script_documents ADD COLUMN IF NOT EXISTS share_document_id VARCHAR(80);
         ALTER TABLE script_documents ADD COLUMN IF NOT EXISTS sources_text TEXT;
+        ALTER TABLE script_documents ADD COLUMN IF NOT EXISTS latest_check JSONB;
         ALTER TABLE script_document_versions ADD COLUMN IF NOT EXISTS sources_text TEXT;
         CREATE UNIQUE INDEX IF NOT EXISTS idx_script_documents_share ON script_documents(share_document_id) WHERE share_document_id IS NOT NULL;
     """)

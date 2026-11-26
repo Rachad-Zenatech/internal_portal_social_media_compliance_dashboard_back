@@ -1,6 +1,7 @@
 """Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check)."""
 
-from services.compliance.evaluation.script_doc_sources import sources_for, export_text
+from services.compliance.evaluation.script_doc_sources import export_text
+from services.compliance.evaluation import script_doc_compliance as compliance
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -89,5 +90,4 @@ async def check(doc_id: UUID, user_id: UUID, text: Optional[str]) -> Dict[str, A
     if not body.strip():
         raise HTTPException(status_code=400, detail="The script is empty")
     result = await scripts.check_text(row, export_text(doc, body.replace("\r\n", "\n").strip()))
-    result["checked_script_sources"] = sources_for(doc)
-    return result
+    return await compliance.save(doc, result, body)

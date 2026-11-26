@@ -22,6 +22,7 @@ import logging
 import re
 import time
 from services.compliance.evaluation.script_doc_sources import sources_for
+from services.compliance.evaluation.script_doc_compliance import state as compliance_state
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -190,14 +191,13 @@ async def get_access(doc_id: UUID, user_id: UUID) -> tuple:
     if not access:
         raise HTTPException(status_code=403, detail="You don't have access to this script")
     return doc, reviewers, access
-
 def _detail(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], access: DocAccess, user_id: UUID, decided_by: Optional[str],
             posts: Optional[List[DocPost]] = None, pages: Optional[List[DocPage]] = None, set_title: Optional[str] = None) -> DocDetail:
     order = [doc["created_by"], *[r["user_id"] for r in reviewers]]
     return DocDetail(
         id=doc["id"], title=doc["title"], template_key=doc["template_key"], status=doc["status"], round=doc["round"],
         creator_id=doc["created_by"], creator_name=doc["creator_name"], creator_color=_color(doc["created_by"], order),
-        body_html=doc["body_html"], body_text=doc["body_text"], sources_text=sources_for(doc), details=subs._json(doc["details"]) or {},
+        body_html=doc["body_html"], body_text=doc["body_text"], sources_text=sources_for(doc), details=subs._json(doc["details"]) or {}, **compliance_state(doc),
         send_note=doc["send_note"], decision_note=doc["decision_note"], decided_by_name=decided_by, decided_at=doc["decided_at"],
         reviewers=[
             DocReviewer(user_id=r["user_id"], name=r["name"], capacity=r["capacity"], can_approve=r.get("can_approve", False),

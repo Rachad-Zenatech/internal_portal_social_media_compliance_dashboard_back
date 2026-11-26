@@ -206,6 +206,8 @@ class UploadedPages(BaseModel):
 
 class DocDetail(BaseModel):
     sources_text: str = ""
+    latest_check: Optional[Dict[str, Any]] = None
+    compliance_stale: bool = False
     id: UUID
     title: str
     template_key: str
