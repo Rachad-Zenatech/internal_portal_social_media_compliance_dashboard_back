@@ -189,7 +189,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/shared_script_service.py (191 lines) - Shared documents for script pages.
 - services/compliance/evaluation/shared_script_sync.py (165 lines) - Keeping this portal in step with the Share Document server's script reviews.
 - services/compliance/evaluation/source_assertions.py (54 lines) - Keep grounded, atomic claim excerpts and stable identities without dropping qualifications.
-- services/compliance/evaluation/source_browser_fetch.py (116 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
+- services/compliance/evaluation/source_browser_fetch.py (123 lines) - Second try at reading a source page: a headless browser with stealth, for pages the plain fetch can't read because they are built by Java...
 - services/compliance/evaluation/source_check_service.py (451 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - services/compliance/evaluation/source_claim_checks.py (152 lines) - Ground source support and contradiction judgments; uncertainty remains for review.
 - services/compliance/evaluation/source_claim_coverage.py (59 lines) - Identify claims even without sources; keep missing evidence distinct from a false claim.
@@ -372,7 +372,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/notifications/teams_router.py (55 lines) - Microsoft Teams: the endpoint the bot's messages arrive on, and a person's own on/off switch for them.
 - tools/shared/auth/auth_router.py (387 lines) - auth router (shared auth)
 - tools/shared/auth/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.
-- tools/shared/auth/rbac_router.py (236 lines) - rbac router (shared auth)
+- tools/shared/auth/rbac_router.py (237 lines) - rbac router (shared auth)
 - tools/shared/core/log_router.py (74 lines) - log router (shared core)
 - tools/shared/core/observability.py (137 lines) - observability (shared core)
 - tools/shared/core/search.py (157 lines) - Static system pages for quick navigation search with explicit permission codes

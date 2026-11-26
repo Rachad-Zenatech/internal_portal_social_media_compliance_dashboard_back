@@ -73,8 +73,15 @@ async def fetch(url: str) -> Optional[sf.FetchedSource]:
                 context = await new_stealth_context(browser, java_script_enabled=True, accept_downloads=False)
                 await context.route("**/*", guard)
                 page = await context.new_page()
-                response = await page.goto(url, wait_until="domcontentloaded", timeout=TIMEOUT_MS)
+                try:
+                    response = await page.goto(url, wait_until="domcontentloaded", timeout=TIMEOUT_MS)
+                except Exception as nav_err:
+                    if "Download is starting" in str(nav_err):
+                        response = await context.request.get(url, timeout=TIMEOUT_MS)
+                    else:
+                        raise
                 if response is None or response.status >= 400:
+                    logger.info("Browser fetch blocked/empty for %s: status=%s", url, getattr(response, "status", None))
                     return None
                 content_type = (response.headers.get("content-type") or "html").split(";")[0].strip().lower()
                 if "html" in content_type:

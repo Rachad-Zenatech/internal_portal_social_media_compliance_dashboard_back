@@ -36,34 +36,34 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `sync_accounts_via_mqtt` (def) L199 [POST /sync-mqtt] - Synchronizes social media accounts from the Social Media / Marketing application via MQTT event bus.
 - `get_mqtt_sync_status` (def) L206 [GET /mqtt-status] - Returns the current MQTT bus connection and synchronization status.
 
-## tools/shared/auth/rbac_router.py (236 lines) - rbac router (shared auth)
+## tools/shared/auth/rbac_router.py (237 lines) - rbac router (shared auth)
 - `get_current_user_id` (def) L30
-- `read_my_permissions` (def) L39 [GET /me/permissions]
-- `list_audit_logs` (def) L66 [GET /audit-logs]
-- `list_login_activities` (def) L71 [GET /login-activities]
-- `list_users` (def) L76 [GET /configuration/users]
-- `add_user` (def) L80 [POST /configuration/users]
-- `edit_user` (def) L89 [PUT /configuration/users/{id}]
-- `remove_user` (def) L101 [DELETE /configuration/users/{id}]
-- `remove_users_bulk` (def) L113 [POST /configuration/users/bulk-delete]
-- `list_roles` (def) L124 [GET /configuration/roles]
-- `list_role_tree` (def) L128 [GET /configuration/roles/tree]
-- `add_role` (def) L132 [POST /configuration/roles]
-- `edit_role` (def) L136 [PUT /configuration/roles/{id}]
-- `remove_role` (def) L143 [DELETE /configuration/roles/{id}]
-- `list_user_roles` (def) L154 [GET /configuration/users/{id}/roles]
-- `SetRolesRequest` (class) L158
-- `update_user_roles` (def) L161 [PUT /configuration/users/{id}/roles]
-- `list_user_brands` (def) L169 [GET /configuration/users/{id}/brands] - The brands a user works on (empty: all brands) and the brands to choose from.
-- `SetBrandsRequest` (class) L174
-- `update_user_brands` (def) L177 [PUT /configuration/users/{id}/brands] - Set the brands a user works on; they only see other people's content for these.
-- `list_navigation_items` (def) L188 [GET /configuration/navigation-items]
-- `list_actions` (def) L192 [GET /configuration/actions]
-- `list_role_navigation_permissions` (def) L196 [GET /configuration/roles/{id}/navigation-permissions]
-- `edit_role_navigation_permissions` (def) L200 [PUT /configuration/roles/{id}/navigation-permissions]
-- `get_permission_modules_route` (def) L205 [GET /configuration/permission-modules] - Get all available permission modules and their groups.
-- `get_role_permission_groups_route` (def) L210 [GET /configuration/roles/{role_id}/permission-groups] - Get the assigned permission group IDs for a role.
-- `update_role_permission_groups_route` (def) L215 [PUT /configuration/roles/{role_id}/permission-groups] - Update the assigned permission group IDs for a role.
-- `list_mcp_tools` (def) L225 [GET /configuration/mcp-tools]
-- `list_role_mcp_tool_permissions` (def) L229 [GET /configuration/roles/{id}/mcp-tool-permissions]
-- `edit_role_mcp_tool_permissions` (def) L233 [PUT /configuration/roles/{id}/mcp-tool-permissions]
+- `read_my_permissions` (def) L40 [GET /me/permissions]
+- `list_audit_logs` (def) L67 [GET /audit-logs]
+- `list_login_activities` (def) L72 [GET /login-activities]
+- `list_users` (def) L77 [GET /configuration/users]
+- `add_user` (def) L81 [POST /configuration/users]
+- `edit_user` (def) L90 [PUT /configuration/users/{id}]
+- `remove_user` (def) L102 [DELETE /configuration/users/{id}]
+- `remove_users_bulk` (def) L114 [POST /configuration/users/bulk-delete]
+- `list_roles` (def) L125 [GET /configuration/roles]
+- `list_role_tree` (def) L129 [GET /configuration/roles/tree]
+- `add_role` (def) L133 [POST /configuration/roles]
+- `edit_role` (def) L137 [PUT /configuration/roles/{id}]
+- `remove_role` (def) L144 [DELETE /configuration/roles/{id}]
+- `list_user_roles` (def) L155 [GET /configuration/users/{id}/roles]
+- `SetRolesRequest` (class) L159
+- `update_user_roles` (def) L162 [PUT /configuration/users/{id}/roles]
+- `list_user_brands` (def) L170 [GET /configuration/users/{id}/brands] - The brands a user works on (empty: all brands) and the brands to choose from.
+- `SetBrandsRequest` (class) L175
+- `update_user_brands` (def) L178 [PUT /configuration/users/{id}/brands] - Set the brands a user works on; they only see other people's content for these.
+- `list_navigation_items` (def) L189 [GET /configuration/navigation-items]
+- `list_actions` (def) L193 [GET /configuration/actions]
+- `list_role_navigation_permissions` (def) L197 [GET /configuration/roles/{id}/navigation-permissions]
+- `edit_role_navigation_permissions` (def) L201 [PUT /configuration/roles/{id}/navigation-permissions]
+- `get_permission_modules_route` (def) L206 [GET /configuration/permission-modules] - Get all available permission modules and their groups.
+- `get_role_permission_groups_route` (def) L211 [GET /configuration/roles/{role_id}/permission-groups] - Get the assigned permission group IDs for a role.
+- `update_role_permission_groups_route` (def) L216 [PUT /configuration/roles/{role_id}/permission-groups] - Update the assigned permission group IDs for a role.
+- `list_mcp_tools` (def) L226 [GET /configuration/mcp-tools]
+- `list_role_mcp_tool_permissions` (def) L230 [GET /configuration/roles/{id}/mcp-tool-permissions]
+- `edit_role_mcp_tool_permissions` (def) L234 [PUT /configuration/roles/{id}/mcp-tool-permissions]
