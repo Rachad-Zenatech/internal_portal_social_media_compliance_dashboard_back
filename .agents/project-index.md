@@ -27,7 +27,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/public_mood_model.py (381 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - models/compliance/review_score_model.py (10 lines) - Effective review score fields shared by submission and review queue responses.
 - models/compliance/script_batch_model.py (139 lines) - Script batches: several scripts uploaded in one document, reviewed together, each becoming a post once approved.
-- models/compliance/script_doc_model.py (250 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
+- models/compliance/script_doc_model.py (251 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
 - models/compliance/script_review_model.py (236 lines) - Script stage: a video post's script is checked, reviewed (the reviewer may edit it) and approved before the video.
 - models/compliance/sentiment_model.py (327 lines) - Content Sentiment Analysis Models Editorial read of a submission's tone, brand fit, audience interpretation, controversy and reputational...
@@ -177,7 +177,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_creator_workflow.py (15 lines) - Creator script revisions and the handoff to filming.
 - services/compliance/evaluation/script_doc_compliance.py (36 lines) - Keep the last per-script compliance result and identify changes to its inputs.
 - services/compliance/evaluation/script_doc_details.py (36 lines) - Shared or independent post details for the scripts in a document.
-- services/compliance/evaluation/script_doc_pages.py (274 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
+- services/compliance/evaluation/script_doc_pages.py (281 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
 - services/compliance/evaluation/script_doc_reads.py (94 lines) - Script documents: the lists and reads (the hub's list, the history of a script, the rulebook check).
 - services/compliance/evaluation/script_doc_realtime.py (256 lines) - Live editing of script documents.
 - services/compliance/evaluation/script_doc_service.py (496 lines) - Script documents.
@@ -186,12 +186,14 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_doc_templates.py (143 lines) - Script templates: a table of beats, each with what is seen, what is said and the text on screen.
 - services/compliance/evaluation/script_fix_service.py (64 lines) - AI-assisted compliant passage rewrites for flagged script lines.
 - services/compliance/evaluation/script_hub_submissions.py (68 lines) - Submitted Create Post scripts projected into the script hub without a second review workflow.
+- services/compliance/evaluation/script_import_format.py (22 lines) - Non-blocking format notices for imported scripts.
+- services/compliance/evaluation/script_import_sections.py (76 lines) - Identify a collection title separately from its numbered or bulleted scripts.
 - services/compliance/evaluation/script_match.py (153 lines) - Script vs video.
 - services/compliance/evaluation/script_queue_service.py (32 lines) - Queue membership shared by script lists and their tab counts.
 - services/compliance/evaluation/script_review_details.py (18 lines) - Read-only details of a script already sent for review.
 - services/compliance/evaluation/script_review_persistence.py (44 lines) - Script-stage version persistence and locking, shared by uploaded-script send paths.
 - services/compliance/evaluation/script_review_service.py (1003 lines) - Script stage of a video post.
-- services/compliance/evaluation/script_split.py (121 lines) - Splitting one document into the scripts it holds.
+- services/compliance/evaluation/script_split.py (123 lines) - Splitting one document into the scripts it holds.
 - services/compliance/evaluation/script_submission_content.py (29 lines) - Lossless line/table conversion for scripts submitted through Create Post.
 - services/compliance/evaluation/script_submission_documents.py (140 lines) - Create Post uploads entering the existing native/shared script-document review.
 - services/compliance/evaluation/script_submission_sync.py (56 lines) - Mirror canonical script-document review back to its original Create Post submission.

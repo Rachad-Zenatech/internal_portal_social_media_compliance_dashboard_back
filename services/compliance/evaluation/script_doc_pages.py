@@ -26,6 +26,8 @@ from services.compliance.evaluation import shared_script_service as shared
 from services.compliance.media import html_layout
 from services.compliance.evaluation.script_doc_templates import empty_script_html, text_to_html
 from services.compliance.evaluation.script_split import split_scripts
+from services.compliance.evaluation.script_import_sections import script_import_sections
+from services.compliance.evaluation.script_import_format import script_import_warnings
 from services.compliance.evaluation.script_doc_split import split_document
 from services.compliance.submissions import submission_service as subs
 from services.shared.core.audit_service import log_audit_event
@@ -166,9 +168,10 @@ async def add_page(doc_id: UUID, user_id: UUID) -> DocDetail:
     return await core.get(new_id, user_id)
 
 
-async def _add_uploaded(set_id: UUID, user_id: UUID, filename: str, data: bytes) -> List[DocPage]:
+async def _add_uploaded(set_id: UUID, user_id: UUID, filename: str, data: bytes, text: Optional[str] = None) -> List[DocPage]:
     """Read an uploaded file, split it into scripts as an uploaded batch is, and add each as a page of the document."""
-    text = await batches.read_upload(filename, data)
+    if text is None:
+        text = await batches.read_upload(filename, data)
     found = split_scripts(text)
     if not found:
         raise HTTPException(status_code=422, detail="No scripts were found in that file")
@@ -192,17 +195,21 @@ async def _add_uploaded(set_id: UUID, user_id: UUID, filename: str, data: bytes)
 async def upload_pages(doc_id: UUID, user_id: UUID, filename: str, data: bytes) -> UploadedPages:
     """Upload a file into an existing document: each script in it becomes a page."""
     doc, set_id = await _owned_set(doc_id, user_id)
-    return UploadedPages(created=await _add_uploaded(set_id, user_id, filename, data))
+    text = await batches.read_upload(filename, data)
+    return UploadedPages(created=await _add_uploaded(set_id, user_id, filename, data, text),
+                         warnings=script_import_warnings(split_scripts(text)))
 
 
 async def create_from_upload(user_id: UUID, filename: str, data: bytes) -> UploadedPages:
     """Attach a script: a new document made from an uploaded file, one page for each script in it."""
     # Read it first, so a file that can't be read doesn't leave an empty document behind.
-    await batches.read_upload(filename, data)
-    title = (filename.rsplit(".", 1)[0].strip() or "Uploaded script")[:300]
+    text = await batches.read_upload(filename, data)
+    document_title, _ = script_import_sections(text)
+    title = (document_title or filename.rsplit(".", 1)[0].strip() or "Uploaded script")[:300]
     set_id = await fetch_one("INSERT INTO script_sets (title, created_by) VALUES ($1, $2) RETURNING id", title, user_id)
     try:
-        return UploadedPages(created=await _add_uploaded(set_id["id"], user_id, filename, data))
+        return UploadedPages(created=await _add_uploaded(set_id["id"], user_id, filename, data, text),
+                             warnings=script_import_warnings(split_scripts(text)))
     except Exception:
         await execute("UPDATE script_sets SET deleted_at = NOW() WHERE id = $1 RETURNING id", set_id["id"])
         raise

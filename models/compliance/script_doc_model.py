@@ -203,6 +203,7 @@ class BulkResult(BaseModel):
 
 class UploadedPages(BaseModel):
     created: List[DocPage] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
 
 
 class DocDetail(BaseModel):
