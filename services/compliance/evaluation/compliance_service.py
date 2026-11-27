@@ -41,8 +41,8 @@ from models.compliance.submission_model import AUDIENCES, PLATFORMS, REGIONS, RU
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
-from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer, army_context_review, visual_review, branding
-from services.compliance.evaluation import context_evaluator, rule_set_policy, rule18_policy, rule_scope_policy, context_candidates
+from services.compliance.evaluation import citation_finder, claim_checks, defense_disclaimer, army_context_review, visual_review, branding
+from services.compliance.evaluation import context_evaluator, rule_set_policy, rule18_policy, rule_scope_policy
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
 from services.compliance.evaluation import source_check_service, source_post_checks, compliance_check_result
@@ -1268,12 +1268,11 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     violations.extend(await _semantic_findings(match_req, rules, found, padded_text, disclaimer_padded))
 
     semantic_incomplete = _ai_incomplete.get()
-    source_result = await rule18_policy.check_sources(req)
+    from .source_evidence_lookup import check as verify_evidence
+    source_result, source_findings = await verify_evidence(req, violations, rules)
     if source_result.ai_failed:
         _ai_incomplete.set(True)
-    violations.extend(source_check_service.findings(source_result.checks, failed=getattr(source_result, "failed_claims", ())))
-    violations.extend(getattr(source_result, "unbacked", []))
-    violations.extend(source_post_checks.unsourced_image_findings(req.text, source_result.checks))
+    violations.extend(source_findings)
 
     from .financial_evidence import expand
     financial_ids = expand(violations, source_result.checks, match_text)
@@ -1284,12 +1283,9 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         v.passage, v.context = _passage(match_text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])
         if v.category == "Source Check" and v.flagged_terms:
             v.passage = v.flagged_terms[0]  # Keep each grounded claim distinct, including wrapped image text.
-    candidates = context_candidates.for_post(contextual, req, rules, violations)
-    await context_evaluator.evaluate(candidates, req.text, brand=req.brand_code)
-    source_check_service.clear_supported(violations, source_result.checks)
-    visual_checks = await visual_review.review(req, rules, violations)
+    from .evidence_reconciliation import run as review_with_evidence
+    visual_checks = await review_with_evidence(req, rules, violations, contextual, source_result.checks, match_req=match_req)
     ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations) or any(c["status"] == "UNAVAILABLE" for c in visual_checks)
-    synthetic_media_disclosure.ensure_review(match_req, rules, violations)
     violations[:] = [v for v in violations if is_visible(v) and not (v.flagged_terms and all(branding.is_branding(t) for t in v.flagged_terms))]
     breaches = [v for v in violations if v.status == "VIOLATION"]
     _count_overlaps_once(breaches, padded_text)

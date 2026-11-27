@@ -185,16 +185,17 @@ def _compact_source(s) -> dict:
     }.items() if v not in (None, "", [])}
 
 
-async def review(req, rules, findings):
+async def review(req, rules, findings, *, source_checks=()):
     """Read every post asset, recording failures explicitly instead of silently treating them as compliant."""
     selected = [r for r in rules if r.rule_number in RULE_NUMBERS]
     coverage = []
     if not selected:
         return coverage
+    from .source_evidence_context import catalog, POLICY
     payload = {
         "post": req.text, "published_text": req.disclaimer_text, "audiences": req.audiences,
         "brands": req.brand_codes, "region": req.region,
-        "evidence": [_compact_source(s) for s in req.sources],
+        "evidence": [_compact_source(s) for s in req.sources], "verified_sources": catalog(source_checks), "evidence_policy": POLICY,
         "rules": [_compact_rule(r) for r in selected],
     }
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
