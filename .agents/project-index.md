@@ -71,7 +71,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
 - postgresql_db/schemas/setup_submissions_schema.py (300 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
-- postgresql_db/schemas/submission_tables_schema.py (487 lines) - Submission table definitions, grouped by the feature records they store.
+- postgresql_db/schemas/submission_tables_schema.py (488 lines) - Submission table definitions, grouped by the feature records they store.
 - postgresql_db/schemas/video_footage_schema.py (12 lines) - Additive video-footage declaration and cached local disclosure scan.
 - postgresql_db/schemas/zenatech_brand_guideline.py (88 lines) - ZenaTech brand references transcribed from ZenaTech_Guideline.pdf (eight-page quick guide).
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
@@ -257,7 +257,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/document_layout.py (448 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
 - services/compliance/media/document_text_service.py (245 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - services/compliance/media/face_detection_service.py (65 lines) - Local CPU face detection using OpenCV YuNet, returning anonymous [top, left, bottom, right] 0..1000 boxes.
-- services/compliance/media/face_recognition_service.py (302 lines) - Local CPU face detection & 512d ArcFace recognition using InsightFace (buffalo_sc).
+- services/compliance/media/face_recognition_service.py (307 lines) - Local CPU face detection & 512d ArcFace recognition using InsightFace (buffalo_sc).
 - services/compliance/media/file_mime_policy.py (60 lines) - Server-side MIME type and Content-Disposition policy for user-uploaded files.
 - services/compliance/media/hashtag_library.py (145 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - services/compliance/media/html_layout.py (127 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
@@ -266,7 +266,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/image_finding_zoom.py (82 lines) - Recover small-text locations from enlarged sections; map boxes back to the original image.
 - services/compliance/media/image_small_text.py (119 lines) - Recover additional literal text from overlapping enlarged sections of the original upload.
 - services/compliance/media/image_text_response.py (29 lines) - Read complete image-text JSON, with one bounded retry for truncated or malformed output.
-- services/compliance/media/image_text_service.py (322 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+- services/compliance/media/image_text_service.py (341 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - services/compliance/media/pdf_process.py (89 lines) - Run native PDF operations in disposable processes, never in API worker threads.
 - services/compliance/media/script_content.py (74 lines) - Keep published script copy separate from production directions when scoring.

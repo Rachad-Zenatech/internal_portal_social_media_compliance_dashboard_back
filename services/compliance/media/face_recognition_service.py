@@ -156,16 +156,21 @@ def find_same_person_across_files(
 
 
 async def _load_file_embeddings(file_id: UUID) -> Optional[Tuple[List[List[int]], List[List[float]]]]:
-    from services.compliance.analytics.sentiment_service import _image_bytes
-    from services.compliance.media.transcription_service import STORAGE_ROOT
-    from services.shared.storage.s3_storage_service import ensure_local_file
-
     row = await fetch_one(
-        "SELECT storage_path, mime_type FROM content_submission_files WHERE id = $1 AND deleted_at IS NULL",
+        "SELECT storage_path, mime_type, face_boxes, face_embeddings FROM content_submission_files WHERE id = $1 AND deleted_at IS NULL",
         file_id,
     )
     if not row:
         return None
+    cached_embs = json.loads(row["face_embeddings"]) if isinstance(row.get("face_embeddings"), str) else (row.get("face_embeddings") or [])
+    cached_boxes = json.loads(row["face_boxes"]) if isinstance(row.get("face_boxes"), str) else (row.get("face_boxes") or [])
+    if cached_embs and len(cached_embs) == len(cached_boxes):
+        return cached_boxes, cached_embs
+
+    from services.compliance.analytics.sentiment_service import _image_bytes
+    from services.compliance.media.transcription_service import STORAGE_ROOT
+    from services.shared.storage.s3_storage_service import ensure_local_file
+
     path = (STORAGE_ROOT / row["storage_path"]).resolve()
     if STORAGE_ROOT not in path.parents:
         return None

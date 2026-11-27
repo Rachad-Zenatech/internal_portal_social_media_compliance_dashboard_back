@@ -198,6 +198,21 @@ def _face_boxes(faces: object) -> List[List[int]]:
     return boxes
 
 
+async def _save_faces(file_id: UUID, face_boxes: List[List[int]], face_embeddings: List[List[float]]) -> None:
+    await get_pool().execute(
+        """
+        UPDATE content_submission_files
+        SET person_detected = $2,
+            face_boxes = $3::jsonb,
+            face_embeddings = $4::jsonb,
+            face_detection_version = 2,
+            image_text_updated_at = NOW()
+        WHERE id = $1
+        """,
+        file_id, bool(face_boxes), json.dumps(face_boxes), json.dumps(face_embeddings),
+    )
+
+
 async def read_file(file_id: UUID) -> None:
     """Read one image's text and save it, then re-check its submission if it's still open."""
     from services.compliance.analytics.sentiment_service import _image_bytes  # local imports: those modules import this one's callers
@@ -226,18 +241,22 @@ async def read_file(file_id: UUID) -> None:
                     local_boxes, face_embeddings = recognized
                 else:
                     local_boxes = await asyncio.to_thread(face_detection_service.detect_faces, data)
+                if local_boxes is not None:
+                    await _save_faces(file_id, local_boxes, face_embeddings)
+                    if face_embeddings:
+                        try:
+                            await face_recognition_service.auto_match_file_faces(file_id, face_embeddings)
+                            await face_recognition_service.refresh_submission_face_links(file_id)
+                        except Exception as e:
+                            logger.warning("Couldn't auto-match employee faces for image %s: %s", file_id, e)
             result = await image_text_response.read(_generate, [types.Part.from_bytes(data=data, mime_type=mime_type), PROMPT])
             details = await image_small_text.read(_generate, await asyncio.to_thread(path.read_bytes), _clean(result.get("text", "")), result.get("small_text_regions"))
             text = details.text
             is_ai = ai_meta or bool(result.get("ai_generated"))
             face_boxes = [] if is_ai else (local_boxes if local_boxes else _face_boxes(result.get("faces")))
+            if is_ai:
+                await _save_faces(file_id, [], [])
             await _save(file_id, "COMPLETED", text=text, person_detected=False if is_ai else (bool(result.get("person_detected")) or bool(face_boxes)), face_boxes=face_boxes, details=details.regions)
-            if not is_ai and face_embeddings:
-                try:
-                    await face_recognition_service.auto_match_file_faces(file_id, face_embeddings)
-                    await face_recognition_service.refresh_submission_face_links(file_id)
-                except Exception as e:
-                    logger.warning("Couldn't auto-match employee faces for image %s: %s", file_id, e)
             try:
                 await get_pool().execute("""
                     UPDATE content_submissions s SET people_in_images_detected = (

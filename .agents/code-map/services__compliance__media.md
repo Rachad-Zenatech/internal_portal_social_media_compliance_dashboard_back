@@ -105,16 +105,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## services/compliance/media/face_detection_service.py (65 lines) - Local CPU face detection using OpenCV YuNet, returning anonymous [top, left, bottom, right] 0..1000 boxes.
 - `detect_faces` (def) L17 - Detect faces locally with InsightFace first, falling back to OpenCV YuNet if unavailable.
 
-## services/compliance/media/face_recognition_service.py (302 lines) - Local CPU face detection & 512d ArcFace recognition using InsightFace (buffalo_sc).
+## services/compliance/media/face_recognition_service.py (307 lines) - Local CPU face detection & 512d ArcFace recognition using InsightFace (buffalo_sc).
 - `_load_app` (def) L26
 - `_iou` (def) L41
 - `detect_faces_and_embeddings` (def) L54 - Detect deduplicated faces and 512-dim normalized ArcFace embeddings, or None if unavailable.
 - `match_embeddings` (def) L110 - Return {face_index: best_cosine_similarity} for faces matching any saved employee.
 - `find_same_person_across_files` (def) L131 - Return {face_key: [other_file_names]} when the same person appears in multiple photos of one post.
 - `_load_file_embeddings` (def) L158
-- `sync_employee_faces` (def) L179 - Save 512d embeddings for faces marked Employee=Yes, and remove any marked No.
-- `auto_match_file_faces` (def) L222 - Compare newly detected faces against saved employee embeddings and auto-flag matches.
-- `refresh_submission_face_links` (def) L272 - Detect when the same person appears across multiple images in the same submission.
+- `sync_employee_faces` (def) L184 - Save 512d embeddings for faces marked Employee=Yes, and remove any marked No.
+- `auto_match_file_faces` (def) L227 - Compare newly detected faces against saved employee embeddings and auto-flag matches.
+- `refresh_submission_face_links` (def) L277 - Detect when the same person appears across multiple images in the same submission.
 
 ## services/compliance/media/file_mime_policy.py (60 lines) - Server-side MIME type and Content-Disposition policy for user-uploaded files.
 - `safe_file_mime` (def) L50 - Return an allowlisted MIME type based on file extension, or application/octet-stream.
@@ -191,7 +191,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `parse` (def) L6
 - `read` (def) L20
 
-## services/compliance/media/image_text_service.py (322 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+## services/compliance/media/image_text_service.py (341 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - `is_image_file` (def) L79
 - `_get_client` (def) L83
 - `_claim` (def) L93 - Atomically mark an image as being read unless another worker already is.
@@ -200,12 +200,13 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_clean` (def) L161
 - `_has_ai_metadata` (def) L166 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
 - `_face_boxes` (def) L183 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
-- `read_file` (def) L201 - Read one image's text and save it, then re-check its submission if it's still open.
-- `retry_failed_images` (def) L259 - Explicit checks refresh failed and older-version reads; background polling does not repeat them.
-- `_run` (def) L271
-- `schedule` (def) L278 - Read each image in the background, unless this process is already reading it.
-- `resume_interrupted` (def) L289 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
-- `schedule_missing` (def) L306 - Read the images among these that were never read, or whose read was abandoned (e.g.
+- `_save_faces` (def) L201
+- `read_file` (def) L216 - Read one image's text and save it, then re-check its submission if it's still open.
+- `retry_failed_images` (def) L278 - Explicit checks refresh failed and older-version reads; background polling does not repeat them.
+- `_run` (def) L290
+- `schedule` (def) L297 - Read each image in the background, unless this process is already reading it.
+- `resume_interrupted` (def) L308 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
+- `schedule_missing` (def) L325 - Read the images among these that were never read, or whose read was abandoned (e.g.
 
 ## services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - `audio_samples` (def) L16

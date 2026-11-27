@@ -106,16 +106,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
 - `setup` (def) L13
 
-## postgresql_db/schemas/submission_tables_schema.py (487 lines) - Submission table definitions, grouped by the feature records they store.
+## postgresql_db/schemas/submission_tables_schema.py (488 lines) - Submission table definitions, grouped by the feature records they store.
 - `_create_core_records` (def) L4
 - `_create_access_and_approvals` (def) L98
 - `_create_media_metadata` (def) L129
-- `_create_review_history` (def) L199
-- `_create_script_stage` (def) L240
-- `_create_flag_verdicts` (def) L314
-- `_create_comments_and_delegations` (def) L361
-- `_create_sentiment_records` (def) L413
-- `setup_submission_tables` (def) L476 - The original DDL batch remains atomic across the feature-specific statements.
+- `_create_review_history` (def) L200
+- `_create_script_stage` (def) L241
+- `_create_flag_verdicts` (def) L315
+- `_create_comments_and_delegations` (def) L362
+- `_create_sentiment_records` (def) L414
+- `setup_submission_tables` (def) L477 - The original DDL batch remains atomic across the feature-specific statements.
 
 ## postgresql_db/schemas/video_footage_schema.py (12 lines) - Additive video-footage declaration and cached local disclosure scan.
 - `ensure_video_footage` (def) L4

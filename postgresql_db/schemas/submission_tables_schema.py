@@ -178,6 +178,7 @@ async def _create_media_metadata(conn) -> None:
             -- Anonymous face boxes use Gemini's 0..1000 coordinate system; they let the creator review detections
             -- without attempting to identify anyone.
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS face_boxes JSONB NOT NULL DEFAULT '[]'::jsonb;
+            ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS face_embeddings JSONB NOT NULL DEFAULT '[]'::jsonb;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS face_detection_version INTEGER NOT NULL DEFAULT 0;
             ALTER TABLE content_submission_files ADD COLUMN IF NOT EXISTS image_text_updated_at TIMESTAMP WITH TIME ZONE;
             -- Text of a script (or a blog's article file), read once so the rulebook check screens it like the
