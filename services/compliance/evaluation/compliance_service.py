@@ -1267,7 +1267,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     violations.extend(await _semantic_findings(match_req, rules, found, padded_text, disclaimer_padded))
 
     semantic_incomplete = _ai_incomplete.get()
-    from .source_evidence_lookup import check as verify_evidence
+    from .script_scoring import verify_script_sources as verify_evidence
     source_result, source_findings = await verify_evidence(req, violations, rules)
     if source_result.ai_failed:
         _ai_incomplete.set(True)

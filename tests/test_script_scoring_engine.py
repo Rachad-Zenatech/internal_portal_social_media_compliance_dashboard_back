@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 
 from models.compliance.compliance_model import ComplianceCheckRequest, ComplianceRule, ContextEvaluation
-from services.compliance.evaluation import compliance_service as engine, rule18_policy, script_compliance_check
+from services.compliance.evaluation import compliance_service as engine, rule18_policy, script_compliance_check, context_candidates
 from services.compliance.media.script_content import VERSION, sections, published
 from test_script_scoring import finding
 
@@ -22,9 +22,9 @@ def rules(monkeypatch):
     monkeypatch.setattr(engine, "_semantic_findings", AsyncMock(return_value=[]))
     monkeypatch.setattr(engine.context_evaluator, "evaluate", AsyncMock())
     monkeypatch.setattr(engine.visual_review, "review", AsyncMock(return_value=[]))
-    monkeypatch.setattr(engine.synthetic_media_disclosure, "ensure_review", lambda *args: None)
-    monkeypatch.setattr(engine.context_candidates, "for_post", lambda *args: [])
+    monkeypatch.setattr(context_candidates, "for_post", lambda *args: [])
     monkeypatch.setattr(engine, "rulebook_version", AsyncMock(return_value="test-rules"))
+    monkeypatch.setattr(rule18_policy, "applies", lambda req: True)
     monkeypatch.setattr(rule18_policy, "check_sources", AsyncMock(return_value=SimpleNamespace(
         checks=[], unbacked=[], failed_claims=[], ai_failed=False, audit=[])))
     return rule
@@ -157,3 +157,26 @@ def test_script_wrapper_keeps_all_text_in_the_rule_check(monkeypatch):
     assert "Internal angle" in captured[0].text
     assert captured[0].disclaimer_text == "Spoken claim\nPUBLIC TEXT"
     assert result["script_scoring_version"] == VERSION
+
+
+def test_new_rule_evidence_lookup_receives_no_production_claims(monkeypatch):
+    from services.compliance.evaluation import source_evidence_lookup, script_scoring
+    lookup = AsyncMock(return_value=(SimpleNamespace(), []))
+    monkeypatch.setattr(source_evidence_lookup, "check", lookup)
+    req = request(visual="Internal factual claim", voice="Published factual claim")
+    internal, public = finding("Internal factual claim"), finding("Published factual claim")
+    asyncio.run(script_scoring.verify_script_sources(req, [internal, public], []))
+    checked, candidates, _ = lookup.await_args.args
+    assert checked.text == "Published factual claim\nSAFE"
+    assert candidates == [public]
+
+
+def test_new_evidence_lookup_preserves_the_normal_post_request(monkeypatch):
+    from services.compliance.evaluation import source_evidence_lookup, script_scoring
+    lookup = AsyncMock(return_value=(SimpleNamespace(), []))
+    monkeypatch.setattr(source_evidence_lookup, "check", lookup)
+    req = ComplianceCheckRequest(text="A normal social post")
+    candidates = [finding("normal")]
+    asyncio.run(script_scoring.verify_script_sources(req, candidates, []))
+    assert lookup.await_args.args[0] is req
+    assert lookup.await_args.args[1] is candidates

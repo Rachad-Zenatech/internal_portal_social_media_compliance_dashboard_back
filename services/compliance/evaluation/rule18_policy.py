@@ -21,7 +21,7 @@ def applies(req):
 
 
 async def check_sources(req):
-    if req._script_sections is not None:
+    if getattr(req, "_script_sections", None) is not None:
         req = req.model_copy(update={"text": published(req._script_sections)})
         if not req.text.strip():
             return source_check_service.SourceCheckResult()

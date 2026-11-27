@@ -197,7 +197,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_review_details.py (18 lines) - Read-only details of a script already sent for review.
 - services/compliance/evaluation/script_review_persistence.py (44 lines) - Script-stage version persistence and locking, shared by uploaded-script send paths.
 - services/compliance/evaluation/script_review_service.py (1003 lines) - Script stage of a video post.
-- services/compliance/evaluation/script_scoring.py (120 lines) - Only voiceover and supers may reduce a script's compliance score.
+- services/compliance/evaluation/script_scoring.py (143 lines) - Only voiceover and supers may reduce a script's compliance score.
 - services/compliance/evaluation/script_split.py (123 lines) - Splitting one document into the scripts it holds.
 - services/compliance/evaluation/script_submission_content.py (29 lines) - Lossless line/table conversion for scripts submitted through Create Post.
 - services/compliance/evaluation/script_submission_documents.py (140 lines) - Create Post uploads entering the existing native/shared script-document review.
