@@ -77,7 +77,7 @@ from services.compliance.submissions import review_deadline_service, media_decla
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
 from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness, image_provenance_service, video_footage_service
-from services.compliance.submissions import submission_fields, media_read_status, submission_list_query, submission_check_runner, draft_deletion
+from services.compliance.submissions import creator_write_guard, submission_fields, media_read_status, submission_list_query, submission_check_runner, draft_deletion
 from services.compliance.evaluation import source_recheck
 from services.compliance.media import document_text_service
 from services.compliance.media import image_text_service, video_finding_service
@@ -718,6 +718,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
                 # Fail fast if another request holds this row (e.g. a stuck upload), instead of hanging until the
                 # 120s command timeout and returning a 500.
                 await conn.execute("SET LOCAL lock_timeout = '8s'")
+                await creator_write_guard.lock_editable(conn, submission_id)
                 await submission_fields.lock_script_mode(conn, submission_id, payload)
                 await conn.execute(
                     f"UPDATE content_submissions SET {sets}{edited}, updated_by = ${len(params)}, updated_at = NOW() WHERE id = $1",
@@ -1575,16 +1576,7 @@ def _queue_filter(tab: str) -> str:
 
 
 # What the dashboard's activity feed shows for each event (other events, like re-checks, are routine).
-_ACTIVITY_ACTIONS = """
-    CASE e.event_type
-        WHEN 'SUBMITTED' THEN CASE WHEN (e.data->>'version')::int > 1 THEN 'resubmitted' ELSE 'submitted' END
-        WHEN 'REVIEW_DECISION' THEN CASE e.data->>'decision' WHEN 'APPROVE' THEN 'approved' ELSE 'requested changes on' END
-        WHEN 'APPROVAL_REOPENED' THEN 'reopened the approval of'
-        WHEN 'RESCHEDULED' THEN 'rescheduled'
-        WHEN 'FLAG_DISMISSED' THEN 'dismissed a compliance flag on'
-        WHEN 'WITHDRAWN' THEN 'withdrew'
-    END
-"""
+from .review_outcome import ACTIVITY_ACTIONS as _ACTIVITY_ACTIONS
 DASHBOARD_ACTIVITY_LIMIT = 8
 DASHBOARD_DAYS = 30
 
@@ -1631,6 +1623,7 @@ async def dashboard_summary(user_id: UUID, mine: bool = False) -> DashboardSumma
                     WHERE {visible} AND s.status = 'IN_REVIEW' AND s.due_kind = 'REVIEW' AND s.due_at < NOW()) AS overdue
             FROM content_review_jobs j JOIN content_submissions s ON s.id = j.submission_id
             WHERE {visible} AND j.decision IS NOT NULL AND j.decided_at >= {since}
+              AND ($2 OR j.status <> 'AWAITING_REVIEW')
             """,
             *args,
         )
@@ -2044,7 +2037,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     is_super = await review_handoff.require_reviewer(row, user_id)
     approval_score: Optional[int] = None
     if req.decision == "APPROVE":
-        row, approval_score = await review_approval_service.require_approval(row, user_id, is_super, for_creator_updates=req.publish_after_changes)
+        row, approval_score = await review_approval_service.require_approval(row, user_id, is_super, for_creator_updates=req.publish_after_changes or (req.publish_at is None and not req.publish_now))
 
     version = row["current_version"]
     notes = (req.notes or "").strip() or None

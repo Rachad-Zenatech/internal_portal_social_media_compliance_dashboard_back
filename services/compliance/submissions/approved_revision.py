@@ -30,6 +30,8 @@ def approval_outcome(row, request, now):
     from .post_approval_suggestions import approval_timing
     if request.publish_after_changes:
         return row.get("publish_at"), "CHANGES_REQUESTED", "Approved for creator updates and publishing"
+    if request.publish_at is None and not request.publish_now:
+        return row.get("publish_at"), "APPROVED", "Approved without changes; creator chooses publishing time"
     publish_at, label = approval_timing(row, request, now)
     return publish_at, "APPROVED", label
 

@@ -126,3 +126,23 @@ class ApprovedRevisionHandoffTests(unittest.IsolatedAsyncioTestCase):
         saved = conn.execute.await_args_list[0].args
         self.assertEqual(saved[2], "CHANGES_REQUESTED")
         self.assertTrue(saved[5])
+
+    def test_clean_approval_locks_content_without_requiring_publish_date(self):
+        row = {"status": "IN_REVIEW", "publish_at": None}
+        request = ReviewDecisionRequest(decision="APPROVE", publish_after_changes=False)
+        planned, status, label = flow.approval_outcome(row, request, NOW)
+        self.assertIsNone(planned)
+        self.assertEqual(status, "APPROVED")
+        self.assertIn("without changes", label)
+
+    async def test_clean_approval_never_requests_new_checks(self):
+        row = {"status": "APPROVED", "publish_after_changes": False}
+        with patch.object(flow, "fetch_one", AsyncMock()) as read:
+            await flow.require_fresh_checks(row, {})
+            read.assert_not_awaited()
+
+    def test_approved_content_cannot_be_changed_through_creator_write_endpoints(self):
+        from services.compliance.submissions.submission_service import _require_editable
+        with self.assertRaises(HTTPException) as error:
+            _require_editable({"status": "APPROVED"})
+        self.assertEqual(error.exception.status_code, 409)
