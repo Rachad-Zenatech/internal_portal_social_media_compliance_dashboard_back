@@ -199,7 +199,8 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_review_details.py (18 lines) - Read-only details of a script already sent for review.
 - services/compliance/evaluation/script_review_persistence.py (44 lines) - Script-stage version persistence and locking, shared by uploaded-script send paths.
 - services/compliance/evaluation/script_review_service.py (977 lines) - Script stage of a video post.
-- services/compliance/evaluation/script_scoring.py (143 lines) - Only voiceover and supers may reduce a script's compliance score.
+- services/compliance/evaluation/script_scoring.py (129 lines) - Only voiceover and supers may reduce a script's compliance score.
+- services/compliance/evaluation/script_source_checks.py (26 lines) - Verify every published script claim against its citations and the company newsroom.
 - services/compliance/evaluation/script_split.py (123 lines) - Splitting one document into the scripts it holds.
 - services/compliance/evaluation/script_submission_content.py (29 lines) - Lossless line/table conversion for scripts submitted through Create Post.
 - services/compliance/evaluation/script_submission_documents.py (140 lines) - Create Post uploads entering the existing native/shared script-document review.
@@ -267,7 +268,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/image_text_service.py (310 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
 - services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - services/compliance/media/pdf_process.py (89 lines) - Run native PDF operations in disposable processes, never in API worker threads.
-- services/compliance/media/script_content.py (69 lines) - Keep published script copy separate from production directions when scoring.
+- services/compliance/media/script_content.py (74 lines) - Keep published script copy separate from production directions when scoring.
 - services/compliance/media/script_export.py (96 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - services/compliance/media/script_sources.py (56 lines) - Read optional sources from a script template without adding them to its spoken text.
 - services/compliance/media/transcription_service.py (220 lines) - Video Transcription Service Generates timestamped local speech and Bedrock on-screen text for submitted videos.

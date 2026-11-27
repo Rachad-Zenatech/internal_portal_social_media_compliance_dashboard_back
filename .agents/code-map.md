@@ -106,6 +106,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__script_review_persistence.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_review_service.md | 1 | 4 KB |
 | .agents/code-map/services__compliance__evaluation__script_scoring.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__script_source_checks.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_split.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_submission_content.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_submission_documents.md | 1 | 1 KB |

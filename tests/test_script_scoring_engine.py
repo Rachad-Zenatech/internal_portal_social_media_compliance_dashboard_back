@@ -7,8 +7,9 @@ from uuid import uuid4
 import pytest
 
 from models.compliance.compliance_model import ComplianceCheckRequest, ComplianceRule, ContextEvaluation
-from services.compliance.evaluation import compliance_service as engine, rule18_policy, script_compliance_check, context_candidates
+from services.compliance.evaluation import compliance_service as engine, script_source_checks, script_compliance_check, context_candidates
 from services.compliance.media.script_content import VERSION, sections, published
+from services.compliance.evaluation.script_source_checks import check_sources as actual_source_check
 from test_script_scoring import finding
 
 
@@ -24,9 +25,9 @@ def rules(monkeypatch):
     monkeypatch.setattr(engine.visual_review, "review", AsyncMock(return_value=[]))
     monkeypatch.setattr(context_candidates, "for_post", lambda *args: [])
     monkeypatch.setattr(engine, "rulebook_version", AsyncMock(return_value="test-rules"))
-    monkeypatch.setattr(rule18_policy, "applies", lambda req: True)
-    monkeypatch.setattr(rule18_policy, "check_sources", AsyncMock(return_value=SimpleNamespace(
+    monkeypatch.setattr(script_source_checks, "check_sources", AsyncMock(return_value=SimpleNamespace(
         checks=[], unbacked=[], failed_claims=[], ai_failed=False, audit=[])))
+    monkeypatch.setattr(engine.rule18_policy, "check_sources", script_source_checks.check_sources)
     return rule
 
 
@@ -90,7 +91,7 @@ def test_a_rule_implied_only_by_the_unpublished_title_cannot_deduct(rules, monke
 
 def test_source_findings_for_published_claims_still_cost_points(rules, monkeypatch):
     item = finding("Published factual claim", category="Source Check", status="EVIDENCE_REQUIRED", penalty=0)
-    monkeypatch.setattr(rule18_policy, "check_sources", AsyncMock(return_value=SimpleNamespace(
+    monkeypatch.setattr(script_source_checks, "check_sources", AsyncMock(return_value=SimpleNamespace(
         checks=[], unbacked=[item], failed_claims=[], ai_failed=False, audit=[])))
     result = asyncio.run(engine.check_compliance(request(voice="Published factual claim")))
     assert result.score < 100
@@ -101,13 +102,11 @@ def test_source_findings_for_published_claims_still_cost_points(rules, monkeypat
 def test_a_not_found_source_finding_in_production_notes_cannot_be_charged(rules, monkeypatch):
     item = finding("Internal factual claim", category="Source Check", status="NEEDS_REVIEW",
                    title=engine.source_check_service.NOT_FOUND_TITLE)
-    monkeypatch.setattr(rule18_policy, "check_sources", AsyncMock(return_value=SimpleNamespace(
-        checks=[], unbacked=[item], failed_claims=[], ai_failed=False, audit=[])))
+    monkeypatch.setattr(engine, "_semantic_findings", AsyncMock(return_value=[item]))
     result = asyncio.run(engine.check_compliance(request(visual="Internal factual claim")))
     assert result.score == 100
     assert result.review_count == 1 and result.evidence_count == 0
     assert result.violations[0].penalty == result.violations[0].uncounted_penalty == 0
-
 
 def test_an_unpublished_disclaimer_does_not_clear_a_published_claim(rules):
     rules.required_disclaimers = ["Required disclosure"]
@@ -129,10 +128,10 @@ def test_high_confidence_production_review_is_still_free(rules, monkeypatch):
 
 def test_source_reader_receives_only_published_copy_and_keeps_script_sources(monkeypatch):
     reader = AsyncMock(return_value=SimpleNamespace())
-    monkeypatch.setattr(rule18_policy.source_check_service, "run", reader)
+    monkeypatch.setattr(script_source_checks.source_check_service, "run", reader)
     req = request(visual="Internal factual instruction", voice="Published claim", supers="PUBLIC CLAIM")
     req.source_script = "Sources:\nhttps://example.com/evidence"
-    asyncio.run(rule18_policy.check_sources(req))
+    asyncio.run(script_source_checks.check_sources(req))
     checked_text = reader.await_args.args[0]
     assert "Published claim" in checked_text and "PUBLIC CLAIM" in checked_text
     assert "Internal factual instruction" not in checked_text and "Safe title" not in checked_text
@@ -160,16 +159,13 @@ def test_script_wrapper_keeps_all_text_in_the_rule_check(monkeypatch):
 
 
 def test_new_rule_evidence_lookup_receives_no_production_claims(monkeypatch):
-    from services.compliance.evaluation import source_evidence_lookup, script_scoring
-    lookup = AsyncMock(return_value=(SimpleNamespace(), []))
-    monkeypatch.setattr(source_evidence_lookup, "check", lookup)
+    from services.compliance.evaluation import script_scoring
+    reader = AsyncMock(return_value=engine.source_check_service.SourceCheckResult())
+    monkeypatch.setattr(engine.source_check_service, "run", reader)
     req = request(visual="Internal factual claim", voice="Published factual claim")
-    internal, public = finding("Internal factual claim"), finding("Published factual claim")
-    asyncio.run(script_scoring.verify_script_sources(req, [internal, public], []))
-    checked, candidates, _ = lookup.await_args.args
-    assert checked.text == "Published factual claim\nSAFE"
-    assert candidates == [public]
-
+    asyncio.run(script_scoring.verify_script_sources(req, [finding("Internal factual claim")], []))
+    assert "Published factual claim" in reader.await_args.args[0]
+    assert "Internal factual claim" not in reader.await_args.args[0]
 
 def test_new_evidence_lookup_preserves_the_normal_post_request(monkeypatch):
     from services.compliance.evaluation import source_evidence_lookup, script_scoring
@@ -180,3 +176,97 @@ def test_new_evidence_lookup_preserves_the_normal_post_request(monkeypatch):
     asyncio.run(script_scoring.verify_script_sources(req, candidates, []))
     assert lookup.await_args.args[0] is req
     assert lookup.await_args.args[1] is candidates
+
+
+@pytest.mark.parametrize("field", ["voice", "supers"])
+def test_scripts_without_citations_run_full_sources_and_newsroom_checks(rules, monkeypatch, field):
+    from services.compliance.evaluation import source_check_service
+    claim = "The aircraft flies for 24 hours."
+    unbacked = finding(claim, category="Source Check", status="EVIDENCE_REQUIRED", penalty=0)
+    reader = AsyncMock(return_value=source_check_service.SourceCheckResult(unbacked=[unbacked]))
+    monkeypatch.setattr(source_check_service, "run", reader)
+    monkeypatch.setattr(script_source_checks, "check_sources", actual_source_check)
+    req = request(visual="Internal factual instruction", **{field: claim})
+    req.content_type, req.content_parts = "VIDEO_FACEBOOK", ["video"]
+    result = asyncio.run(engine.check_compliance(req))
+    reader.assert_awaited_once()
+    assert claim in reader.await_args.args[0]
+    assert "Internal factual instruction" not in reader.await_args.args[0]
+    assert "claims" not in reader.await_args.kwargs  # Full claim extraction, not just existing rule flags.
+    assert result.score < 100
+    assert result.evidence_count == 1
+    assert not result.violations[0].script_review_only
+
+@pytest.mark.parametrize("where,verdict", [("newsroom", "SUPPORTED"), ("newsroom", "CONTRADICTED"), ("script", "CONTRADICTED"), ("both", "CONTRADICTED")])
+@pytest.mark.parametrize("field", ["voice", "supers"])
+def test_published_claims_reach_source_reading_newsroom_retrieval_and_scoring(rules, monkeypatch, where, verdict, field):
+    from models.compliance.compliance_model import SourceCheck, SourceClaim
+    from services.compliance.evaluation import source_check_service as sources
+    claim = "The aircraft flies for 24 hours."
+    inventory = [{"claim": claim, "where": "caption", "claim_id": "flight-time"}]
+    evidence = SourceClaim(claim=claim, where="caption", verdict=verdict, confidence=.99,
+                           evidence="The aircraft flies for 12 hours." if verdict == "CONTRADICTED" else claim)
+    source = SourceCheck(reference="https://example.com/aircraft", url="https://example.com/aircraft",
+                         kind="URL", where="script" if where == "both" else where, status="READ", authority="COMPANY")
+    material = ("Aircraft specifications", evidence.evidence)
+    newsroom_source = source.model_copy(update={"reference": "https://example.com/newsroom", "url": "https://example.com/newsroom", "where": "newsroom", "claims": []})
+    newsroom = AsyncMock(return_value=[(newsroom_source, material)] if where in {"newsroom", "both"} else [])
+    reader = AsyncMock(return_value=(source, material))
+    comparison = AsyncMock(return_value=([evidence], "test-model"))
+    monkeypatch.setattr(script_source_checks, "check_sources", actual_source_check)
+    monkeypatch.setattr(sources.source_claim_coverage, "identify", AsyncMock(return_value=inventory))
+    monkeypatch.setattr(sources.newsroom_claim_sources, "readings", newsroom)
+    monkeypatch.setattr(sources, "_read_link", reader)
+    monkeypatch.setattr(sources, "_compare", comparison)
+    monkeypatch.setattr(sources.source_passages, "checked_claims", AsyncMock(return_value=[evidence]))
+    monkeypatch.setattr(sources.source_claim_routing, "plans", AsyncMock(return_value=[[0, 1]] if where == "both" else [[0]]))
+    req = request(visual="Internal factual instruction", **{field: claim})
+    req.content_type, req.content_parts = "VIDEO_FACEBOOK", ["video"]
+    if where in {"script", "both"}:
+        req.source_script = "Sources:\nhttps://example.com/aircraft"
+    result = asyncio.run(engine.check_compliance(req))
+    newsroom.assert_awaited_once_with(inventory)
+    assert comparison.await_count == (2 if where == "both" else 1)
+    assert "Internal factual instruction" not in comparison.await_args.args[0]
+    assert comparison.await_args.kwargs["inventory"] == inventory
+    assert result.source_checks[0].claims[0].verdict == verdict
+    if where in {"script", "both"}:
+        reader.assert_awaited_once()
+        assert result.score < 100
+    else:
+        reader.assert_not_awaited()
+        assert result.score == 100  # Automatic newsroom conflicts keep the existing human-review policy.
+        assert result.review_count == (verdict == "CONTRADICTED")
+
+def test_sourced_shared_editor_beats_are_verified_as_published_text(rules, monkeypatch):
+    from services.compliance.evaluation import source_check_service
+    captured = []
+    async def check(req):
+        captured.append(req)
+        return await engine.check_compliance(req)
+    monkeypatch.setattr(script_compliance_check, "check_compliance", check)
+    monkeypatch.setattr(script_compliance_check.check_snapshot_service, "inputs", lambda *args, **kwargs: ({}, {}))
+    monkeypatch.setattr(script_compliance_check.check_snapshot_service, "save", AsyncMock(side_effect=lambda post, evaluated, rules, result: result))
+    monkeypatch.setattr(script_source_checks, "check_sources", actual_source_check)
+    reader = AsyncMock(return_value=source_check_service.SourceCheckResult())
+    monkeypatch.setattr(source_check_service, "run", reader)
+    text = "[0:00] Visual: Internal direction | Voiceover: Published flight claim | On-screen: PUBLIC CLAIM\nSources used: https://example.com/evidence"
+    row = {"title": "Internal title", "content_type": "VIDEO", "platforms": [], "rule_sets": [], "brand_codes": [], "audiences": [], "region": None}
+    asyncio.run(script_compliance_check.check_text(row, text))
+    assert reader.await_args.args[0] == "Published flight claim\nPUBLIC CLAIM"
+    assert "https://example.com/evidence" in reader.await_args.kwargs["source_script"]
+    assert "Internal direction" in captured[0].text
+
+@pytest.mark.parametrize("field", ["voice", "supers"])
+def test_source_claim_phrasing_cannot_turn_a_published_finding_into_free_production_review(rules, monkeypatch, field):
+    from services.compliance.evaluation import source_check_service
+    item = finding("The flight duration is 24 hours", category="Source Check", status="EVIDENCE_REQUIRED", penalty=0)
+    reader = AsyncMock(return_value=source_check_service.SourceCheckResult(unbacked=[item]))
+    monkeypatch.setattr(source_check_service, "run", reader)
+    monkeypatch.setattr(script_source_checks, "check_sources", actual_source_check)
+    req = request(**{field: "The aircraft can fly for a full 24 hours."})
+    req.source_script = "Sources:\nhttps://example.com/specifications"
+    result = asyncio.run(engine.check_compliance(req))
+    assert result.score < 100
+    assert result.evidence_count == 1
+    assert not result.violations[0].script_review_only

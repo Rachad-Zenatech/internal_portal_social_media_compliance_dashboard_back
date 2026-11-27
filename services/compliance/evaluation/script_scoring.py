@@ -120,23 +120,9 @@ def score_findings(req, violations, rules, padded_text, scoreable_rules=None):
 
 
 async def verify_script_sources(req, findings, rules):
-    """Constrain both cited-source checks and the newer rule-evidence lookup to published copy."""
-    from services.compliance.evaluation.source_evidence_lookup import check
-
-    parts = getattr(req, "_script_sections", None)
-    if parts is None:
-        return await check(req, findings, rules)
-    eligible = []
-    for finding in findings:
-        if finding.script_review_only:
-            continue
-        locations = set(finding.script_sections)
-        if not locations:
-            quotes = [finding.evaluation.matched_text if finding.evaluation else None, finding.passage]
-            locations = next((where for quote in quotes if quote and (where := _locations(quote, parts))), set())
-        if not locations:
-            locations = set().union(*(_locations(term, parts) for term in finding.flagged_terms))
-        if locations & PUBLISHED:
-            eligible.append(finding)
-    scoped = req.model_copy(update={"text": published(parts)})
-    return await check(scoped, eligible, rules)
+    """Keep script source verification independent of the finished-post source policy."""
+    if getattr(req, "_script_sections", None) is not None:
+        from .script_source_checks import check
+        return await check(req)
+    from .source_evidence_lookup import check
+    return await check(req, findings, rules)
