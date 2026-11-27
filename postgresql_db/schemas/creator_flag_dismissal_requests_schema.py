@@ -13,6 +13,9 @@ async def ensure_creator_flag_dismissal_requests(conn) -> None:
             status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
             UNIQUE (submission_id, version_number, rule_id)
         );
+        ALTER TABLE creator_flag_dismissal_requests ADD COLUMN IF NOT EXISTS reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE creator_flag_dismissal_requests ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+        ALTER TABLE creator_flag_dismissal_requests ADD COLUMN IF NOT EXISTS review_note TEXT;
         CREATE INDEX IF NOT EXISTS idx_creator_flag_dismissal_requests_submission
             ON creator_flag_dismissal_requests(submission_id);
     """)

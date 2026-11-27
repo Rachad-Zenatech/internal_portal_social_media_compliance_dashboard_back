@@ -133,9 +133,9 @@ async def reject_creator_request(
     )
     async with get_pool().acquire() as conn:
         await conn.execute(
-            "UPDATE creator_flag_dismissal_requests SET status='REJECTED' "
+            "UPDATE creator_flag_dismissal_requests SET status='REJECTED', reviewed_by=$4, reviewed_at=NOW(), review_note=$5 "
             "WHERE submission_id=$1 AND version_number=$2 AND rule_id=$3 AND status='PENDING'",
-            submission_id, row["current_version"], rule_id,
+            submission_id, row["current_version"], rule_id, user_id, notes,
         )
     await log_audit_event(
         "content_submission", str(submission_id), "REJECT_CREATOR_DISMISSAL_REQUEST", user_id,

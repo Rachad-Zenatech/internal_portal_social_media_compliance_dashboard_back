@@ -2,6 +2,8 @@
 from typing import Annotated, List
 from uuid import UUID
 from fastapi import APIRouter, Depends, status
+from models.compliance.flag_outcome_model import FlagOutcome
+from services.compliance.submissions import flag_outcome_service
 from models.compliance.submission_model import Submission
 from models.compliance.flag_review_model import (
     CreatorFlagDismissalRequest, CreatorFlagDismissalRejection, FindingVerdict,
@@ -71,3 +73,8 @@ async def confirm_flag(submission_id: UUID, rule_id: UUID, data: FlagConfirmRequ
 async def unconfirm_flag(submission_id: UUID, rule_id: UUID, user_id: CurrentUser):
     """Take back a confirmation."""
     await flag_review_service.unconfirm(submission_id, rule_id, user_id)
+
+
+@router.get("/{submission_id}/flag-outcomes", response_model=List[FlagOutcome])
+async def flag_outcomes(submission_id: UUID, user_id: CurrentUser):
+    return await flag_outcome_service.list_for(submission_id, user_id)
