@@ -16,7 +16,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/compliance_rule_tables.py (60 lines) - Create compliance rule tables and their backward-compatible columns.
 - `create_rule_tables` (def) L4
 
-## postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (19 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
+## postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (22 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
 - `ensure_creator_flag_dismissal_requests` (def) L4
 
 ## postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)

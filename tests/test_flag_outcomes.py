@@ -5,6 +5,7 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
+from services.compliance import submissions as package
 from services.compliance.submissions import flag_outcome_service as service
 
 
@@ -16,7 +17,7 @@ class FlagOutcomeTests(unittest.IsolatedAsyncioTestCase):
                      outcome=outcome, reason="EVIDENCE_ON_FILE", note="See the press release",
                      reviewer_name="Reviewer One", decided_at=datetime.now(timezone.utc))
                 for outcome in ("DISMISSED", "APPROVED", "REJECTED")]
-        with patch.dict(sys.modules, {submission.__name__: submission}), patch.object(
+        with patch.object(package, "submission_service", submission, create=True), patch.dict(sys.modules, {submission.__name__: submission}), patch.object(
             service, "fetch_all", AsyncMock(return_value=rows)
         ) as fetch:
             results = await service.list_for(uuid4(), uuid4())
@@ -31,7 +32,7 @@ class FlagOutcomeTests(unittest.IsolatedAsyncioTestCase):
     async def test_cannot_read_another_users_post(self):
         submission = types.ModuleType("services.compliance.submissions.submission_service")
         submission._get_owned_row = AsyncMock(side_effect=PermissionError("Not allowed"))
-        with patch.dict(sys.modules, {submission.__name__: submission}), patch.object(
+        with patch.object(package, "submission_service", submission, create=True), patch.dict(sys.modules, {submission.__name__: submission}), patch.object(
             service, "fetch_all", AsyncMock()
         ) as fetch:
             with self.assertRaises(PermissionError):

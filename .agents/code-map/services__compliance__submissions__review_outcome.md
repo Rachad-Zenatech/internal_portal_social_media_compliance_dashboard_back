@@ -4,5 +4,5 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/review_outcome.py (6 lines) - Review outcome grouping is independent of the creator's remaining editing steps.
+## services/compliance/submissions/review_outcome.py (23 lines) - Review outcome grouping is independent of the creator's remaining editing steps.
 - `status_sql` (def) L4

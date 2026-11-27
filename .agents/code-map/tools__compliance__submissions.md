@@ -147,17 +147,18 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_source_confirmations` (def) L17 [GET /{submission_id}/source-confirmations] - Everyone's calls on this post's sources, and what reviewers have said about each source's site.
 - `confirm_source` (def) L23 [POST /{submission_id}/source-confirmations] - Confirm (or take back) whether a claim matches its source, or rate the source itself.
 
-## tools/compliance/submissions/submission_flag_router.py (74 lines) - Creator dismissal requests and reviewers' calls on compliance flags.
-- `list_flag_reviews` (def) L17 [GET /{submission_id}/flags] - Reviewers' dismissals of automated compliance flags, on every version.
-- `creator_flag_dismissals` (def) L23 [GET /{submission_id}/creator-flag-dismissals]
-- `request_creator_flag_dismissal` (def) L28 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}]
-- `approve_creator_flag_dismissal` (def) L33 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}/approve]
-- `reject_creator_flag_dismissal` (def) L38 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}/reject] - Decline a creator's dismissal request and send the post back through the standard changes flow.
-- `dismiss_flag` (def) L46 [PUT /{submission_id}/flags/{rule_id}] - Dismiss a flag on the version in review as a false alarm, with a reason.
-- `restore_flag` (def) L52 [DELETE /{submission_id}/flags/{rule_id}] - Undo a dismissal on the version in review.
-- `list_flag_verdicts` (def) L58 [GET /{submission_id}/flag-verdicts] - Reviewers' calls on the automated flags (right, or a false alarm), on every version.
-- `confirm_flag` (def) L64 [PUT /{submission_id}/flags/{rule_id}/confirm] - Say a flag on the version in review is right.
-- `unconfirm_flag` (def) L70 [DELETE /{submission_id}/flags/{rule_id}/confirm] - Take back a confirmation.
+## tools/compliance/submissions/submission_flag_router.py (81 lines) - Creator dismissal requests and reviewers' calls on compliance flags.
+- `list_flag_reviews` (def) L19 [GET /{submission_id}/flags] - Reviewers' dismissals of automated compliance flags, on every version.
+- `creator_flag_dismissals` (def) L25 [GET /{submission_id}/creator-flag-dismissals]
+- `request_creator_flag_dismissal` (def) L30 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}]
+- `approve_creator_flag_dismissal` (def) L35 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}/approve]
+- `reject_creator_flag_dismissal` (def) L40 [PUT /{submission_id}/creator-flag-dismissals/{rule_id}/reject] - Decline a creator's dismissal request and send the post back through the standard changes flow.
+- `dismiss_flag` (def) L48 [PUT /{submission_id}/flags/{rule_id}] - Dismiss a flag on the version in review as a false alarm, with a reason.
+- `restore_flag` (def) L54 [DELETE /{submission_id}/flags/{rule_id}] - Undo a dismissal on the version in review.
+- `list_flag_verdicts` (def) L60 [GET /{submission_id}/flag-verdicts] - Reviewers' calls on the automated flags (right, or a false alarm), on every version.
+- `confirm_flag` (def) L66 [PUT /{submission_id}/flags/{rule_id}/confirm] - Say a flag on the version in review is right.
+- `unconfirm_flag` (def) L72 [DELETE /{submission_id}/flags/{rule_id}/confirm] - Take back a confirmation.
+- `flag_outcomes` (def) L78 [GET /{submission_id}/flag-outcomes]
 
 ## tools/compliance/submissions/submission_review_router.py (92 lines) - Review decisions, hand-offs and comments for content submissions.
 - `publishing_access` (def) L23 [GET /{submission_id}/publishing-access]

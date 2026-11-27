@@ -4,8 +4,8 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/approved_revision.py (52 lines) - Approval returns a post to its creator for final edits and fresh checks.
+## services/compliance/submissions/approved_revision.py (54 lines) - Approval returns a post to its creator for final edits and fresh checks.
 - `comparable` (def) L11
 - `require_locked_basics` (def) L17
 - `approval_outcome` (def) L29
-- `require_fresh_checks` (def) L37 - Publishing permission does not substitute for checking the creator's final content.
+- `require_fresh_checks` (def) L39 - Publishing permission does not substitute for checking the creator's final content.

@@ -19,6 +19,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/compliance_model.py (377 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - models/compliance/duplicate_model.py (41 lines) - Duplicate-post comparisons shown before a creator submits a post.
+- models/compliance/flag_outcome_model.py (17 lines) - Read-only history of reviewers' flag decisions.
 - models/compliance/flag_review_model.py (82 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - models/compliance/image_provenance_model.py (19 lines) - Saved AI-image disclosure and whether the creator explicitly answered the question.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
@@ -49,7 +50,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/baseline_guidance_upgrades.py (22 lines) - Upgrade untouched baseline guidance without overwriting operator edits or custom rules.
 - postgresql_db/schemas/check_snapshots_schema.py (93 lines) - Immutable inputs, results and human feedback for future compliance learning.
 - postgresql_db/schemas/compliance_rule_tables.py (60 lines) - Create compliance rule tables and their backward-compatible columns.
-- postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (19 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
+- postgresql_db/schemas/creator_flag_dismissal_requests_schema.py (22 lines) - Schema for creator requests that a reviewer dismiss a compliance finding.
 - postgresql_db/schemas/notifications_schema.py (44 lines) - notifications schema (schemas)
 - postgresql_db/schemas/pbac_seed.py (208 lines) - Default navigation, permission groups, roles and initial administrators.
 - postgresql_db/schemas/roles_schema.py (28 lines) - Role hierarchy and audit columns for new and existing databases.
@@ -293,16 +294,18 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/sentiment/reuse_freshness.py (46 lines) - Record exact input-hash reuse separately from the original model run's time.
 - services/compliance/submissions/analysis_progress_service.py (195 lines) - How long a post's rulebook check has left.
 - services/compliance/submissions/approval_path_service.py (197 lines) - Approval paths: who gives final approval for which content.
-- services/compliance/submissions/approved_revision.py (52 lines) - Approval returns a post to its creator for final edits and fresh checks.
+- services/compliance/submissions/approved_revision.py (54 lines) - Approval returns a post to its creator for final edits and fresh checks.
 - services/compliance/submissions/caption_review_service.py (130 lines) - Persist review-time caption edits atomically with an attributed before/after event.
 - services/compliance/submissions/check_snapshot_feedback.py (120 lines) - Bind human labels to immutable findings, rejecting feedback after a racing recheck.
 - services/compliance/submissions/check_snapshot_service.py (108 lines) - Freeze check-time inputs and results; live scores remain owned by their existing services.
 - services/compliance/submissions/creator_dismissal_service.py (67 lines) - Creator dismissal requests that must follow a submission into review.
+- services/compliance/submissions/creator_write_guard.py (14 lines) - Recheck creator write access while holding the row lock used by submission.
 - services/compliance/submissions/delegation_service.py (214 lines) - Review delegation: a reviewer hands a post in review to someone else.
 - services/compliance/submissions/disconnected_analysis.py (25 lines) - Cancel request-bound checks when their caller stops the request.
 - services/compliance/submissions/draft_deletion.py (31 lines) - Delete draft posts without leaving script-to-post foreign keys dangling.
 - services/compliance/submissions/duplicate_service.py (237 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
 - services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
+- services/compliance/submissions/flag_outcome_service.py (28 lines) - Audit display only: historical decisions never authorize a newer check.
 - services/compliance/submissions/flag_review_service.py (444 lines) - Reviewers' calls on automated compliance flags.
 - services/compliance/submissions/image_provenance_service.py (92 lines) - Require an explicit Yes/No disclosure for attached post images.
 - services/compliance/submissions/image_source_checks.py (102 lines) - Find candidate sources while keeping each source's compliance verdict separate.
@@ -313,7 +316,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/media_freshness.py (40 lines) - Check freshness follows media revisions, independently of post detail edits.
 - services/compliance/submissions/media_read_status.py (13 lines) - Unread media recorded in a submission's saved compliance check.
 - services/compliance/submissions/pending_check_recovery.py (179 lines) - Recover explicitly requested checks whose media finished before the pending result was saved.
-- services/compliance/submissions/post_approval_suggestions.py (129 lines) - Allow suggestions until the deadline without changing the first approval.
+- services/compliance/submissions/post_approval_suggestions.py (130 lines) - Allow suggestions until the deadline without changing the first approval.
 - services/compliance/submissions/post_steps_service.py (137 lines) - The five steps a creator works through, and how far each post has got.
 - services/compliance/submissions/post_text_review.py (161 lines) - Direct reviewer text edits, serialized with decisions and attributed in the existing event log.
 - services/compliance/submissions/request_coalescer.py (50 lines) - Short-lived request sharing for expensive submission-list reads.
@@ -321,11 +324,11 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/review_caption_format.py (12 lines) - Preserve safe rich caption formatting during reviewer edits and legacy no-op saves.
 - services/compliance/submissions/review_comment_writes.py (18 lines) - Serialize comments with approval so stale tabs cannot write after the deadline.
 - services/compliance/submissions/review_deadline_service.py (235 lines) - Review and revision deadlines.
-- services/compliance/submissions/review_handoff.py (113 lines) - Save a review outcome now; hand the post to its creator after suggestions close.
+- services/compliance/submissions/review_handoff.py (114 lines) - Save a review outcome now; hand the post to its creator after suggestions close.
 - services/compliance/submissions/review_handoff_release.py (96 lines) - Restart-safe, atomic delivery of decided posts once their suggestion deadline passes.
 - services/compliance/submissions/review_hierarchy_service.py (85 lines) - Review access inherited by Content Managers through the saved role hierarchy.
 - services/compliance/submissions/review_memory_service.py (233 lines) - Review memory: this team's past review decisions, used as precedent when new content is analysed.
-- services/compliance/submissions/review_outcome.py (6 lines) - Review outcome grouping is independent of the creator's remaining editing steps.
+- services/compliance/submissions/review_outcome.py (23 lines) - Review outcome grouping is independent of the creator's remaining editing steps.
 - services/compliance/submissions/revision_steps.py (56 lines) - Revision progress; previous checks remain valid until the media changes.
 - services/compliance/submissions/source_link_service.py (170 lines) - Validation, persistence helpers, and quick AI checking for submission source links.
 - services/compliance/submissions/source_trust_service.py (161 lines) - Source trust: the checker learns which sites are worth reading from reviewers' calls on them.
@@ -334,7 +337,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/submission_content_revision.py (35 lines) - Advance analysis revisions only when saved inputs to the analyses actually change.
 - services/compliance/submissions/submission_fields.py (67 lines) - Field shaping for submission summaries and draft type changes.
 - services/compliance/submissions/submission_list_query.py (95 lines) - SQL for the submission list, including previews and analysis status.
-- services/compliance/submissions/submission_service.py (2553 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2546 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/compliance/submissions/submission_source_state.py (23 lines) - Track the saved source-link inputs of a compliance run, including legacy checks.
 - services/compliance/submissions/video_footage_service.py (18 lines) - Save the creator's footage answer and invalidate checks only when it changes.
@@ -398,7 +401,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/script_review_router.py (149 lines) - Script Review Router The script stage of video posts: send the script, review and edit it, accept the reviewer's edits.
 - tools/compliance/submissions/source_link_router.py (75 lines) - Router for quick AI checking of submission source links.
 - tools/compliance/submissions/source_trust_router.py (27 lines) - Router for people's calls on a post's sources (does a claim match the page? is the page a good source?) and the standing each source's si...
-- tools/compliance/submissions/submission_flag_router.py (74 lines) - Creator dismissal requests and reviewers' calls on compliance flags.
+- tools/compliance/submissions/submission_flag_router.py (81 lines) - Creator dismissal requests and reviewers' calls on compliance flags.
 - tools/compliance/submissions/submission_review_router.py (92 lines) - Review decisions, hand-offs and comments for content submissions.
 - tools/compliance/submissions/submission_router.py (466 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...

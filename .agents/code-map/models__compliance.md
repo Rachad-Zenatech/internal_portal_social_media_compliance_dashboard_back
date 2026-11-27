@@ -74,6 +74,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `DuplicateMatch` (class) L19 - A post already sent for approval with the same content and caption.
 - `DuplicateReport` (class) L34 - Earlier posts with the same content and caption.
 
+## models/compliance/flag_outcome_model.py (17 lines) - Read-only history of reviewers' flag decisions.
+- `FlagOutcome` (class) L8
+
 ## models/compliance/flag_review_model.py (82 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
 - `FlagDismissRequest` (class) L21
 - `FlagReview` (class) L27

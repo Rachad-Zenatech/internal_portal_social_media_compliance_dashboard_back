@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
+from services.compliance import submissions as package
 from services.compliance.submissions import post_approval_suggestions as service, review_handoff
 
 
@@ -27,7 +28,7 @@ class PendingApprovalCommentsTests(unittest.IsolatedAsyncioTestCase):
                 subs = types.ModuleType("services.compliance.submissions.submission_service")
                 subs._can_suggest = AsyncMock(return_value=can_suggest)
                 subs._is_super_admin = AsyncMock(return_value=is_super)
-                with patch.dict(sys.modules, {subs.__name__: subs}), patch.object(
+                with patch.object(package, "submission_service", subs, create=True), patch.dict(sys.modules, {subs.__name__: subs}), patch.object(
                     service, "approvals", AsyncMock(return_value={})
                 ), patch.object(review_handoff, "decisions", AsyncMock(return_value={row["id"]: {}})):
                     await service.enrich([item], [row], viewer)

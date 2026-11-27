@@ -13,7 +13,7 @@ to find the right file.
 | .agents/code-map/mcp_tools.md | 3 | 1 KB |
 | .agents/code-map/mcp_tools__compliance.md | 1 | 1 KB |
 | .agents/code-map/mcp_tools__shared.md | 1 | 1 KB |
-| .agents/code-map/models__compliance.md | 28 | 18 KB |
+| .agents/code-map/models__compliance.md | 29 | 18 KB |
 | .agents/code-map/models__notifications.md | 2 | 1 KB |
 | .agents/code-map/models__shared.md | 3 | 2 KB |
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |
@@ -166,11 +166,13 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions__check_snapshot_feedback.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__check_snapshot_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__creator_dismissal_service.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__creator_write_guard.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__delegation_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__disconnected_analysis.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__draft_deletion.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__duplicate_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__submissions__finding_precedent_service.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__flag_outcome_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__flag_review_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__submissions__image_provenance_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__image_source_checks.md | 1 | 1 KB |
