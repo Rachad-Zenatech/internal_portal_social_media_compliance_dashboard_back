@@ -44,6 +44,9 @@ def update_fields(row, payload):
         if employee_answer is None and clean_flags:
             fields["employee_in_images"] = any(clean_flags.values())
             fields["employee_in_images_confirmed"] = True
+    same_confirmed = payload.get("face_same_person_confirmed")
+    if isinstance(same_confirmed, dict):
+        fields["face_same_person_confirmed"] = json.dumps({str(k): bool(v) for k, v in same_confirmed.items()})
     return fields
 
 

@@ -128,31 +128,45 @@ def match_embeddings(
     return matches
 
 
-def find_same_person_across_files(
+def find_same_person_links(
     file_faces: List[Tuple[UUID, str, List[List[float]]]],
     threshold: float = _MATCH_THRESHOLD,
-) -> Dict[str, List[str]]:
-    """Return {face_key: [other_file_names]} when the same person appears in multiple photos of one post."""
+) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
+    """Return ({face_key: [other_file_names]}, {face_key: [other_face_keys]}) for cross-photo matches."""
     if len(file_faces) < 2:
-        return {}
+        return {}, {}
     import numpy as np
 
-    out: Dict[str, List[str]] = {}
+    names_out: Dict[str, List[str]] = {}
+    keys_out: Dict[str, List[str]] = {}
     for i, (fid_a, _name_a, embs_a) in enumerate(file_faces):
         if not embs_a:
             continue
         for idx_a, emb_a in enumerate(embs_a):
             vec_a = np.asarray(emb_a, dtype=np.float32)
             hits: List[str] = []
+            hit_keys: List[str] = []
             for j, (fid_b, name_b, embs_b) in enumerate(file_faces):
                 if i == j or fid_a == fid_b or not embs_b:
                     continue
                 sims = np.asarray(embs_b, dtype=np.float32) @ vec_a
-                if float(np.max(sims)) >= threshold and name_b not in hits:
-                    hits.append(name_b)
+                best_idx = int(np.argmax(sims))
+                if float(sims[best_idx]) >= threshold:
+                    if name_b not in hits:
+                        hits.append(name_b)
+                    hit_keys.append(f"{fid_b}-{best_idx}")
             if hits:
-                out[f"{fid_a}-{idx_a}"] = hits
-    return out
+                names_out[f"{fid_a}-{idx_a}"] = hits
+                keys_out[f"{fid_a}-{idx_a}"] = hit_keys
+    return names_out, keys_out
+
+
+def find_same_person_across_files(
+    file_faces: List[Tuple[UUID, str, List[List[float]]]],
+    threshold: float = _MATCH_THRESHOLD,
+) -> Dict[str, List[str]]:
+    """Return {face_key: [other_file_names]} when the same person appears in multiple photos of one post."""
+    return find_same_person_links(file_faces, threshold=threshold)[0]
 
 
 async def _load_file_embeddings(file_id: UUID) -> Optional[Tuple[List[List[int]], List[List[float]]]]:
@@ -298,9 +312,9 @@ async def refresh_submission_face_links(file_id: UUID) -> Dict[str, List[str]]:
         detected = await _load_file_embeddings(r["id"])
         if detected and detected[1]:
             file_faces.append((r["id"], r["original_name"], detected[1]))
-    links = find_same_person_across_files(file_faces)
+    links, key_links = find_same_person_links(file_faces)
     await get_pool().execute(
-        "UPDATE content_submissions SET face_same_person = $2::jsonb WHERE id = $1",
-        sub["submission_id"], json.dumps(links),
+        "UPDATE content_submissions SET face_same_person = $2::jsonb, face_same_person_keys = $3::jsonb WHERE id = $1",
+        sub["submission_id"], json.dumps(links), json.dumps(key_links),
     )
     return links

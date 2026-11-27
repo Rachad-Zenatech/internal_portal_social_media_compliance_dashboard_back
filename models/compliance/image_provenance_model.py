@@ -14,3 +14,5 @@ class ImageProvenanceFields(BaseModel):
     face_employee_flags: Dict[str, bool] = Field(default_factory=dict)
     face_auto_matched: Dict[str, float] = Field(default_factory=dict)
     face_same_person: Dict[str, List[str]] = Field(default_factory=dict)
+    face_same_person_keys: Dict[str, List[str]] = Field(default_factory=dict)
+    face_same_person_confirmed: Dict[str, bool] = Field(default_factory=dict)

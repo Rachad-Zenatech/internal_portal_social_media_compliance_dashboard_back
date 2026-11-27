@@ -105,16 +105,17 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## services/compliance/media/face_detection_service.py (65 lines) - Local CPU face detection using OpenCV YuNet, returning anonymous [top, left, bottom, right] 0..1000 boxes.
 - `detect_faces` (def) L17 - Detect faces locally with InsightFace first, falling back to OpenCV YuNet if unavailable.
 
-## services/compliance/media/face_recognition_service.py (307 lines) - Local CPU face detection & 512d ArcFace recognition using InsightFace (buffalo_sc).
+## services/compliance/media/face_recognition_service.py (321 lines) - Local CPU face detection & 512d ArcFace recognition using InsightFace (buffalo_sc).
 - `_load_app` (def) L26
 - `_iou` (def) L41
 - `detect_faces_and_embeddings` (def) L54 - Detect deduplicated faces and 512-dim normalized ArcFace embeddings, or None if unavailable.
 - `match_embeddings` (def) L110 - Return {face_index: best_cosine_similarity} for faces matching any saved employee.
-- `find_same_person_across_files` (def) L131 - Return {face_key: [other_file_names]} when the same person appears in multiple photos of one post.
-- `_load_file_embeddings` (def) L158
-- `sync_employee_faces` (def) L184 - Save 512d embeddings for faces marked Employee=Yes, and remove any marked No.
-- `auto_match_file_faces` (def) L227 - Compare newly detected faces against saved employee embeddings and auto-flag matches.
-- `refresh_submission_face_links` (def) L277 - Detect when the same person appears across multiple images in the same submission.
+- `find_same_person_links` (def) L131 - Return ({face_key: [other_file_names]}, {face_key: [other_face_keys]}) for cross-photo matches.
+- `find_same_person_across_files` (def) L164 - Return {face_key: [other_file_names]} when the same person appears in multiple photos of one post.
+- `_load_file_embeddings` (def) L172
+- `sync_employee_faces` (def) L198 - Save 512d embeddings for faces marked Employee=Yes, and remove any marked No.
+- `auto_match_file_faces` (def) L241 - Compare newly detected faces against saved employee embeddings and auto-flag matches.
+- `refresh_submission_face_links` (def) L291 - Detect when the same person appears across multiple images in the same submission.
 
 ## services/compliance/media/file_mime_policy.py (60 lines) - Server-side MIME type and Content-Disposition policy for user-uploaded files.
 - `safe_file_mime` (def) L50 - Return an allowlisted MIME type based on file extension, or application/octet-stream.

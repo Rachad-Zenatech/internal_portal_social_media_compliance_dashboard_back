@@ -77,7 +77,9 @@ async def _create_core_records(conn) -> None:
                 ADD COLUMN IF NOT EXISTS employee_in_images_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS face_employee_flags JSONB NOT NULL DEFAULT '{}'::jsonb,
                 ADD COLUMN IF NOT EXISTS face_auto_matched JSONB NOT NULL DEFAULT '{}'::jsonb,
-                ADD COLUMN IF NOT EXISTS face_same_person JSONB NOT NULL DEFAULT '{}'::jsonb;
+                ADD COLUMN IF NOT EXISTS face_same_person JSONB NOT NULL DEFAULT '{}'::jsonb,
+                ADD COLUMN IF NOT EXISTS face_same_person_keys JSONB NOT NULL DEFAULT '{}'::jsonb,
+                ADD COLUMN IF NOT EXISTS face_same_person_confirmed JSONB NOT NULL DEFAULT '{}'::jsonb;
 
             CREATE TABLE IF NOT EXISTS employee_face_embeddings (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

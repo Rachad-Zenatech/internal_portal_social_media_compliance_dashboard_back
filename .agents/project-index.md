@@ -20,7 +20,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - models/compliance/duplicate_model.py (41 lines) - Duplicate-post comparisons shown before a creator submits a post.
 - models/compliance/flag_review_model.py (82 lines) - Reviewers' calls on automated compliance flags: dismissing a false alarm, with a reason.
-- models/compliance/image_provenance_model.py (17 lines) - Saved AI-image disclosure and whether the creator explicitly answered the question.
+- models/compliance/image_provenance_model.py (19 lines) - Saved AI-image disclosure and whether the creator explicitly answered the question.
 - models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.
 - models/compliance/post_approval_model.py (18 lines) - The suggestion window following the first approval of a post.
 - models/compliance/post_text_review_model.py (42 lines) - Reviewers' attributed edits to a text-only post.
@@ -35,7 +35,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/source_trust_model.py (50 lines) - Models for people's calls on sources (does this claim match the page? is the page a good source?) and the standing a site earns from revi...
 - models/compliance/submission_event_model.py (14 lines) - Activity events returned with submission history.
 - models/compliance/submission_input_model.py (20 lines) - Post creation inputs and the optional video script review setting.
-- models/compliance/submission_model.py (610 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+- models/compliance/submission_model.py (609 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/compliance/submission_steps_model.py (22 lines) - Creator progress through submission and revision steps.
 - models/compliance/video_footage_model.py (7 lines) - An explicit Yes/No declaration; None means the creator has not answered.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
@@ -71,7 +71,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_source_trust_schema.py (42 lines) - Source trust: people's calls on the sources a post was checked against, so the checker learns which sites are worth reading.
 - postgresql_db/schemas/setup_submissions_schema.py (300 lines) - Setup Content Submission Schema Creates content_submissions with their files, versions, review jobs and activity events, and (in developm...
 - postgresql_db/schemas/setup_teams_schema.py (40 lines) - Microsoft Teams direct messages: where each person's chat with the portal's bot is, so notifications can reach them there.
-- postgresql_db/schemas/submission_tables_schema.py (488 lines) - Submission table definitions, grouped by the feature records they store.
+- postgresql_db/schemas/submission_tables_schema.py (490 lines) - Submission table definitions, grouped by the feature records they store.
 - postgresql_db/schemas/video_footage_schema.py (12 lines) - Additive video-footage declaration and cached local disclosure scan.
 - postgresql_db/schemas/zenatech_brand_guideline.py (88 lines) - ZenaTech brand references transcribed from ZenaTech_Guideline.pdf (eight-page quick guide).
 - scripts/ai_safety_eval.py (193 lines) - AI safety evaluation: input screening, PII redaction, streamed redaction, model routing and the semantic cache's number guard, checked ag...
@@ -257,7 +257,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/media/document_layout.py (448 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
 - services/compliance/media/document_text_service.py (245 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - services/compliance/media/face_detection_service.py (65 lines) - Local CPU face detection using OpenCV YuNet, returning anonymous [top, left, bottom, right] 0..1000 boxes.
-- services/compliance/media/face_recognition_service.py (307 lines) - Local CPU face detection & 512d ArcFace recognition using InsightFace (buffalo_sc).
+- services/compliance/media/face_recognition_service.py (321 lines) - Local CPU face detection & 512d ArcFace recognition using InsightFace (buffalo_sc).
 - services/compliance/media/file_mime_policy.py (60 lines) - Server-side MIME type and Content-Disposition policy for user-uploaded files.
 - services/compliance/media/hashtag_library.py (145 lines) - Hashtag library: the hashtags (and the company's cashtag) a post can use, for its brand, audience and platforms.
 - services/compliance/media/html_layout.py (127 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
@@ -304,7 +304,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/duplicate_service.py (237 lines) - Duplicate Post Check A post is the same as one already sent for approval when its main files (by their bytes) and its caption match.
 - services/compliance/submissions/finding_precedent_service.py (151 lines) - Finding precedent: reviewers' verdicts on automated flags, as examples the contextual evaluator learns from.
 - services/compliance/submissions/flag_review_service.py (444 lines) - Reviewers' calls on automated compliance flags.
-- services/compliance/submissions/image_provenance_service.py (89 lines) - Require an explicit Yes/No disclosure for attached post images.
+- services/compliance/submissions/image_provenance_service.py (92 lines) - Require an explicit Yes/No disclosure for attached post images.
 - services/compliance/submissions/image_source_checks.py (102 lines) - Find candidate sources while keeping each source's compliance verdict separate.
 - services/compliance/submissions/image_source_search.py (159 lines) - Find a cited source on the web: Gemini Google Search grounding first, then search APIs (Serper or Google CSE) when configured, then the s...
 - services/compliance/submissions/image_source_service.py (387 lines) - Scan an image for source citations (URLs or named title + date references), locate the source on the web, and scrape/verify it.
@@ -334,7 +334,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/submissions/submission_content_revision.py (35 lines) - Advance analysis revisions only when saved inputs to the analyses actually change.
 - services/compliance/submissions/submission_fields.py (67 lines) - Field shaping for submission summaries and draft type changes.
 - services/compliance/submissions/submission_list_query.py (95 lines) - SQL for the submission list, including previews and analysis status.
-- services/compliance/submissions/submission_service.py (2554 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
+- services/compliance/submissions/submission_service.py (2553 lines) - Content Submission Service Drafts, file storage, versioning, review jobs and activity history for content submissions.
 - services/compliance/submissions/submission_snapshot.py (39 lines) - The immutable content snapshot stored when a post is submitted for review.
 - services/compliance/submissions/submission_source_state.py (23 lines) - Track the saved source-link inputs of a compliance run, including legacy checks.
 - services/compliance/submissions/video_footage_service.py (18 lines) - Save the creator's footage answer and invalidate checks only when it changes.
