@@ -42,12 +42,13 @@ async def enrich(items, rows, user_id):
     from services.compliance.submissions import review_handoff
     pending = await review_handoff.decisions(rows)
     can_suggest = await subs._can_suggest(user_id) if owners or pending else False
+    is_super = await subs._is_super_admin(user_id) if can_suggest else False
     now = datetime.now(timezone.utc)
     for item, row in zip(items, rows):
         if row["id"] in pending:
             item.review_decision_pending = True
             item.suggestions_until = review_handoff.deadline(row)
-            item.can_suggest_after_approval = bool(can_suggest and row["created_by"] != user_id and review_handoff.should_hold(row, now))
+            item.can_suggest_after_approval = bool(can_suggest and (row["created_by"] != user_id or is_super) and review_handoff.should_hold(row, now))
             for name in ("can_review", "can_approve", "can_delegate", "can_manage_approval"):
                 if hasattr(item, name):
                     setattr(item, name, False)

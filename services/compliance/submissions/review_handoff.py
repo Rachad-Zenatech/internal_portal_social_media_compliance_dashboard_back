@@ -98,7 +98,8 @@ async def notify_now(row, user_id, request, notes, revision_due, label, held):
         message = f"{who} asked for changes to \"{row['title']}\". {notes or 'See the comments.'} Please resubmit by {_when(revision_due)}."
         link = f"/submissions/{row['id']}"
     else:
-        title, message, link = f"{row['reference_code']} was approved", f"{who} approved \"{row['title']}\". Review the suggestions, update your post and rerun checks before publishing.", f"/submissions/{row['id']}"
+        next_step = "Review the requested changes and check the updated content before publishing." if request.publish_after_changes else "The content is locked; choose its final publishing date. No new checks are needed."
+        title, message, link = f"{row['reference_code']} was approved", f"{who} approved \"{row['title']}\". {next_step}", f"/submissions/{row['id']}"
     await subs._notify([row["created_by"]], title, message, link, row["id"])
 
 
