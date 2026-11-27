@@ -11,7 +11,7 @@ def list_query(accounts_column, pending_sql, unavailable_sql):
                s.current_version, s.publish_at, s.publish_after_changes, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
                s.due_at, s.due_kind, s.rule_sets, s.region, s.script_required, s.platform_captions,
                (EXISTS (SELECT 1 FROM content_submission_files sf WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL) OR EXISTS (SELECT 1 FROM content_script_versions sv WHERE sv.submission_id = s.id)) AS has_script,
-               s.content_edited_at, """ + image_provenance_service.COLUMNS_SQL + media_freshness.REVISION_SQL + """ AS media_edited_at,
+               s.content_edited_at, s.video_third_party_footage, """ + image_provenance_service.COLUMNS_SQL + media_freshness.REVISION_SQL + """ AS media_edited_at,
                (s.latest_check->>'checked_at')::timestamptz AS check_at,
                (SELECT max(a.created_at) FROM content_sentiment_analyses a
                  WHERE a.submission_id = s.id AND a.status = 'COMPLETED') AS sentiment_at,

@@ -28,7 +28,7 @@ EDITABLE_STATUSES = ("DRAFT", "CHANGES_REQUESTED")
 FIELD_WORDS = {
     "title": "title", "brand_code": "brand", "audience": "audience", "region": "region", "platforms": "platform",
     "account_id": "account to post on", "rule_sets": "rule set", "caption": "caption", "main_file": "image or video",
-    "script_approval": "approved script", "script": "script", "ai_generated_images": "answer to the AI image question",
+    "script_approval": "approved script", "script": "script", "ai_generated_images": "answer to the AI image question", "video_third_party_footage": "answer to the video footage question",
 }
 
 
@@ -75,6 +75,8 @@ def details_missing(r: Mapping[str, Any]) -> List[str]:
             missing.append("script_approval")
     if image_provenance_service.missing(r):
         missing.append("ai_generated_images")
+    if r.get("main_is_video") and r.get("video_third_party_footage") is None:
+        missing.append("video_third_party_footage")
     return missing
 
 

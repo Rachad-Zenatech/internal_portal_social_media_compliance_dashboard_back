@@ -13,11 +13,11 @@ to find the right file.
 | .agents/code-map/mcp_tools.md | 3 | 1 KB |
 | .agents/code-map/mcp_tools__compliance.md | 1 | 1 KB |
 | .agents/code-map/mcp_tools__shared.md | 1 | 1 KB |
-| .agents/code-map/models__compliance.md | 26 | 18 KB |
+| .agents/code-map/models__compliance.md | 28 | 18 KB |
 | .agents/code-map/models__notifications.md | 2 | 1 KB |
 | .agents/code-map/models__shared.md | 3 | 2 KB |
 | .agents/code-map/postgresql_db.md | 2 | 2 KB |
-| .agents/code-map/postgresql_db__schemas.md | 28 | 7 KB |
+| .agents/code-map/postgresql_db__schemas.md | 29 | 7 KB |
 | .agents/code-map/scripts.md | 17 | 13 KB |
 | .agents/code-map/services__ai__core.md | 15 | 11 KB |
 | .agents/code-map/services__ai__observability.md | 7 | 5 KB |
@@ -65,6 +65,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__context_evaluator.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__context_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__defense_disclaimer.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__evidence_reconciliation.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__financial_evidence.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__finding_evidence.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__finding_visibility.md | 1 | 1 KB |
@@ -128,6 +129,8 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__source_comparison_cache.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_comparison_prompt.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_evidence.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__source_evidence_context.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__source_evidence_lookup.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_fetch_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_findings.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_identity.md | 1 | 1 KB |
@@ -146,11 +149,12 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__source_settings.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__source_verdict_models.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__synthetic_media_disclosure.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__video_footage_disclosure.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_response.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_review.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_review_prompt.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_video_frames.md | 1 | 1 KB |
-| .agents/code-map/services__compliance__media.md | 23 | 17 KB |
+| .agents/code-map/services__compliance__media.md | 24 | 17 KB |
 | .agents/code-map/services__compliance__sentiment.md | 14 | 9 KB |
 | .agents/code-map/services__compliance__submissions__analysis_progress_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__approval_path_service.md | 1 | 1 KB |
@@ -170,6 +174,7 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions__image_source_search.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__image_source_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__submissions__manual_check_service.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__media_declaration_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__media_freshness.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__media_read_status.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__pending_check_recovery.md | 1 | 1 KB |
@@ -197,6 +202,7 @@ to find the right file.
 | .agents/code-map/services__compliance__submissions__submission_service.md | 1 | 9 KB |
 | .agents/code-map/services__compliance__submissions__submission_snapshot.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__submission_source_state.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__submissions__video_footage_service.md | 1 | 1 KB |
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |
 | .agents/code-map/services__notifications.md | 11 | 9 KB |
 | .agents/code-map/services__notifications__review_email.md | 7 | 2 KB |

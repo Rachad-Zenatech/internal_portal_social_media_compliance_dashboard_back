@@ -228,6 +228,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `schedule_missing` (def) L167 - Queue videos that were never transcribed, or whose previous attempt was abandoned.
 - `retry_failed_videos` (def) L214 - Only explicit compliance reruns retry failed transcripts; background polling does not.
 
+## services/compliance/media/video_disclaimer_scan.py (64 lines) - Cached local OCR across the video when its sampled transcript did not find a footage disclosure.
+- `read_frames` (def) L16
+- `scan` (def) L44
+
 ## services/compliance/media/video_finding_service.py (119 lines) - Locate exact flagged wording in video frames without inventing a visual region.
 - `_ffmpeg_binary` (def) L20 - Use the configured Windows executable from WSL when development mounts the drive.
 - `_ffmpeg_input_path` (def) L28 - Pass a Windows path to a Windows FFmpeg executable launched from WSL.

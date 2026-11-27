@@ -2,13 +2,14 @@
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+from models.compliance.video_footage_model import VideoFootageFields
 
 # AD: paid social ads. Ad-specific fields and rules are still to be defined.
 ContentType = Literal["VIDEO", "TEXT_POST", "SOCIAL_POST", "CAROUSEL", "IMAGE", "BLOG", "AD"]
 
 
-class VideoScriptOptions(BaseModel):
+class VideoScriptOptions(VideoFootageFields):
     # Omission preserves the normal script-first default for new video posts.
     script_required: Optional[bool] = None
 

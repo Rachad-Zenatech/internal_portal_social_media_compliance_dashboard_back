@@ -4,6 +4,6 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/newsroom_article_sources.py (36 lines) - Use summaries for retrieval only; verify claims against the linked newsroom article.
-- `hydrate` (def) L13
-    - `one` (def) L16
+## services/compliance/evaluation/newsroom_article_sources.py (35 lines) - Use summaries for retrieval only; verify claims against the linked newsroom article.
+- `hydrate` (def) L12
+    - `one` (def) L15

@@ -4,9 +4,9 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/post_steps_service.py (135 lines) - The five steps a creator works through, and how far each post has got.
+## services/compliance/submissions/post_steps_service.py (137 lines) - The five steps a creator works through, and how far each post has got.
 - `missing_words` (def) L35
 - `_aware` (def) L39
 - `details_missing` (def) L45 - What the post still needs before its details are complete.
-- `_tool` (def) L81 - done, stale (run before the last edit), running, or todo (never run).
-- `compute_steps` (def) L91 - The steps for one post, from a row of what the list query reads (see submission_service.list_submissions).
+- `_tool` (def) L83 - done, stale (run before the last edit), running, or todo (never run).
+- `compute_steps` (def) L93 - The steps for one post, from a row of what the list query reads (see submission_service.list_submissions).

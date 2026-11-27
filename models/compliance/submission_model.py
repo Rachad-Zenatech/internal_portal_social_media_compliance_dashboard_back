@@ -8,6 +8,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 from models.compliance.submission_steps_model import StepState, SubmissionSteps
 from models.compliance.image_provenance_model import ImageProvenanceFields
+from models.compliance.video_footage_model import VideoFootageFields
+from models.compliance.submission_event_model import SubmissionEvent
 from models.compliance.review_score_model import ReviewScoreFields
 from models.compliance.post_approval_model import PostApprovalSuggestionFields
 from models.compliance.source_link_model import SourceLinksMixin, SourceLinksUpdateMixin
@@ -253,7 +255,7 @@ class SubmissionSummary(PostApprovalSuggestionFields):
     steps: Optional[SubmissionSteps] = None
 
 
-class Submission(SourceLinksMixin, ImageProvenanceFields, ReviewScoreFields, PostApprovalSuggestionFields):
+class Submission(SourceLinksMixin, ImageProvenanceFields, VideoFootageFields, ReviewScoreFields, PostApprovalSuggestionFields):
     id: UUID
     reference_code: str
     title: str
@@ -489,15 +491,6 @@ class ReviewComment(BaseModel):
     reply_to_id: Optional[UUID] = None
     reply_to_author: Optional[str] = None
     reply_to_body: Optional[str] = None
-
-
-class SubmissionEvent(BaseModel):
-    id: int
-    event_type: str
-    message: str
-    data: Optional[Dict[str, Any]] = None
-    actor_name: Optional[str] = None
-    created_at: datetime
 
 
 class SubmissionHistory(BaseModel):

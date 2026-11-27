@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 
 # Extraction/transcription updates do not replace media. Deleted media still counts as a revision.
-REVISION_SQL = """greatest(s.image_provenance_edited_at,
+REVISION_SQL = """greatest(s.image_provenance_edited_at, s.video_footage_edited_at,
     CASE WHEN s.content_type = 'TEXT_POST' THEN s.content_edited_at END,
     (SELECT max(greatest(mf.created_at, mf.deleted_at)) FROM content_submission_files mf
      WHERE mf.submission_id = s.id AND mf.kind IN ('MAIN', 'IMAGE', 'SCRIPT')),

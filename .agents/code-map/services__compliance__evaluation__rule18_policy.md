@@ -4,6 +4,6 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/rule18_policy.py (23 lines) - Script/video substantiation is opt-in through sources explicitly cited in the script.
+## services/compliance/evaluation/rule18_policy.py (27 lines) - Script/video substantiation is opt-in through explicitly supplied or cited sources.
 - `applies` (def) L8
-- `check_sources` (def) L18
+- `check_sources` (def) L22

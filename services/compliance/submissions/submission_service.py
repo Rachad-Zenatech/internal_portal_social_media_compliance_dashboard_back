@@ -73,10 +73,10 @@ from services.compliance.submissions.submission_content_revision import (
     content_changed, same_value as _same_value, NON_CONTENT_FIELDS as _NOT_CONTENT_FIELDS,
 )
 from services.shared.storage.s3_storage_service import ensure_local_file, s3_enabled, s3_key_for, upload_file_to_s3
-from services.compliance.submissions import review_deadline_service
+from services.compliance.submissions import review_deadline_service, media_declaration_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
-from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness, image_provenance_service
+from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness, image_provenance_service, video_footage_service
 from services.compliance.submissions import submission_fields, media_read_status, submission_list_query, submission_check_runner, draft_deletion
 from services.compliance.evaluation import source_recheck
 from services.compliance.media import document_text_service
@@ -441,7 +441,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         **_due(row),
         caption_html=row["caption_html"],
         caption_text=row["caption_text"],
-        context_picks=_context_picks(row), ai_generated_images=row.get("ai_generated_images", False),
+        context_picks=_context_picks(row), ai_generated_images=row.get("ai_generated_images", False), **video_footage_service.response_fields(row),
         ai_generated_images_confirmed=image_provenance_service.is_confirmed(row),
         people_in_images=row.get("people_in_images", False), people_in_images_confirmed=bool(row.get("people_in_images_confirmed")),
         people_in_images_detected=row.get("people_in_images_detected"), employee_in_images=row.get("employee_in_images", False), employee_in_images_confirmed=bool(row.get("employee_in_images_confirmed")), face_employee_flags=_json(row.get("face_employee_flags")) or {},
@@ -524,13 +524,13 @@ async def create_submission(data: SubmissionCreate, user_id: UUID) -> Submission
         async with conn.transaction():
             row = await conn.fetchrow(
                 """
-                INSERT INTO content_submissions (title, content_type, created_by, updated_by, script_required)
-                VALUES ($1, $2::varchar, $3, $3, $2::varchar = 'VIDEO' AND $4::boolean)
+                INSERT INTO content_submissions (title, content_type, created_by, updated_by, script_required, video_third_party_footage)
+                VALUES ($1, $2::varchar, $3, $3, $2::varchar = 'VIDEO' AND $4::boolean, $5)
                 RETURNING id, reference_code
                 """,
                 data.title.strip(),
                 data.content_type,
-                user_id, data.script_required is not False,
+                user_id, data.script_required is not False, data.video_third_party_footage,
             )
             await _add_event(conn, row["id"], "CREATED", f"Draft {row['reference_code']} created", user_id)
     await log_audit_event("content_submission", str(row["id"]), "CREATE_SUBMISSION", user_id,
@@ -677,6 +677,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
     if "caption_text" in payload:
         fields["caption_text"] = payload["caption_text"]
     fields.update(image_provenance_service.update_fields(row, payload))
+    fields.update(video_footage_service.update_fields(row, payload))
     if payload.get("context_picks") is not None:
         fields["context_picks"] = json.dumps(await _clean_context_picks(payload["context_picks"]))
     if payload.get("platform_captions") is not None:
@@ -1309,14 +1310,11 @@ async def _missing_for_submit(row: Dict[str, Any]) -> List[str]:
         row["id"],
     ):
         missing.append("main_file")
-    # Every post needs its caption (the copy, for text posts): it's what the score and the sentiment analysis read
-    # first, so the check never runs on an image alone.
     if not has_text:
         missing.append("caption")
     if script_stage_on(row) and row.get("script_status") != "APPROVED":
         missing.append("script_approval")
-    if image_provenance_service.missing(row):
-        missing.append("ai_generated_images")
+    missing.extend(media_declaration_service.missing_fields(row, has_main))
     return missing
 
 
