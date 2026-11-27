@@ -252,3 +252,4 @@ tests/*
 # Token Usage Stats
 .data/usage_stats.json
 
+!.env.production
