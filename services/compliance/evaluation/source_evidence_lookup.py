@@ -1,4 +1,4 @@
-﻿"""Source evidence for rule concerns is independent of optional general Rule 18 substantiation."""
+"""Source evidence for rule concerns is independent of optional general Rule 18 substantiation."""
 import re
 from . import rule18_policy, source_check_service, source_post_checks
 from . import source_claim_coverage, source_claim_grounding, source_assertions
