@@ -1,4 +1,4 @@
-"""Local sign-in for the existing, explicitly allowed dummy review accounts."""
+"""Local sign-in for the existing, explicitly allowed dummy accounts."""
 
 import os
 
@@ -8,6 +8,7 @@ from postgresql_db.database import get_pool
 
 
 TEST_USERS = {
+    "creator": ("test.creator@example.com", "Test Creator", "USER"),
     "manager": ("test.manager@example.com", "Test Manager", "MANAGER"),
     "reviewer": ("test.reviewer@example.com", "Test Reviewer", "REVIEWER"),
     "reviewer2": ("test.reviewer2@example.com", "Test Reviewer 2", "REVIEWER"),
