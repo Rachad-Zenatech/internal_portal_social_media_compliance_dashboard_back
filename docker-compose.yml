@@ -29,6 +29,12 @@ services:
       AUTO_MIGRATE_SCHEMA: "true"
       WATCHFILES_FORCE_POLLING: "true"
     command: ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8009", "--reload", "--timeout-graceful-shutdown", "5"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8009/health/live', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
     volumes:
       - .:/app
       - social_media_backend_data:/app/.data
