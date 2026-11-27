@@ -207,11 +207,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `decorate` (def) L61
 - `_main` (def) L69
 
-## services/compliance/media/script_content.py (69 lines) - Keep published script copy separate from production directions when scoring.
+## services/compliance/media/script_content.py (74 lines) - Keep published script copy separate from production directions when scoring.
 - `_name` (def) L21
 - `_clean` (def) L25
 - `sections` (def) L29 - Read timed tables and explicitly labelled sections; unidentified wording stays review-only.
-- `published` (def) L67
+- `published` (def) L72
 
 ## services/compliance/media/script_export.py (96 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
 - `node` (def) L13

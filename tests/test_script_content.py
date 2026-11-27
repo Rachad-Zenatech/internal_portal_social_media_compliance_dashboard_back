@@ -46,3 +46,16 @@ def test_a_data_cell_named_voiceover_is_not_mistaken_for_a_header():
     parts = sections("| Time | Visuals | Voiceover | Supers |\n| 0:00 | Camera | A sentence | Voiceover |")
     assert parts["voiceover"] == "A sentence"
     assert parts["supers"] == "Voiceover"
+
+
+def test_shared_editor_beats_keep_published_copy_separate_from_production():
+    parts = sections("[0:00] Visual: Internal direction | Voiceover: Spoken claim | On-screen: SCREEN CLAIM\n[0:05] Visual: Other camera | Voiceover: Second claim | On-screen: SECOND CLAIM\nProduction notes: Internal ending")
+    assert published(parts) == "Spoken claim\nSecond claim\nSCREEN CLAIM\nSECOND CLAIM"
+    assert parts["visuals"] == "Internal direction\nOther camera"
+    assert parts["timing"] == "0:00\n0:05"
+    assert "Internal ending" in parts["details"]
+
+
+def test_legacy_voice_and_text_table_headers_keep_published_claims():
+    parts = sections("| Time | Visual | Voice | Text |\n| 0:00 | Camera | Spoken claim | SCREEN CLAIM |")
+    assert published(parts) == "Spoken claim\nSCREEN CLAIM"

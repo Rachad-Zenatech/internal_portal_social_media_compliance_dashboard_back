@@ -1,12 +1,12 @@
 """Keep published script copy separate from production directions when scoring."""
 import re
 
-VERSION = "script-voiceover-supers-1"
+VERSION = "script-voiceover-supers-sources-2"
 PUBLISHED = {"voiceover", "supers"}
 _ALIASES = {
     "voiceover": "voiceover", "voiceovervo": "voiceover", "vo": "voiceover",
-    "narration": "voiceover", "dialogue": "voiceover", "audio": "voiceover",
-    "supers": "supers", "super": "supers", "onscreentext": "supers",
+    "voice": "voiceover", "narration": "voiceover", "dialogue": "voiceover", "audio": "voiceover",
+    "text": "supers", "onscreen": "supers", "supers": "supers", "super": "supers", "onscreentext": "supers",
     "textonscreen": "supers", "screentext": "supers", "textoverlay": "supers",
     "supersonscreentext": "supers", "onscreentextsupers": "supers",
     "visual": "visuals", "visuals": "visuals", "visualfootage": "visuals",
@@ -46,6 +46,11 @@ def sections(text: str, title: str = "") -> dict[str, str]:
             for index, cell in enumerate(cells):
                 section = columns[index] if index < len(columns) else None
                 parts[section or "details"].append(cell)
+            continue
+        if beat := re.match(r"^\[([^\]]*)\]\s*Visual:\s*(.*?)\s*\|\s*Voiceover:\s*(.*?)\s*\|\s*On-screen:\s*(.*)$", _clean(stripped), re.I):
+            for key, value in zip(("timing", "visuals", "voiceover", "supers"), beat.groups()):
+                parts[key].append(value.strip())
+            columns, active = [], "details"
             continue
         columns = []
         cleaned = _clean(stripped)
