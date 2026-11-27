@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from postgresql_db.database import execute
 from services.compliance.evaluation.script_doc_sources import sources_for
 from services.compliance.media.script_sources import extract
+from services.compliance.media.script_content import VERSION as SCORING_VERSION
 
 CONTEXT_KEYS = ("platforms", "rule_sets", "brand_codes", "audiences", "region")
 
@@ -14,7 +15,7 @@ def inputs(doc: dict, text: str | None = None) -> dict:
     if isinstance(details, str):
         details = json.loads(details)
     body, _ = extract(doc.get("body_text", "") if text is None else text)
-    return {"text": " ".join(body.split()), "sources": sources_for(doc).strip(),
+    return {"scoring_policy": SCORING_VERSION, "text": " ".join(body.split()), "sources": sources_for(doc).strip(),
             "context": {"title": doc["title"], **{key: details.get(key) for key in CONTEXT_KEYS}}}
 
 

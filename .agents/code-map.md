@@ -89,12 +89,8 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__script_doc_compliance.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_details.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_pages.md | 1 | 2 KB |
-| .agents/code-map/services__compliance__evaluation__script_doc_pages.md | 1 | 2 KB |
-| .agents/code-map/services__compliance__evaluation__script_doc_pages.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_reads.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_realtime.md | 1 | 1 KB |
-| .agents/code-map/services__compliance__evaluation__script_doc_service.md | 1 | 2 KB |
-| .agents/code-map/services__compliance__evaluation__script_doc_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_sources.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_split.md | 1 | 1 KB |
@@ -108,6 +104,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__script_review_details.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_review_persistence.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_review_service.md | 1 | 5 KB |
+| .agents/code-map/services__compliance__evaluation__script_scoring.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_split.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_submission_content.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_submission_documents.md | 1 | 1 KB |
@@ -158,7 +155,7 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__visual_review.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_review_prompt.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__visual_video_frames.md | 1 | 1 KB |
-| .agents/code-map/services__compliance__media.md | 24 | 17 KB |
+| .agents/code-map/services__compliance__media.md | 25 | 18 KB |
 | .agents/code-map/services__compliance__sentiment.md | 14 | 9 KB |
 | .agents/code-map/services__compliance__submissions__analysis_progress_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__submissions__approval_path_service.md | 1 | 1 KB |

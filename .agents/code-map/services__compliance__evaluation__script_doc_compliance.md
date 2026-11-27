@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_doc_compliance.py (36 lines) - Keep the last per-script compliance result and identify changes to its inputs.
-- `inputs` (def) L12
-- `state` (def) L21
-- `save` (def) L28
+## services/compliance/evaluation/script_doc_compliance.py (37 lines) - Keep the last per-script compliance result and identify changes to its inputs.
+- `inputs` (def) L13
+- `state` (def) L22
+- `save` (def) L29

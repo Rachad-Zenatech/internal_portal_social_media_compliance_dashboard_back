@@ -26,7 +26,7 @@
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/compliance_service.py": {
-      "max_lines": 1505,
+      "max_lines": 1500,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
     },
     "services/compliance/evaluation/script_batch_service.py": {

@@ -68,3 +68,11 @@ def test_edit_during_check_is_outdated_instead_of_being_overwritten():
 
 def test_never_checked_script_has_no_score_or_rerun_warning():
     assert checks.state(document()) == {"latest_check": None, "compliance_stale": False}
+
+
+def test_an_old_scoring_policy_requires_one_fresh_check():
+    doc = document()
+    old_inputs = checks.inputs(doc)
+    del old_inputs["scoring_policy"]
+    result = {"score": 40, "checked_script_inputs": old_inputs}
+    assert checks.state({**doc, "latest_check": result})["compliance_stale"] is True

@@ -1,6 +1,7 @@
 """Script/video substantiation is opt-in through explicitly supplied or cited sources."""
 from services.compliance.evaluation import citation_finder, source_check_service
 from services.compliance.media import script_sources
+from services.compliance.media.script_content import published
 
 VERSION = "explicit-video-sources-2"
 
@@ -20,6 +21,10 @@ def applies(req):
 
 
 async def check_sources(req):
+    if req._script_sections is not None:
+        req = req.model_copy(update={"text": published(req._script_sections)})
+        if not req.text.strip():
+            return source_check_service.SourceCheckResult()
     if not applies(req):
         return source_check_service.SourceCheckResult()
     return await source_check_service.run(

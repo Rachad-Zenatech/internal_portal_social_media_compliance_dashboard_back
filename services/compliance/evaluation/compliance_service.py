@@ -1195,6 +1195,7 @@ def plain_text_lines(text: str) -> List[str]:
 
 async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckResponse:
     """Screen content with scoped rules, contextual judgments, source checks and review penalties."""
+    from .script_scoring import rule_findings, scoring_passage, score_findings, published_rule_ids
     req = req.model_copy(update={"text": branding.without_branding(req.text)})
     # Cashtags, hashtags, mentions and links, read before normalizing strips their symbols, and before the rules are
     # picked: a cashtag brings in the investor rules. CamelCase hashtags are added as words ("#CombatProven" ->
@@ -1206,6 +1207,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     signals = post_signals.extract(match_text)
     scope = check_scope(match_req, signals)
     rules = await applicable_rules(req)
+    scoreable_rules = await published_rule_ids(req)
     check_rule_capture.remember(rules, req)
     padded_text = f" {_normalize(chr(10).join([without_image_marks(match_text), *signals.hashtag_phrases]))} "
     hashtag_keys = signals.hashtag_keys
@@ -1219,10 +1221,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     contextual: List[Tuple[ComplianceViolation, ComplianceRule]] = []
     # Two rules can ask for the same disclaimer (e.g. Rules 4 and 13); a missing one is reported once.
     reported_disclaimers: set = set()
-    for rule in rules:
-        v = _evaluate_rule(rule, padded_text, hashtag_keys, disclaimer_padded)
-        if not v:
-            continue
+    for v, rule in rule_findings(req, rules, padded_text, hashtag_keys, disclaimer_padded, scoreable_rules):
         if v.missing_disclaimers:
             key = _normalize(v.missing_disclaimers[0])
             if v.kind == "MISSING_DISCLAIMER" and key in reported_disclaimers:
@@ -1280,18 +1279,14 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     for v in violations:
         if v.rule_id in financial_ids:
             continue
-        v.passage, v.context = _passage(match_text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])
+        v.passage, v.context = _passage(scoring_passage(req, v, match_text), v.flagged_terms, exceptions_of.get(v.rule_id) or [])
         if v.category == "Source Check" and v.flagged_terms:
             v.passage = v.flagged_terms[0]  # Keep each grounded claim distinct, including wrapped image text.
     from .evidence_reconciliation import run as review_with_evidence
     visual_checks = await review_with_evidence(req, rules, violations, contextual, source_result.checks, match_req=match_req)
     ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations) or any(c["status"] == "UNAVAILABLE" for c in visual_checks)
     violations[:] = [v for v in violations if is_visible(v) and not (v.flagged_terms and all(branding.is_branding(t) for t in v.flagged_terms))]
-    breaches = [v for v in violations if v.status == "VIOLATION"]
-    _count_overlaps_once(breaches, padded_text)
-    _count_extra_claims(breaches, rules, padded_text)
-    unsupported = _charge_unsupported_claims(violations)
-    to_check = _charge_review_findings(violations, rules)
+    breaches, unsupported, to_check = score_findings(req, violations, rules, padded_text, scoreable_rules)
     notes = compliance_check_result.check_notes(req, scope, signals, IMPLIED_BY, _READERS)
     response = compliance_check_result.build_response(
         scope, rules, violations, breaches, unsupported, to_check, signals,

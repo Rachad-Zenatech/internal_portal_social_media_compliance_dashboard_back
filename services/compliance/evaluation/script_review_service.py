@@ -49,7 +49,7 @@ from services.compliance.submissions.flag_review_service import MIN_APPROVAL_SCO
 from services.compliance.submissions import submission_service as subs
 from services.compliance.evaluation.script_queue_service import QUEUE_TABS as _QUEUE_TABS
 from services.compliance.evaluation.compliance_service import rulebook_version
-from services.compliance.evaluation.script_compliance_check import check_text
+from services.compliance.evaluation.script_compliance_check import check_text, SCORING_VERSION
 from services.shared.core.audit_service import log_audit_event
 
 logger = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ def still_valid(stored: Any, row: Dict[str, Any], text: str, rulebook: Optional[
     stored = subs._json(stored) or {}
     key = stored.get("key") or ""
     legacy_current = not key.startswith("media-v1:") and "media_edited_at" in row and subs.manual_check_service.content_is_current(row, stored)
-    if not stored.get("check") or (key != check_key(row, text) and not (legacy_current and not script_sources.split(text)[1])):
+    if not stored.get("check") or stored["check"].get("script_scoring_version") != SCORING_VERSION or (key != check_key(row, text) and not (legacy_current and not script_sources.split(text)[1])):
         return None
     if rulebook and stored.get("rulebook_version") != rulebook:
         return None
