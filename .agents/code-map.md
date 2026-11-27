@@ -186,6 +186,7 @@ to find the right file.
 | .agents/code-map/services__microsoft_graph.md | 2 | 1 KB |
 | .agents/code-map/services__notifications.md | 11 | 9 KB |
 | .agents/code-map/services__notifications__review_email.md | 7 | 2 KB |
+| .agents/code-map/services__shared.md | 1 | 1 KB |
 | .agents/code-map/services__shared__auth.md | 9 | 5 KB |
 | .agents/code-map/services__shared__core.md | 8 | 4 KB |
 | .agents/code-map/services__shared__storage.md | 1 | 1 KB |

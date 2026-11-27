@@ -455,6 +455,9 @@ cors_origins = [origin.strip() for origin in (os.getenv("CORS_ALLOWED_ORIGINS", 
 validate_production_web_config(_is_prod, cors_origins, os.getenv("FRONTEND_URL"))
 _cors_regex = None if _is_prod else r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$"
 
+from services.shared.auth.auth_service import AUTH_COOKIE_NAME
+from services.shared.cookie_origin_protection import CookieOriginProtection
+app.add_middleware(CookieOriginProtection, cookie_names={AUTH_COOKIE_NAME, "zenatech_access_token"}, allowed_origins=cors_origins, allowed_origin_regex=_cors_regex)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -464,7 +467,6 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["X-Request-ID"],
 )
-
 if __name__ == "__main__":
     mcp.run(
         transport="streamable-http",
