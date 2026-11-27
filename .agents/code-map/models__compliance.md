@@ -83,7 +83,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `FindingVerdict` (class) L60 - A reviewer's call on a finding, kept as a labelled example: the flag was right, or it was a false alarm.
 - `RuleFlagStats` (class) L74
 
-## models/compliance/image_provenance_model.py (15 lines) - Saved AI-image disclosure and whether the creator explicitly answered the question.
+## models/compliance/image_provenance_model.py (17 lines) - Saved AI-image disclosure and whether the creator explicitly answered the question.
 - `ImageProvenanceFields` (class) L6
 
 ## models/compliance/performance_model.py (119 lines) - Post performance: how published posts are doing on each platform, and whether the reaction is still positive.

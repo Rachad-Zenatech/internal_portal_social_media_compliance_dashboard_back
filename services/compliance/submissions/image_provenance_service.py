@@ -47,6 +47,12 @@ def update_fields(row, payload):
     return fields
 
 
+async def sync_faces(submission_id: UUID, payload: dict, user_id: UUID) -> None:
+    if isinstance(payload.get("face_employee_flags"), dict):
+        from services.compliance.media import face_recognition_service
+        await face_recognition_service.sync_employee_faces(submission_id, payload["face_employee_flags"], user_id)
+
+
 async def retry_image_read(submission_id: UUID, file_id: UUID, user_id: UUID) -> SubmissionFile:
     """Queue an image's OCR and anonymous face read again, including a stalled attempt."""
     from services.ai.observability import ai_usage_service

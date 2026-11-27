@@ -15,7 +15,12 @@ _MIN_BOX_PX = 24
 
 
 def detect_faces(image_bytes: bytes) -> Optional[List[List[int]]]:
-    """Detect faces locally with OpenCV YuNet; returns None if OpenCV/model is unavailable."""
+    """Detect faces locally with InsightFace first, falling back to OpenCV YuNet if unavailable."""
+    from services.compliance.media import face_recognition_service
+
+    recognized = face_recognition_service.detect_faces_and_embeddings(image_bytes)
+    if recognized is not None:
+        return recognized[0]
     if not image_bytes or not _MODEL_PATH.is_file():
         return None
     try:

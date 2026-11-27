@@ -4,9 +4,10 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/image_provenance_service.py (83 lines) - Require an explicit Yes/No disclosure for attached post images.
+## services/compliance/submissions/image_provenance_service.py (89 lines) - Require an explicit Yes/No disclosure for attached post images.
 - `is_confirmed` (def) L14
 - `missing` (def) L20
 - `update_fields` (def) L24
-- `retry_image_read` (def) L50 - Queue an image's OCR and anonymous face read again, including a stalled attempt.
-- `schedule_missing_images` (def) L71 - Queue face/text reads for attached images that haven't completed face detection yet.
+- `sync_faces` (def) L50
+- `retry_image_read` (def) L56 - Queue an image's OCR and anonymous face read again, including a stalled attempt.
+- `schedule_missing_images` (def) L77 - Queue face/text reads for attached images that haven't completed face detection yet.

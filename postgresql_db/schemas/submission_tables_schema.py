@@ -75,7 +75,21 @@ async def _create_core_records(conn) -> None:
                 ADD COLUMN IF NOT EXISTS people_in_images_detected BOOLEAN,
                 ADD COLUMN IF NOT EXISTS employee_in_images BOOLEAN NOT NULL DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS employee_in_images_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
-                ADD COLUMN IF NOT EXISTS face_employee_flags JSONB NOT NULL DEFAULT '{}'::jsonb;
+                ADD COLUMN IF NOT EXISTS face_employee_flags JSONB NOT NULL DEFAULT '{}'::jsonb,
+                ADD COLUMN IF NOT EXISTS face_auto_matched JSONB NOT NULL DEFAULT '{}'::jsonb,
+                ADD COLUMN IF NOT EXISTS face_same_person JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+            CREATE TABLE IF NOT EXISTS employee_face_embeddings (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                submission_id UUID REFERENCES content_submissions(id) ON DELETE SET NULL,
+                file_id UUID NOT NULL,
+                face_index INTEGER NOT NULL,
+                embedding JSONB NOT NULL,
+                source_box JSONB,
+                created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE (file_id, face_index)
+            );
 
             -- Brands each user works on. A user with none listed (and every super admin) works on all brands.
     """)

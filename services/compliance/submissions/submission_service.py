@@ -444,7 +444,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         context_picks=_context_picks(row), ai_generated_images=row.get("ai_generated_images", False), **video_footage_service.response_fields(row),
         ai_generated_images_confirmed=image_provenance_service.is_confirmed(row),
         people_in_images=row.get("people_in_images", False), people_in_images_confirmed=bool(row.get("people_in_images_confirmed")),
-        people_in_images_detected=row.get("people_in_images_detected"), employee_in_images=row.get("employee_in_images", False), employee_in_images_confirmed=bool(row.get("employee_in_images_confirmed")), face_employee_flags=_json(row.get("face_employee_flags")) or {},
+        people_in_images_detected=row.get("people_in_images_detected"), employee_in_images=row.get("employee_in_images", False), employee_in_images_confirmed=bool(row.get("employee_in_images_confirmed")), face_employee_flags=_json(row.get("face_employee_flags")) or {}, face_auto_matched=_json(row.get("face_auto_matched")) or {}, face_same_person=_json(row.get("face_same_person")) or {},
         platform_captions=_platform_captions(row),
         rule_sets=list(row["rule_sets"] or []),
         source_links=list(row.get("source_links") or []), source_link_checks=_json(row.get("source_link_checks")) or {},
@@ -739,10 +739,8 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
                 )
     except (asyncpg.exceptions.LockNotAvailableError, asyncio.TimeoutError, TimeoutError):
         logger.warning("Draft save timed out waiting on the database", extra={"submission_id": str(submission_id)})
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="The draft is busy (another save or upload is still running). Try again in a moment.",
-        )
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="The draft is busy (another save or upload is still running). Try again in a moment.")
+    await image_provenance_service.sync_faces(submission_id, payload, user_id)
     return await get_submission(submission_id, user_id)
 
 

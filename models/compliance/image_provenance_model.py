@@ -1,5 +1,5 @@
 """Saved AI-image disclosure and whether the creator explicitly answered the question."""
-from typing import Dict
+from typing import Dict, List
 from pydantic import BaseModel, Field
 
 
@@ -12,3 +12,5 @@ class ImageProvenanceFields(BaseModel):
     employee_in_images: bool = False
     employee_in_images_confirmed: bool = False
     face_employee_flags: Dict[str, bool] = Field(default_factory=dict)
+    face_auto_matched: Dict[str, float] = Field(default_factory=dict)
+    face_same_person: Dict[str, List[str]] = Field(default_factory=dict)

@@ -31,8 +31,10 @@ motor>=3.7.0
 # Local Tesseract OCR (matches admin portal; falls back to Gemini Vision if tesseract binary is absent)
 pillow>=10.0.0
 pytesseract>=0.3.13
-# Local CPU YuNet face detection (falls back to Gemini Vision if absent)
+# Local CPU face detection & recognition (InsightFace ArcFace buffalo_sc + ONNX Runtime; YuNet fallback)
 opencv-python-headless>=4.10.0
+insightface>=0.7.3
+onnxruntime>=1.18.0
 
 # Event-Driven Messaging & Presence
 paho-mqtt>=2.1.0
