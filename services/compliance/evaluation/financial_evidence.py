@@ -40,6 +40,28 @@ def _supported_spans(body, where, checks):
                                 for claim in check.claims if claim.verdict == "SUPPORTED" and claim.where == where])
 
 
+def passages(text):
+    """Ground complete money assertions, retaining full OCR context for source comparison."""
+    from .source_assertions import grounded
+    found = []
+    capitals = re.compile(r"(?<!\w)[A-Z0-9][A-Z0-9\s$.,:&%+()/'-]*[A-Z0-9](?!\w)")
+    for image, body in enumerate(IMAGE_MARK.split(text)):
+        where = "image" if image else "caption"
+        for hit in claim_checks._MONEY.finditer(body.lower()):
+            start, end = next((span for span in _sentences(body) if span[0] <= hit.start() < span[1]), (0, len(body)))
+            if image:
+                headlines = [(m.start(), m.end()) for m in capitals.finditer(body)
+                             if m.start() <= hit.start() and m.end() >= hit.start() + len(hit.group().rstrip())
+                             and len(re.findall(r"[A-Z]{2,}", m.group())) >= 3]
+                if headlines:
+                    start, end = min(headlines, key=lambda span: span[1] - span[0])
+            for item in grounded(text, body[start:end].strip(), where):
+                item["context"] = body.strip()
+                if item not in found:
+                    found.append(item)
+    return found
+
+
 def expand(violations, checks, text):
     """Split the built-in money flag by grounded assertion and retain uncovered financial occurrences.
 
@@ -50,6 +72,7 @@ def expand(violations, checks, text):
     if prototype is None:
         return set()
     groups, seen = {}, False
+    assertions = passages(text)
     addressed_quotes = [quote for v in violations if v.category == "Source Check" and v.rule_number == "Rule 18"
                         and v.status in {"VIOLATION", "NEEDS_REVIEW", "EVIDENCE_REQUIRED"} for quote in v.flagged_terms]
     for image, body in enumerate(IMAGE_MARK.split(text)):
@@ -57,11 +80,13 @@ def expand(violations, checks, text):
         supported = _supported_spans(body, where, checks)
         addressed = _excerpt_spans(body, addressed_quotes)
         sentences = list(_sentences(body))
+        grounded_spans = _excerpt_spans(body, [item["claim"] for item in assertions if item["where"] == where])
         for hit in claim_checks._MONEY.finditer(body.lower()):
             seen = True
-            if any(a <= hit.start() and z >= hit.end() for a, z in addressed):
+            if any(a <= hit.start() and z >= hit.start() + len(hit.group().rstrip()) for a, z in addressed):
                 continue  # The source checker already owns this assertion and its deduction.
-            covering = [(a, z) for a, z in supported if a <= hit.start() and z >= hit.end()]
+            covering = [(a, z) for a, z in supported if a <= hit.start() and z >= hit.start() + len(hit.group().rstrip())]
+            covering = covering or [(a, z) for a, z in grounded_spans if a <= hit.start() and z >= hit.start() + len(hit.group().rstrip())]
             start, end = min(covering, key=lambda span: span[1] - span[0]) if covering else next(
                 (span for span in sentences if span[0] <= hit.start() < span[1]), (0, len(body)))
             passage = " ".join(body[start:end].split())

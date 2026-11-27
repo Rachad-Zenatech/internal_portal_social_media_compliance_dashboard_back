@@ -88,3 +88,21 @@ class FinancialEvidenceTests(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].category, "Source Check")
         self.assertEqual(findings[0].penalty, 5)
+
+    def test_merged_ocr_money_headline_retains_qualifier_and_original_context(self):
+        heading = "8 PROJECTS ACROSS 3 STATES REPRESENTING OVER US$500,000"
+        ocr = "as a service government " + heading + " our drone strategy"
+        post = "Video 1\nText in image 1:\n" + ocr
+        inventory = financial_evidence.passages(post)
+        self.assertEqual([item["claim"] for item in inventory], [heading])
+        self.assertEqual(inventory[0]["context"], ocr)
+        self.assertEqual(post[inventory[0]["post_start"]:inventory[0]["post_end"]], heading)
+        self.assertEqual(check(post, [])[0].passage, heading)
+        self.assertEqual(check(post, [source(heading, where="image")])[0].status, "CLEARED")
+        self.assertEqual(check(post, [source(heading.replace("OVER ", ""), where="image")])[0].status, "EVIDENCE_REQUIRED")
+
+    def test_financial_seed_preserves_negation_and_different_amounts(self):
+        text = "Revenue is not $500,000; the $503,000 estimate is for different projects."
+        inventory = financial_evidence.passages(text)
+        self.assertEqual(len(inventory), 1)
+        self.assertEqual(inventory[0]["claim"], text)
