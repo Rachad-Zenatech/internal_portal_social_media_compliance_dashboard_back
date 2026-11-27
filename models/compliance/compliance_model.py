@@ -124,6 +124,7 @@ class ProvidedSource(BaseModel):
 
 class ComplianceCheckRequest(BaseModel):
     _visual_media: list[dict] = PrivateAttr(default_factory=list)
+    _script_sections: Optional[dict[str, str]] = PrivateAttr(default=None)
     text: str = Field(..., description="Script, caption, claim, transcript, or video description to evaluate")
     video_title: Optional[str] = None
     content_type: Optional[str] = Field("video_caption", description="Type: video_caption, script, social_post, imagery_concept")
@@ -212,6 +213,8 @@ class ImageFindingRegion(BaseModel):
 
 
 class ComplianceViolation(BaseModel):
+    script_review_only: bool = False
+    script_sections: List[str] = Field(default_factory=list)
     visual_evidence: bool = False
     rule_id: UUID
     rule_number: str

@@ -8,6 +8,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 from models.compliance.submission_steps_model import StepState, SubmissionSteps
 from models.compliance.image_provenance_model import ImageProvenanceFields
+from models.compliance.video_footage_model import VideoFootageFields
+from models.compliance.submission_event_model import SubmissionEvent
 from models.compliance.review_score_model import ReviewScoreFields
 from models.compliance.post_approval_model import PostApprovalSuggestionFields
 from models.compliance.source_link_model import SourceLinksMixin, SourceLinksUpdateMixin
@@ -253,7 +255,7 @@ class SubmissionSummary(PostApprovalSuggestionFields):
     steps: Optional[SubmissionSteps] = None
 
 
-class Submission(SourceLinksMixin, ImageProvenanceFields, ReviewScoreFields, PostApprovalSuggestionFields):
+class Submission(SourceLinksMixin, ImageProvenanceFields, VideoFootageFields, ReviewScoreFields, PostApprovalSuggestionFields):
     id: UUID
     reference_code: str
     title: str
@@ -368,20 +370,15 @@ class ReviewDecisionRequest(BaseModel):
     decision: ReviewDecisionType
     # Required when requesting changes (unless there are open comments on this version); shown to the creator.
     notes: Optional[str] = Field(None, max_length=5000)
-    # Request changes, but let the creator publish the corrected version without resubmitting for review.
+    # Return approved content to the creator for final edits and publishing after fresh checks.
     publish_after_changes: bool = False
 
-    @model_validator(mode="after")
-    def publish_after_changes_only_for_changes(self):
-        if self.publish_after_changes and self.decision != "REQUEST_CHANGES":
-            raise ValueError("publish_after_changes is only valid when requesting changes")
-        return self
     # Approve: schedule on the calendar for this time (defaults to the submission's planned publish date)...
     publish_at: Optional[datetime] = None
     # ...or approve to publish straight away.
     publish_now: bool = False
-    # Approve: the rule numbers the reviewer confirmed by hand. Must cover every rule the automated check lists
-    # as needing a person (image editing, image rights, ...), since nothing else checks those.
+    # Optional explicit confirmations from older clients. Manual-review rules are informational,
+    # so approval does not require an individual confirmation for each rule.
     confirmed_rules: List[str] = Field(default_factory=list, max_length=100)
     # Request changes: working days the creator has to resubmit (1, 2, 3 or 5); the default window when left out.
     # Pulled in if the planned publish time is closer.
@@ -496,15 +493,6 @@ class ReviewComment(BaseModel):
     reply_to_body: Optional[str] = None
 
 
-class SubmissionEvent(BaseModel):
-    id: int
-    event_type: str
-    message: str
-    data: Optional[Dict[str, Any]] = None
-    actor_name: Optional[str] = None
-    created_at: datetime
-
-
 class SubmissionHistory(BaseModel):
     versions: List[SubmissionVersion]
     review_jobs: List[ReviewJob]
@@ -518,6 +506,7 @@ class ReviewQueueItem(ReviewScoreFields, PostApprovalSuggestionFields):
     title: str
     content_type: Optional[str] = None
     status: str
+    publish_after_changes: bool = False
     platforms: List[str] = Field(default_factory=list)
     account: Optional[AccountOption] = None
     caption_text: Optional[str] = None
@@ -557,7 +546,6 @@ class ReviewQueueItem(ReviewScoreFields, PostApprovalSuggestionFields):
     reviewer_ids: List[UUID] = Field(default_factory=list)
     # Approved content: the viewer is a reviewer who may reschedule it or reopen it for changes.
     can_manage_approval: bool = False
-    # When the latest version was approved or sent back.
     decided_at: Optional[datetime] = None
     # Video posts with a script stage: where the script is, so the post can link to it. None otherwise.
     script_status: Optional[str] = None

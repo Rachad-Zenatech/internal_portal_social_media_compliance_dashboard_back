@@ -4,5 +4,5 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_compliance_check.py (23 lines) - Script compliance checks and source evidence.
-- `check_text` (def) L12 - Check the planned video wording against its scoped rules and source evidence.
+## services/compliance/evaluation/script_compliance_check.py (29 lines) - Script compliance checks and source evidence.
+- `check_text` (def) L13 - Check the planned video wording against its scoped rules and source evidence.

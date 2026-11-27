@@ -40,6 +40,11 @@ async def _call(method: str, path: str, scopes: List[str], **kwargs: Any) -> Dic
     try:
         return await shared.call(method, path, scopes, **kwargs)
     except shared.SharedScriptError as e:
+        if e.status_code == 401:
+            raise HTTPException(
+                status_code=502,
+                detail="The shared script service could not authenticate this portal. Please retry or contact an administrator.",
+            ) from e
         # The shared server's own refusals (403, 409, 422...) are the person's to read; its being down is a 502.
         status = e.status_code if 400 <= e.status_code < 500 else 502
         raise HTTPException(status_code=status, detail=str(e)) from e

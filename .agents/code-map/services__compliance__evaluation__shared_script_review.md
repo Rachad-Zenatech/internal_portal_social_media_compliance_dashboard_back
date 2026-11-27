@@ -4,12 +4,12 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/shared_script_review.py (105 lines) - A script page's review, handed to the Share Document server.
+## services/compliance/evaluation/shared_script_review.py (110 lines) - A script page's review, handed to the Share Document server.
 - `shared_id` (def) L24 - The page's shared document, when the shared editor is on and the page has one.
 - `_email` (def) L29
 - `_emails` (def) L34
 - `_call` (def) L39
-- `body` (def) L48 - (html, text) of the script as the shared editor holds it now, for the page's sending, or None for a page without one.
-- `send` (def) L58 - Invite the people picked (a content reviewer if they hold the review permission, else a suggesting reviewer, with the
-- `act` (def) L75 - One move of the review (check_in, withdraw, finalize, decide) as this person.
-- `editor_session` (def) L83 - What the page needs to show the shared editor for this person: where it is, and a short-lived sign-in for it.
+- `body` (def) L53 - (html, text) of the script as the shared editor holds it now, for the page's sending, or None for a page without one.
+- `send` (def) L63 - Invite the people picked (a content reviewer if they hold the review permission, else a suggesting reviewer, with the
+- `act` (def) L80 - One move of the review (check_in, withdraw, finalize, decide) as this person.
+- `editor_session` (def) L88 - What the page needs to show the shared editor for this person: where it is, and a short-lived sign-in for it.

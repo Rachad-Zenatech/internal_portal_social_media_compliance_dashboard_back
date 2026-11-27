@@ -3,6 +3,7 @@ Rule CRUD and rulebook screening of captions, scripts and transcripts.
 """
 
 from services.compliance.evaluation.finding_evidence import highlight_terms, VERSION as HIGHLIGHT_VERSION
+from services.compliance.evaluation.finding_visibility import is_visible
 import asyncio
 import contextvars
 import hashlib
@@ -40,7 +41,7 @@ from models.compliance.submission_model import AUDIENCES, PLATFORMS, REGIONS, RU
 from postgresql_db.database import fetch_all, fetch_one, get_pool
 from services.ai.core import vector_store_service as store
 from services.ai.core.gemini_service import generate_content_with_fallback
-from services.compliance.evaluation import citation_finder, claim_checks, synthetic_media_disclosure, defense_disclaimer, army_context_review, visual_review, branding
+from services.compliance.evaluation import citation_finder, claim_checks, defense_disclaimer, army_context_review, visual_review, branding
 from services.compliance.evaluation import context_evaluator, rule_set_policy, rule18_policy, rule_scope_policy
 from services.compliance.analytics import post_signals
 from services.compliance.evaluation import reference_index_service
@@ -76,7 +77,6 @@ AI_CHECK_CACHE_TTL = int(os.getenv("COMPLIANCE_AI_CACHE_TTL_SECONDS", "900"))
 _ai_check_cache = AsyncInMemoryCache(maxsize=500)
 _gemini_client: Optional[Any] = None
 
-
 def _get_gemini_client() -> Optional[Any]:
     global _gemini_client
     if _gemini_client is None:
@@ -84,16 +84,13 @@ def _get_gemini_client() -> Optional[Any]:
         _gemini_client = get_ai_client()
     return _gemini_client
 
-
 # Set when a step that needs the AI could not run because the AI isn't working (no key, key refused, quota, outage), so
 # the check can say its result is incomplete instead of looking like a clean pass. Read after the check's steps ran.
 _ai_incomplete: contextvars.ContextVar[bool] = contextvars.ContextVar("compliance_ai_incomplete", default=False)
 
-
 def _ai_switched_off() -> bool:
     """The AI meaning check was turned off on purpose (not a failure)."""
     return os.getenv("COMPLIANCE_AI_VIABILITY_ENABLED", "true").strip().lower() in {"0", "false", "no", "off"}
-
 
 def _ai_viability_enabled() -> bool:
     from services.ai.core.bedrock_service import has_ai_key
@@ -1198,6 +1195,7 @@ def plain_text_lines(text: str) -> List[str]:
 
 async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckResponse:
     """Screen content with scoped rules, contextual judgments, source checks and review penalties."""
+    from .script_scoring import rule_findings, scoring_passage, score_findings, published_rule_ids
     req = req.model_copy(update={"text": branding.without_branding(req.text)})
     # Cashtags, hashtags, mentions and links, read before normalizing strips their symbols, and before the rules are
     # picked: a cashtag brings in the investor rules. CamelCase hashtags are added as words ("#CombatProven" ->
@@ -1209,6 +1207,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     signals = post_signals.extract(match_text)
     scope = check_scope(match_req, signals)
     rules = await applicable_rules(req)
+    scoreable_rules = await published_rule_ids(req)
     check_rule_capture.remember(rules, req)
     padded_text = f" {_normalize(chr(10).join([without_image_marks(match_text), *signals.hashtag_phrases]))} "
     hashtag_keys = signals.hashtag_keys
@@ -1222,10 +1221,7 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
     contextual: List[Tuple[ComplianceViolation, ComplianceRule]] = []
     # Two rules can ask for the same disclaimer (e.g. Rules 4 and 13); a missing one is reported once.
     reported_disclaimers: set = set()
-    for rule in rules:
-        v = _evaluate_rule(rule, padded_text, hashtag_keys, disclaimer_padded)
-        if not v:
-            continue
+    for v, rule in rule_findings(req, rules, padded_text, hashtag_keys, disclaimer_padded, scoreable_rules):
         if v.missing_disclaimers:
             key = _normalize(v.missing_disclaimers[0])
             if v.kind == "MISSING_DISCLAIMER" and key in reported_disclaimers:
@@ -1235,8 +1231,6 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         if rule.evaluation_mode == "CONTEXT":
             contextual.append((v, rule))
 
-    # Built-in claim checks catch what exact phrases miss (money figures, forward-looking results, unnamed
-    # customers...). A forward-looking claim the rulebook already reported as missing its safe harbor counts once.
     safe_harbor_reported = any(
         v.kind == "MISSING_DISCLAIMER" and any("forward looking" in _normalize(d) for d in v.missing_disclaimers)
         for v in violations
@@ -1268,39 +1262,31 @@ async def check_compliance(req: ComplianceCheckRequest) -> ComplianceCheckRespon
         if not (endorsement_reported and f.rule_id == post_signals.GOVERNMENT_REFERENCE_ID)
     )
 
-    # Rules the wording missed but the post matches in meaning (vector store): things to check, never violations.
-    # Claim checks carry their rule's number but don't stand in for the rule, so they don't take it off the list.
     found = {v.rule_number for v in violations if v.rule_id not in claim_checks.CHECK_IDS} | {r.rule_number for r in rules if army_context_review.applies(r, req.text)}
     _ai_incomplete.set(False)
     violations.extend(await _semantic_findings(match_req, rules, found, padded_text, disclaimer_padded))
 
     semantic_incomplete = _ai_incomplete.get()
-    source_result = await rule18_policy.check_sources(req)
+    from .script_scoring import verify_script_sources as verify_evidence
+    source_result, source_findings = await verify_evidence(req, violations, rules)
     if source_result.ai_failed:
         _ai_incomplete.set(True)
-    violations.extend(source_check_service.findings(source_result.checks, failed=getattr(source_result, "failed_claims", ())))
-    violations.extend(getattr(source_result, "unbacked", []))
-    violations.extend(source_post_checks.unsourced_image_findings(req.text, source_result.checks))
+    violations.extend(source_findings)
 
-    # Contextual matches are candidates until the evaluator has read their framing.
+    from .financial_evidence import expand
+    financial_ids = expand(violations, source_result.checks, match_text)
     exceptions_of = {r.id: r.exception_terms for r in rules}
     for v in violations:
-        v.passage, v.context = _passage(match_text, v.flagged_terms, exceptions_of.get(v.rule_id) or [])
+        if v.rule_id in financial_ids:
+            continue
+        v.passage, v.context = _passage(scoring_passage(req, v, match_text), v.flagged_terms, exceptions_of.get(v.rule_id) or [])
         if v.category == "Source Check" and v.flagged_terms:
             v.passage = v.flagged_terms[0]  # Keep each grounded claim distinct, including wrapped image text.
-    candidates = [context_evaluator.Candidate(v, rule, v.passage or "", v.context or "") for v, rule in contextual]
-    army_context_review.include(req, rules, violations, candidates)
-    await context_evaluator.evaluate(candidates, req.text, brand=req.brand_code)
-    source_check_service.clear_supported(violations, source_result.checks)
-    visual_checks = await visual_review.review(req, rules, violations)
+    from .evidence_reconciliation import run as review_with_evidence
+    visual_checks = await review_with_evidence(req, rules, violations, contextual, source_result.checks, match_req=match_req)
     ai_unavailable = _ai_incomplete.get() or any(v.evaluation and v.evaluation.source == "UNAVAILABLE" for v in violations) or any(c["status"] == "UNAVAILABLE" for c in visual_checks)
-    synthetic_media_disclosure.ensure_review(match_req, rules, violations)
-    violations[:] = [v for v in violations if not (v.flagged_terms and all(branding.is_branding(t) for t in v.flagged_terms))]
-    breaches = [v for v in violations if v.status == "VIOLATION"]
-    _count_overlaps_once(breaches, padded_text)
-    _count_extra_claims(breaches, rules, padded_text)
-    unsupported = _charge_unsupported_claims(violations)
-    to_check = _charge_review_findings(violations, rules)
+    violations[:] = [v for v in violations if is_visible(v) and not (v.flagged_terms and all(branding.is_branding(t) for t in v.flagged_terms))]
+    breaches, unsupported, to_check = score_findings(req, violations, rules, padded_text, scoreable_rules)
     notes = compliance_check_result.check_notes(req, scope, signals, IMPLIED_BY, _READERS)
     response = compliance_check_result.build_response(
         scope, rules, violations, breaches, unsupported, to_check, signals,
@@ -1440,10 +1426,11 @@ async def rulebook_version() -> Optional[str]:
     cached = await rules_cache.get("version")
     if cached is not None:
         return cached
+    from services.compliance.media.image_text_service import VERSION as IMAGE_TEXT_VERSION
     generation = rules_cache.generation
     row = await fetch_one("SELECT max(greatest(updated_at, coalesce(deleted_at, updated_at))) AS v FROM compliance_rules")
     rules = row["v"].isoformat() if row and row["v"] else "none"
-    version = f"{rules}|{claim_checks.VERSION}|{post_signals.VERSION}|{SCOPE_VERSION}|{context_evaluator.PROMPT_VERSION}|{HIGHLIGHT_VERSION}|{source_check_service.VERSION}|{rule18_policy.VERSION}|{visual_review.PROMPT_VERSION}"
+    version = f"{rules}|{claim_checks.VERSION}|{post_signals.VERSION}|{SCOPE_VERSION}|{context_evaluator.PROMPT_VERSION}|{HIGHLIGHT_VERSION}|{source_check_service.VERSION}|{rule18_policy.VERSION}|{visual_review.PROMPT_VERSION}|{IMAGE_TEXT_VERSION}"
     await rules_cache.set_if_unchanged("version", version, generation, RULES_CACHE_TTL)
     return version
 

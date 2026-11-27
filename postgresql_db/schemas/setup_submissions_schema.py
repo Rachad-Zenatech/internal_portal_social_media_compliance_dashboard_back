@@ -12,6 +12,7 @@ from postgresql_db.schemas.creator_flag_dismissal_requests_schema import ensure_
 from postgresql_db.schemas.check_snapshots_schema import ensure_check_snapshots
 from postgresql_db.schemas.setup_source_links_schema import ensure_source_links_column
 from postgresql_db.schemas.setup_ai_usage_schema import ensure_ai_usage_events
+from postgresql_db.schemas.video_footage_schema import ensure_video_footage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ async def setup():
     async with pool.acquire() as conn:
         logger.info("Setting up content submission schema...")
         await setup_submission_tables(conn)
+        await ensure_video_footage(conn)
         await ensure_ai_usage_events(conn)
         await ensure_creator_flag_dismissal_requests(conn)
         await ensure_check_snapshots(conn)

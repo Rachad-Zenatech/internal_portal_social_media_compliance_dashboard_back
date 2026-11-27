@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/submissions/revision_steps.py (48 lines) - Revision progress; previous checks remain valid until the media changes.
+## services/compliance/submissions/revision_steps.py (56 lines) - Revision progress; previous checks remain valid until the media changes.
 - `for_submissions` (def) L6
 - `compute` (def) L20
-    - `checked` (def) L26
+    - `checked` (def) L29

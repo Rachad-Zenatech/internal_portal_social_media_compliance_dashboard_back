@@ -4,5 +4,5 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_submission_sync.py (53 lines) - Mirror canonical script-document review back to its original Create Post submission.
-- `sync_document` (def) L10
+## services/compliance/evaluation/script_submission_sync.py (56 lines) - Mirror canonical script-document review back to its original Create Post submission.
+- `sync_document` (def) L11

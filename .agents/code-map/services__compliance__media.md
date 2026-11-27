@@ -50,7 +50,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_check` (def) L198
 - `suggest` (def) L220
 
-## services/compliance/media/document_layout.py (435 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
+## services/compliance/media/document_layout.py (448 lines) - Document Layout Turns a script's .docx or PDF into text that keeps its structure, so it reads like the original when it's shown.
 - `page_marker` (def) L39
 - `_format_runs` (def) L43 - Runs of (text, bold) as one line, each bold stretch wrapped in ** (spacing kept outside the marks).
 - `_cell` (def) L62
@@ -64,25 +64,26 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `paragraph` (def) L144
     - `emit` (def) L160
     - `break_page` (def) L168
-    - `table` (def) L175
-    - `block` (def) L186
-- `docx_to_text` (def) L196 - A .docx with its headings, bold wording, tables and page breaks marked (see the module's notes).
-- `_span_bold` (def) L209
-- `_body_size` (def) L213 - The most common text size, by characters: what the body is set in.
-- `_centre_in` (def) L224
-- `_inside` (def) L229
-- `_cell_text` (def) L233 - The words inside a box, read from the page (so the spacing comes out right); all bold wraps them in **.
-- `_table_rows` (def) L245 - A table as marked rows.
-- `_table_rows_by_cells` (def) L267 - The fallback for tables without a clear first column: find_tables' own rows, empty columns dropped and a row
-- `_join_cells` (def) L286 - Two halves of one cell.
-- `pdf_to_text` (def) L298 - A digital PDF with its headings, bold wording, tables and pages marked, or None when it has no text layer
-- `_line_key` (def) L336 - A line with its digits blanked, so "Page 3" and "Page 4" read as the same running header.
-- `_line_text` (def) L341
-- `_repeated_lines` (def) L345 - Lines that head or foot most pages (a running title, "Page 3"): shown as page breaks already, so left out.
-- `_style` (def) L356 - The size and colour of a line's last words, which is what its text is set in after any bold label.
-- `_starts_item` (def) L366 - A line that begins its own paragraph however wide the one before it was: a label (written with ** in the file),
-- `_block_lines` (def) L372 - A text block as paragraphs: its visual lines joined, except where the style changes or a short line ends one.
-- `plain_text` (def) L418 - The wording alone: page marks dropped, headings, bold and italics unmarked, list markers dropped, table cells
+    - `source_cell` (def) L175 - Keep each citation's display text and hyperlink targets together in one cell.
+    - `table` (def) L187
+    - `block` (def) L199
+- `docx_to_text` (def) L209 - A .docx with its headings, bold wording, tables and page breaks marked (see the module's notes).
+- `_span_bold` (def) L222
+- `_body_size` (def) L226 - The most common text size, by characters: what the body is set in.
+- `_centre_in` (def) L237
+- `_inside` (def) L242
+- `_cell_text` (def) L246 - The words inside a box, read from the page (so the spacing comes out right); all bold wraps them in **.
+- `_table_rows` (def) L258 - A table as marked rows.
+- `_table_rows_by_cells` (def) L280 - The fallback for tables without a clear first column: find_tables' own rows, empty columns dropped and a row
+- `_join_cells` (def) L299 - Two halves of one cell.
+- `pdf_to_text` (def) L311 - A digital PDF with its headings, bold wording, tables and pages marked, or None when it has no text layer
+- `_line_key` (def) L349 - A line with its digits blanked, so "Page 3" and "Page 4" read as the same running header.
+- `_line_text` (def) L354
+- `_repeated_lines` (def) L358 - Lines that head or foot most pages (a running title, "Page 3"): shown as page breaks already, so left out.
+- `_style` (def) L369 - The size and colour of a line's last words, which is what its text is set in after any bold label.
+- `_starts_item` (def) L379 - A line that begins its own paragraph however wide the one before it was: a label (written with ** in the file),
+- `_block_lines` (def) L385 - A text block as paragraphs: its visual lines joined, except where the style changes or a short line ends one.
+- `plain_text` (def) L431 - The wording alone: page marks dropped, headings, bold and italics unmarked, list markers dropped, table cells
 
 ## services/compliance/media/document_text_service.py (245 lines) - Document Text Service Reads the text of a submission's script, and of a blog's article file, once per file and in the background, so the ...
 - `UnreadableDocument` (class) L58 - A document we can't read, with a message the creator can act on.
@@ -121,15 +122,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `build` (def) L120 - The library for one post.
     - `keep` (def) L125
 
-## services/compliance/media/html_layout.py (123 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
+## services/compliance/media/html_layout.py (127 lines) - HTML Layout Converts Share Document HTML (tables, headings, lists, bold) into document_layout's light-mark plain text so approved scripts...
 - `_HtmlLayoutParser` (class) L14 - Converts rich HTML (tables, headings, lists, bold) into document_layout's light-mark plain text.
     - `__init__` (def) L17
     - `_flush_runs` (def) L29
     - `flush_block` (def) L34
     - `handle_starttag` (def) L48
     - `handle_endtag` (def) L79
-    - `handle_data` (def) L109
-- `html_to_text` (def) L114 - Turn Share Document HTML into light-mark text so tables, headings, lists and bold keep their layout.
+    - `handle_data` (def) L113
+- `html_to_text` (def) L118 - Turn Share Document HTML into light-mark text so tables, headings, lists and bold keep their layout.
 
 ## services/compliance/media/html_sanitizer.py (84 lines) - Caption HTML sanitizer: keeps the formatting the caption editor can produce and drops everything else.
 - `_safe_href` (def) L20
@@ -168,25 +169,32 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `locate` (def) L55
     - `read` (def) L62
 
+## services/compliance/media/image_small_text.py (119 lines) - Recover additional literal text from overlapping enlarged sections of the original upload.
+- `DetailRead` (class) L28
+- `normalize` (def) L33
+- `merge` (def) L37 - Only append literal, confident, localized additions; never replace full-image wording.
+- `focused_sections` (def) L65 - Magnify located text-bearing areas, retaining surrounding pixels for a literal read.
+- `read` (def) L92
+
 ## services/compliance/media/image_text_response.py (29 lines) - Read complete image-text JSON, with one bounded retry for truncated or malformed output.
 - `parse` (def) L6
 - `read` (def) L20
 
-## services/compliance/media/image_text_service.py (295 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
-- `is_image_file` (def) L68
-- `_get_client` (def) L72
-- `_claim` (def) L82 - Atomically mark an image as being read unless another worker already is.
-- `_save` (def) L98
-- `_generate` (def) L112 - Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
-- `_clean` (def) L148
-- `_has_ai_metadata` (def) L153 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
-- `_face_boxes` (def) L170 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
-- `read_file` (def) L188 - Read one image's text and save it, then re-check its submission if it's still open.
-- `retry_failed_images` (def) L233 - An explicit Check again permits one new read; background checks do not reset failures.
-- `_run` (def) L244
-- `schedule` (def) L251 - Read each image in the background, unless this process is already reading it.
-- `resume_interrupted` (def) L262 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
-- `schedule_missing` (def) L279 - Read the images among these that were never read, or whose read was abandoned (e.g.
+## services/compliance/media/image_text_service.py (310 lines) - Image Text Service Reads the text shown in a submission's images (a headline on a graphic, figures, labels, fine print) with Gemini, once...
+- `is_image_file` (def) L79
+- `_get_client` (def) L83
+- `_claim` (def) L93 - Atomically mark an image as being read unless another worker already is.
+- `_save` (def) L109
+- `_generate` (def) L125 - Try the supplied model chain, or OCR defaults; unavailable models fall through in order.
+- `_clean` (def) L161
+- `_has_ai_metadata` (def) L166 - Check embedded image metadata/EXIF/PNG text chunks for common AI generator signatures.
+- `_face_boxes` (def) L183 - Keep only valid, bounded face rectangles; these are anonymous locations, never identities.
+- `read_file` (def) L201 - Read one image's text and save it, then re-check its submission if it's still open.
+- `retry_failed_images` (def) L247 - Explicit checks refresh failed and older-version reads; background polling does not repeat them.
+- `_run` (def) L259
+- `schedule` (def) L266 - Read each image in the background, unless this process is already reading it.
+- `resume_interrupted` (def) L277 - A read runs inside the server, so a restart leaves its image marked "reading" with nothing doing it.
+- `schedule_missing` (def) L294 - Read the images among these that were never read, or whose read was abandoned (e.g.
 
 ## services/compliance/media/local_speech.py (63 lines) - Transcribe actual local audio; never send private speech to a text-only provider.
 - `audio_samples` (def) L16
@@ -199,14 +207,21 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `decorate` (def) L61
 - `_main` (def) L69
 
-## services/compliance/media/script_export.py (85 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
-- `node` (def) L12
-- `paragraph` (def) L16
-- `script_docx` (def) L34
+## services/compliance/media/script_content.py (69 lines) - Keep published script copy separate from production directions when scoring.
+- `_name` (def) L21
+- `_clean` (def) L25
+- `sections` (def) L29 - Read timed tables and explicitly labelled sections; unidentified wording stays review-only.
+- `published` (def) L67
 
-## services/compliance/media/script_sources.py (48 lines) - Read optional sources from a script template without adding them to its spoken text.
+## services/compliance/media/script_export.py (96 lines) - Download a reviewed script as an editable Word document using its stored layout marks.
+- `node` (def) L13
+- `paragraph` (def) L17
+- `script_docx` (def) L35
+
+## services/compliance/media/script_sources.py (56 lines) - Read optional sources from a script template without adding them to its spoken text.
 - `is_sources_label` (def) L10
-- `split` (def) L14 - Return the script body and citations from merged table rows or a plain-text footer.
+- `extract` (def) L14 - Separate the body and source entries without losing names, URLs or supporting notes.
+- `split` (def) L40 - Return the script body and citations from merged table rows or a plain-text footer.
 
 ## services/compliance/media/transcription_service.py (220 lines) - Video Transcription Service Generates timestamped local speech and Bedrock on-screen text for submitted videos.
 - `_to_seconds` (def) L60 - Accept numbers or "MM:SS(.s)" / "HH:MM:SS" strings, which models sometimes return anyway.
@@ -218,6 +233,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `schedule` (def) L156 - Start background transcription for each video not already being transcribed by this process.
 - `schedule_missing` (def) L167 - Queue videos that were never transcribed, or whose previous attempt was abandoned.
 - `retry_failed_videos` (def) L214 - Only explicit compliance reruns retry failed transcripts; background polling does not.
+
+## services/compliance/media/video_disclaimer_scan.py (64 lines) - Cached local OCR across the video when its sampled transcript did not find a footage disclosure.
+- `read_frames` (def) L16
+- `scan` (def) L44
 
 ## services/compliance/media/video_finding_service.py (119 lines) - Locate exact flagged wording in video frames without inventing a visual region.
 - `_ffmpeg_binary` (def) L20 - Use the configured Windows executable from WSL when development mounts the drive.

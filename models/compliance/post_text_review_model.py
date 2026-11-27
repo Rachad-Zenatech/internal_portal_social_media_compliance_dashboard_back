@@ -10,6 +10,8 @@ class PostTextSave(BaseModel):
     text: str = Field(..., min_length=1, max_length=100_000)
     base_text: str = Field(..., max_length=100_000)
     base_revision: Optional[str] = None
+    html: Optional[str] = Field(default=None, max_length=400_000)
+    base_html: Optional[str] = Field(default=None, max_length=400_000)
 
     @field_validator("text")
     @classmethod
@@ -27,10 +29,13 @@ class PostTextEdit(BaseModel):
     version: int
     before_text: str
     after_text: str
+    before_html: Optional[str] = None
+    after_html: Optional[str] = None
 
 
 class PostTextReview(BaseModel):
     text: str
+    html: Optional[str] = None
     revision: Optional[str] = None
     can_edit: bool
     edits: List[PostTextEdit] = Field(default_factory=list)

@@ -13,6 +13,7 @@ so a wrong guess costs a click, not a rewrite."""
 
 import re
 from typing import List, Optional, Tuple
+from services.compliance.evaluation.script_import_sections import script_import_sections
 
 MAX_TITLE_CHARS = 120
 
@@ -67,6 +68,7 @@ def _by_dividers(lines: List[str]) -> List[Tuple[Optional[str], List[str]]]:
 
 def split_scripts(text: str) -> List[Tuple[str, str]]:
     """(title, body) for each script in the document, in order. Never empty for a document with any text."""
+    _, text = script_import_sections(text)
     lines = (text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
     if not any(line.strip() for line in lines):
         return []

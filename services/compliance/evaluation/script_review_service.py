@@ -14,7 +14,6 @@ uploaded once the script is approved, and the approved wording is what the video
 import asyncio
 from services.compliance.evaluation.script_review_details import assigned_reviewer_names
 from services.compliance.evaluation.script_creator_workflow import can_revise
-import hashlib
 import json
 import logging
 import re
@@ -50,6 +49,7 @@ from services.compliance.submissions import submission_service as subs
 from services.compliance.evaluation.script_queue_service import QUEUE_TABS as _QUEUE_TABS
 from services.compliance.evaluation.compliance_service import rulebook_version
 from services.compliance.evaluation.script_compliance_check import check_text
+from services.compliance.evaluation.script_precheck_cache import check_key, precheck_record, still_valid
 from services.shared.core.audit_service import log_audit_event
 
 logger = logging.getLogger(__name__)
@@ -95,32 +95,6 @@ def _clean(text: str) -> str:
 
 def _status(row: Dict[str, Any]) -> str:
     return row.get("script_status") or "DRAFT"
-
-
-def check_key(row: Dict[str, Any], text: str) -> str:
-    """Only a change to the script wording requires a fresh script check."""
-    prefix = "media-v1:sources:" if script_sources.split(text)[1] else "media-v1:"
-    return prefix + hashlib.sha256(_clean(text).encode("utf-8")).hexdigest()
-
-
-def precheck_record(row: Dict[str, Any], text: str, check: Dict[str, Any]) -> str:
-    """A check run before sending, as stored (JSON)."""
-    return json.dumps({
-        "key": check_key(row, text), "rulebook_version": check.get("rulebook_version"), "check": check,
-        "checked_at": datetime.now(timezone.utc).isoformat(),
-    })
-
-
-def still_valid(stored: Any, row: Dict[str, Any], text: str, rulebook: Optional[str]) -> Optional[Dict[str, Any]]:
-    """Reuse the script check across detail edits, keeping wording and rulebook gates."""
-    stored = subs._json(stored) or {}
-    key = stored.get("key") or ""
-    legacy_current = not key.startswith("media-v1:") and "media_edited_at" in row and subs.manual_check_service.content_is_current(row, stored)
-    if not stored.get("check") or (key != check_key(row, text) and not (legacy_current and not script_sources.split(text)[1])):
-        return None
-    if rulebook and stored.get("rulebook_version") != rulebook:
-        return None
-    return stored["check"]
 
 
 async def _versions(submission_id: UUID) -> List[ScriptVersion]:

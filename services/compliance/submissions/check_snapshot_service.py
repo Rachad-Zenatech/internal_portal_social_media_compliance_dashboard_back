@@ -12,7 +12,7 @@ POST_FIELDS = (
     "caption_text", "caption_html", "platform_captions", "brand_code", "brand_codes", "audience",
     "audiences", "region", "platforms", "rule_sets", "account_id", "account_ids", "publish_at",
     "approval_needed_by", "content_edited_at", "media_edited_at", "script_required", "script_status",
-    "ai_generated_images", "ai_generated_images_confirmed", "source_links",
+    "ai_generated_images", "ai_generated_images_confirmed", "source_links", "video_third_party_footage", "video_footage_edited_at",
 )
 
 

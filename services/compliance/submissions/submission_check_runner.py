@@ -23,6 +23,8 @@ async def run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
     post, evaluated = check_snapshot_service.inputs(row, request, material=material)
     with check_rule_capture.collecting() as captured:
         result = await subs.check_compliance(request)
+    from services.compliance.evaluation import video_footage_disclosure
+    footage_disclosure = await video_footage_disclosure.check(row, material, result)
     all_video_segments = [*segments, *visual_segments]
     non_image_text = material.text.split("Text in image ", 1)[0]
     result.source_regions, result.disclaimer_regions = await subs.video_finding_service.locate_media_findings(
@@ -63,6 +65,7 @@ async def run_check(row: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         # No score when AI is unavailable; re-run the check once it is back.
         "ai_unavailable": result.ai_unavailable,
         "script_match": match,
+        "video_footage_disclosure": footage_disclosure,
     }
     # No score until the whole post has been read; screens show "Under review" until then.
     check["analysis_pending"] = subs.analysis_pending(check)

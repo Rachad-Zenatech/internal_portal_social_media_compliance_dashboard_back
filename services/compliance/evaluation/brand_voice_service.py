@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from models.compliance.brand_voice_model import BrandColor, BrandTypeface, BrandVoice, BrandVoiceIn, PaletteRow
 from postgresql_db.database import fetch_all, fetch_one
+from services.compliance.evaluation.brand_voice_files import stored_file
 from services.compliance.media.file_mime_policy import safe_file_mime
 from services.compliance.media.pdf_process import isolated
 from services.shared.core.audit_service import log_audit_event
@@ -128,16 +129,7 @@ async def get_voice(brand_code: str, user_id: UUID) -> BrandVoice:
 
 async def file_path(brand_code: str, which: str) -> Tuple[Path, str, str]:
     """The stored manual or logo for download: (path, media type, file name)."""
-    row = await fetch_one("SELECT * FROM brand_voice_profiles WHERE brand_code = $1", brand_code)
-    rel = row and (row["manual_path"] if which == "manual" else row["logo_path"])
-    if not rel:
-        raise HTTPException(status_code=404, detail="Not found")
-    path = (STORAGE_ROOT / rel).resolve()
-    if STORAGE_ROOT not in path.parents or not path.is_file():
-        raise HTTPException(status_code=404, detail="Not found")
-    if which == "manual":
-        return path, "application/pdf", row["manual_name"] or f"{brand_code}-brand-manual.pdf"
-    return path, safe_file_mime(path.name), f"{brand_code}-logo{path.suffix}"
+    return await stored_file(STORAGE_ROOT, brand_code, which)
 
 
 # --------------------------------------------------------------------------------------------------------------------

@@ -18,7 +18,7 @@ async def release_one(conn, row, now):
     if legacy:
         data = {**legacy, "revision_due": legacy.get("revision_due_at")}
     planned = datetime.fromisoformat(legacy["publish_at"]) if legacy and legacy.get("publish_at") else row["publish_at"]
-    changes = row["decision"] == "REQUEST_CHANGES"
+    changes = row["decision"] == "REQUEST_CHANGES" or bool(data.get("publish_after_changes"))
     due = datetime.fromisoformat(data["revision_due"]) if changes and data.get("revision_due") else None
     if changes and (due is None or due <= now):
         due = deadlines.due_date("REVISION", None, now=now, days=data.get("revision_days"))
@@ -36,9 +36,9 @@ async def release_one(conn, row, now):
                                               "decision": row["decision"], "handoff_pending": False})
     if row["created_by"] == row["decided_by"]:
         return None
-    title = f"{row['reference_code']} needs changes" if changes else f"{row['reference_code']} was approved"
+    title = f"{row['reference_code']} needs changes" if changes and row["decision"] == "REQUEST_CHANGES" else f"{row['reference_code']} was approved"
     message = (f"The suggestion window for \"{row['title']}\" is complete. "
-               + (f"Review all comments and make the requested changes by {deadlines._when(due)}." if changes
+               + ("Review the suggestions, update your post and rerun checks before publishing." if changes
                   else "Review the suggestions and choose the final publishing schedule."))
     return await conn.fetchrow("""INSERT INTO notifications
         (user_id, type, title, message, link_url, entity_type, entity_id, is_read, created_at)

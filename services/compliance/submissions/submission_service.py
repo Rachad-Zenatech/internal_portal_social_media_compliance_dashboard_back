@@ -73,10 +73,10 @@ from services.compliance.submissions.submission_content_revision import (
     content_changed, same_value as _same_value, NON_CONTENT_FIELDS as _NOT_CONTENT_FIELDS,
 )
 from services.shared.storage.s3_storage_service import ensure_local_file, s3_enabled, s3_key_for, upload_file_to_s3
-from services.compliance.submissions import review_deadline_service
+from services.compliance.submissions import review_deadline_service, media_declaration_service
 from services.compliance.media import transcription_service
 from services.compliance.submissions import analysis_progress_service
-from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness, image_provenance_service
+from services.compliance.submissions import post_steps_service, manual_check_service, revision_steps, media_freshness, image_provenance_service, video_footage_service
 from services.compliance.submissions import submission_fields, media_read_status, submission_list_query, submission_check_runner, draft_deletion
 from services.compliance.evaluation import source_recheck
 from services.compliance.media import document_text_service
@@ -441,7 +441,7 @@ async def _to_submission(row: Dict[str, Any]) -> Submission:
         **_due(row),
         caption_html=row["caption_html"],
         caption_text=row["caption_text"],
-        context_picks=_context_picks(row), ai_generated_images=row.get("ai_generated_images", False),
+        context_picks=_context_picks(row), ai_generated_images=row.get("ai_generated_images", False), **video_footage_service.response_fields(row),
         ai_generated_images_confirmed=image_provenance_service.is_confirmed(row),
         people_in_images=row.get("people_in_images", False), people_in_images_confirmed=bool(row.get("people_in_images_confirmed")),
         people_in_images_detected=row.get("people_in_images_detected"), employee_in_images=row.get("employee_in_images", False), employee_in_images_confirmed=bool(row.get("employee_in_images_confirmed")), face_employee_flags=_json(row.get("face_employee_flags")) or {},
@@ -524,13 +524,13 @@ async def create_submission(data: SubmissionCreate, user_id: UUID) -> Submission
         async with conn.transaction():
             row = await conn.fetchrow(
                 """
-                INSERT INTO content_submissions (title, content_type, created_by, updated_by, script_required)
-                VALUES ($1, $2::varchar, $3, $3, $2::varchar = 'VIDEO' AND $4::boolean)
+                INSERT INTO content_submissions (title, content_type, created_by, updated_by, script_required, video_third_party_footage)
+                VALUES ($1, $2::varchar, $3, $3, $2::varchar = 'VIDEO' AND $4::boolean, $5)
                 RETURNING id, reference_code
                 """,
                 data.title.strip(),
                 data.content_type,
-                user_id, data.script_required is not False,
+                user_id, data.script_required is not False, data.video_third_party_footage,
             )
             await _add_event(conn, row["id"], "CREATED", f"Draft {row['reference_code']} created", user_id)
     await log_audit_event("content_submission", str(row["id"]), "CREATE_SUBMISSION", user_id,
@@ -609,6 +609,8 @@ async def get_submission(submission_id: UUID, user_id: UUID) -> Submission:
         current = await compliance_rulebook_version()
         sub.check_outdated = (bool(current) and saved.get("rulebook_version") != current) or submission_source_state.sources_changed(row, saved)
     if analysis_pending(saved):
+        from .pending_check_recovery import schedule
+        schedule(row)
         sub.analysis_progress = (await analysis_progress_service.for_submissions([row["id"]])).get(row["id"])
     sub.created_by = row["created_by"]
     if not is_creator:
@@ -675,6 +677,7 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
     if "caption_text" in payload:
         fields["caption_text"] = payload["caption_text"]
     fields.update(image_provenance_service.update_fields(row, payload))
+    fields.update(video_footage_service.update_fields(row, payload))
     if payload.get("context_picks") is not None:
         fields["context_picks"] = json.dumps(await _clean_context_picks(payload["context_picks"]))
     if payload.get("platform_captions") is not None:
@@ -700,13 +703,14 @@ async def update_submission(submission_id: UUID, data: SubmissionUpdate, user_id
             raise HTTPException(status_code=422, detail="Some of those people can't review content on this brand")
         fields["reviewer_ids"] = kept + picked
     submission_fields.apply_clear_fields(fields, data.clear_fields)
+    from .approved_revision import require_locked_basics
+    require_locked_basics(row, fields)
     if not fields:
         return await _to_submission(row)
 
     columns = list(fields.keys())
     sets = ", ".join(f"{c} = ${i + 2}" for i, c in enumerate(columns))
     params = [submission_id, *(json.dumps(v) if isinstance(v, dict) else v for v in fields.values()), user_id]
-    # Changing anything the checks read makes their results out of date; who reviews it and by when does not.
     edited = ", content_edited_at = NOW()" if content_changed(row, fields) else ""
     pool = get_pool()
     try:
@@ -1306,14 +1310,11 @@ async def _missing_for_submit(row: Dict[str, Any]) -> List[str]:
         row["id"],
     ):
         missing.append("main_file")
-    # Every post needs its caption (the copy, for text posts): it's what the score and the sentiment analysis read
-    # first, so the check never runs on an image alone.
     if not has_text:
         missing.append("caption")
     if script_stage_on(row) and row.get("script_status") != "APPROVED":
         missing.append("script_approval")
-    if image_provenance_service.missing(row):
-        missing.append("ai_generated_images")
+    missing.extend(media_declaration_service.missing_fields(row, has_main))
     return missing
 
 
@@ -1451,8 +1452,9 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
     if not publish_after_changes:
         manual_check_service.require_send_score(result.score, pending_score=await creator_dismissal_service.send_score(row, check))
 
+    from .approved_revision import require_fresh_checks
+    await require_fresh_checks(row, check)
     files = await _list_files(submission_id)
-    # The script's text as read now, kept with the version so later versions can be compared with it.
     script = await fetch_one(
         """
         SELECT doc_text FROM content_submission_files
@@ -1493,7 +1495,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
                 submission_id, version, "APPROVED" if publish_after_changes else "AWAITING_REVIEW",
                 list(row["reviewer_route"] or []), json.dumps(check), result.traffic_light, result.score, user_id,
                 "APPROVE" if publish_after_changes else None,
-                "Published by the creator after the reviewer requested changes" if publish_after_changes else None,
+                "Final version published by the creator with reviewer permission" if publish_after_changes else None,
             )
             await conn.execute(
                 """
@@ -1501,7 +1503,6 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
                 SET status = CASE WHEN $7 THEN 'APPROVED' ELSE 'IN_REVIEW' END,
                     current_version = $2, latest_check = $3::jsonb,
                     submitted_at = NOW(), updated_at = NOW(), updated_by = $4,
-                    publish_at = CASE WHEN $7 THEN NOW() ELSE publish_at END,
                     due_at = CASE WHEN $7 THEN NULL ELSE $5::timestamptz END,
                     due_kind = CASE WHEN $7 THEN NULL ELSE 'REVIEW' END,
                     due_reminded_at = NULL, due_overdue_notified_at = NULL,
@@ -1514,7 +1515,7 @@ async def submit_for_review(submission_id: UUID, user_id: UUID, confirm_repost: 
             )
             await creator_dismissal_service.carry_pending_requests(conn, submission_id, row["current_version"], version)
             await _add_event(conn, submission_id, "SUBMITTED",
-                             f"Version {version} published after requested changes" if publish_after_changes else f"Version {version} submitted for review", user_id,
+                             f"Version {version} published after reviewing suggestions" if publish_after_changes else f"Version {version} submitted for review", user_id,
                              {"version": version, "review_job_id": str(job["id"])})
             await _add_event(conn, submission_id, "CHECK_COMPLETED",
                              _check_summary(result, check), user_id,
@@ -1569,7 +1570,8 @@ _QUEUE_ORDER = {
 
 def _queue_filter(tab: str) -> str:
     statuses = ", ".join(f"'{st}'" for st in QUEUE_TAB_STATUSES[tab])
-    cond = f"s.status IN ({statuses})"
+    from .review_outcome import status_sql
+    cond = f"{status_sql()} IN ({statuses})"
     if tab == "done":
         cond += f" AND COALESCE({_DECIDED_AT}, s.updated_at) >= NOW() - INTERVAL '{DONE_DAYS} days'"
     return cond
@@ -1724,7 +1726,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
     rows = await fetch_all(
         f"""
         SELECT {manager_access_sql("$1")} AS manager_review_access, s.id, s.reference_code, s.title, s.content_type, s.status, s.platforms, s.caption_text, s.latest_check,
-               s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind,
+               s.current_version, s.submitted_at, s.created_by, s.publish_at, s.due_at, s.due_kind, s.publish_after_changes,
                s.brand_code, s.brand_codes, s.audience, s.audiences, s.rule_sets, s.approval_needed_by, s.script_required, s.script_status,
                s.reviewer_ids, s.platform_captions,
                {_DECIDED_AT} AS decided_at,
@@ -1789,7 +1791,7 @@ async def review_queue(user_id: UUID, tab: str = "review", search: Optional[str]
             reference_code=r["reference_code"],
             title=r["title"],
             content_type=r["content_type"],
-            status=r["status"],
+            status=r["status"], publish_after_changes=bool(r.get("publish_after_changes")),
             platforms=list(r["platforms"] or []),
             account=_account_option(r, prefix="acc_"),
             caption_text=r["caption_text"],
@@ -2045,7 +2047,7 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
     is_super = await review_handoff.require_reviewer(row, user_id)
     approval_score: Optional[int] = None
     if req.decision == "APPROVE":
-        row, approval_score = await review_approval_service.require_approval(row, user_id, is_super)
+        row, approval_score = await review_approval_service.require_approval(row, user_id, is_super, for_creator_updates=req.publish_after_changes)
 
     version = row["current_version"]
     notes = (req.notes or "").strip() or None
@@ -2064,20 +2066,12 @@ async def decide_review(submission_id: UUID, user_id: UUID, req: ReviewDecisionR
             raise HTTPException(status_code=422, detail="Add a note or comments saying what needs to change")
         new_status, label = "CHANGES_REQUESTED", "Changes requested"
     else:
-        publish_at, label = post_approval_suggestions.approval_timing(row, req, now)
-        new_status = "APPROVED"
-        # Rules the automated check can't test (image editing, image rights, ...): the approving reviewer
-        # confirms each one, and that's recorded with the decision.
+        from .approved_revision import approval_outcome
+        publish_at, new_status, label = approval_outcome(row, req, now)
         needed = (_json(row["latest_check"]) or {}).get("manual_review_rules") or []
         confirmed = {r.strip() for r in req.confirmed_rules}
-        unconfirmed = [m for m in needed if m.get("rule_number") not in confirmed]
-        if unconfirmed:
-            raise HTTPException(
-                status_code=422,
-                detail="Confirm you've checked the rules the automated check can't test before approving: "
-                       + ", ".join(f"{m['rule_number']} ({m['title']})" for m in unconfirmed),
-            )
-        manual_checks = [{"rule_number": m["rule_number"], "title": m["title"]} for m in needed]
+        manual_checks = [{"rule_number": m["rule_number"], "title": m["title"]}
+                         for m in needed if m.get("rule_number") in confirmed]
 
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -2557,61 +2551,5 @@ async def recheck_after_document_text(file_id: UUID) -> None:
 
 
 async def _recheck_for_file(file_id: UUID, kinds: List[str], what: str) -> None:
-    """Re-run the check of the open submission a file belongs to, after something about the file was read."""
-    try:
-        sub = await fetch_one(
-            """
-            SELECT s.*, """ + media_freshness.REVISION_SQL + """ AS media_edited_at FROM content_submissions s
-            JOIN content_submission_files f ON f.submission_id = s.id
-            WHERE f.id = $1 AND f.kind = ANY($2::text[]) AND f.deleted_at IS NULL
-              AND s.status IN ('DRAFT', 'IN_REVIEW', 'CHANGES_REQUESTED') AND s.deleted_at IS NULL
-            """,
-            file_id, kinds,
-        )
-        if not sub or not manual_check_service.may_finish_check(sub):
-            return
-        started = datetime.now(timezone.utc)
-        result, check = await _run_check(sub)
-        previous = manual_check_service.saved_check(sub)
-        check.update((key, previous[key]) for key in ("manual_requested_at", "checked_content_edited_at") if key in previous)
-        # Tell the creator the first time the video turns out not to match their approved script.
-        was_mismatch = ((_json(sub["latest_check"]) or {}).get("script_match") or {}).get("status") == "MISMATCH"
-        newly_mismatched = ((check.get("script_match") or {}).get("status") == "MISMATCH") and not was_mismatch
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                if not await _check_still_current(conn, sub, started):
-                    logger.info("Not saving a re-check of %s: the post changed while it ran", sub["id"])
-                    return
-                await conn.execute(
-                    "UPDATE content_submissions SET latest_check = $2::jsonb WHERE id = $1",
-                    sub["id"], json.dumps(check),
-                )
-                await _mirror_to_script_version(conn, sub["id"], check)
-                await conn.execute(
-                    """
-                    UPDATE content_review_jobs
-                    SET automated_check = $3::jsonb, score = $4, traffic_light = $5
-                    WHERE submission_id = $1 AND version_number = $2 AND status = 'AWAITING_REVIEW'
-                    """,
-                    sub["id"], sub["current_version"], json.dumps(check), result.score, result.traffic_light,
-                )
-                summary = (
-                    f"Read {what}; still reading the rest of the post before scoring"
-                    if analysis_pending(check)
-                    else f"Re-checked with {what}: the AI review couldn't run, so there is no score yet" if check["ai_unavailable"]
-                    else f"Re-checked with {what}: {result.violations_count} issue(s), score {result.score}/100"
-                )
-                await _add_event(conn, sub["id"], "CHECK_COMPLETED", summary, None,
-                                 {"traffic_light": result.traffic_light, "score": result.score})
-        if newly_mismatched:
-            await _notify(
-                [sub["created_by"]],
-                f"{sub['reference_code']}: the video doesn't match your approved script",
-                f"\"{sub['title']}\" says something quite different from the script a reviewer approved "
-                f"({check['script_match']['similarity']}% alike). Check you uploaded the right video before sending it for review.",
-                f"/submissions/{sub['id']}",
-                sub["id"],
-            )
-    except Exception:
-        logger.exception("Couldn't re-check submission after reading %s of %s", what, file_id)
+    from .pending_check_recovery import finish_for_file
+    await finish_for_file(file_id, kinds, what)

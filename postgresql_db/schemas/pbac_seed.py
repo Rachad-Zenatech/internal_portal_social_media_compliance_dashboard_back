@@ -36,6 +36,7 @@ async def seed_navigation(conn):
         ("CONTENT_SUBMISSIONS", "Content Portal", "/submissions", None, 15, "LayoutGrid", False),
         # Not a menu entry: reviewing submitted content and publishing or scheduling it.
         ("CONTENT_REVIEW", "Content Review", "/compliance/scanner", None, 16, "ClipboardCheck", False),
+        ("CONTENT_RULEBOOK", "Rulebook", "/compliance/rulebook", None, 17, "BookOpen", False),
     ]
     for code, name, path, parent, order, icon, is_menu in nav_items:
         await conn.execute("""
@@ -84,6 +85,9 @@ async def seed_permission_groups(conn):
              "See the content that was sent to them by name, comment on it and suggest edits to its script. They "
              "can't approve it, request changes or schedule anything.", 30,
              [("CONTENT_REVIEW", "VIEW"), ("CONTENT_REVIEW", "SUGGEST")]),
+            ("CONTENT_EDIT_RULEBOOK", "Edit Rulebook",
+             "Add, edit, delete compliance rules and restore baseline rulebook defaults.", 40,
+             [("CONTENT_RULEBOOK", "UPDATE")]),
         ],
         "CONFIGURATIONS": [
             ("CONFIG_VIEW_USERS", "View Users & Roles", "View all users, roles, and permission assignments.", 10, [("CONFIG_USERS", "VIEW"), ("CONFIG_ROLES", "VIEW")]),

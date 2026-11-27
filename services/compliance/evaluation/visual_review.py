@@ -12,7 +12,7 @@ from services.ai.core import ai_types as types
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
 
 from models.compliance.compliance_model import ComplianceViolation, ContextEvaluation
-from services.compliance.evaluation import context_evaluator, visual_response
+from services.compliance.evaluation import context_evaluator, visual_response, image_detail_review
 from services.compliance.evaluation.visual_review_prompt import PROMPT, PROMPT_VERSION, RULE_NUMBERS, SCHEMA
 from services.compliance.media import image_text_service
 from services.compliance.media.image_finding_service import region_from_box
@@ -185,16 +185,17 @@ def _compact_source(s) -> dict:
     }.items() if v not in (None, "", [])}
 
 
-async def review(req, rules, findings):
+async def review(req, rules, findings, *, source_checks=()):
     """Read every post asset, recording failures explicitly instead of silently treating them as compliant."""
     selected = [r for r in rules if r.rule_number in RULE_NUMBERS]
     coverage = []
     if not selected:
         return coverage
+    from .source_evidence_context import catalog, POLICY
     payload = {
         "post": req.text, "published_text": req.disclaimer_text, "audiences": req.audiences,
         "brands": req.brand_codes, "region": req.region,
-        "evidence": [_compact_source(s) for s in req.sources],
+        "evidence": [_compact_source(s) for s in req.sources], "verified_sources": catalog(source_checks), "evidence_policy": POLICY,
         "rules": [_compact_rule(r) for r in selected],
     }
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
@@ -228,6 +229,7 @@ async def review(req, rules, findings):
                 model = getattr(response, "model_version", None)
                 if not any(a.status == "UNAVAILABLE" for a in assessments):
                     await _VISUAL_CACHE.set(cache_key, (assessments, model, input_mode), _VISUAL_CACHE_TTL_SEC)
+            assessments = image_detail_review.apply(assessments, asset, by_number)
             for assessment in assessments:
                 _merge(findings, _finding(asset, by_number[assessment.rule_number], assessment, model))
             unavailable = [a.rule_number for a in assessments if a.status == "UNAVAILABLE"]

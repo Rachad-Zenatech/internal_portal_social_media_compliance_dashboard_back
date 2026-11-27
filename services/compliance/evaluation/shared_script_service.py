@@ -57,7 +57,9 @@ def _service_token(scopes: List[str]) -> str:
     """A 5-minute token naming this service, signed with SCRIPT_SERVICE_SECRET (SESSION_SECRET when that isn't set)."""
     now = datetime.datetime.now(datetime.timezone.utc)
     claims = {"sub": f"service:{SOURCE_SERVICE}", "service": SOURCE_SERVICE, "is_service_token": True, "scopes": scopes,
-              "iat": int(now.timestamp()), "exp": int((now + datetime.timedelta(minutes=5)).timestamp()), "jti": secrets.token_urlsafe(12)}
+              # The shared service may run a few seconds behind this container; expiry remains five minutes from now.
+              "iat": int((now - datetime.timedelta(seconds=30)).timestamp()),
+              "exp": int((now + datetime.timedelta(minutes=5)).timestamp()), "jti": secrets.token_urlsafe(12)}
     return jwt.encode(claims, os.getenv("SCRIPT_SERVICE_SECRET") or JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 

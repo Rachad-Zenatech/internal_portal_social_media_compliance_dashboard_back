@@ -21,6 +21,9 @@ import json
 import logging
 import re
 import time
+from services.compliance.evaluation.script_doc_sources import sources_for
+from services.compliance.evaluation.script_doc_compliance import state as compliance_state
+from services.compliance.evaluation import script_doc_details
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -104,8 +107,8 @@ async def _managers() -> List[UUID]:
 
 async def _doc(doc_id: UUID) -> Dict[str, Any]:
     row = await fetch_one(
-        "SELECT d.*, coalesce(nullif(u.full_name, ''), u.email) AS creator_name FROM script_documents d "
-        "JOIN users u ON u.id = d.created_by WHERE d.id = $1 AND d.deleted_at IS NULL", doc_id)
+        "SELECT d.*, (SELECT e.detail->'import_warnings' FROM script_document_events e WHERE e.document_id = d.id AND e.kind = 'CREATED' ORDER BY e.id LIMIT 1) AS import_warnings, "
+        "coalesce(nullif(u.full_name, ''), u.email) AS creator_name FROM script_documents d JOIN users u ON u.id = d.created_by WHERE d.id = $1 AND d.deleted_at IS NULL", doc_id)
     if not row:
         raise HTTPException(status_code=404, detail="Script not found")
     return row
@@ -189,15 +192,13 @@ async def get_access(doc_id: UUID, user_id: UUID) -> tuple:
     if not access:
         raise HTTPException(status_code=403, detail="You don't have access to this script")
     return doc, reviewers, access
-
-
 def _detail(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], access: DocAccess, user_id: UUID, decided_by: Optional[str],
             posts: Optional[List[DocPost]] = None, pages: Optional[List[DocPage]] = None, set_title: Optional[str] = None) -> DocDetail:
     order = [doc["created_by"], *[r["user_id"] for r in reviewers]]
     return DocDetail(
         id=doc["id"], title=doc["title"], template_key=doc["template_key"], status=doc["status"], round=doc["round"],
         creator_id=doc["created_by"], creator_name=doc["creator_name"], creator_color=_color(doc["created_by"], order),
-        body_html=doc["body_html"], body_text=doc["body_text"], details=subs._json(doc["details"]) or {},
+        body_html=doc["body_html"], body_text=doc["body_text"], sources_text=sources_for(doc), details=subs._json(doc["details"]) or {}, import_warnings=subs._json(doc.get("import_warnings")) or [], **compliance_state(doc),
         send_note=doc["send_note"], decision_note=doc["decision_note"], decided_by_name=decided_by, decided_at=doc["decided_at"],
         reviewers=[
             DocReviewer(user_id=r["user_id"], name=r["name"], capacity=r["capacity"], can_approve=r.get("can_approve", False),
@@ -229,7 +230,8 @@ async def get(doc_id: UUID, user_id: UUID) -> DocDetail:
         pages = await _pages_module()._pages(doc["set_id"], reviewer_id=reviewer_filter)
         if pages:
             set_title = (await fetch_one("SELECT title FROM script_sets WHERE id = $1", doc["set_id"]) or {}).get("title")
-    return _detail(doc, reviewers, access, user_id, by, [DocPost(**r) for r in rows], pages, set_title)
+    detail = _detail(doc, reviewers, access, user_id, by, [DocPost(**r) for r in rows], pages, set_title)
+    return detail.model_copy(update={"shared_details": await script_doc_details.shared(doc)})
 
 
 async def create(user_id: UUID, req: DocCreate) -> DocDetail:
@@ -257,15 +259,8 @@ async def update(doc_id: UUID, user_id: UUID, req: DocUpdate) -> DocDetail:
         raise HTTPException(status_code=409, detail="The details can only be changed while the script is a draft or sent back")
     if req.title is not None:
         await execute("UPDATE script_documents SET title = $2, updated_at = NOW() WHERE id = $1 RETURNING id", doc_id, req.title.strip())
-    if req.details is not None:
-        details = json.dumps({**{k: v for k, v in (subs._json(doc["details"]) or {}).items() if k == "source_submission_id"}, **req.details.model_dump(mode="json", exclude_none=True)})
-        await execute("UPDATE script_documents SET details = $2::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id", doc_id, details)
-        if doc.get("set_id"):
-            # The details are the document's: every page that can still change gets them.
-            await execute("UPDATE script_sets SET details = $2::jsonb, updated_at = NOW() WHERE id = $1 RETURNING id", doc["set_id"], details)
-            await fetch_all(
-                "UPDATE script_documents SET details = $2::jsonb WHERE set_id = $1 AND deleted_at IS NULL "
-                "AND status IN ('DRAFT', 'CHANGES_REQUESTED') RETURNING id", doc["set_id"], details)
+    if req.details is not None or req.shared_details is not None:
+        await script_doc_details.save(doc, req.details, req.shared_details)
     return await get(doc_id, user_id)
 
 
@@ -348,9 +343,9 @@ async def submit(doc_id: UUID, user_id: UUID, req: DocSubmit) -> DocDetail:
                     "ON CONFLICT (document_id, user_id) DO UPDATE SET capacity = EXCLUDED.capacity, position = EXCLUDED.position",
                     doc_id, p.user_id, p.capacity, i)
             await conn.execute(
-                "INSERT INTO script_document_versions (document_id, round, label, body_html, body_text, created_by, created_by_name) "
-                "VALUES ($1, $2, $3, $4, $5, $6, (SELECT coalesce(nullif(full_name, ''), email) FROM users WHERE id = $6))",
-                doc_id, round_, f"Sent for review (round {round_})", html, text, user_id)
+                "INSERT INTO script_document_versions (document_id, round, label, body_html, body_text, sources_text, created_by, created_by_name) "
+                "VALUES ($1, $2, $3, $4, $5, $7, $6, (SELECT coalesce(nullif(full_name, ''), email) FROM users WHERE id = $6))",
+                doc_id, round_, f"Sent for review (round {round_})", html, text, user_id, sources_for(doc))
     from services.compliance.evaluation.script_submission_sync import sync_document
     await sync_document(doc_id)
     await _event(doc_id, round_, user_id, "SUBMITTED", {"reviewers": len(req.reviewers), "note": req.note})
@@ -432,8 +427,8 @@ def _votes(reviewers: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
 
 async def _stamp_version(doc_id: UUID, round_: int, label: str, user_id: UUID) -> None:
     await execute(
-        "INSERT INTO script_document_versions (document_id, round, label, body_html, body_text, created_by, created_by_name) "
-        "SELECT id, $2, $3, body_html, body_text, $4, (SELECT coalesce(nullif(full_name, ''), email) FROM users WHERE id = $4) "
+        "INSERT INTO script_document_versions (document_id, round, label, body_html, body_text, sources_text, created_by, created_by_name) "
+        "SELECT id, $2, $3, body_html, body_text, sources_text, $4, (SELECT coalesce(nullif(full_name, ''), email) FROM users WHERE id = $4) "
         "FROM script_documents WHERE id = $1 RETURNING id", doc_id, round_, label, user_id)
 
 

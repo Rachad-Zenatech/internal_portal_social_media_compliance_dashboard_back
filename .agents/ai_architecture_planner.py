@@ -31,7 +31,7 @@ def _changed_files(base: str | None, files: list[str]) -> list[Path]:
 def _python_symbols(path: Path) -> list[dict[str, str]]:
     if path.suffix != ".py":
         return []
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     symbols = []
     for item in tree.body:
         if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -89,7 +89,7 @@ def main() -> int:
     args = parser.parse_args()
     plans = []
     for path in _changed_files(args.changed_from, args.file):
-        source = path.read_text(encoding="utf-8")
+        source = path.read_text(encoding="utf-8-sig")
         plans.append(_deterministic_plan(path, source, _python_symbols(path)))
     result = {"plans": plans}
     encoded = json.dumps(result, indent=2) + "\n"

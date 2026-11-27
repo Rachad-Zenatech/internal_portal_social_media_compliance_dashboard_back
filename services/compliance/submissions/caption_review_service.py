@@ -1,6 +1,6 @@
 """Persist review-time caption edits atomically with an attributed before/after event."""
 import json
-from html import escape
+from services.compliance.submissions.review_caption_format import saved_html
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -30,6 +30,7 @@ async def get_caption_review(submission_id: UUID, user_id: UUID) -> CaptionRevie
         data = subs._json(event['data']) or {}
         revisions.append(CaptionRevision(
             id=event['id'], before=data['before'], after=data['after'],
+            before_html=data.get('before_html'), after_html=data.get('after_html'),
             platform=data.get('platform'), version=data['version'],
             actor_id=event['actor_user_id'], actor_name=event['actor_name'], created_at=event['created_at'],
         ))
@@ -68,7 +69,10 @@ async def save_caption(submission_id: UUID, user_id: UUID, data: CaptionEditRequ
             before = (captions.get(data.platform) if data.platform else None) or row.get('caption_text') or ''
             if before != data.base_caption:
                 raise HTTPException(status_code=409, detail='The caption changed since you opened it. Cancel and reopen the editor to load the latest text; copy your edits first.')
-            if before != data.caption_text:
+            if not data.platform and 'base_caption_html' in data.model_fields_set and data.base_caption_html != row.get('caption_html'):
+                raise HTTPException(409, 'The caption formatting changed. Copy your edits, then reopen the editor.')
+            html = saved_html(data.caption_text, data.caption_html, before, row.get('caption_html'))
+            if before != data.caption_text or (not data.platform and html != row.get('caption_html')):
                 await _persist_edit(conn, row, user_id, data, captions, before)
     return await get_caption_review(submission_id, user_id)
 
@@ -84,7 +88,7 @@ async def _persist_edit(conn, row, user_id, data, captions, before):
         )
     else:
         # Store matching HTML as well: publishing and formatted previews must use the edited text.
-        html = '<p>' + escape(data.caption_text).replace('\n', '<br>') + '</p>'
+        html = saved_html(data.caption_text, data.caption_html, before, row.get('caption_html'))
         await conn.execute(
             """UPDATE content_submissions SET caption_text = $2, caption_html = $3, updated_by = $4,
                       updated_at = NOW(), content_edited_at = NOW() WHERE id = $1""",
@@ -96,6 +100,8 @@ async def _persist_edit(conn, row, user_id, data, captions, before):
     )
     await subs._add_event(conn, row['id'], 'CAPTION_EDITED', 'Caption edited during review', user_id, {
         'before': before, 'after': data.caption_text, 'platform': data.platform,
+        'before_html': row.get('caption_html') if not data.platform else None,
+        'after_html': html if not data.platform else None,
         'version': row['current_version'],
     })
 

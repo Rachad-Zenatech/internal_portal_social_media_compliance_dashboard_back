@@ -7,7 +7,6 @@ from . import source_fetch_service
 
 logger = logging.getLogger(__name__)
 FETCH_CONCURRENCY = 4
-FETCH_TIMEOUT_SEC = 15
 
 
 async def hydrate(readings):
@@ -16,7 +15,7 @@ async def hydrate(readings):
     async def one(check, summary):
         try:
             async with gate:
-                fetched = await asyncio.wait_for(source_fetch_service.fetch(check.url), timeout=FETCH_TIMEOUT_SEC)
+                fetched = await source_fetch_service.fetch(check.url)
             if not fetched.ok:
                 raise ValueError(fetched.error or "The article could not be read.")
             if screen_input(fetched.text).verdict != "ALLOW":

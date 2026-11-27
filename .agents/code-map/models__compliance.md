@@ -30,16 +30,16 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `CaptionSuggestion` (class) L23
 - `CaptionSuggestions` (class) L32
 
-## models/compliance/caption_review_model.py (41 lines) - Direct review-time caption edits and their immutable before/after history.
+## models/compliance/caption_review_model.py (45 lines) - Direct review-time caption edits and their immutable before/after history.
 - `CaptionEditRequest` (class) L9
-    - `nonempty_caption` (def) L16
-- `CaptionRevision` (class) L22
-- `CaptionReview` (class) L33
+    - `nonempty_caption` (def) L18
+- `CaptionRevision` (class) L24
+- `CaptionReview` (class) L37
 
 ## models/compliance/check_diagnostics_model.py (10 lines) - Public reasons a compliance review remains incomplete; never include provider secrets.
 - `IncompleteCheckStage` (class) L6
 
-## models/compliance/compliance_model.py (374 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
+## models/compliance/compliance_model.py (377 lines) - Compliance Rules & Rulebook Pydantic Models Supports full CRUD ("build on it and remove") and live automated AI compliance screening.
 - `ComplianceRuleBase` (class) L12
 - `ComplianceRuleCreate` (class) L58
 - `ComplianceRuleUpdate` (class) L62
@@ -48,17 +48,17 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `RuleSelfTest` (class) L109
 - `ProvidedSource` (class) L119 - A document the author attached as evidence (a supporting file), already read as text, to check claims against.
 - `ComplianceCheckRequest` (class) L125
-    - `_keep_audience_and_audiences_in_step` (def) L156
-- `ContextEvaluation` (class) L176 - How the AI read a rule's trigger in context, kept beside the finding so the decision can be audited.
-- `ImageFindingRegion` (class) L195
-    - `_time_range_is_whole` (def) L206
-- `ComplianceViolation` (class) L214
-- `ManualReviewRule` (class) L252 - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
-- `CheckSignals` (class) L261 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
-- `SourceClaim` (class) L277 - One claim the post makes, and whether the source it cites backs it up.
-- `SourceCheck` (class) L305 - A source the post cites (or that was attached), and what reading it showed.
-- `AddedRuleSet` (class) L325 - A rule set checked because of what the post says, not because it was chosen.
-- `ComplianceCheckResponse` (class) L331
+    - `_keep_audience_and_audiences_in_step` (def) L157
+- `ContextEvaluation` (class) L177 - How the AI read a rule's trigger in context, kept beside the finding so the decision can be audited.
+- `ImageFindingRegion` (class) L196
+    - `_time_range_is_whole` (def) L207
+- `ComplianceViolation` (class) L215
+- `ManualReviewRule` (class) L255 - An applicable rule the automated check can't test from text (it has no phrases or disclaimers to look
+- `CheckSignals` (class) L264 - What the check read from the post's symbols: cashtags, hashtags, @mentions and links (see post_signals).
+- `SourceClaim` (class) L280 - One claim the post makes, and whether the source it cites backs it up.
+- `SourceCheck` (class) L308 - A source the post cites (or that was attached), and what reading it showed.
+- `AddedRuleSet` (class) L328 - A rule set checked because of what the post says, not because it was chosen.
+- `ComplianceCheckResponse` (class) L334
 
 ## models/compliance/context_model.py (101 lines) - Messaging Context: reference material the content analysis is given.
 - `ContextEntryIn` (class) L12
@@ -98,11 +98,11 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `PostApprovalSuggestionFields` (class) L8
 - `PublishingAccess` (class) L14
 
-## models/compliance/post_text_review_model.py (37 lines) - Reviewers' attributed edits to a text-only post.
+## models/compliance/post_text_review_model.py (42 lines) - Reviewers' attributed edits to a text-only post.
 - `PostTextSave` (class) L9
-    - `nonempty_text` (def) L16
-- `PostTextEdit` (class) L22
-- `PostTextReview` (class) L32
+    - `nonempty_text` (def) L18
+- `PostTextEdit` (class) L24
+- `PostTextReview` (class) L36
 
 ## models/compliance/public_mood_model.py (381 lines) - Public mood: how people online currently feel about the topics a post touches (from social listening), and an AI reading of what that mea...
 - `ListeningPost` (class) L13
@@ -153,31 +153,32 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `ItemResult` (class) L127
 - `BatchReviewResult` (class) L136
 
-## models/compliance/script_doc_model.py (239 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
+## models/compliance/script_doc_model.py (252 lines) - Script documents: scripts written from a template and reviewed live by several reviewers (see script_doc_service).
 - `TemplateRow` (class) L18
 - `ScriptTemplate` (class) L25
 - `DocCreate` (class) L34
 - `DocUpdate` (class) L39
-- `DocSnapshot` (class) L45 - The script as the live editor shows it, saved by an editor.
-- `ReviewerPick` (class) L51
-- `DocSubmit` (class) L56
-- `CheckIn` (class) L64
-- `Finalize` (class) L71 - Once every reviewer has checked in: where the script goes next.
-- `ManagerDecision` (class) L77
-- `DocReviewer` (class) L82
-- `DocAccess` (class) L94 - What the viewer may do with this script right now.
-- `DocEvent` (class) L106
-- `DocVersion` (class) L115
-- `DocSummary` (class) L125
-- `DocPost` (class) L146 - A post made from one script of an approved document.
-- `DocPage` (class) L154 - One script (page) of the creator's document, for the page list beside the editor.
-- `DocSetSummary` (class) L165 - A creator's document in the hub: how its scripts stand.
-- `BulkSubmit` (class) L179 - Send several scripts of the document for review at once (all that can be sent, or the ones listed).
-- `BulkFailure` (class) L186
-- `BulkResult` (class) L192
-- `UploadedPages` (class) L197
-- `DocDetail` (class) L201
-- `DocHistory` (class) L236
+- `DocSourcesUpdate` (class) L46
+- `DocSnapshot` (class) L51 - The script as the live editor shows it, saved by an editor.
+- `ReviewerPick` (class) L57
+- `DocSubmit` (class) L62
+- `CheckIn` (class) L70
+- `Finalize` (class) L77 - Once every reviewer has checked in: where the script goes next.
+- `ManagerDecision` (class) L83
+- `DocReviewer` (class) L88
+- `DocAccess` (class) L100 - What the viewer may do with this script right now.
+- `DocEvent` (class) L112
+- `DocVersion` (class) L121
+- `DocSummary` (class) L132
+- `DocPost` (class) L153 - A post made from one script of an approved document.
+- `DocPage` (class) L161 - One script (page) of the creator's document, for the page list beside the editor.
+- `DocSetSummary` (class) L172 - A creator's document in the hub: how its scripts stand.
+- `BulkSubmit` (class) L186 - Send several scripts of the document for review at once (all that can be sent, or the ones listed).
+- `BulkFailure` (class) L193
+- `BulkResult` (class) L199
+- `UploadedPages` (class) L204
+- `DocDetail` (class) L209
+- `DocHistory` (class) L249
 
 ## models/compliance/script_queue_model.py (11 lines) - Small queue records for review tab counts; no analysis is run to read them.
 - `ScriptQueueSummary` (class) L7
@@ -250,44 +251,48 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `SourceTrust` (class) L30 - What reviewers have said about a site, across every post checked against it.
 - `SourceConfirmationsResponse` (class) L43
 
-## models/compliance/submission_input_model.py (19 lines) - Post creation inputs and the optional video script review setting.
-- `VideoScriptOptions` (class) L11
-- `SubmissionCreate` (class) L16
+## models/compliance/submission_event_model.py (14 lines) - Activity events returned with submission history.
+- `SubmissionEvent` (class) L7
 
-## models/compliance/submission_model.py (622 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
-- `BrandOption` (class) L57
-- `AccountOption` (class) L62
-- `SubmissionOptions` (class) L74
-- `ReviewerOption` (class) L84 - Someone a creator can send content to for review.
-- `SubmissionUpdate` (class) L94
-- `TranscriptSegment` (class) L132
-- `SubmissionFile` (class) L140
-- `AnalysisStep` (class) L166 - One part of the post still being read before the rulebook check can score it.
-- `AnalysisProgress` (class) L177 - How far the post's reading has got and when the score is expected.
-- `SubmissionSummary` (class) L189
-- `Submission` (class) L256
-- `SubmissionVersion` (class) L325
-- `VersionView` (class) L332 - One submitted version as it was: what was sent, its video, its automated check and its decision.
-- `ReviewJob` (class) L344
-- `ReviewDecisionRequest` (class) L366 - A reviewer's decision on the version currently in review.
-    - `publish_after_changes_only_for_changes` (def) L375
-- `ReopenRequest` (class) L393 - A reviewer takes back an approval and sends the content to its creator with what to change.
-- `RescheduleRequest` (class) L402 - A reviewer moves approved content to a different publish time.
-- `DelegateRequest` (class) L407 - A reviewer hands the post in review to someone else; they stay on it and still see its status.
-- `Delegation` (class) L416 - One hand-off of a post in review, with where the post stands now.
-- `ReviewCommentCreate` (class) L441
-    - `_region_is_whole` (def) L457
-- `ReviewCommentUpdate` (class) L468
-- `ReviewComment` (class) L472
-- `SubmissionEvent` (class) L499
-- `SubmissionHistory` (class) L508
-- `ReviewQueueItem` (class) L514 - A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it.
-- `ReviewQueueCounts` (class) L569
-- `DashboardActivity` (class) L580 - One recent thing that happened to content the viewer can see.
-- `DashboardFinding` (class) L592 - A rulebook rule and how often it was flagged on content sent for review.
-- `DashboardSummary` (class) L599 - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
-- `SubmitRequest` (class) L613
-- `SubmitResult` (class) L619
+## models/compliance/submission_input_model.py (20 lines) - Post creation inputs and the optional video script review setting.
+- `VideoScriptOptions` (class) L12
+- `SubmissionCreate` (class) L17
+
+## models/compliance/submission_model.py (610 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
+- `BrandOption` (class) L59
+- `AccountOption` (class) L64
+- `SubmissionOptions` (class) L76
+- `ReviewerOption` (class) L86 - Someone a creator can send content to for review.
+- `SubmissionUpdate` (class) L96
+- `TranscriptSegment` (class) L134
+- `SubmissionFile` (class) L142
+- `AnalysisStep` (class) L168 - One part of the post still being read before the rulebook check can score it.
+- `AnalysisProgress` (class) L179 - How far the post's reading has got and when the score is expected.
+- `SubmissionSummary` (class) L191
+- `Submission` (class) L258
+- `SubmissionVersion` (class) L327
+- `VersionView` (class) L334 - One submitted version as it was: what was sent, its video, its automated check and its decision.
+- `ReviewJob` (class) L346
+- `ReviewDecisionRequest` (class) L368 - A reviewer's decision on the version currently in review.
+- `ReopenRequest` (class) L390 - A reviewer takes back an approval and sends the content to its creator with what to change.
+- `RescheduleRequest` (class) L399 - A reviewer moves approved content to a different publish time.
+- `DelegateRequest` (class) L404 - A reviewer hands the post in review to someone else; they stay on it and still see its status.
+- `Delegation` (class) L413 - One hand-off of a post in review, with where the post stands now.
+- `ReviewCommentCreate` (class) L438
+    - `_region_is_whole` (def) L454
+- `ReviewCommentUpdate` (class) L465
+- `ReviewComment` (class) L469
+- `SubmissionHistory` (class) L496
+- `ReviewQueueItem` (class) L502 - A submitted post (video, image, carousel, text, ad or blog), as the Content Screener lists it.
+- `ReviewQueueCounts` (class) L557
+- `DashboardActivity` (class) L568 - One recent thing that happened to content the viewer can see.
+- `DashboardFinding` (class) L580 - A rulebook rule and how often it was flagged on content sent for review.
+- `DashboardSummary` (class) L587 - The dashboard's activity feed and last-30-days compliance insights, over the content the viewer can see.
+- `SubmitRequest` (class) L601
+- `SubmitResult` (class) L607
 
 ## models/compliance/submission_steps_model.py (22 lines) - Creator progress through submission and revision steps.
 - `SubmissionSteps` (class) L8 - How far a post has got through the five steps a creator works through (see post_steps_service).
+
+## models/compliance/video_footage_model.py (7 lines) - An explicit Yes/No declaration; None means the creator has not answered.
+- `VideoFootageFields` (class) L5

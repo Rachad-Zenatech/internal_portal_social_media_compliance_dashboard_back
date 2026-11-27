@@ -7,6 +7,8 @@ or from an uploaded file split into scripts as an uploaded batch is; every page 
 import json
 import logging
 import re
+from services.compliance.media.script_sources import extract
+from services.compliance.evaluation.script_doc_sources import export_text
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -24,6 +26,8 @@ from services.compliance.evaluation import shared_script_service as shared
 from services.compliance.media import html_layout
 from services.compliance.evaluation.script_doc_templates import empty_script_html, text_to_html
 from services.compliance.evaluation.script_split import split_scripts
+from services.compliance.evaluation.script_import_sections import script_import_sections
+from services.compliance.evaluation.script_import_format import script_import_warnings
 from services.compliance.evaluation.script_doc_split import split_document
 from services.compliance.submissions import submission_service as subs
 from services.shared.core.audit_service import log_audit_event
@@ -53,7 +57,7 @@ async def _make_posts(doc_id: UUID) -> int:
         return 0
     shared = BatchDetails(**(subs._json(doc["details"]) or {})).model_dump(exclude_none=True)
     title = doc["title"]
-    text = html_layout.html_to_text(doc.get("body_html")) or doc["body_text"]
+    text = export_text(doc, html_layout.html_to_text(doc.get("body_html")) or doc["body_text"])
     post = await subs.create_submission(SubmissionCreate(title=title, content_type="VIDEO"), creator)
     try:
         await subs.update_submission(post.id, SubmissionUpdate(**shared), creator)
@@ -141,13 +145,13 @@ async def _make_set(doc: Dict[str, Any]) -> UUID:
     return row["id"]
 
 
-async def _new_page(set_id: UUID, creator: UUID, title: str, html: str, text: str = "") -> UUID:
-    set_row = await fetch_one("SELECT details FROM script_sets WHERE id = $1", set_id)
+async def _new_page(set_id: UUID, creator: UUID, title: str, html: str, text: str = "", sources: str = "", import_warnings: Optional[List[str]] = None) -> UUID:
+    set_row = await fetch_one("SELECT details, shared_details FROM script_sets WHERE id = $1", set_id)
     row = await fetch_one(
-        "INSERT INTO script_documents (title, template_key, created_by, body_html, body_text, set_id, details, position) "
-        "VALUES ($1, 'blank', $2, $3, $4, $5, $6::jsonb, (SELECT coalesce(max(position), 0) + 1 FROM script_documents WHERE set_id = $5)) "
-        "RETURNING id", title[:300], creator, html, text, set_id, json.dumps(subs._json(set_row["details"]) or {}))
-    await core._event(row["id"], 0, creator, "CREATED", {"page": True})
+        "INSERT INTO script_documents (title, template_key, created_by, body_html, body_text, set_id, details, sources_text, position) "
+        "VALUES ($1, 'blank', $2, $3, $4, $5, $6::jsonb, $7, (SELECT coalesce(max(position), 0) + 1 FROM script_documents WHERE set_id = $5)) "
+        "RETURNING id", title[:300], creator, html, text, set_id, json.dumps((subs._json(set_row["details"]) or {}) if set_row.get("shared_details", True) else {}), sources)
+    await core._event(row["id"], 0, creator, "CREATED", {"page": True, "import_warnings": import_warnings or []})
     await execute("UPDATE script_sets SET updated_at = NOW() WHERE id = $1 RETURNING id", set_id)
     await shared.ensure_shared_document(row["id"])
     return row["id"]
@@ -164,10 +168,12 @@ async def add_page(doc_id: UUID, user_id: UUID) -> DocDetail:
     return await core.get(new_id, user_id)
 
 
-async def _add_uploaded(set_id: UUID, user_id: UUID, filename: str, data: bytes) -> List[DocPage]:
+async def _add_uploaded(set_id: UUID, user_id: UUID, filename: str, data: bytes, text: Optional[str] = None) -> List[DocPage]:
     """Read an uploaded file, split it into scripts as an uploaded batch is, and add each as a page of the document."""
-    text = await batches.read_upload(filename, data)
+    if text is None:
+        text = await batches.read_upload(filename, data)
     found = split_scripts(text)
+    warnings = script_import_warnings(found)
     if not found:
         raise HTTPException(status_code=422, detail="No scripts were found in that file")
     if len(found) > batches.MAX_SCRIPTS:
@@ -179,7 +185,10 @@ async def _add_uploaded(set_id: UUID, user_id: UUID, filename: str, data: bytes)
     ids = []
     for n, (raw_title, body) in enumerate(found, start=first):
         title = re.sub(r"^\s*\d{1,3}\s*[.):\-–]\s*", "", raw_title).strip() or raw_title
-        ids.append(await _new_page(set_id, user_id, title, text_to_html(f"{n}. {title}", body), body))
+        body, sources = extract(body)
+        if not body.strip():
+            raise HTTPException(status_code=422, detail="A script must contain more than sources")
+        ids.append(await _new_page(set_id, user_id, title, text_to_html(f"{n}. {title}", body), body, sources, import_warnings=warnings))
     await log_audit_event("script_document", str(set_id), "UPLOAD_PAGES", user_id, {"file": filename, "scripts": len(found)})
     return [p for p in await _pages(set_id) if p.id in ids]
 
@@ -187,17 +196,21 @@ async def _add_uploaded(set_id: UUID, user_id: UUID, filename: str, data: bytes)
 async def upload_pages(doc_id: UUID, user_id: UUID, filename: str, data: bytes) -> UploadedPages:
     """Upload a file into an existing document: each script in it becomes a page."""
     doc, set_id = await _owned_set(doc_id, user_id)
-    return UploadedPages(created=await _add_uploaded(set_id, user_id, filename, data))
+    text = await batches.read_upload(filename, data)
+    return UploadedPages(created=await _add_uploaded(set_id, user_id, filename, data, text),
+                         warnings=script_import_warnings(split_scripts(text)))
 
 
 async def create_from_upload(user_id: UUID, filename: str, data: bytes) -> UploadedPages:
     """Attach a script: a new document made from an uploaded file, one page for each script in it."""
     # Read it first, so a file that can't be read doesn't leave an empty document behind.
-    await batches.read_upload(filename, data)
-    title = (filename.rsplit(".", 1)[0].strip() or "Uploaded script")[:300]
+    text = await batches.read_upload(filename, data)
+    document_title, _ = script_import_sections(text)
+    title = (document_title or filename.rsplit(".", 1)[0].strip() or "Uploaded script")[:300]
     set_id = await fetch_one("INSERT INTO script_sets (title, created_by) VALUES ($1, $2) RETURNING id", title, user_id)
     try:
-        return UploadedPages(created=await _add_uploaded(set_id["id"], user_id, filename, data))
+        return UploadedPages(created=await _add_uploaded(set_id["id"], user_id, filename, data, text),
+                             warnings=script_import_warnings(split_scripts(text)))
     except Exception:
         await execute("UPDATE script_sets SET deleted_at = NOW() WHERE id = $1 RETURNING id", set_id["id"])
         raise

@@ -172,6 +172,18 @@ class _Docx:
         self.page += 1
         self.lines.append(page_marker(self.page))
 
+    def source_cell(self, tc: ElementTree.Element) -> str:
+        """Keep each citation's display text and hyperlink targets together in one cell."""
+        entries = []
+        for p in tc.iter(f"{_W}p"):
+            text = self.paragraph(p, in_table=True)
+            links = dict.fromkeys(self.links.get(link.get(_REL_ID)) for link in p.iter(f"{_W}hyperlink"))
+            targets = [link for link in links if link and link not in text]
+            entry = " ".join([text, *targets]).strip()
+            if entry:
+                entries.append(entry)
+        return "; ".join(entries)
+
     def table(self, tbl: ElementTree.Element) -> None:
         for tr in tbl.findall(f"{_W}tr"):
             cells = []
@@ -179,8 +191,9 @@ class _Docx:
                 cells.append(" ".join(c for c in (self.paragraph(p, in_table=True) for p in tc.iter(f"{_W}p")) if c))
             if any(cells):
                 if is_sources_label(next(cell for cell in cells if cell)):
-                    links = [self.links.get(link.get(_REL_ID)) for link in tr.iter(f"{_W}hyperlink")]
-                    cells.extend(dict.fromkeys(link for link in links if link))
+                    source_cells = [self.source_cell(tc) for tc in tr.findall(f"{_W}tc")]
+                    first = next(i for i, cell in enumerate(cells) if cell)
+                    cells = [cells[first], "; ".join(cell for cell in source_cells[first + 1:] if cell)]
                 self.lines.append(_row(cells))
 
     def block(self, node: ElementTree.Element) -> None:

@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, List, Mapping, Optional
 
 from models.compliance.submission_model import SubmissionSteps
+from services.compliance.sentiment.policy import applies as sentiment_applies
 from services.compliance.submissions import revision_steps, image_provenance_service
 
 # Statuses the creator can still change; anything else is locked.
@@ -27,7 +28,7 @@ EDITABLE_STATUSES = ("DRAFT", "CHANGES_REQUESTED")
 FIELD_WORDS = {
     "title": "title", "brand_code": "brand", "audience": "audience", "region": "region", "platforms": "platform",
     "account_id": "account to post on", "rule_sets": "rule set", "caption": "caption", "main_file": "image or video",
-    "script_approval": "approved script", "script": "script", "ai_generated_images": "answer to the AI image question",
+    "script_approval": "approved script", "script": "script", "ai_generated_images": "answer to the AI image question", "video_third_party_footage": "answer to the video footage question",
 }
 
 
@@ -74,6 +75,8 @@ def details_missing(r: Mapping[str, Any]) -> List[str]:
             missing.append("script_approval")
     if image_provenance_service.missing(r):
         missing.append("ai_generated_images")
+    if r.get("main_is_video") and r.get("video_third_party_footage") is None:
+        missing.append("video_third_party_footage")
     return missing
 
 
@@ -124,7 +127,7 @@ def compute_steps(r: Mapping[str, Any]) -> SubmissionSteps:
     mood = _tool(r.get("mood_at"), edited_at)
 
     done = {"details": details, "compliance": compliance, "sentiment": sentiment}
-    required = ("details", "compliance") if r.get("script_stage") and not r.get("main_is_video") else ("details", "compliance", "sentiment")
+    required = ("details", "compliance") if not sentiment_applies(r) or (r.get("script_stage") and not r.get("main_is_video")) else ("details", "compliance", "sentiment")
     next_step = next((k for k in required if done[k] != "done"), "send")
     ready = all(done[k] == "done" for k in required)
     return SubmissionSteps(

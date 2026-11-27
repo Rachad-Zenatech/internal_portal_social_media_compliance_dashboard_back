@@ -106,6 +106,8 @@ async def require_sentiment_ready(submission_id, user_id):
     """Video sentiment starts only after a real video is attached; scripts do not require it."""
     from services.compliance.submissions import submission_service as subs
     row = await subs._get_owned_row(submission_id, user_id, manager_can_read=True)
+    from services.compliance.sentiment.policy import require_enabled
+    require_enabled(row)
     if row.get("content_type") == "VIDEO":
         video = await subs.fetch_one(
             "SELECT 1 FROM content_submission_files WHERE submission_id = $1 AND kind = 'MAIN' "

@@ -1,6 +1,7 @@
 """SQL for the submission list, including previews and analysis status."""
 
 from services.compliance.submissions import image_provenance_service, media_freshness
+from .review_outcome import status_sql
 from services.compliance.submissions.review_hierarchy_service import manager_access_sql, reviewer_sees as _reviewer_sees
 
 
@@ -10,7 +11,7 @@ def list_query(accounts_column, pending_sql, unavailable_sql):
                s.current_version, s.publish_at, s.publish_after_changes, s.approval_needed_by, s.submitted_at, s.created_at, s.updated_at, s.audience, s.audiences,
                s.due_at, s.due_kind, s.rule_sets, s.region, s.script_required, s.platform_captions,
                (EXISTS (SELECT 1 FROM content_submission_files sf WHERE sf.submission_id = s.id AND sf.kind = 'SCRIPT' AND sf.deleted_at IS NULL) OR EXISTS (SELECT 1 FROM content_script_versions sv WHERE sv.submission_id = s.id)) AS has_script,
-               s.content_edited_at, """ + image_provenance_service.COLUMNS_SQL + media_freshness.REVISION_SQL + """ AS media_edited_at,
+               s.content_edited_at, s.video_third_party_footage, """ + image_provenance_service.COLUMNS_SQL + media_freshness.REVISION_SQL + """ AS media_edited_at,
                (s.latest_check->>'checked_at')::timestamptz AS check_at,
                (SELECT max(a.created_at) FROM content_sentiment_analyses a
                  WHERE a.submission_id = s.id AND a.status = 'COMPLETED') AS sentiment_at,
@@ -72,7 +73,7 @@ def list_query(accounts_column, pending_sql, unavailable_sql):
             LIMIT 1
         ) cov ON true
         WHERE (s.created_by = $1 OR ($3 AND """ + _reviewer_sees("$1", "$4") + """))
-          AND s.deleted_at IS NULL AND ($2::text IS NULL OR s.status = $2)
+          AND s.deleted_at IS NULL AND ($2::text IS NULL OR """ + status_sql() + """ = $2)
         -- What needs the creator comes first: changes to fix (a post's or its script's), then drafts to finish
         -- (including an approved script waiting for its video). Then what's waiting on someone else: content in
         -- review, and a script with a reviewer or being sent, which count the same however they're stored (a script

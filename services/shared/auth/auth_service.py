@@ -70,7 +70,7 @@ LINK_TOKEN_PATHS = re.compile(
     r"^/api/(submissions/[^/]+/files/[^/]+"
     r"|submissions/[^/]+/sentiment/[^/]+/(frame|images/\d+)"
     r"|canva/designs/[^/]+/thumbnail"
-    r"|messaging-context/brand-voices/[^/]+/(logo|manual)"
+    r"|messaging-context/brand-voices/[^/]+/(logo|manual(?:/pages/[1-9]\d*)?)"
     r"|notifications/stream)$"
 )
 

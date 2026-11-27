@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/source_check_service.py (451 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
+## services/compliance/evaluation/source_check_service.py (413 lines) - Source check: does the source a post cites say what the post says? A post that states a fact, figure or date should cite where it comes f...
 - `SourceCheckResult` (class) L91
 - `authority_of` (def) L103 - OFFICIAL, COMPANY, NEWS or OTHER, by the site lists in source_settings (none are fixed in code).
     - `on` (def) L109
@@ -19,5 +19,5 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `findings` (def) L340 - The findings the sources produce: claims that contradict their source cost points; claims the source doesn't
 - `charge_not_found` (def) L387 - A claim its source doesn't mention is unproven, like one that needs a source: each costs `points`, up to `room` in
 - `_tokens` (def) L400
-- `_same_claim` (def) L404 - Whether a supported claim is the one a "needs a source" finding is about.
-- `clear_supported` (def) L423 - A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place).
+- `_same_claim` (def) L404 - Keep complete assertion identity when connecting a finding to source evidence.
+- `clear_supported` (def) L409 - Compatibility entry point for the final evidence-aware reconciliation policy.

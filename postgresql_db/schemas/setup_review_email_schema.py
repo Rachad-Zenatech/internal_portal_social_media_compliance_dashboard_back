@@ -10,6 +10,8 @@ async def setup() -> None:
                 time_zone TEXT NOT NULL,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
+            ALTER TABLE review_email_preferences
+                ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'BROWSER';
             CREATE TABLE IF NOT EXISTS review_email_state (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 activated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -40,6 +40,12 @@ class DocUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=300)
     # What every post made from the script shares (the same fields as an uploaded batch).
     details: Optional[BatchDetails] = None
+    shared_details: Optional[bool] = None
+
+
+class DocSourcesUpdate(BaseModel):
+    sources_text: str = Field(..., max_length=100_000)
+    expected_sources_text: str = Field(..., max_length=100_000)
 
 
 class DocSnapshot(BaseModel):
@@ -113,6 +119,7 @@ class DocEvent(BaseModel):
 
 
 class DocVersion(BaseModel):
+    sources_text: Optional[str] = None
     id: int
     round: int
     label: str
@@ -196,9 +203,15 @@ class BulkResult(BaseModel):
 
 class UploadedPages(BaseModel):
     created: List[DocPage] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
 
 
 class DocDetail(BaseModel):
+    import_warnings: List[str] = Field(default_factory=list)
+    sources_text: str = ""
+    latest_check: Optional[Dict[str, Any]] = None
+    compliance_stale: bool = False
+    shared_details: bool = True
     id: UUID
     title: str
     template_key: str

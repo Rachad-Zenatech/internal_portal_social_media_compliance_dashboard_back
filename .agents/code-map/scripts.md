@@ -12,6 +12,24 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_cache_numbers` (def) L155
 - `main` (def) L174
 
+## scripts/brand_manual_download_eval.py (74 lines) - Brand downloads recover evicted files without exposing paths outside brand storage.
+- `BrandDownloadTests` (class) L15
+    - `setUp` (def) L16
+    - `resolve` (def) L23
+    - `test_missing_manual_is_restored_and_retains_download_name` (def) L28
+    - `test_existing_manual_needs_no_remote_download` (def) L39
+    - `test_logo_uses_same_storage_recovery` (def) L47
+    - `test_path_traversal_is_rejected_before_storage_access` (def) L57
+    - `test_missing_remote_file_has_actionable_error` (def) L65
+
+## scripts/brand_manual_image_auth_eval.py (56 lines) - Browser link tokens may read manual artwork, while API and write access remain blocked.
+- `BrandManualImageAuthTests` (class) L16
+    - `check_access` (def) L17
+    - `test_manual_artwork_accepts_browser_link_tokens` (def) L29
+    - `test_original_manual_and_logo_remain_accessible` (def) L34
+    - `test_link_token_does_not_grant_api_or_invalid_page_access` (def) L39
+    - `test_link_token_cannot_write_to_manual_page_routes` (def) L46
+
 ## scripts/mood_ml.py (144 lines) - Offline tool for the public-mood decision model.
 - `_show` (def) L35
 - `_status` (def) L39
@@ -94,6 +112,18 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
     - `out_of_time` (def) L382
 - `main` (def) L440
 
+## scripts/script_doc_sources_eval.py (135 lines) - Regression checks for script-specific source import, persistence, checking and export.
+- `document` (def) L27
+- `test_extract_keeps_names_urls_and_notes_separate_from_script` (def) L32
+- `test_sources_for_supports_legacy_imports_and_explicit_removal` (def) L43
+- `test_each_bulk_import_stores_only_its_own_sources` (def) L51
+- `test_check_passes_saved_sources_as_evidence_and_records_snapshot` (def) L66
+- `test_save_enforces_edit_access_and_concurrent_change_protection` (def) L78
+- `test_save_updates_one_script_and_resets_review_checkins` (def) L94
+- `test_export_restores_sources_as_merged_table_row_and_reimports` (def) L108
+- `test_bulk_roundtrip_does_not_split_sources_into_scripts` (def) L120
+- `test_shared_editor_export_uses_formatted_table_snapshot` (def) L128
+
 ## scripts/script_hub_eval.py (148 lines) - Script hub visibility and submitted-upload regression checks; no database or external services.
 - `load_service` (def) L15
 - `ScriptHubTests` (class) L23
@@ -148,6 +178,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_matches` (def) L108 - A reviewer's phrase and a finding are about the same thing when one's wording contains the other's.
 - `run_saved_case` (def) L114
 - `main` (def) L136
+
+## scripts/shared_script_auth_eval.py (70 lines) - Service clock skew must not prevent script review or expire a person's portal session.
+- `load_symbol` (def) L18
+- `SharedScriptAuthTests` (class) L26
+    - `test_service_token_tolerates_small_clock_skew_without_extending_expiry` (def) L27
+    - `test_upstream_errors_preserve_portal_session_and_validation_statuses` (def) L47
 
 ## scripts/submission_freshness_eval.py (109 lines) - Regressions for SUB-1219's schedule-only invalidation and cached sentiment reuse.
 - `RevisionTests` (class) L25

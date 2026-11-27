@@ -237,7 +237,7 @@ async def _read_link(citation: citation_finder.Citation, post_text: str) -> Tupl
 
 async def run(
     text: str, provided: Sequence[ProvidedSource] = (), *, source_script: Optional[str] = None,
-    include_image_citations: bool = True,
+    include_image_citations: bool = True, claims: Optional[list] = None,
 ) -> SourceCheckResult:
     """Find the sources a post cites, read them, and compare the post's claims with each."""
     result = SourceCheckResult()
@@ -246,7 +246,7 @@ async def run(
     # Post Details owns image-source discovery; compliance still compares the full image text with saved links.
     citations = [c for c in citation_finder.find(text) if include_image_citations or c.where != "image"]
     docs = [d for d in provided if (d.text or "").strip()]
-    inventory = await source_claim_coverage.identify(source_claim_coverage.post_body(text), _ask, MODELS, MAX_CLAIMS)
+    inventory = claims if claims is not None else await source_claim_coverage.identify(source_claim_coverage.post_body(text), _ask, MODELS, MAX_CLAIMS)
     if inventory is None:
         result.ai_failed = True
         inventory = []
@@ -402,49 +402,11 @@ def _tokens(text: str) -> set:
 
 
 def _same_claim(supported: str, v: ComplianceViolation) -> bool:
-    """Whether a supported claim is the one a "needs a source" finding is about."""
-    said = " ".join([*v.flagged_terms, (v.evaluation.matched_text if v.evaluation and v.evaluation.matched_text else ""),
-                     v.passage or ""])
-    if v.rule_number == "Rule 18":
-        from services.compliance.evaluation.source_claim_grounding import same_assertion
-        quotes = v.flagged_terms if v.category == "Source Check" else [v.passage or
-            (v.evaluation.matched_text if v.evaluation else "") or " ".join(v.flagged_terms)]
-        return any(same_assertion(supported, quote or "") for quote in quotes)
-    mine = _tokens(supported)
-    if not mine:
-        return False
-    flagged = _tokens(" ".join(v.flagged_terms))
-    if flagged and flagged <= _tokens(supported + " " + (v.passage or "")) and flagged & mine:
-        return True
-    theirs = _tokens(said)
-    return bool(theirs) and len(mine & theirs) / len(mine | theirs) >= 0.5
-
+    """Keep complete assertion identity when connecting a finding to source evidence."""
+    from .source_evidence_context import linked
+    return linked(v, {"claim": supported})
 
 def clear_supported(violations: Sequence[ComplianceViolation], checks: Sequence[SourceCheck]) -> int:
-    """A claim that "needs a source" is cleared when a source the post cites supports that very claim (in place). So is
-    a hit on a rule about disclosing non-public data (PUBLISHED_OK_RULES) when the company's own published page or an
-    official one says the same thing: it is already public. Returns how many were cleared."""
-    supported = [(claim, check) for check in checks if check.status == "READ" for claim in check.claims
-                 if claim.verdict == "SUPPORTED"]
-    cleared = 0
-    for v in violations:
-        if v.status != "EVIDENCE_REQUIRED" and not (v.status == "VIOLATION" and v.rule_number in PUBLISHED_OK_RULES):
-            continue
-        for claim, check in supported:
-            if v.status == "VIOLATION" and check.authority not in ("COMPANY", "OFFICIAL"):
-                continue
-            if _same_claim(claim.claim, v):
-                was = v.status
-                v.status = "CLEARED"
-                v.penalty, v.uncounted_penalty, v.counted_with = 0, 0, None
-                v.traffic_light = "GREEN"
-                v.explanation = (f"{_label(check)} supports this: {claim.evidence or claim.claim}. " + (
-                    "(It would otherwise need a source.)" if was == "EVIDENCE_REQUIRED"
-                    else "It is already published there, so it isn't non-public information."))
-                v.evaluation = ContextEvaluation(
-                    decision="CLEARED", matched_text=claim.claim, reasoning=claim.evidence or "",
-                    confidence=claim.confidence, rule_decision=was, source="AI", model=check.model,
-                )
-                cleared += 1
-                break
-    return cleared
+    """Compatibility entry point for the final evidence-aware reconciliation policy."""
+    from .evidence_reconciliation import clear_supported as reconcile_supported
+    return reconcile_supported(violations, checks)

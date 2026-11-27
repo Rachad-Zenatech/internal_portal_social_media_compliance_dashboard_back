@@ -18,7 +18,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from models.compliance.compliance_model import ComplianceViolation
 
 # Bump when the checks change, so open content is re-checked on the next start (see rulebook_version).
-VERSION = "claims-5"
+VERSION = "claims-6-financial-assertions"
 
 PENALTY_HIGH = 20
 PENALTY_MEDIUM = 10

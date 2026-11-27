@@ -98,7 +98,11 @@ class _HtmlLayoutParser(HTMLParser):
         elif t == "tr":
             if any(self._row_cells):
                 if is_sources_label(next(cell for cell in self._row_cells if cell)):
-                    self._row_cells.extend(dict.fromkeys(self._row_links))
+                    first = next(i for i, cell in enumerate(self._row_cells) if cell)
+                    entries = self._row_cells[first + 1:]
+                    text = " ".join(entries)
+                    entries.extend(link for link in dict.fromkeys(self._row_links) if link not in text)
+                    self._row_cells = [self._row_cells[first], "; ".join(entry for entry in entries if entry)]
                 self._table_rows.append(_row(self._row_cells))
             self._row_cells = []
         elif t == "table":

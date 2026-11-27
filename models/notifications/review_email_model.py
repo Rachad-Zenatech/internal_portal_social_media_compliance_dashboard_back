@@ -1,7 +1,7 @@
 """Small workflow records shared by email selection, scheduling and rendering."""
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -31,6 +31,7 @@ class ReviewEmailItem:
 
 class EmailTimezonePreference(BaseModel):
     time_zone: str = Field(min_length=1, max_length=100)
+    source: Literal["BROWSER", "MANUAL"] = "BROWSER"
 
     @field_validator("time_zone")
     @classmethod
