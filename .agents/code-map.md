@@ -100,10 +100,11 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__script_import_format.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_import_sections.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_match.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__script_precheck_cache.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_queue_service.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_review_details.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_review_persistence.md | 1 | 1 KB |
-| .agents/code-map/services__compliance__evaluation__script_review_service.md | 1 | 5 KB |
+| .agents/code-map/services__compliance__evaluation__script_review_service.md | 1 | 4 KB |
 | .agents/code-map/services__compliance__evaluation__script_scoring.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_split.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_submission_content.md | 1 | 1 KB |

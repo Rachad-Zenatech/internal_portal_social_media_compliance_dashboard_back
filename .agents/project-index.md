@@ -193,10 +193,11 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/compliance/evaluation/script_import_format.py (22 lines) - Non-blocking format notices for imported scripts.
 - services/compliance/evaluation/script_import_sections.py (76 lines) - Identify a collection title separately from its numbered or bulleted scripts.
 - services/compliance/evaluation/script_match.py (153 lines) - Script vs video.
+- services/compliance/evaluation/script_precheck_cache.py (43 lines) - Reuse script-stage checks only while their wording, sources and scoring policy remain current.
 - services/compliance/evaluation/script_queue_service.py (32 lines) - Queue membership shared by script lists and their tab counts.
 - services/compliance/evaluation/script_review_details.py (18 lines) - Read-only details of a script already sent for review.
 - services/compliance/evaluation/script_review_persistence.py (44 lines) - Script-stage version persistence and locking, shared by uploaded-script send paths.
-- services/compliance/evaluation/script_review_service.py (1003 lines) - Script stage of a video post.
+- services/compliance/evaluation/script_review_service.py (977 lines) - Script stage of a video post.
 - services/compliance/evaluation/script_scoring.py (143 lines) - Only voiceover and supers may reduce a script's compliance score.
 - services/compliance/evaluation/script_split.py (123 lines) - Splitting one document into the scripts it holds.
 - services/compliance/evaluation/script_submission_content.py (29 lines) - Lossless line/table conversion for scripts submitted through Create Post.
