@@ -1,4 +1,5 @@
 """Exercise the actual upload entry points with isolated I/O dependencies."""
+import asyncio
 import ast
 import json
 import re
@@ -35,10 +36,9 @@ def upload_namespace():
     return namespace
 
 
-@pytest.mark.asyncio
-async def test_new_collection_uses_document_title_and_returns_format_notice():
+def test_new_collection_uses_document_title_and_returns_format_notice():
     namespace = upload_namespace()
-    result = await namespace["create_from_upload"]("creator", "filename.pdf", b"pdf")
+    result = asyncio.run(namespace["create_from_upload"]("creator", "filename.pdf", b"pdf"))
     assert namespace["fetch_one"].await_args.args[1] == "Collection title"
     assert result.created == ["first-id", "second-id"]
     assert "export template format" in result.warnings[0]
@@ -46,18 +46,16 @@ async def test_new_collection_uses_document_title_and_returns_format_notice():
     assert namespace["_add_uploaded"].await_args.args[-1] == TEXT
 
 
-@pytest.mark.asyncio
-async def test_titleless_upload_retains_filename_for_collection_name():
+def test_titleless_upload_retains_filename_for_collection_name():
     namespace = upload_namespace()
     namespace["batches"].read_upload.return_value = TEXT.replace("# Collection title\n", "")
-    await namespace["create_from_upload"]("creator", "filename.pdf", b"pdf")
+    asyncio.run(namespace["create_from_upload"]("creator", "filename.pdf", b"pdf"))
     assert namespace["fetch_one"].await_args.args[1] == "filename"
 
 
-@pytest.mark.asyncio
-async def test_upload_into_existing_collection_keeps_set_and_returns_notice():
+def test_upload_into_existing_collection_keeps_set_and_returns_notice():
     namespace = upload_namespace()
-    result = await namespace["upload_pages"]("doc", "creator", "filename.pdf", b"pdf")
+    result = asyncio.run(namespace["upload_pages"]("doc", "creator", "filename.pdf", b"pdf"))
     assert result.warnings
     namespace["fetch_one"].assert_not_awaited()
     assert namespace["_add_uploaded"].await_args.args[0] == "set-id"
@@ -78,23 +76,21 @@ def persistence_namespace(filename, names):
     return namespace
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("warnings", [[], ["Template format differs"]])
-async def test_page_creation_persists_import_notice_in_immutable_event(warnings):
+def test_page_creation_persists_import_notice_in_immutable_event(warnings):
     ns = persistence_namespace("script_doc_pages.py", {"_new_page"})
     ns.update(fetch_one=AsyncMock(side_effect=[{"details": {}}, {"id": "page"}]), execute=AsyncMock(),
               core=SimpleNamespace(_event=AsyncMock()), shared=SimpleNamespace(ensure_shared_document=AsyncMock()))
-    await ns["_new_page"]("set", "creator", "Title", "<p>Script</p>", import_warnings=warnings)
+    asyncio.run(ns["_new_page"]("set", "creator", "Title", "<p>Script</p>", import_warnings=warnings))
     assert ns["core"]._event.await_args.args == ("page", 0, "creator", "CREATED", {"page": True, "import_warnings": warnings})
 
 
-@pytest.mark.asyncio
-async def test_every_imported_page_retains_the_original_file_notice():
+def test_every_imported_page_retains_the_original_file_notice():
     ns = persistence_namespace("script_doc_pages.py", {"_add_uploaded"})
     ns.update(_pages=AsyncMock(side_effect=[[], [SimpleNamespace(id="first"), SimpleNamespace(id="second")]]),
               _new_page=AsyncMock(side_effect=["first", "second"]), log_audit_event=AsyncMock(),
               batches=SimpleNamespace(MAX_SCRIPTS=100), text_to_html=lambda title, body: body)
-    await ns["_add_uploaded"]("set", "creator", "upload.txt", b"", TEXT)
+    asyncio.run(ns["_add_uploaded"]("set", "creator", "upload.txt", b"", TEXT))
     for call in ns["_new_page"].await_args_list:
         assert call.kwargs["import_warnings"] == script_import_warnings(split_scripts(TEXT))
 
