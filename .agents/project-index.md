@@ -98,8 +98,9 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/ai/core/bedrock_embeddings.py (52 lines) - Real Titan embeddings, isolated from chat inference profiles and old vector spaces.
 - services/ai/core/bedrock_service.py (470 lines) - AWS Bedrock AI Service Adapter.
 - services/ai/core/compliance_request_policy.py (29 lines) - Bound compliance attempts and share outage knowledge without changing judgment prompts or coverage.
-- services/ai/core/embedding_service.py (147 lines) - Choose an embedding provider independently of the Claude review models.
+- services/ai/core/embedding_service.py (162 lines) - Choose an embedding provider independently of the Claude review models.
 - services/ai/core/gemini_service.py (204 lines) - gemini service (ai core)
+- services/ai/core/local_embeddings.py (88 lines) - Local HuggingFace/PyTorch embedding provider (BAAI/bge-small-en-v1.5) requiring no cloud API permissions.
 - services/ai/core/model_router.py (104 lines) - Model routing: picks the cheapest suitable model for easy work, and stronger models when needed.
 - services/ai/core/mood_store.py (121 lines) - The collections public mood learns from, in the same MongoDB database as the vector store.
 - services/ai/core/opensearch_client.py (112 lines) - Async AWS OpenSearch (including OpenSearch Serverless `aoss`) HTTP client with SigV4 signing.

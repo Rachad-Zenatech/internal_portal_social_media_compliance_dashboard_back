@@ -93,20 +93,20 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `configure` (def) L8
 - `text_models` (def) L26 - Text judgments may use every explicitly configured general fallback, including those used by rulebook checks.
 
-## services/ai/core/embedding_service.py (147 lines) - Choose an embedding provider independently of the Claude review models.
+## services/ai/core/embedding_service.py (162 lines) - Choose an embedding provider independently of the Claude review models.
 - `EmbeddingCapacityBusy` (class) L18 - Interactive retrieval must not queue behind a background index rebuild.
 - `_capacity` (def) L22
 - `_pace` (def) L28 - Reserve separate rolling capacity; only background indexing is allowed to wait.
 - `provider` (def) L48
 - `model_id` (def) L55
-- `dimensions` (def) L62
-- `vector_path` (def) L71
-- `is_configured` (def) L78
-- `GeminiEmbeddingError` (class) L85
-    - `__init__` (def) L86
-- `_vectors` (def) L91
-- `_request` (def) L106
-- `embed` (def) L127
+- `dimensions` (def) L65
+- `vector_path` (def) L77
+- `is_configured` (def) L87
+- `GeminiEmbeddingError` (class) L97
+    - `__init__` (def) L98
+- `_vectors` (def) L103
+- `_request` (def) L118
+- `embed` (def) L139
 
 ## services/ai/core/gemini_service.py (204 lines) - gemini service (ai core)
 - `_normalize_ai_model_name` (def) L8 - Normalizes a model name from the environment variable list
@@ -117,6 +117,15 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `get_gemini_fallback_models` (def) L82 - Return ordered fallback model IDs configured for Bedrock routing.
 - `is_rotatable_model_error` (def) L93 - Determines if a given exception represents a rate limit, quota exhaustion,
 - `generate_content_with_fallback` (def) L134 - A robust wrapper around client.models.generate_content that automatically
+
+## services/ai/core/local_embeddings.py (88 lines) - Local HuggingFace/PyTorch embedding provider (BAAI/bge-small-en-v1.5) requiring no cloud API permissions.
+- `model_id` (def) L18
+- `dimensions` (def) L22
+- `vector_path` (def) L33
+- `is_configured` (def) L38
+- `_load_model` (def) L45
+- `_embed_sync` (def) L63
+- `embed` (def) L82
 
 ## services/ai/core/model_router.py (104 lines) - Model routing: picks the cheapest suitable model for easy work, and stronger models when needed.
 - `Route` (class) L49

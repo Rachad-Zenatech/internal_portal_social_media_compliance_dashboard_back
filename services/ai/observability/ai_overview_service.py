@@ -117,7 +117,7 @@ def _probe_cloud_cores(
         {
             "core": "titan_embeddings",
             "name": _CORE_LABELS["titan_embeddings"],
-            "provider": f"{'Google Gemini' if embedding_service.provider() == 'gemini' else 'AWS Bedrock'} + OpenSearch",
+            "provider": f"{'Local (HuggingFace)' if embedding_service.provider() == 'local' else 'Google Gemini' if embedding_service.provider() == 'gemini' else 'AWS Bedrock'} + OpenSearch",
             "status": embed_status,
             "configured": vector_enabled and embedding_service.is_configured(),
             "model": f"{embedding_service.model_id()} ({embedding_service.dimensions()}d)",

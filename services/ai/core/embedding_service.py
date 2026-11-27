@@ -9,7 +9,7 @@ from collections import deque
 
 import httpx
 
-from services.ai.core import bedrock_embeddings
+from services.ai.core import bedrock_embeddings, local_embeddings
 
 _rate_lock = asyncio.Lock()
 _rate_windows = {False: deque(), True: deque()}
@@ -46,21 +46,27 @@ async def _pace(count, *, background=False):
 
 
 def provider():
-    value = os.getenv("EMBEDDING_PROVIDER", "bedrock").strip().lower()
-    if value not in {"bedrock", "gemini"}:
-        raise ValueError("EMBEDDING_PROVIDER must be bedrock or gemini")
+    value = os.getenv("EMBEDDING_PROVIDER", "local").strip().lower()
+    if value not in {"local", "bedrock", "gemini"}:
+        raise ValueError("EMBEDDING_PROVIDER must be local, bedrock or gemini")
     return value
 
 
 def model_id():
-    if provider() == "bedrock":
+    p = provider()
+    if p == "local":
+        return local_embeddings.model_id()
+    if p == "bedrock":
         return bedrock_embeddings.model_id()
     value = os.getenv("GEMINI_EMBEDDING_MODEL") or os.getenv("VECTOR_EMBEDDING_MODEL", "")
     return value.strip().removeprefix("models/") if value.strip().startswith(("gemini-embedding-", "models/gemini-embedding-")) else "gemini-embedding-2"
 
 
 def dimensions():
-    if provider() == "bedrock":
+    p = provider()
+    if p == "local":
+        return local_embeddings.dimensions()
+    if p == "bedrock":
         return bedrock_embeddings.dimensions()
     value = int(os.getenv("GEMINI_EMBEDDING_DIMENSIONS", "768"))
     if value not in {768, 1536, 3072}:
@@ -69,14 +75,20 @@ def dimensions():
 
 
 def vector_path():
-    if provider() == "bedrock":
+    p = provider()
+    if p == "local":
+        return local_embeddings.vector_path()
+    if p == "bedrock":
         return bedrock_embeddings.vector_path()
     identity = f"gemini-real-v1:{model_id()}:{dimensions()}"
     return "embedding_" + hashlib.sha256(identity.encode()).hexdigest()[:16]
 
 
 def is_configured():
-    if provider() == "gemini":
+    p = provider()
+    if p == "local":
+        return local_embeddings.is_configured()
+    if p == "gemini":
         return bool(os.getenv("GEMINI_API_KEY", "").strip())
     from services.ai.core.bedrock_service import is_bedrock_enabled
     return is_bedrock_enabled()
@@ -127,7 +139,10 @@ async def _request(client, model, requests, key, *, background=False):
 async def embed(texts, *, task_type="RETRIEVAL_DOCUMENT", background=False):
     if not texts:
         return []
-    if provider() == "bedrock":
+    p = provider()
+    if p == "local":
+        return await local_embeddings.embed(texts)
+    if p == "bedrock":
         return await bedrock_embeddings.embed(texts)
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
