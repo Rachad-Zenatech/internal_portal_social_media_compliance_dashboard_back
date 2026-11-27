@@ -4,7 +4,7 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## services/compliance/evaluation/script_doc_pages.py (281 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
+## services/compliance/evaluation/script_doc_pages.py (282 lines) - Script documents: the creator's document and its pages (one script each), and the post an approved script becomes.
 - `_approved` (def) L38 - The script was approved: it becomes a post for the creator to attach a video to.
 - `_make_posts` (def) L50 - The video post for an approved script, with the document's details and the approved wording as its approved
 - `create_posts` (def) L83 - Make the post that couldn't be made when the script was approved (the creator retries).
@@ -15,8 +15,8 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `_new_page` (def) L148
 - `add_page` (def) L160 - A new page: another script in the same document, on its own page with its own table, sent for review on its own.
 - `_add_uploaded` (def) L171 - Read an uploaded file, split it into scripts as an uploaded batch is, and add each as a page of the document.
-- `upload_pages` (def) L195 - Upload a file into an existing document: each script in it becomes a page.
-- `create_from_upload` (def) L203 - Attach a script: a new document made from an uploaded file, one page for each script in it.
-- `submit_all` (def) L218 - Send every page that can be sent (or the ones listed) for review at once, each as its own script.
-- `list_sets` (def) L242 - The creator's documents for the hub, with how their scripts stand.
-- `delete_set` (def) L265 - Delete a whole document of the creator's, only while every script in it is still a draft.
+- `upload_pages` (def) L196 - Upload a file into an existing document: each script in it becomes a page.
+- `create_from_upload` (def) L204 - Attach a script: a new document made from an uploaded file, one page for each script in it.
+- `submit_all` (def) L219 - Send every page that can be sent (or the ones listed) for review at once, each as its own script.
+- `list_sets` (def) L243 - The creator's documents for the hub, with how their scripts stand.
+- `delete_set` (def) L266 - Delete a whole document of the creator's, only while every script in it is still a draft.

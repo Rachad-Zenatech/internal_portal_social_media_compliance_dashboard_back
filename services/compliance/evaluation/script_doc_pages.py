@@ -145,13 +145,13 @@ async def _make_set(doc: Dict[str, Any]) -> UUID:
     return row["id"]
 
 
-async def _new_page(set_id: UUID, creator: UUID, title: str, html: str, text: str = "", sources: str = "") -> UUID:
+async def _new_page(set_id: UUID, creator: UUID, title: str, html: str, text: str = "", sources: str = "", import_warnings: Optional[List[str]] = None) -> UUID:
     set_row = await fetch_one("SELECT details, shared_details FROM script_sets WHERE id = $1", set_id)
     row = await fetch_one(
         "INSERT INTO script_documents (title, template_key, created_by, body_html, body_text, set_id, details, sources_text, position) "
         "VALUES ($1, 'blank', $2, $3, $4, $5, $6::jsonb, $7, (SELECT coalesce(max(position), 0) + 1 FROM script_documents WHERE set_id = $5)) "
         "RETURNING id", title[:300], creator, html, text, set_id, json.dumps((subs._json(set_row["details"]) or {}) if set_row.get("shared_details", True) else {}), sources)
-    await core._event(row["id"], 0, creator, "CREATED", {"page": True})
+    await core._event(row["id"], 0, creator, "CREATED", {"page": True, "import_warnings": import_warnings or []})
     await execute("UPDATE script_sets SET updated_at = NOW() WHERE id = $1 RETURNING id", set_id)
     await shared.ensure_shared_document(row["id"])
     return row["id"]
@@ -173,6 +173,7 @@ async def _add_uploaded(set_id: UUID, user_id: UUID, filename: str, data: bytes,
     if text is None:
         text = await batches.read_upload(filename, data)
     found = split_scripts(text)
+    warnings = script_import_warnings(found)
     if not found:
         raise HTTPException(status_code=422, detail="No scripts were found in that file")
     if len(found) > batches.MAX_SCRIPTS:
@@ -187,7 +188,7 @@ async def _add_uploaded(set_id: UUID, user_id: UUID, filename: str, data: bytes,
         body, sources = extract(body)
         if not body.strip():
             raise HTTPException(status_code=422, detail="A script must contain more than sources")
-        ids.append(await _new_page(set_id, user_id, title, text_to_html(f"{n}. {title}", body), body, sources))
+        ids.append(await _new_page(set_id, user_id, title, text_to_html(f"{n}. {title}", body), body, sources, import_warnings=warnings))
     await log_audit_event("script_document", str(set_id), "UPLOAD_PAGES", user_id, {"file": filename, "scripts": len(found)})
     return [p for p in await _pages(set_id) if p.id in ids]
 

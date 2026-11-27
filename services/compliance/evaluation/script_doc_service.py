@@ -107,8 +107,8 @@ async def _managers() -> List[UUID]:
 
 async def _doc(doc_id: UUID) -> Dict[str, Any]:
     row = await fetch_one(
-        "SELECT d.*, coalesce(nullif(u.full_name, ''), u.email) AS creator_name FROM script_documents d "
-        "JOIN users u ON u.id = d.created_by WHERE d.id = $1 AND d.deleted_at IS NULL", doc_id)
+        "SELECT d.*, (SELECT e.detail->'import_warnings' FROM script_document_events e WHERE e.document_id = d.id AND e.kind = 'CREATED' ORDER BY e.id LIMIT 1) AS import_warnings, "
+        "coalesce(nullif(u.full_name, ''), u.email) AS creator_name FROM script_documents d JOIN users u ON u.id = d.created_by WHERE d.id = $1 AND d.deleted_at IS NULL", doc_id)
     if not row:
         raise HTTPException(status_code=404, detail="Script not found")
     return row
@@ -198,7 +198,7 @@ def _detail(doc: Dict[str, Any], reviewers: List[Dict[str, Any]], access: DocAcc
     return DocDetail(
         id=doc["id"], title=doc["title"], template_key=doc["template_key"], status=doc["status"], round=doc["round"],
         creator_id=doc["created_by"], creator_name=doc["creator_name"], creator_color=_color(doc["created_by"], order),
-        body_html=doc["body_html"], body_text=doc["body_text"], sources_text=sources_for(doc), details=subs._json(doc["details"]) or {}, **compliance_state(doc),
+        body_html=doc["body_html"], body_text=doc["body_text"], sources_text=sources_for(doc), details=subs._json(doc["details"]) or {}, import_warnings=subs._json(doc.get("import_warnings")) or [], **compliance_state(doc),
         send_note=doc["send_note"], decision_note=doc["decision_note"], decided_by_name=decided_by, decided_at=doc["decided_at"],
         reviewers=[
             DocReviewer(user_id=r["user_id"], name=r["name"], capacity=r["capacity"], can_approve=r.get("can_approve", False),

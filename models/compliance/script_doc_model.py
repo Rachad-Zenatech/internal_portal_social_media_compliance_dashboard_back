@@ -207,6 +207,7 @@ class UploadedPages(BaseModel):
 
 
 class DocDetail(BaseModel):
+    import_warnings: List[str] = Field(default_factory=list)
     sources_text: str = ""
     latest_check: Optional[Dict[str, Any]] = None
     compliance_stale: bool = False

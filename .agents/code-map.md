@@ -89,8 +89,12 @@ to find the right file.
 | .agents/code-map/services__compliance__evaluation__script_doc_compliance.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_details.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_pages.md | 1 | 2 KB |
+| .agents/code-map/services__compliance__evaluation__script_doc_pages.md | 1 | 2 KB |
+| .agents/code-map/services__compliance__evaluation__script_doc_pages.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_reads.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_realtime.md | 1 | 1 KB |
+| .agents/code-map/services__compliance__evaluation__script_doc_service.md | 1 | 2 KB |
+| .agents/code-map/services__compliance__evaluation__script_doc_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_service.md | 1 | 2 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_sources.md | 1 | 1 KB |
 | .agents/code-map/services__compliance__evaluation__script_doc_split.md | 1 | 1 KB |
