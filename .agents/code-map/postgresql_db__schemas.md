@@ -71,7 +71,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
 - `setup` (def) L11
 
-## postgresql_db/schemas/setup_review_email_schema.py (34 lines) - Durable delivery and activation boundary for review workflow emails.
+## postgresql_db/schemas/setup_review_email_schema.py (36 lines) - Durable delivery and activation boundary for review workflow emails.
 - `setup` (def) L5
 
 ## postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...

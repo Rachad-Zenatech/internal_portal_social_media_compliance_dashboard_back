@@ -37,7 +37,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - models/compliance/submission_model.py (617 lines) - Content Submission Pydantic Models Drafts, file attachments, versions, review jobs and activity for the New Submission flow.
 - models/compliance/submission_steps_model.py (22 lines) - Creator progress through submission and revision steps.
 - models/notifications/notification_model.py (34 lines) - notification model (notifications)
-- models/notifications/review_email_model.py (43 lines) - Small workflow records shared by email selection, scheduling and rendering.
+- models/notifications/review_email_model.py (44 lines) - Small workflow records shared by email selection, scheduling and rendering.
 - models/shared/oauth_connection_model.py (127 lines) - Pydantic models for Organization, Company, and OAuth connections.
 - models/shared/rbac_model.py (146 lines) - rbac model (shared)
 - models/shared/test_login_model.py (10 lines) - Only the existing dummy review accounts support local test sign-in.
@@ -60,7 +60,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - postgresql_db/schemas/setup_login_codes_schema.py (28 lines) - One-time sign-in codes: after Microsoft sign-in the browser gets a short-lived code in the redirect (never the session token), and swaps ...
 - postgresql_db/schemas/setup_pbac_schema.py (285 lines) - setup pbac schema (schemas)
 - postgresql_db/schemas/setup_performance_schema.py (42 lines) - Post performance: dated snapshots of each published post's numbers on each platform (views, likes, comments, shares, saves, comment senti...
-- postgresql_db/schemas/setup_review_email_schema.py (34 lines) - Durable delivery and activation boundary for review workflow emails.
+- postgresql_db/schemas/setup_review_email_schema.py (36 lines) - Durable delivery and activation boundary for review workflow emails.
 - postgresql_db/schemas/setup_script_batches_schema.py (67 lines) - Script batches: a creator uploads one document holding several scripts, a reviewer reviews them all at once, and each approved script bec...
 - postgresql_db/schemas/setup_script_docs_schema.py (152 lines) - Script documents: scripts written in the platform from a template (not attached to a post), reviewed together by several reviewers at onc...
 - postgresql_db/schemas/setup_social_media_schema.py (130 lines) - Setup Social Media & Multi-Entity OAuth Connection Schema Initializes brands, organizations, companies, and oauth_connections.
@@ -336,7 +336,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - services/notifications/review_email/config.py (48 lines) - The admin dashboard's SendGrid configuration, with social portal URLs and team time.
 - services/notifications/review_email/outbox.py (92 lines) - Atomic deduplication, leases and retriable delivery without blocking review workflows.
 - services/notifications/review_email/policy.py (108 lines) - Select actionable work, respecting assignments, check-ins and the team's calendar.
-- services/notifications/review_email/preferences.py (22 lines) - A person's detected email time zone, independent of Graph-managed user fields.
+- services/notifications/review_email/preferences.py (37 lines) - A person's portal and email time zone, independent of Graph-managed fields.
 - services/notifications/review_email/repository.py (92 lines) - Batch reads of current work and committed review decisions; no emails are sent here.
 - services/notifications/review_email/scheduler.py (95 lines) - One 9 a.m.
 - services/notifications/review_email/templates.py (60 lines) - Short, accessible workflow emails using the admin dashboard's branded SendGrid shell.
@@ -386,7 +386,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - tools/compliance/submissions/submission_router.py (466 lines) - Content Submission Router Create, save and resume drafts, attach files, submit for compliance review and view history.
 - tools/microsoft_graph/graph_router.py (46 lines) - Graph User Search Router Exposes a search endpoint that proxies Microsoft Graph /v1.0/users?$search=...
 - tools/notifications/message_hub_router.py (70 lines) - Message Hub endpoints for the topbar servers dropdown (mounted at /api/message-hub, authenticated).
-- tools/notifications/notification_router.py (94 lines) - notification router (notifications)
+- tools/notifications/notification_router.py (100 lines) - notification router (notifications)
 - tools/notifications/teams_router.py (55 lines) - Microsoft Teams: the endpoint the bot's messages arrive on, and a person's own on/off switch for them.
 - tools/shared/auth/auth_router.py (387 lines) - auth router (shared auth)
 - tools/shared/auth/oauth_router.py (224 lines) - Social Media Channels & Integrations Router Manages Organization -> Company -> Social Media Channel Connections.

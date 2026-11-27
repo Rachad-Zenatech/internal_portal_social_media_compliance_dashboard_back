@@ -29,8 +29,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 - `due_soon` (def) L95
 - `outcome_label` (def) L99
 
-## services/notifications/review_email/preferences.py (22 lines) - A person's detected email time zone, independent of Graph-managed user fields.
-- `save_timezone` (def) L15
+## services/notifications/review_email/preferences.py (37 lines) - A person's portal and email time zone, independent of Graph-managed fields.
+- `save_timezone` (def) L20
+- `get_timezone` (def) L29
 
 ## services/notifications/review_email/repository.py (92 lines) - Batch reads of current work and committed review decisions; no emails are sent here.
 - `pending_rows` (def) L82
